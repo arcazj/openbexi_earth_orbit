@@ -41,7 +41,7 @@ const ll2merc = (lat, lon, cv) => {
 export function initFootprintRenderer(scene) {
     _scene = scene;
     if (!footprintMesh3D) {
-        const geometry = new THREE.CircleGeometry(1, 128);
+        const geometry = new THREE.BufferGeometry();
         const material = new THREE.MeshBasicMaterial({
             color: 0xFFFF99,
             transparent: true,
@@ -137,23 +137,37 @@ export function updateFootprints(selectedSat, gmstRad, { showFootprint, mercator
         drawMercator(mercatorCtx, path);
     }
 
-    // Update 3D footprint mesh
-    const footprint_radius_scene = R_E_SCENE * Math.tan(lambda);
-    footprintMesh3D.scale.set(footprint_radius_scene, footprint_radius_scene, 1);
-
+    // Update 3D footprint mesh with a curved patch that conforms to Earth
     const rotY = -gmstRad;
 
-    let sub_satellite_pos_3D = ll2xyz(
+    const center3D = ll2xyz(
         THREE.MathUtils.radToDeg(center_lat_rad),
         THREE.MathUtils.radToDeg(center_lon_rad)
-    );
-    sub_satellite_pos_3D = sub_satellite_pos_3D.applyAxisAngle(
-        new THREE.Vector3(0, 1, 0), rotY
-    );
-    footprintMesh3D.position.copy(sub_satellite_pos_3D);
+    ).applyAxisAngle(new THREE.Vector3(0, 1, 0), rotY);
 
-    const surface_normal = sub_satellite_pos_3D.clone().normalize();
-    footprintMesh3D.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), surface_normal);
+    const boundaryPoints = path.map(([la, lo]) =>
+        ll2xyz(la, lo).applyAxisAngle(new THREE.Vector3(0, 1, 0), rotY)
+    );
+
+    const vertices = [];
+    vertices.push(center3D.x, center3D.y, center3D.z);
+    boundaryPoints.forEach(p => vertices.push(p.x, p.y, p.z));
+
+    const indices = [];
+    for (let i = 1; i < boundaryPoints.length; i++) {
+        indices.push(0, i, i + 1);
+    }
+    indices.push(0, boundaryPoints.length, 1);
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setIndex(indices);
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+    geometry.computeVertexNormals();
+
+    if (footprintMesh3D.geometry) footprintMesh3D.geometry.dispose();
+    footprintMesh3D.geometry = geometry;
+    footprintMesh3D.position.set(0, 0, 0);
+    footprintMesh3D.rotation.set(0, 0, 0);
 
     footprintMesh3D.visible = true;
 }
