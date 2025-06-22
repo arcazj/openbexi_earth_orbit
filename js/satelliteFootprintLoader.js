@@ -93,6 +93,10 @@ function buildEntry(sat) {
 }
 
 function parseFootprints(fp) {
+    if (!fp || (Array.isArray(fp) && fp.length === 0) ||
+        (typeof fp === 'object' && !Array.isArray(fp) && Object.keys(fp).length === 0)) {
+        return [];
+    }
     if (Array.isArray(fp.features)) {
         return fp.features.flatMap(f => geoFeatureToPolys(f));
     }
