@@ -15,7 +15,11 @@ const ll2xyz = (lat, lon) => {
     const la = THREE.MathUtils.degToRad(lat);
     const lo = THREE.MathUtils.degToRad(lon);
     const r = EARTH_RADIUS_KM * KM_TO_SCENE_UNITS;
-    return new THREE.Vector3(r * Math.cos(la) * Math.cos(lo), r * Math.sin(la), r * Math.cos(la) * Math.sin(lo));
+    const x = r * Math.cos(la) * Math.cos(lo);
+    const y = r * Math.cos(la) * Math.sin(lo);
+    const z = r * Math.sin(la);
+    // swap Y and Z to match the X-Z-Y axis convention used in the scene
+    return new THREE.Vector3(x, z, y);
 };
 
 /**
@@ -124,9 +128,18 @@ export function updateFootprints(selectedSat, gmstRad, { showFootprint, mercator
     const num_points = 128;
     for (let i = 0; i <= num_points; i++) {
         const brg = (i / num_points) * 2 * Math.PI; // bearing
-        const lat2 = Math.asin(Math.sin(center_lat_rad) * Math.cos(lambda) + Math.cos(center_lat_rad) * Math.sin(lambda) * Math.cos(brg));
-        const lon2 = center_lon_rad + Math.atan2(Math.sin(brg) * Math.sin(lambda) * Math.cos(center_lat_rad), Math.cos(lambda) - Math.sin(center_lat_rad) * Math.sin(lat2));
-        path.push([THREE.MathUtils.radToDeg(lat2), THREE.MathUtils.radToDeg(lon2)]);
+        const lat2 = Math.asin(
+            Math.sin(center_lat_rad) * Math.cos(lambda) +
+            Math.cos(center_lat_rad) * Math.sin(lambda) * Math.cos(brg)
+        );
+        let lon2 = center_lon_rad + Math.atan2(
+            Math.sin(brg) * Math.sin(lambda) * Math.cos(center_lat_rad),
+            Math.cos(lambda) - Math.sin(center_lat_rad) * Math.sin(lat2)
+        );
+        // Wrap longitude to [-180,180)
+        let lonDeg = THREE.MathUtils.radToDeg(lon2);
+        lonDeg = ((lonDeg + 540) % 360) - 180;
+        path.push([THREE.MathUtils.radToDeg(lat2), lonDeg]);
     }
 
     // --- Draw on 2D Mercator Map ---
