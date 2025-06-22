@@ -1,12 +1,12 @@
-// satelliteFootprintLoader.js – RF‑footprint renderer for 3‑D globe + Mercator
-// Final rewrite for stable, efficient, and accurate maximum coverage rendering.
+// satelliteFootprintLoader.js – Single-satellite version, safe and robust
 
 import * as THREE from 'three';
 import { KM_TO_SCENE_UNITS, EARTH_RADIUS_KM } from './SatelliteConstantLoader.js';
 
 let _scene;
-// A single, reusable mesh for the 3D footprint to improve performance and stability.
 let footprintMesh3D;
+const R_E_KM = EARTH_RADIUS_KM;
+const R_E_SCENE = R_E_KM * KM_TO_SCENE_UNITS;
 
 /**
  * Converts Latitude/Longitude in degrees to a 3D position on the globe.
@@ -18,12 +18,12 @@ const ll2xyz = (lat, lon) => {
     const x = r * Math.cos(la) * Math.cos(lo);
     const y = r * Math.cos(la) * Math.sin(lo);
     const z = r * Math.sin(la);
-    // swap Y and Z to match the X-Z-Y axis convention used in the scene
+    // swap Y and Z to match X-Z-Y axis convention
     return new THREE.Vector3(x, z, y);
 };
 
 /**
- * Converts Latitude/Longitude in degrees to 2D coordinates on the Mercator map canvas.
+ * Converts Latitude/Longitude in degrees to 2D Mercator canvas coordinates.
  */
 const ll2merc = (lat, lon, cv) => {
     const w = cv.width, h = cv.height;
@@ -31,7 +31,7 @@ const ll2merc = (lat, lon, cv) => {
     const latRad = Math.max(-85.05112878, Math.min(85.05112878, lat)) * Math.PI / 180;
     const mercN = Math.log(Math.tan(Math.PI / 4 + latRad / 2));
     const y = h / 2 - (w * mercN) / (2 * Math.PI);
-    return {x, y};
+    return { x, y };
 };
 
 /**
@@ -41,8 +41,7 @@ const ll2merc = (lat, lon, cv) => {
 export function initFootprintRenderer(scene) {
     _scene = scene;
     if (!footprintMesh3D) {
-        // Create a canonical circle geometry once. It lies on the XY plane.
-        const geometry = new THREE.CircleGeometry(1, 128); // Radius 1, 128 segments for a smooth circle
+        const geometry = new THREE.CircleGeometry(1, 128);
         const material = new THREE.MeshBasicMaterial({
             color: 0xFFFF99,
             transparent: true,
@@ -50,22 +49,22 @@ export function initFootprintRenderer(scene) {
             side: THREE.DoubleSide,
         });
         footprintMesh3D = new THREE.Mesh(geometry, material);
-        footprintMesh3D.visible = false; // Initially hidden
+        footprintMesh3D.visible = false;
         _scene.add(footprintMesh3D);
     }
 }
 
 /**
  * Draws the calculated footprint path on the Mercator map canvas.
- * @param {CanvasRenderingContext2D} ctx The Mercator map canvas context.
- * @param {Array<[number, number]>} path The footprint path to draw.
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {Array<[number, number]>} path
  */
 function drawMercator(ctx, path) {
     ctx.save();
     ctx.globalAlpha = 0.3;
     ctx.beginPath();
     path.forEach(([la, lo], i) => {
-        const {x, y} = ll2merc(la, lo, ctx.canvas);
+        const { x, y } = ll2merc(la, lo, ctx.canvas);
         if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
     });
     ctx.closePath();
@@ -85,49 +84,41 @@ function drawMercator(ctx, path) {
  */
 export function updateFootprints(selectedSat, gmstRad, { showFootprint, mercatorCtx, simDate }) {
     if (!footprintMesh3D) return;
-
-    // Always hide the 3D footprint at the start of the frame.
-    // It will be made visible again only if all calculations succeed.
-    footprintMesh3D.visible = false;
-
-    if (!showFootprint || !selectedSat || !selectedSat.satrec) {
-        return;
-    }
+    if (selectedSat === null) return;
+    if (selectedSat.satrec === undefined) return;
 
     const simDateObj = simDate || new Date();
     const pv = satellite.propagate(selectedSat.satrec, simDateObj);
-
-    // If propagation fails, exit. This will cause the footprint to disappear,
-    // which is the correct behavior if the satellite's position is unknown.
     if (!pv || !pv.position) {
+        console.warn("No footprint: propagate failed", selectedSat.satrec, simDateObj, pv);
         return;
     }
 
-    // --- Perform Calculations ---
-    const R_E_KM = EARTH_RADIUS_KM;
-    const R_E_SCENE = R_E_KM * KM_TO_SCENE_UNITS;
-
     const sat_pos_vec_km = new THREE.Vector3(pv.position.x, pv.position.y, pv.position.z);
     const d_km = sat_pos_vec_km.length();
-    const H_km = d_km - R_E_KM;
+    const H_km = d_km - EARTH_RADIUS_KM;
+    if (H_km <= 0) {
+        console.warn("No footprint: satellite below surface", d_km, H_km);
+        return;
+    }
 
-    if (H_km <= 0) return; // Satellite is below the surface
+    if (H_km <= 0) return;
 
-    // Calculate angular radius (lambda) for the maximum coverage area (view to the horizon)
+    // Calculate angular radius (lambda)
     const lambda = Math.acos(R_E_KM / d_km);
 
-    // Get sub-satellite point for positioning
+    // Get sub-satellite point
     const j = satellite.jday(simDateObj);
     const gmst = satellite.gstime(j);
     const geo = satellite.eciToGeodetic(pv.position, gmst);
     const center_lat_rad = geo.latitude;
     const center_lon_rad = geo.longitude;
 
-    // --- Generate Path for Mercator View ---
+    // Generate path for Mercator view (geodesic)
     const path = [];
     const num_points = 128;
     for (let i = 0; i <= num_points; i++) {
-        const brg = (i / num_points) * 2 * Math.PI; // bearing
+        const brg = (i / num_points) * 2 * Math.PI;
         const lat2 = Math.asin(
             Math.sin(center_lat_rad) * Math.cos(lambda) +
             Math.cos(center_lat_rad) * Math.sin(lambda) * Math.cos(brg)
@@ -136,31 +127,28 @@ export function updateFootprints(selectedSat, gmstRad, { showFootprint, mercator
             Math.sin(brg) * Math.sin(lambda) * Math.cos(center_lat_rad),
             Math.cos(lambda) - Math.sin(center_lat_rad) * Math.sin(lat2)
         );
-        // Wrap longitude to [-180,180)
         let lonDeg = THREE.MathUtils.radToDeg(lon2);
         lonDeg = ((lonDeg + 540) % 360) - 180;
         path.push([THREE.MathUtils.radToDeg(lat2), lonDeg]);
     }
 
-    // --- Draw on 2D Mercator Map ---
+    // Draw on 2D Mercator map
     if (mercatorCtx && path.length > 0) {
         drawMercator(mercatorCtx, path);
     }
 
-    // --- Update and Draw 3D Footprint ---
-    // The radius of a flat circle projected onto the tangent plane of the Earth
+    // Update 3D footprint mesh
     const footprint_radius_scene = R_E_SCENE * Math.tan(lambda);
     footprintMesh3D.scale.set(footprint_radius_scene, footprint_radius_scene, 1);
 
-    // Get the 3D position of the sub-satellite point
-    const sub_satellite_pos_3D = ll2xyz(THREE.MathUtils.radToDeg(center_lat_rad), THREE.MathUtils.radToDeg(center_lon_rad));
+    const sub_satellite_pos_3D = ll2xyz(
+        THREE.MathUtils.radToDeg(center_lat_rad),
+        THREE.MathUtils.radToDeg(center_lon_rad)
+    );
     footprintMesh3D.position.copy(sub_satellite_pos_3D);
 
-    // Orient the circle to be tangent to the Earth's surface by aligning its normal
-    // with the normal vector from the center of the Earth to the sub-satellite point.
     const surface_normal = sub_satellite_pos_3D.clone().normalize();
     footprintMesh3D.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), surface_normal);
 
-    // All calculations succeeded, so make the 3D footprint visible for this frame.
     footprintMesh3D.visible = true;
 }

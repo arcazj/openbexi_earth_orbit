@@ -983,10 +983,7 @@
 
         /*── 👣 Footprint ───────────────────────────────────────────*/
         if (simParams.showFootprint) {
-            updateFootprints(
-                detailedSatelliteModel?.userData || currentSelectedSatellite,
-                gmstNow,
-                { showFootprint: true, mercatorCtx: null }
+            updateFootprints(currentSelectedSatellite, gmstNow, { showFootprint: true, mercatorCtx: null }
             );
         }
         /*───────────────────────────────────────────────────────────*/
@@ -1020,11 +1017,7 @@
                     }
                     updateMercatorMap(simParams);
                     if (simParams.showFootprint) {
-                        updateFootprints(
-                            detailedSatelliteModel?.userData || currentSelectedSatellite,
-                            gmstNow,
-                            { showFootprint: true, mercatorCtx }
-                        );
+                        updateFootprints(currentSelectedSatellite, gmstNow, { showFootprint: true, mercatorCtx });
                     }
                 }
             } else {
