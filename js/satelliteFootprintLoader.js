@@ -141,9 +141,14 @@ export function updateFootprints(selectedSat, gmstRad, { showFootprint, mercator
     const footprint_radius_scene = R_E_SCENE * Math.tan(lambda);
     footprintMesh3D.scale.set(footprint_radius_scene, footprint_radius_scene, 1);
 
-    const sub_satellite_pos_3D = ll2xyz(
+    const rotY = -gmstRad;
+
+    let sub_satellite_pos_3D = ll2xyz(
         THREE.MathUtils.radToDeg(center_lat_rad),
         THREE.MathUtils.radToDeg(center_lon_rad)
+    );
+    sub_satellite_pos_3D = sub_satellite_pos_3D.applyAxisAngle(
+        new THREE.Vector3(0, 1, 0), rotY
     );
     footprintMesh3D.position.copy(sub_satellite_pos_3D);
 
