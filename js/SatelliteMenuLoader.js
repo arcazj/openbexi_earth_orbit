@@ -53,8 +53,10 @@ export function satelliteMenuLoader() {
     <label><input type="checkbox" id="showYPRToggle">    Yaw‑Pitch‑Roll</label>
   
     <label><input type="checkbox" id="showDayNightToggle" checked>Day/Night Shading</label>
-    <label class="checkbox-row"><input type="checkbox" id="showFootprintCheckbox"><span>Show Footprint</span>
-</label>
+    <label class="checkbox-row"><input type="checkbox" id="showFootprintCheckbox"><span>Show Footprint</span></label>
+    
+    <label><input type="checkbox" id="showOrbitToggle" checked>Show Orbit</label>
+          
   </div>
 </div>
 
@@ -73,14 +75,6 @@ export function satelliteMenuLoader() {
         <input type="range" id="rollSlider"  min="-180" max="180" step="0.1" value="0">
         <span id="rollVal">0</span>
       </label>
-    </div>
-
-    <div class="control-group">
-      <h3 data-collapsible-target="orbitExtrasContent">Orbit/Extras <span class="toggle-icon">▾</span></h3>
-      <div id="orbitExtrasContent" class="collapsible-content">
-        <input type="checkbox" id="showOrbitToggle">
-        <label for="showOrbitToggle" class="checkbox-label">Show Orbit</label>
-      </div>
     </div>
 
     <div class="control-group">

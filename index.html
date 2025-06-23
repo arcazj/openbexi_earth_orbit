@@ -55,7 +55,12 @@
         updateBusOrientation
     } from './js/satelliteModelLoader.js';
     import {addECEFAxes, update3DLabelsPosition, updateECEFAxesVisibility} from './js/EarthFrameLoader.js';
-    import {createOrbitFrame, updateOrbitFrame, setOrbitFrameVisibility} from './js/orbitFrameLoader.js';
+    import {
+        createOrbitFrame,
+        updateOrbitFrame,
+        setOrbitFrameVisibility,
+        disposeOrbitFrame
+    } from './js/orbitFrameLoader.js';
     import {KM_TO_SCENE_UNITS, EARTH_SCENE_RADIUS} from './js/SatelliteConstantLoader.js';
     import {satellites, updateOrbitTrajectory, setupTLESatellites, removeAllGeometry} from './js/satelliteTLELoader.js';
     import {createYPRFrame, updateYPRFrame, setYPRVisibility} from './js/satelliteYawPitchRollLoader.js';
@@ -331,9 +336,9 @@
 
         showOrbitToggle.addEventListener('change', (e) => {
             simParams.showOrbit = e.target.checked;
-            if (currentSelectedSatellite) { // Check if a satellite object is selected
+            if (currentSelectedSatellite && simParams.showOrbit) { // Check if a satellite object is selected
                 updateOrbitTrajectory(scene, simParams, currentSelectedSatellite); // Pass the satellite data object
-            } else if (simParams.showOrbit) {
+            } else {
                 // If showOrbit is checked but no satellite is selected, uncheck it
                 simParams.showOrbit = false;
                 e.target.checked = false;
@@ -983,11 +988,17 @@
 
         /*── 👣 Footprint ───────────────────────────────────────────*/
         if (simParams.showFootprint) {
-            updateFootprints(
-                currentSelectedSatellite,
-                gmstNow,
-                { showFootprint: true, mercatorCtx: null, simDate: simNow }
-            );
+            updateFootprints(currentSelectedSatellite, gmstNow, {
+                showFootprint: true,
+                mercatorCtx: null,
+                simDate: simNow
+            });
+        } else {
+            updateFootprints(currentSelectedSatellite, gmstNow, {
+                showFootprint: false,
+                mercatorCtx: null,
+                simDate: simNow
+            });
         }
         /*───────────────────────────────────────────────────────────*/
 
@@ -1020,11 +1031,17 @@
                     }
                     updateMercatorMap(simParams);
                     if (simParams.showFootprint) {
-                        updateFootprints(
-                            currentSelectedSatellite,
-                            gmstNow,
-                            { showFootprint: true, mercatorCtx, simDate: simNow }
-                        );
+                        updateFootprints(currentSelectedSatellite, gmstNow, {
+                            showFootprint: true,
+                            mercatorCtx,
+                            simDate: simNow
+                        });
+                    } else {
+                        updateFootprints(currentSelectedSatellite, gmstNow, {
+                            showFootprint: false,
+                            mercatorCtx,
+                            simDate: simNow
+                        });
                     }
                 }
             } else {
