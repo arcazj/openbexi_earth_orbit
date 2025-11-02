@@ -55,6 +55,9 @@ export function satelliteMenuLoader() {
     <label><input type="checkbox" id="showDayNightToggle" checked>Day/Night Shading</label>
     <label class="checkbox-row"><input type="checkbox" id="showFootprintCheckbox"><span>Show Footprint</span></label>
     
+    <label><input type="checkbox" id="showDayNightToggle" checked>Day/Night Shading</label>
+    <label class="checkbox-row"><input type="checkbox" id="showOnlySelectedSatellite"><span>Show only selected satellite</span></label>
+    
     <label><input type="checkbox" id="showOrbitToggle" checked>Show Orbit</label>
           
   </div>
