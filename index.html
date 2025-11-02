@@ -95,7 +95,8 @@
         showDayNight: false,
         simDate: new Date(),
         timeWarp: 1,
-        showFootprint: false
+        showFootprint: false,
+        showOnlySelectedSatellite: false
     };
 
     let orbitTypeFilterSelect, companyFilterSelect, satelliteCountDisplay;
@@ -291,6 +292,18 @@
         showFootprintChk.addEventListener('change', () => {
             simParams.showFootprint = showFootprintChk.checked;
         });
+
+        // After other DOM lookups:
+        const showOnlySelectedSatelliteChk = document.getElementById('showOnlySelectedSatellite');
+
+        // Initialize from simParams (optional, defaults to false)
+        if (showOnlySelectedSatelliteChk) {
+            showOnlySelectedSatelliteChk.checked = !!simParams.showOnlySelectedSatellite;
+            showOnlySelectedSatelliteChk.addEventListener('change', () => {
+                simParams.showOnlySelectedSatellite = showOnlySelectedSatelliteChk.checked;
+                updateSatelliteList(); // enforce visibility rule immediately
+            });
+        }
 
 
         // Event Listeners
@@ -713,7 +726,7 @@
             if (companyFilterSelect) {
                 const currentCompanyVal = companyFilterSelect.value;
                 companyFilterSelect.innerHTML = '<option value="ALL COMPANY">ALL COMPANY</option>';
-                if (currentCompanyVal !== "ALL COMPANY") { // Try to preserve if it was specific
+                if (currentCompanyVal !== "ALL COMPANY") {
                     const opt = document.createElement('option');
                     opt.value = currentCompanyVal;
                     opt.textContent = currentCompanyVal;
@@ -724,87 +737,115 @@
             return;
         }
 
+        // Base filtering (ignored for visibility when showOnlySelectedSatellite is true)
         const filteredTLEs = satellites.filter(s =>
             (simParams.orbitTypeFilter === "ALL" || s.orbitType === simParams.orbitTypeFilter) &&
             (simParams.companyFilter === "ALL COMPANY" || s.company === simParams.companyFilter)
         );
 
-        // Update visibility of TLE sprites
+        // ---- Sprite visibility (with "show only selected" override) ----
         satellites.forEach(s => {
-            if (s.mesh) {
-                const isVisibleInFilter = filteredTLEs.includes(s);
-                // A TLE sprite is visible if it's in the current filter AND
-                // (EITHER no detailed model is shown OR the detailed model shown is NOT this TLE sprite's satellite)
-                const isDetailedModelForThisSat = detailedSatelliteModel && detailedSatelliteModel.userData && detailedSatelliteModel.userData.noradId === s.norad_id.toString();
-                s.mesh.visible = isVisibleInFilter && !isDetailedModelForThisSat;
+            if (!s.mesh) return;
 
-                if (s.mesh.visible) { // Apply visual cues only if the sprite is visible
-                    const isActuallySelected = currentSelectedSatellite === s; // s is the TLE data object
-                    s.mesh.material.color.set(isActuallySelected ? 0xff0000 : 0xffffff); // Red if selected, white otherwise
-                    const baseScale = satelliteConfig.scale || [0.1, 0.1, 0.1];
-                    s.mesh.scale.set(...(isActuallySelected ? baseScale.map(v => v * 1.5) : baseScale));
+            // Default visibility from filters
+            const isVisibleInFilter =
+                (simParams.orbitTypeFilter === "ALL" || s.orbitType === simParams.orbitTypeFilter) &&
+                (simParams.companyFilter === "ALL COMPANY" || s.company === simParams.companyFilter);
+
+            // Hide the sprite if a detailed model for the same NORAD is currently shown
+            const isDetailedModelForThisSat =
+                detailedSatelliteModel &&
+                detailedSatelliteModel.userData &&
+                detailedSatelliteModel.userData.noradId === s.norad_id.toString();
+
+            let visible = isVisibleInFilter && !isDetailedModelForThisSat;
+
+            // OVERRIDE: show only the selected satellite (sprite) if enabled
+            if (simParams.showOnlySelectedSatellite) {
+                if (!currentSelectedSatellite) {
+                    // No selection → hide all
+                    visible = false;
+                } else {
+                    // Only the selected TLE sprite is visible (unless replaced by detailed model)
+                    visible = (s === currentSelectedSatellite) && !isDetailedModelForThisSat;
                 }
+            }
+
+            s.mesh.visible = visible;
+
+            // Visual cues only if visible
+            if (s.mesh.visible) {
+                const isActuallySelected = currentSelectedSatellite === s;
+                s.mesh.material.color.set(isActuallySelected ? 0xff0000 : 0xffffff);
+                const baseScale = satelliteConfig.scale || [0.1, 0.1, 0.1];
+                s.mesh.scale.set(...(isActuallySelected ? baseScale.map(v => v * 1.5) : baseScale));
             }
         });
 
+        // Satellite count display: reflect current mode
+        if (satelliteCountDisplay) {
+            if (simParams.showOnlySelectedSatellite) {
+                satelliteCountDisplay.textContent = currentSelectedSatellite ? '1' : '0';
+            } else {
+                satelliteCountDisplay.textContent = filteredTLEs.length.toString();
+            }
+        }
 
-        if (satelliteCountDisplay) satelliteCountDisplay.textContent = filteredTLEs.length.toString();
-
-        // Repopulate company filter based on *all* satellites, not just filtered ones, to allow broader selection
+        // ---- Repopulate company filter from ALL satellites (sorted) ----
         const uniqueCompanies = Array.from(new Set(satellites.map(s => s.company))).sort();
-        const currentCompanySelection = companyFilterSelect.value; // Preserve current selection if possible
+        const currentCompanySelection = companyFilterSelect.value;
         companyFilterSelect.innerHTML = '<option value="ALL COMPANY">ALL COMPANY</option>';
         uniqueCompanies.forEach(comp => {
-            if (comp && comp !== "N/A") { // Filter out "N/A" or empty company names if desired
+            if (comp && comp !== "N/A") {
                 const option = document.createElement('option');
                 option.value = comp;
                 option.textContent = comp;
                 companyFilterSelect.appendChild(option);
             }
         });
-        // Try to restore previous selection, or default to "ALL COMPANY"
         if (uniqueCompanies.includes(currentCompanySelection)) {
             companyFilterSelect.value = currentCompanySelection;
         } else {
-            companyFilterSelect.value = "ALL COMPANY"; // Default if previous selection is no longer valid
-            // simParams.companyFilter = "ALL COMPANY"; // Also update simParams if it changed
+            companyFilterSelect.value = "ALL COMPANY";
         }
 
-
-        // Repopulate satellite dropdown based on *filtered* TLEs
-        const currentDropdownValue = satelliteSelectDropdown.value; // Name of the satellite
+        // ---- Repopulate satellite dropdown from FILTERED TLEs ----
+        const previousDropdownValue = satelliteSelectDropdown.value;
         satelliteSelectDropdown.innerHTML = '<option value="None">None</option>';
         filteredTLEs.forEach(s => {
             const option = document.createElement('option');
-            option.value = s.satellite_name; // Value is the name
+            option.value = s.satellite_name;
             option.textContent = s.satellite_name;
             satelliteSelectDropdown.appendChild(option);
         });
 
-        // Try to restore selection in dropdown
-        if (filteredTLEs.some(s => s.satellite_name === currentDropdownValue)) {
-            satelliteSelectDropdown.value = currentDropdownValue;
+        // Restore dropdown selection if still valid under filters; else sync to "None"
+        if (filteredTLEs.some(s => s.satellite_name === previousDropdownValue)) {
+            satelliteSelectDropdown.value = previousDropdownValue;
         } else {
-            // If the previously selected satellite is no longer in the filtered list
+            // If the selected sat is not in the filtered set, keep internal selection
+            // but reflect "None" in the dropdown (matches prior behavior)
             satelliteSelectDropdown.value = "None";
-            simParams.selectedSatelliteName = "None";
             if (currentSelectedSatellite && !filteredTLEs.includes(currentSelectedSatellite)) {
-                // If the actual selected object is no longer in filter, deselect it
-                clearDetailedSatelliteView(); // Clear detailed model if it was for this sat
-                selectSatelliteSprite(null); // Deselect TLE sprite
-                currentSelectedSatellite = null;
-                updateSatelliteInfo(satelliteInfoDiv, null);
+                // If detailed model was for a sat no longer in filter, we clear model & selection
+                // unless showOnlySelectedSatellite is true (in which case we keep showing only the selected).
+                if (!simParams.showOnlySelectedSatellite) {
+                    clearDetailedSatelliteView();
+                    currentSelectedSatellite = null;
+                    updateSatelliteInfo(satelliteInfoDiv, null);
+                }
             }
         }
-        // If dropdown is "None" but a detailed model is showing, ensure consistency
-        if (satelliteSelectDropdown.value === "None" && detailedSatelliteModel) {
-            // This case should ideally be handled by the logic that sets dropdown to "None"
-            // but as a safeguard:
+
+        // If dropdown is "None" but a detailed model is showing and showOnlySelectedSatellite is off,
+        // clear detailed model to stay consistent with UI.
+        if (satelliteSelectDropdown.value === "None" && detailedSatelliteModel && !simParams.showOnlySelectedSatellite) {
             clearDetailedSatelliteView();
             currentSelectedSatellite = null;
             updateSatelliteInfo(satelliteInfoDiv, null);
         }
     }
+
 
     // Selects the TLE sprite (visual changes)
     function selectSatelliteSprite(tleSatData) {
