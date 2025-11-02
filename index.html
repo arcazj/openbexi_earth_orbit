@@ -50,7 +50,6 @@
     import {updateSatelliteInfo, satelliteMenuLoader} from './js/SatelliteMenuLoader.js';
     import {
         showSatellite,
-        buildAllBeams,
         clearCurrentDetailedSat,
         updateBusOrientation
     } from './js/satelliteModelLoader.js';
@@ -481,8 +480,12 @@
                     updatedNoradId = "O3b";
                     fileExists = true;
                 }
-                if (selectedNameInDropdown.toUpperCase().includes('IS-9')) {
-                    updatedNoradId = "IS-9";
+                if (selectedNameInDropdown.toLowerCase().includes('oneweb')) {
+                    updatedNoradId = "oneweb";
+                    fileExists = true;
+                }
+                if (selectedNameInDropdown.toLowerCase().includes('starlink')) {
+                    updatedNoradId = "starlink_V1";
                     fileExists = true;
                 }
             }
@@ -514,7 +517,6 @@
     async function loadAndDisplayDetailedSatellite(noradId, tleSatData, updatedNoradId) {
         console.log(`Attempting to load detailed model for NORAD ID: ${noradId}`);
         const newModel = await showSatellite(noradId, scene, updatedNoradId);
-        const newbeams = await buildAllBeams(noradId, currentSelectedSatellite, newModel.userData.payload.transponders);
 
         if (newModel) {
             detailedSatelliteModel = newModel; // Store the THREE.Group
@@ -548,9 +550,6 @@
             } else {
                 console.warn(`[Detailed Model] TLE data or satrec missing for NORAD ${noradId}. Model loaded at origin, cannot track orbit.`);
                 currentSelectedSatellite = null; // No TLE data to track
-            }
-            if (newbeams) {
-                scene.add(newbeams);
             }
 
             // Deselect other TLE sprites

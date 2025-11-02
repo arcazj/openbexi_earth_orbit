@@ -1,0 +1,86 @@
+{
+  "0": {
+    "name": "Starlink_V1",
+    "meta": {
+      "norad_id": "44713",
+      "smuid": "STARLINK_V1_44713",
+      "type": "platform",
+      "description": "Starlink V1.0 operational satellite providing broadband internet as part of the SpaceX low Earth orbit constellation.",
+      "scid": "STARLINK_V1",
+      "modDate": "2025-11-02T00:00:00Z",
+      "sduid": "SL-V1.0",
+      "bus": "Starlink V1 Bus",
+      "manufacturer": "SpaceX",
+      "launch_mass_kg": 260,
+      "dry_mass_kg": 210,
+      "launch_date": "2019-05-24T02:30:00Z",
+      "launch_vehicle": "Falcon 9 Block 5",
+      "inclined_orbit_operation": true,
+      "expected_lifetime_yrs": 5,
+      "orbit": {
+        "latitude": 0.0,
+        "longitude": 0.0,
+        "altitude": 550000
+      },
+      "attitude": {
+        "roll": 0,
+        "pitch": 0,
+        "yaw": 90
+      },
+      "attitudeCapability": {
+        "minRoll": -15,
+        "maxRoll": 15,
+        "minPitch": -10,
+        "maxPitch": 10,
+        "canFlyInverted": false
+      },
+      "orbital_slot": {
+        "nominal": "LEO 550 km, 53° inclination",
+        "operational_history": [
+          "Initial shell 53° inclination; launched from Cape Canaveral, May 2019"
+        ]
+      }
+    },
+    "payload": {
+      "transponders": {
+        "Ku": {
+          "num_36MHz_eq": 16,
+          "beam_classes": {
+            "user_downlink": {
+              "beam_peak_eirp_dBW": 56,
+              "edge_eirp_dBW": 49,
+              "beam_peak_G_T_dBK": 17,
+              "contours": []
+            }
+          }
+        },
+        "Ka": {
+          "num_36MHz_eq": 8,
+          "beam_classes": {
+            "gateway_uplink": {
+              "beam_peak_eirp_dBW": 60,
+              "edge_eirp_dBW": 52,
+              "beam_peak_G_T_dBK": 19,
+              "contours": []
+            }
+          }
+        }
+      },
+      "bandwidth_MHz": [500],
+      "polarization": {
+        "Ku": "dual-linear",
+        "Ka": "dual-circular"
+      },
+      "frequency_bands_ghz": {
+        "Ku": {
+          "downlink": [10.7, 12.7],
+          "uplink": [14.0, 14.5]
+        },
+        "Ka": {
+          "downlink": [17.8, 18.6],
+          "uplink": [27.5, 30.0]
+        }
+      }
+    }
+  }
+}

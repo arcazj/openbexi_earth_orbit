@@ -2,6 +2,7 @@
   "0": {
     "name": "<platformName>",
     "meta": {
+      "norad_id": "<norad_id>",
       "smuid": "<platformSmuid>",
       "type": "platform",
       "description": "<platformDescription>",
@@ -32,19 +33,6 @@
         "minPitch": -4,
         "maxPitch": 4,
         "canFlyInverted": true
-      },
-      "footprints": {
-        "type": "FeatureCollection",
-        "features": [{
-          "type": "Feature",
-          "properties": { "beamId": 0 },
-          "geometry": {
-            "type": "Polygon",
-            "coordinates": [[
-              [-60,10], [-50,15], [-45,5], [-60,10]
-            ]]
-          }
-        }]
       },
       "orbital_slot": {
         "nominal": "<orbitType>",
@@ -79,57 +67,6 @@
           "uplink": [0.0, 0.0]
         }
       }
-    },
-    "geometry": {
-      "bus": {
-        "width_m": 2.2,
-        "height_m": 3.0,
-        "depth_m": 2.0
-      },
-      "solar_panels": [
-        {
-          "name": "<panelName>",
-          "width_m": 2.0,
-          "length_m": 7.0,
-          "position_m": [0.0, 0.0, 5.0],
-          "orientation": "east"
-        },
-        {
-          "name": "Port Solar Array",
-          "width_m": 2.0,
-          "length_m": 7.0,
-          "position_m": [0.0, 0.0, -5.0],
-          "orientation": "west"
-        }
-      ],
-      "antennas": [
-        {
-          "name": "<antennaName>",
-          "type": "<antennaType>",
-          "band": "<band>",
-          "radius_m": 0.0,
-          "depth_m": 0.0,
-          "orientation": "<orientation>",
-          "tilt_deg": 0,
-          "position_m": [0.0, 0.0, 0.0],
-          "beam_classes_ref": ["<beamClass>"]
-        }
-      ],
-      "thrusters": [
-        {
-          "name": "Main Engine",
-          "type": "cone",
-          "radius_top_m": 0.2,
-          "radius_bottom_m": 0.5,
-          "height_m": 1.0,
-          "orientation": "down",
-          "position_m": [
-            0.0,
-            -2,
-            0.0
-          ]
-        }
-      ]
     }
   }
 }

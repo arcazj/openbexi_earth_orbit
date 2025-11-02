@@ -1,0 +1,43 @@
+# OneWeb Satellite materials
+newmtl mat_bus
+Ns 96.078431
+Ka 0.8 0.8 0.8
+Kd 0.75 0.75 0.75
+Ks 0.04 0.04 0.04
+d 1.0
+illum 2
+map_Kd Textures/oneweb_bus_texture.png
+
+newmtl mat_solar
+Ns 96.078431
+Ka 0.2 0.2 0.2
+Kd 0.1 0.1 0.3
+Ks 0.02 0.02 0.02
+d 1.0
+illum 2
+map_Kd Textures/oneweb_solar_texture.png
+
+newmtl mat_antenna
+Ns 30
+Ka 0.9 0.9 0.9
+Kd 0.92 0.92 0.92
+Ks 0.1 0.1 0.1
+d 1.0
+illum 2
+map_Kd Textures/oneweb_antenna_texture.png
+
+newmtl mat_thruster
+Ns 10
+Ka 0.2 0.2 0.2
+Kd 0.33 0.33 0.33
+Ks 0.05 0.05 0.05
+d 1.0
+illum 2
+
+newmtl mat_sensor
+Ns 10
+Ka 0.05 0.05 0.05
+Kd 0.1 0.1 0.1
+Ks 0.02 0.02 0.02
+d 1.0
+illum 2
