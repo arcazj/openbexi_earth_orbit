@@ -133,40 +133,62 @@ export function updateMercatorMap(simParams) {
 
     mercatorCtx.clearRect(0, 0, mercatorCanvasElement.width, mercatorCanvasElement.height);
 
-    /*── Day‑night band ──*/
+    /*── Day-night band ──*/
     if (simParams.showDayNight) {
         drawDayNightMercator(mercatorCtx, w, h, simParams.simDate);
     }
 
-    /*── Ground‑track ──*/
+    /*── Selected satellite (used for ground-track and single-draw mode) ──*/
     const selectedSat = satellites.find(s => s.isSelected);
+
+    /*── Ground-track for selected only ──*/
     if (simParams.showOrbit && selectedSat) {
         rebuildGroundTrack(selectedSat, simParams.simDate);
         drawGroundTrack(mercatorCtx);
     }
 
-    /*── Satellite icons & labels ──*/
+    /*── Time context ──*/
     const now = new Date(simParams.simDate);
-    const jNow = satellite.jday(now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate(), now.getUTCHours(), now.getUTCMinutes(), now.getUTCSeconds());
+    const jNow = satellite.jday(
+        now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate(),
+        now.getUTCHours(), now.getUTCMinutes(), now.getUTCSeconds()
+    );
     const gmstNow = satellite.gstime(jNow);
 
+    /*── Decide which satellites to draw on the Mercator map ──
+      - If "Show only selected" is ON and a satellite is selected: draw that one
+        regardless of its 3-D sprite visibility.
+      - Otherwise: draw all satellites whose 3-D sprite is currently visible (existing behavior).
+    */
+    let satsToRender;
+    if (simParams.showOnlySelectedSatellite && selectedSat) {
+        satsToRender = [selectedSat];
+    } else {
+        satsToRender = satellites.filter(s => s.mesh?.visible && s.satrec);
+    }
+
     let labelRects = [];
-    const satDrawData = satellites
-        .filter(s => s.mesh?.visible && s.satrec)
+    const satDrawData = satsToRender
         .map(s => {
-            const pv = satellite.propagate(s.satrec, now);
-            if (!pv.position) return null;
-            const geo = satellite.eciToGeodetic(pv.position, gmstNow);
-            const pt = latLonToMercator(geo.latitude * R2D, geo.longitude * R2D);
-            return {sat: s, pt};
+            try {
+                if (!s.satrec) return null;
+                const pv = satellite.propagate(s.satrec, now);
+                if (!pv?.position) return null;
+                const geo = satellite.eciToGeodetic(pv.position, gmstNow);
+                const pt = latLonToMercator(geo.latitude * R2D, geo.longitude * R2D);
+                return { sat: s, pt };
+            } catch {
+                return null;
+            }
         })
         .filter(Boolean)
+        // Draw from south to north to help label placement overlap avoidance
         .sort((a, b) => a.pt.y - b.pt.y);
 
-    satDrawData.forEach(({sat, pt}) => {
+    satDrawData.forEach(({ sat, pt }) => {
         const iconSize = 12;
         const leaderLen = 15;
-        const pad = {x: 5, y: 3};
+        const pad = { x: 5, y: 3 };
         const name = sat.satellite_name;
 
         // Icon
@@ -179,21 +201,29 @@ export function updateMercatorMap(simParams) {
             mercatorCtx.fill();
         }
 
-        // Label placement (8‑direction)
+        // Label placement (8-direction)
         mercatorCtx.font = sat.isSelected ? 'bold 11px Arial' : '10px Arial';
         const txtW = mercatorCtx.measureText(name).width + 2 * pad.x;
         const txtH = 12 + 2 * pad.y;
-        const angles = [-Math.PI / 4, -Math.PI / 2, -3 * Math.PI / 4, Math.PI, 3 * Math.PI / 4, Math.PI / 2, Math.PI / 4, 0];
+        const angles = [
+            -Math.PI / 4, -Math.PI / 2, -3 * Math.PI / 4,
+            Math.PI,      3 * Math.PI / 4,  Math.PI / 2,
+            Math.PI / 4,  0
+        ];
+
         let best = null;
         for (const a of angles) {
             const endX = pt.x + (iconSize / 2 + leaderLen) * Math.cos(a);
             const endY = pt.y + (iconSize / 2 + leaderLen) * Math.sin(a);
             const tx = endX + (Math.cos(a) >= 0 || Math.abs(Math.cos(a)) < 0.1 ? pad.x : -txtW + pad.x);
             const ty = endY - txtH / 2;
-            const rect = {x: tx - pad.x, y: ty - pad.y, w: txtW, h: txtH};
-            const overlap = labelRects.some(r => rect.x < r.x + r.w && rect.x + rect.w > r.x && rect.y < r.y + r.h && rect.y + rect.h > r.y);
+            const rect = { x: tx - pad.x, y: ty - pad.y, w: txtW, h: txtH };
+            const overlap = labelRects.some(r =>
+                rect.x < r.x + r.w && rect.x + rect.w > r.x &&
+                rect.y < r.y + r.h && rect.y + rect.h > r.y
+            );
             if (!overlap) {
-                best = {endX, endY, tx, ty, rect};
+                best = { endX, endY, tx, ty, rect };
                 break;
             }
         }
@@ -206,8 +236,10 @@ export function updateMercatorMap(simParams) {
             mercatorCtx.strokeStyle = 'rgba(200,200,200,0.7)';
             mercatorCtx.lineWidth = 1;
             mercatorCtx.stroke();
+
             mercatorCtx.fillStyle = 'rgba(0,0,0,0.6)';
             mercatorCtx.fillRect(best.rect.x, best.rect.y, best.rect.w, best.rect.h);
+
             mercatorCtx.fillStyle = sat.isSelected ? '#ff8080' : '#00ddff';
             mercatorCtx.textAlign = 'left';
             mercatorCtx.textBaseline = 'middle';

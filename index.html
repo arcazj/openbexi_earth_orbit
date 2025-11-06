@@ -66,7 +66,7 @@
     import {initFootprintRenderer, updateFootprints} from './js/satelliteFootprintLoader.js';
 
     // Load menu
-    const versionNumber = "1.0m";
+    const versionNumber = "1.0n";
     const versionRepoUrl = "https://github.com/arcazj/openbexi_earth_orbit";
     const versionText = `version ${versionNumber} - hosted at`;
     document.getElementById('ob_menu').innerHTML = satelliteMenuLoader();
@@ -425,107 +425,113 @@
     }
 
     async function handleSatelliteDropdownChange(event) {
-        const selectedNameInDropdown = event.target.value; // This is satellite_name or "None"
+        const selectedNameInDropdown = event.target.value; // "None" or satellite_name
         simParams.selectedSatelliteName = selectedNameInDropdown;
 
-        // If a detailed model was previously shown, ensure its corresponding TLE sprite is made visible again.
+        // If a detailed model was previously shown, make its TLE sprite visible again
         if (detailedSatelliteModel && detailedSatelliteModel.userData && detailedSatelliteModel.userData.noradId) {
             const prevTleSat = satellites.find(s => s.norad_id.toString() === detailedSatelliteModel.userData.noradId.toString());
             if (prevTleSat && prevTleSat.mesh) {
-                prevTleSat.mesh.visible = true; // Make TLE sprite visible
+                prevTleSat.mesh.visible = true;
                 prevTleSat.isSelected = false;
-                // Reset visual cues for the TLE sprite if any were changed
                 prevTleSat.mesh.material.color.set(0xffffff);
                 prevTleSat.mesh.scale.set(...(satelliteConfig.scale || [0.1, 0.1, 0.1]));
             }
         }
 
-        clearDetailedSatelliteView(); // Clears current detailed model from scene
-        removeAllGeometry(scene); // Clears orbit lines
+        clearDetailedSatelliteView();   // remove old detailed model if any
+        removeAllGeometry(scene);       // clear orbit lines, etc.
 
+        // Handle "None" selection
         if (selectedNameInDropdown === "None") {
-            currentSelectedSatellite = null; // No TLE data object selected
-            updateSatelliteInfo(satelliteInfoDiv, null);
-            resetCameraToDefault();
-            // Ensure all TLE sprites are reset visually if needed (updateSatelliteList handles this based on currentSelectedSatellite)
-            updateSatelliteList(); // This will ensure correct visual state for sprites
-            return;
-        }
-
-        // Find the satellite data object from the `satellites` array by its name
-        const tleSatData = satellites.find(s => s.satellite_name === selectedNameInDropdown && s.mesh && s.mesh.visible);
-
-        if (!tleSatData) {
-            console.warn(`Satellite named "${selectedNameInDropdown}" not found or not visible in current filter.`);
             currentSelectedSatellite = null;
             updateSatelliteInfo(satelliteInfoDiv, null);
-            // Potentially reset dropdown to "None" if the selected satellite is no longer valid
-            if (satelliteSelectDropdown) satelliteSelectDropdown.value = "None";
-            simParams.selectedSatelliteName = "None";
+            resetCameraToDefault();
+
+            // If we are in "show only selected" mode, hide all sprites
+            if (simParams.showOnlySelectedSatellite) {
+                satellites.forEach(s => { if (s.mesh) s.mesh.visible = false; });
+                if (satelliteCountDisplay) satelliteCountDisplay.textContent = '0';
+            } else {
+                updateSatelliteList();
+            }
             return;
         }
 
-        currentSelectedSatellite = tleSatData; // Store the actual satellite data object
+        // IMPORTANT FIX: Do NOT require s.mesh.visible here.
+        // We want to be able to select a satellite even if it is currently hidden
+        // because "Show only selected" is enabled.
+        const tleSatData = satellites.find(s => s.satellite_name === selectedNameInDropdown);
+
+        if (!tleSatData) {
+            console.warn(`Satellite named "${selectedNameInDropdown}" not found in catalog.`);
+            currentSelectedSatellite = null;
+            updateSatelliteInfo(satelliteInfoDiv, null);
+            // Keep dropdown consistent
+            if (satelliteSelectDropdown) satelliteSelectDropdown.value = "None";
+            simParams.selectedSatelliteName = "None";
+            updateSatelliteList();
+            return;
+        }
+
+        // Make the new selection current before we update visibility
+        currentSelectedSatellite = tleSatData;
         updateSatelliteInfo(satelliteInfoDiv, tleSatData);
+
+        // If "show only selected" is ON: hide all others, reveal (only) the selected sprite
+        if (simParams.showOnlySelectedSatellite) {
+            satellites.forEach(s => {
+                if (!s.mesh) return;
+                s.mesh.visible = (s === tleSatData); // only selected visible (its sprite)
+            });
+        }
+
+        // With a new selection, (re)draw orbit if toggled
         if (simParams.showOrbit) {
             updateOrbitTrajectory(scene, simParams, tleSatData);
         }
 
-        // Attempt to load the detailed model
+        // Try to load the detailed model for the new selection
         let fileUrl = (usingLocalAssets ? "json/satellites/" : SATELLITES_BASE_URL) + `${tleSatData.norad_id}.json`;
-
         let fileExists = await checkFileExists(fileUrl);
-        if (!fileExists && !usingLocalAssets) { // If GitHub primary fails, try GitHub backup structure if one existed
+
+        if (!fileExists && !usingLocalAssets) {
             console.warn(`Primary model file ${fileUrl} not found.`);
         }
 
-
         let updatedNoradId = tleSatData.norad_id;
-        if (!fileExists && usingLocalAssets) { // If primary (which is local if usingLocalAssets) fails
+        if (!fileExists && usingLocalAssets) {
             console.warn(`Local model file ${fileUrl} not found.`);
-            // No other place to check if already local
-        } else if (!fileExists && !usingLocalAssets) { // If primary GitHub failed, now try local path as a general fallback
+        } else if (!fileExists && !usingLocalAssets) {
             console.warn(`GitHub model file ${fileUrl} not found, attempting local fallback.`);
-            fileUrl = "json/satellites/" + `${tleSatData.norad_id}.json`; // Standard local path
+            fileUrl = "json/satellites/" + `${tleSatData.norad_id}.json`;
             fileExists = await checkFileExists(fileUrl);
             if (!fileExists) {
-                if (selectedNameInDropdown.toLowerCase().includes('3b')) {
-                    updatedNoradId = "O3b";
-                    fileExists = true;
-                }
-                if (selectedNameInDropdown.toLowerCase().includes('oneweb')) {
-                    updatedNoradId = "oneweb";
-                    fileExists = true;
-                }
-                if (selectedNameInDropdown.toLowerCase().includes('starlink')) {
-                    updatedNoradId = "starlink_V1";
-                    fileExists = true;
-                }
+                const nameLower = selectedNameInDropdown.toLowerCase();
+                if (nameLower.includes('3b'))       { updatedNoradId = "O3b";        fileExists = true; }
+                if (nameLower.includes('oneweb'))   { updatedNoradId = "oneweb";     fileExists = true; }
+                if (nameLower.includes('starlink')) { updatedNoradId = "starlink_V1"; fileExists = true; }
             }
         }
 
-
         if (fileExists) {
             await loadAndDisplayDetailedSatellite(tleSatData.norad_id, tleSatData, updatedNoradId);
+            // In "show only selected" mode, the detailed model replaces the sprite;
+            // update list to ensure only that sat (model) remains visible.
+            if (simParams.showOnlySelectedSatellite) updateSatelliteList();
         } else {
-            // If no specific model, try loading a generic/default model (e.g., noradId "0" or "default")
-            console.warn(`Satellite data file for NORAD ${tleSatData.norad_id} not found at any checked location. Attempting to load default model.`);
-            // Before loading default, ensure the selected TLE sprite is correctly highlighted
-            selectSatelliteSprite(tleSatData); // Visually select the TLE sprite
-            flyCameraToSatellite(tleSatData.mesh, 1000, true); // Fly to the TLE sprite
-
-            // Optionally, try to load a "default.json" or "0.json" if you have one
-            // For now, we just log and don't load a detailed model if specific one not found.
-            // await loadAndDisplayDetailedSatellite("0", null); // Pass null for tleData if it's a generic model
+            // No detailed model → highlight the TLE sprite and fly camera to it
+            selectSatelliteSprite(tleSatData);
+            if (tleSatData.mesh) flyCameraToSatellite(tleSatData.mesh, 1000, true);
+            // Ensure visibility mode is enforced post-selection
+            updateSatelliteList();
         }
 
-        if (selectedNameInDropdown === "None") {
-            yprControls.style.display = 'none';
-        } else {
-            yprControls.style.display = 'block';
-        }
-
+        // Show YPR controls when a satellite is selected
+        const yprControls = document.getElementById('yprControls');
+        if (yprControls) yprControls.style.display = 'block';
     }
+
 
     async function loadAndDisplayDetailedSatellite(noradId, tleSatData, updatedNoradId) {
         console.log(`Attempting to load detailed model for NORAD ID: ${noradId}`);
@@ -1069,7 +1075,21 @@
                         mercatorCanvasElement.width = w;
                         mercatorCanvasElement.height = h;
                     }
-                    updateMercatorMap(simParams);
+
+                    // ⬇⬇ NEW: decide which satellites to draw in 2-D
+                    // If "show only selected" and we have one, draw that one regardless of sprite visibility.
+                    // Otherwise, draw all satellites that are currently visible (as before).
+                    const satsToDraw = (simParams.showOnlySelectedSatellite && currentSelectedSatellite)
+                        ? [currentSelectedSatellite]
+                        : satellites.filter(s => s.mesh?.visible);
+
+                    // ⬇⬇ UPDATED: pass sats + time context to the Mercator renderer
+                    updateMercatorMap(simParams, {
+                        sats: satsToDraw,
+                        gmstNow,
+                        simDate: simNow
+                    });
+
                     if (simParams.showFootprint) {
                         updateFootprints(currentSelectedSatellite, gmstNow, {
                             showFootprint: true,
