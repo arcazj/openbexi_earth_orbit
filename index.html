@@ -28,7 +28,8 @@
 <script type="module">
     let usingLocalAssets;
     import * as THREE from 'three';
-    import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
     import {
         mercatorCanvasElement,
         mapBackgroundDiv,
@@ -36,9 +37,12 @@
         mapHeight,
         mapWidth,
         mercatorCtx,
-        initMercatorView, updateMercatorMap
+        initMercatorView,
+        updateMercatorMap
     } from './js/mercatorMapLoader.js';
-    import {drawDayNight3D} from './js/drawDayNight.js';
+
+    import { drawDayNight3D } from './js/drawDayNight.js';
+
     import {
         SATELLITES_BASE_URL,
         satelliteConfig,
@@ -47,41 +51,75 @@
         controlsConfig,
         checkFileExists
     } from './js/SatelliteConfigurationLoader.js';
-    import {updateSatelliteInfo, satelliteMenuLoader} from './js/SatelliteMenuLoader.js';
+
+    import { updateSatelliteInfo, satelliteMenuLoader } from './js/SatelliteMenuLoader.js';
+
     import {
         showSatellite,
         clearCurrentDetailedSat,
         updateBusOrientation
     } from './js/satelliteModelLoader.js';
-    import {addECEFAxes, update3DLabelsPosition, updateECEFAxesVisibility} from './js/EarthFrameLoader.js';
+
+    import { addECEFAxes, update3DLabelsPosition, updateECEFAxesVisibility } from './js/EarthFrameLoader.js';
+
     import {
         createOrbitFrame,
         updateOrbitFrame,
         setOrbitFrameVisibility,
         disposeOrbitFrame
     } from './js/orbitFrameLoader.js';
-    import {KM_TO_SCENE_UNITS, EARTH_SCENE_RADIUS} from './js/SatelliteConstantLoader.js';
-    import {satellites, updateOrbitTrajectory, setupTLESatellites, removeAllGeometry} from './js/satelliteTLELoader.js';
-    import {createYPRFrame, updateYPRFrame, setYPRVisibility} from './js/satelliteYawPitchRollLoader.js';
-    import {initFootprintRenderer, updateFootprints} from './js/satelliteFootprintLoader.js';
 
-    // Load menu
-    const versionNumber = "1.0n";
+    import { KM_TO_SCENE_UNITS, EARTH_SCENE_RADIUS } from './js/SatelliteConstantLoader.js';
+    import { satellites, updateOrbitTrajectory, setupTLESatellites, removeAllGeometry } from './js/satelliteTLELoader.js';
+
+    import { createYPRFrame, updateYPRFrame, setYPRVisibility } from './js/satelliteYawPitchRollLoader.js';
+
+    import { initFootprintRenderer, updateFootprints } from './js/satelliteFootprintLoader.js';
+
+    import { createMoon, updateMoon } from './js/MoonFrameLoader.js';
+
+    // UI
+    const versionNumber = "1.0o";
     const versionRepoUrl = "https://github.com/arcazj/openbexi_earth_orbit";
     const versionText = `version ${versionNumber} - hosted at`;
     document.getElementById('ob_menu').innerHTML = satelliteMenuLoader();
 
+    // ─────────────────────────────────────────────────────────────
+    // Perf constants and reusable scratch objects
+    // ─────────────────────────────────────────────────────────────
+    const V_TMP1 = new THREE.Vector3();
+    const V_TMP2 = new THREE.Vector3();
+    const V_TMP3 = new THREE.Vector3();
+    const AXIS_Y = new THREE.Vector3(0, 1, 0);
+
+    // Simulation time (reuse Date to avoid GC)
+    let simMillis = Date.now();
+    const SIM_DATE = new Date();
+
+    // Throttles
+    let lastClockUpdate = 0;      // ms
+    let lastMercatorRedraw = 0;   // ms
+
+    // Helper: write ECEF→scene into "out"
+    function ecefToScene(out, x, y, z, rotY) {
+        // Swap Y↔Z for scene, rotate around Y, scale to scene units
+        return out.set(x, z, y)
+            .applyAxisAngle(AXIS_Y, rotY)
+            .multiplyScalar(KM_TO_SCENE_UNITS);
+    }
+
+    let moon;
     let scene, camera, renderer, earthMesh, controls;
-    let orbitFrame = null
-    let currentSelectedSatellite = null; // This will store the TLE data object for the selected satellite
+    let orbitFrame = null;
+    let currentSelectedSatellite = null;
     let textureLoader;
-    let detailedSatelliteModel = null; // This will store the THREE.Group from satelliteModelLoader
+    let detailedSatelliteModel = null;
     let yprFrame;
 
     const simParams = {
         orbitTypeFilter: "MEO",
         companyFilter: "ALL COMPANY",
-        selectedSatelliteName: "None", // Stores the name/ID from the dropdown
+        selectedSatelliteName: "None",
         showOrbit: false,
         view3D: true,
         viewMercator: false,
@@ -96,7 +134,8 @@
         simDate: new Date(),
         timeWarp: 1,
         showFootprint: false,
-        showOnlySelectedSatellite: false
+        showOnlySelectedSatellite: false,
+        otherSelection: 'Earth'
     };
 
     let orbitTypeFilterSelect, companyFilterSelect, satelliteCountDisplay;
@@ -106,8 +145,11 @@
     let controlsContainerElement, menuToggleBtnElement, versionDisplayElement;
     let labelXecrDiv, labelYecrDiv, labelZecrDiv, labelNorthPoleDiv, labelEquatorLineDiv, labelGreenwichMeridianDiv;
 
+    // Time-warp UI
     simParams.timeWarp = 1 / 60;
     simParams.simDate = new Date();
+    simMillis = simParams.simDate.getTime();
+
     const twHTML = `
   <div id="timeWarpBox"
        style="position:fixed;bottom:5px;left:50%;transform:translateX(-50%);
@@ -120,39 +162,28 @@
     const timeWarpSlider = document.getElementById('timeWarpSlider');
     const timeWarpVal = document.getElementById('timeWarpVal');
 
-    function isMobileDevice() {
-        return /Android|iPhone|iPad|iPod|BlackBerry|Windows Phone/i.test(navigator.userAgent || navigator.vendor || window.opera);
-    }
-
     function updateEarthTexture() {
-        if (!earthMesh || !textureLoader || !earthConfig) {
-            console.warn("updateEarthTexture: Missing critical components.");
-            return;
-        }
+        if (!earthMesh || !textureLoader || !earthConfig) return;
 
         const textureToLoad = simParams.useHighDefTexture ? earthConfig.texture : earthConfig.textureLight;
-
         if (!textureToLoad) {
-            console.error("Earth Texture URL is null. Check config paths and getFullGitHubUrl logic.");
-            // Apply a very basic material if texture path is null
-            earthMesh.material.map = null; // Remove any existing map
-            earthMesh.material.color.set(0x1a237e); // A solid blue color
+            earthMesh.material.map = null;
+            earthMesh.material.color.set(0x1a237e);
             earthMesh.material.needsUpdate = true;
             return;
         }
-        console.log("Attempting to load Earth texture:", textureToLoad);
 
-        textureLoader.load(textureToLoad,
+        textureLoader.load(
+            textureToLoad,
             (texture) => {
+                // Reasonable defaults for globe (keep mipmaps for quality)
+                texture.anisotropy = renderer.capabilities.getMaxAnisotropy?.() || 1;
                 earthMesh.material.map = texture;
-                earthMesh.material.color.set(0xffffff); // Reset color if texture loads
+                earthMesh.material.color.set(0xffffff);
                 earthMesh.material.needsUpdate = true;
-                console.log("Earth texture successfully updated to:", textureToLoad);
             },
-            undefined, // onProgress callback (optional)
-            (err) => {
-                //console.error('Error loading Earth texture from:', textureToLoad, err, '. Using placeholder.');
-                // Fallback to a placeholder image from placehold.co
+            undefined,
+            () => {
                 const placeholderUrl = `https://placehold.co/${simParams.useHighDefTexture ? '4096x2048' : '1024x512'}/1c313a/ffffff?text=Earth+Texture+Load+Error`;
                 textureLoader.load(placeholderUrl, (fallbackMap) => {
                     earthMesh.material.map = fallbackMap;
@@ -163,7 +194,7 @@
     }
 
     function init3D() {
-        /* ───────── Scene, Camera, Renderer ───────── */
+        /* Scene, Camera, Renderer */
         scene = new THREE.Scene();
 
         camera = new THREE.PerspectiveCamera(
@@ -174,29 +205,32 @@
         );
         camera.position.set(...sceneConfig.camera.position);
 
-        renderer = new THREE.WebGLRenderer({antialias: true});
+        renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.shadowMap.enabled = true;        // allow Sun-light shadows (drawDayNight3D)
+        // Keep global shadows on; Sun light in drawDayNight3D has shadows disabled by default
+        renderer.shadowMap.enabled = true;
         document.body.appendChild(renderer.domElement);
 
-        /* expose for other modules (orbitFrame labels need them) */
+        // expose
         window.renderer = renderer;
         window.camera = camera;
 
-        /* ───────── Lighting ───────── */
-        scene.add(new THREE.AmbientLight(0xffffff, 0.15)); // was 0.6 or similar
+        /* Lighting */
+        scene.add(new THREE.AmbientLight(0xffffff, 0.15));
 
         const dirLight = new THREE.DirectionalLight(
             sceneConfig.directionalLight.color,
             sceneConfig.directionalLight.intensity
         );
         dirLight.position.set(...sceneConfig.directionalLight.position);
+        // Keep shadows off on helper light to save perf
+        dirLight.castShadow = false;
         scene.add(dirLight);
 
-        /* ───────── Earth mesh ───────── */
+        /* Earth */
         textureLoader = new THREE.TextureLoader();
-        const earthMat = new THREE.MeshPhongMaterial({color: 0xffffff}); // texture applied later
+        const earthMat = new THREE.MeshPhongMaterial({ color: 0xffffff });
         earthMesh = new THREE.Mesh(
             new THREE.SphereGeometry(EARTH_SCENE_RADIUS, 64, 64),
             earthMat
@@ -205,20 +239,25 @@
         scene.add(earthMesh);
         updateEarthTexture();
 
-        /* ───────── ECEF Axes (green) ───────── */
+        /* ECEF Axes */
         addECEFAxes(scene);
         updateECEFAxesVisibility(simParams);
 
-        /* ───────── LVLH Orbit-Frame ───────── */
-        orbitFrame = createOrbitFrame(scene);          // default 10 000 km length
-        setOrbitFrameVisibility(orbitFrame, false);    // hidden until toggled
+        /* LVLH */
+        orbitFrame = createOrbitFrame(scene);
+        setOrbitFrameVisibility(orbitFrame, false);
 
-        /* ───────── OrbitControls ───────── */
+        /* Moon (always visible) */
+        moon = createMoon(scene, EARTH_SCENE_RADIUS, {
+            textureUrl: 'textures/moon_map2.jpg'
+        });
+
+        /* Controls */
         controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = controlsConfig.enableDamping;
         controls.dampingFactor = controlsConfig.dampingFactor;
-        controls.minDistance = EARTH_SCENE_RADIUS * 1.4;   // prevent inside-Earth zoom
-        controls.maxDistance = EARTH_SCENE_RADIUS * 20;    // generous zoom-out
+        controls.minDistance = EARTH_SCENE_RADIUS * 1.4;
+        controls.maxDistance = EARTH_SCENE_RADIUS * 20;
         controls.enableZoom = true;
     }
 
@@ -231,11 +270,10 @@
             const versionLink = document.createElement('a');
             versionLink.href = versionRepoUrl;
             versionLink.textContent = `GitHub Repo`;
-            versionLink.target = "_blank"; // Open in new tab
+            versionLink.target = "_blank";
             versionDisplayElement.textContent = `${versionText} `;
             versionDisplayElement.appendChild(versionLink);
         }
-
 
         orbitTypeFilterSelect = document.getElementById('orbitTypeFilter');
         companyFilterSelect = document.getElementById('companyFilter');
@@ -251,7 +289,7 @@
         satelliteSelectDropdown = document.getElementById('satelliteSelect');
         satelliteInfoDiv = document.getElementById('satelliteInfo');
 
-        // Axis labels
+        // Labels
         labelXecrDiv = document.getElementById('labelXecr');
         labelYecrDiv = document.getElementById('labelYecr');
         labelZecrDiv = document.getElementById('labelZecr');
@@ -259,7 +297,7 @@
         labelEquatorLineDiv = document.getElementById('labelEquatorLine');
         labelGreenwichMeridianDiv = document.getElementById('labelGreenwichMeridian');
 
-        // Pitch-Roll-Yaw
+        // YPR sliders
         const yprControls = document.getElementById('yprControls');
         const yawSlider = document.getElementById('yawSlider');
         const pitchSlider = document.getElementById('pitchSlider');
@@ -268,8 +306,6 @@
         const pitchVal = document.getElementById('pitchVal');
         const rollVal = document.getElementById('rollVal');
 
-
-        // Set initial values from simParams
         orbitTypeFilterSelect.value = simParams.orbitTypeFilter;
         view3DToggle.checked = simParams.view3D;
         viewMercatorToggle.checked = simParams.viewMercator;
@@ -278,14 +314,15 @@
         if (showOrbitFrameToggleElement) showOrbitFrameToggleElement.checked = simParams.showOrbitFrame;
         showOrbitToggle.checked = simParams.showOrbit;
 
-        // Time‑warp slider (×1–60 minutes)
+        // Time-warp slider
         timeWarpSlider.addEventListener('input', e => {
             simParams.timeWarp = parseInt(e.target.value, 10);
             if (simParams.timeWarp < 1) {
                 timeWarpVal.textContent = `0`;
                 simParams.timeWarp = 1 / 60;
-            } else
+            } else {
                 timeWarpVal.textContent = `${simParams.timeWarp}`;
+            }
         });
 
         const showFootprintChk = document.getElementById('showFootprintCheckbox');
@@ -293,31 +330,26 @@
             simParams.showFootprint = showFootprintChk.checked;
         });
 
-        // After other DOM lookups:
         const showOnlySelectedSatelliteChk = document.getElementById('showOnlySelectedSatellite');
-
-        // Initialize from simParams (optional, defaults to false)
         if (showOnlySelectedSatelliteChk) {
             showOnlySelectedSatelliteChk.checked = !!simParams.showOnlySelectedSatellite;
             showOnlySelectedSatelliteChk.addEventListener('change', () => {
                 simParams.showOnlySelectedSatellite = showOnlySelectedSatelliteChk.checked;
-                updateSatelliteList(); // enforce visibility rule immediately
+                updateSatelliteList();
             });
         }
 
-
-        // Event Listeners
         orbitTypeFilterSelect.addEventListener('change', (e) => {
             simParams.orbitTypeFilter = e.target.value;
-            simParams.showOrbit = false; // Reset orbit display on filter change
+            simParams.showOrbit = false;
             if (showOrbitToggle) showOrbitToggle.checked = false;
-            removeAllGeometry(scene); // Clear orbit lines etc.
-            updateSatelliteList(); // Refilter and update display
+            removeAllGeometry(scene);
+            updateSatelliteList();
         });
 
         companyFilterSelect.addEventListener('change', (e) => {
             simParams.companyFilter = e.target.value;
-            simParams.showOrbit = false; // Reset orbit display
+            simParams.showOrbit = false;
             if (showOrbitToggle) showOrbitToggle.checked = false;
             removeAllGeometry(scene);
             updateSatelliteList();
@@ -329,13 +361,13 @@
         if (highDefToggleElement) {
             highDefToggleElement.addEventListener('change', (e) => {
                 simParams.useHighDefTexture = e.target.checked;
-                updateEarthTexture(); // Reload Earth texture
+                updateEarthTexture();
             });
         }
         if (showECEFAxesToggleElement) {
             showECEFAxesToggleElement.addEventListener('change', (e) => {
                 simParams.showECEFAxes = e.target.checked;
-                updateECEFAxesVisibility(simParams); // Toggle axes and labels
+                updateECEFAxesVisibility(simParams);
             });
         }
 
@@ -348,13 +380,11 @@
 
         showOrbitToggle.addEventListener('change', (e) => {
             simParams.showOrbit = e.target.checked;
-            if (currentSelectedSatellite && simParams.showOrbit) { // Check if a satellite object is selected
-                updateOrbitTrajectory(scene, simParams, currentSelectedSatellite); // Pass the satellite data object
+            if (currentSelectedSatellite && simParams.showOrbit) {
+                updateOrbitTrajectory(scene, simParams, currentSelectedSatellite);
             } else {
-                // If showOrbit is checked but no satellite is selected, uncheck it
                 simParams.showOrbit = false;
                 e.target.checked = false;
-                // Optionally, inform the user to select a satellite first
             }
         });
 
@@ -384,7 +414,6 @@
         });
         updateYPRLabels();
 
-
         // Collapsible sections
         document.querySelectorAll('#controlsContainer h3[data-collapsible-target]').forEach(header => {
             const targetId = header.dataset.collapsibleTarget;
@@ -392,15 +421,13 @@
             const icon = header.querySelector('.toggle-icon');
 
             if (targetContent && icon) {
-                // Default to expanded
                 targetContent.classList.remove('collapsed');
                 icon.classList.remove('collapsed');
-                icon.textContent = '▾'; // Down arrow for expanded
-
+                icon.textContent = '▾';
                 header.addEventListener('click', () => {
                     targetContent.classList.toggle('collapsed');
                     icon.classList.toggle('collapsed');
-                    icon.textContent = targetContent.classList.contains('collapsed') ? '▸' : '▾'; // Right for collapsed, Down for expanded
+                    icon.textContent = targetContent.classList.contains('collapsed') ? '▸' : '▾';
                 });
             }
         });
@@ -409,29 +436,95 @@
         if (menuToggleBtnElement && controlsContainerElement) {
             menuToggleBtnElement.addEventListener('click', () => {
                 controlsContainerElement.classList.toggle('menu-hidden');
-                menuToggleBtnElement.innerHTML = controlsContainerElement.classList.contains('menu-hidden') ? '☰' : '✕'; // Hamburger or X
+                menuToggleBtnElement.innerHTML = controlsContainerElement.classList.contains('menu-hidden') ? '☰' : '✕';
             });
-            // Set initial state based on class (e.g., if 'menu-hidden' is default)
             menuToggleBtnElement.innerHTML = controlsContainerElement.classList.contains('menu-hidden') ? '☰' : '✕';
         }
 
         const showDayNightToggle = document.getElementById('showDayNightToggle');
-        showDayNightToggle.checked = simParams.showDayNight;   // set UI ↤ flag
+        showDayNightToggle.checked = simParams.showDayNight;
         simParams.showDayNight = showDayNightToggle.checked;
         showDayNightToggle.addEventListener('change', e => {
             simParams.showDayNight = e.target.checked;
         });
 
+        // Other Selections (Earth/Moon)
+        const otherSelLabel = document.createElement('label');
+        otherSelLabel.textContent = 'Other Selections';
+        otherSelLabel.setAttribute('for', 'otherSelection');
+        otherSelLabel.style.display = 'block';
+        otherSelLabel.style.marginTop = '8px';
+
+        const otherSel = document.createElement('select');
+        otherSel.id = 'otherSelection';
+        otherSel.style.width = '100%';
+        ['Earth', 'Moon'].forEach(v => {
+            const opt = document.createElement('option');
+            opt.value = v;
+            opt.textContent = v;
+            otherSel.appendChild(opt);
+        });
+        otherSel.value = simParams.otherSelection;
+
+        if (satelliteSelectDropdown && satelliteSelectDropdown.parentElement) {
+            satelliteSelectDropdown.parentElement.appendChild(otherSelLabel);
+            satelliteSelectDropdown.parentElement.appendChild(otherSel);
+        } else if (controlsContainerElement) {
+            controlsContainerElement.appendChild(otherSelLabel);
+            controlsContainerElement.appendChild(otherSel);
+        }
+
+        otherSel.addEventListener('change', () => {
+            simParams.otherSelection = otherSel.value;
+
+            if (simParams.otherSelection === 'Moon') {
+                if (satelliteSelectDropdown) {
+                    satelliteSelectDropdown.value = 'None';
+                    simParams.selectedSatelliteName = 'None';
+                }
+                selectSatelliteSprite(null);
+                clearDetailedSatelliteView();
+                removeAllGeometry(scene);
+
+                // Fly to Moon and relax min distance
+                flyCameraToSatellite(moon, 1500, false);
+                const moonRadius = EARTH_SCENE_RADIUS * 0.27;
+                controls.minDistance = Math.max(moonRadius * 1.1, 0.05 * EARTH_SCENE_RADIUS);
+                controls.maxDistance = EARTH_SCENE_RADIUS * 8;
+
+                controls.target.copy(moon.position);
+                controls.update();
+            } else {
+                // The user said they call resetCameraToDefault(); keep that path.
+                resetCameraToDefault();
+
+                if (orbitTypeFilterSelect) {
+                    orbitTypeFilterSelect.value = 'MEO';
+                    simParams.orbitTypeFilter = 'MEO';
+                }
+                if (companyFilterSelect) {
+                    companyFilterSelect.value = 'ALL COMPANY';
+                    simParams.companyFilter = 'ALL COMPANY';
+                }
+                if (satelliteSelectDropdown) {
+                    satelliteSelectDropdown.value = 'None';
+                    simParams.selectedSatelliteName = 'None';
+                }
+                selectSatelliteSprite(null);
+                clearDetailedSatelliteView();
+                removeAllGeometry(scene);
+                updateSatelliteList();
+            }
+        });
     }
 
     async function handleSatelliteDropdownChange(event) {
-        const selectedNameInDropdown = event.target.value; // "None" or satellite_name
+        const selectedNameInDropdown = event.target.value;
         simParams.selectedSatelliteName = selectedNameInDropdown;
 
-        // If a detailed model was previously shown, make its TLE sprite visible again
-        if (detailedSatelliteModel && detailedSatelliteModel.userData && detailedSatelliteModel.userData.noradId) {
+        if (detailedSatelliteModel?.userData?.noradId) {
             const prevTleSat = satellites.find(s => s.norad_id.toString() === detailedSatelliteModel.userData.noradId.toString());
-            if (prevTleSat && prevTleSat.mesh) {
+            if (prevTleSat?.mesh) {
                 prevTleSat.mesh.visible = true;
                 prevTleSat.isSelected = false;
                 prevTleSat.mesh.material.color.set(0xffffff);
@@ -439,16 +532,14 @@
             }
         }
 
-        clearDetailedSatelliteView();   // remove old detailed model if any
-        removeAllGeometry(scene);       // clear orbit lines, etc.
+        clearDetailedSatelliteView();
+        removeAllGeometry(scene);
 
-        // Handle "None" selection
         if (selectedNameInDropdown === "None") {
             currentSelectedSatellite = null;
             updateSatelliteInfo(satelliteInfoDiv, null);
             resetCameraToDefault();
 
-            // If we are in "show only selected" mode, hide all sprites
             if (simParams.showOnlySelectedSatellite) {
                 satellites.forEach(s => { if (s.mesh) s.mesh.visible = false; });
                 if (satelliteCountDisplay) satelliteCountDisplay.textContent = '0';
@@ -458,46 +549,29 @@
             return;
         }
 
-        // IMPORTANT FIX: Do NOT require s.mesh.visible here.
-        // We want to be able to select a satellite even if it is currently hidden
-        // because "Show only selected" is enabled.
         const tleSatData = satellites.find(s => s.satellite_name === selectedNameInDropdown);
-
         if (!tleSatData) {
-            console.warn(`Satellite named "${selectedNameInDropdown}" not found in catalog.`);
             currentSelectedSatellite = null;
             updateSatelliteInfo(satelliteInfoDiv, null);
-            // Keep dropdown consistent
             if (satelliteSelectDropdown) satelliteSelectDropdown.value = "None";
             simParams.selectedSatelliteName = "None";
             updateSatelliteList();
             return;
         }
 
-        // Make the new selection current before we update visibility
         currentSelectedSatellite = tleSatData;
         updateSatelliteInfo(satelliteInfoDiv, tleSatData);
 
-        // If "show only selected" is ON: hide all others, reveal (only) the selected sprite
         if (simParams.showOnlySelectedSatellite) {
-            satellites.forEach(s => {
-                if (!s.mesh) return;
-                s.mesh.visible = (s === tleSatData); // only selected visible (its sprite)
-            });
+            satellites.forEach(s => { if (s.mesh) s.mesh.visible = (s === tleSatData); });
         }
 
-        // With a new selection, (re)draw orbit if toggled
         if (simParams.showOrbit) {
             updateOrbitTrajectory(scene, simParams, tleSatData);
         }
 
-        // Try to load the detailed model for the new selection
         let fileUrl = (usingLocalAssets ? "json/satellites/" : SATELLITES_BASE_URL) + `${tleSatData.norad_id}.json`;
         let fileExists = await checkFileExists(fileUrl);
-
-        if (!fileExists && !usingLocalAssets) {
-            console.warn(`Primary model file ${fileUrl} not found.`);
-        }
 
         let updatedNoradId = tleSatData.norad_id;
         if (!fileExists && usingLocalAssets) {
@@ -516,81 +590,64 @@
 
         if (fileExists) {
             await loadAndDisplayDetailedSatellite(tleSatData.norad_id, tleSatData, updatedNoradId);
-            // In "show only selected" mode, the detailed model replaces the sprite;
-            // update list to ensure only that sat (model) remains visible.
             if (simParams.showOnlySelectedSatellite) updateSatelliteList();
         } else {
-            // No detailed model → highlight the TLE sprite and fly camera to it
             selectSatelliteSprite(tleSatData);
             if (tleSatData.mesh) flyCameraToSatellite(tleSatData.mesh, 1000, true);
-            // Ensure visibility mode is enforced post-selection
             updateSatelliteList();
         }
 
-        // Show YPR controls when a satellite is selected
         const yprControls = document.getElementById('yprControls');
         if (yprControls) yprControls.style.display = 'block';
     }
-
 
     async function loadAndDisplayDetailedSatellite(noradId, tleSatData, updatedNoradId) {
         console.log(`Attempting to load detailed model for NORAD ID: ${noradId}`);
         const newModel = await showSatellite(noradId, scene, updatedNoradId);
 
         if (newModel) {
-            detailedSatelliteModel = newModel; // Store the THREE.Group
-            detailedSatelliteModel.userData.noradId = noradId; // Ensure NORAD ID is stored on the model
+            detailedSatelliteModel = newModel;
+            detailedSatelliteModel.userData.noradId = noradId;
 
-            if (tleSatData && tleSatData.satrec) {
-                currentSelectedSatellite = tleSatData; // This is the TLE data object
-                tleSatData.isSelected = true; // Mark TLE data as selected
+            if (tleSatData?.satrec) {
+                currentSelectedSatellite = tleSatData;
+                tleSatData.isSelected = true;
                 if (tleSatData.mesh) {
-                    tleSatData.mesh.visible = true; // Hide the corresponding TLE sprite
+                    tleSatData.mesh.visible = true;
                 }
 
-                // --- Set initial position of the detailed model ---
-                const now = new Date();
-                const jdayNow = satellite.jday(now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate(), now.getUTCHours(), now.getUTCMinutes(), now.getUTCSeconds());
+                // Initial model position
+                const now = SIM_DATE; // reuse
+                const jdayNow = satellite.jday(
+                    now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate(),
+                    now.getUTCHours(), now.getUTCMinutes(), now.getUTCSeconds()
+                );
                 const gmstNow = satellite.gstime(jdayNow);
-                try {
-                    const posVel = satellite.propagate(tleSatData.satrec, now);
-                    if (posVel && posVel.position) {
-                        const ecf = satellite.eciToEcf(posVel.position, gmstNow);
-                        detailedSatelliteModel.position.set(ecf.x * KM_TO_SCENE_UNITS, ecf.z * KM_TO_SCENE_UNITS, ecf.y * KM_TO_SCENE_UNITS);
-                        console.log(`[Detailed Model] Initial position set for ${noradId}:`, detailedSatelliteModel.position);
-                    } else {
-                        console.warn(`[Detailed Model] Propagation failed for initial position of ${noradId}. Model at origin.`);
-                    }
-                } catch (e) {
-                    console.error(`[Detailed Model] Error propagating TLE for initial position of ${noradId}:`, e);
+                const pv = satellite.propagate(tleSatData.satrec, now);
+                if (pv?.position) {
+                    const ecf = satellite.eciToEcf(pv.position, gmstNow);
+                    detailedSatelliteModel.position.set(ecf.x * KM_TO_SCENE_UNITS, ecf.z * KM_TO_SCENE_UNITS, ecf.y * KM_TO_SCENE_UNITS);
                 }
-                // --- End set initial position ---
-
             } else {
-                console.warn(`[Detailed Model] TLE data or satrec missing for NORAD ${noradId}. Model loaded at origin, cannot track orbit.`);
-                currentSelectedSatellite = null; // No TLE data to track
+                currentSelectedSatellite = null;
             }
 
-            // Deselect other TLE sprites
             satellites.forEach(s => {
                 if (s !== tleSatData && s.mesh) {
                     s.isSelected = false;
-                    s.mesh.material.color.set(0xffffff); // Reset color
-                    s.mesh.scale.set(...(satelliteConfig.scale || [0.1, 0.1, 0.1])); // Reset scale
+                    s.mesh.material.color.set(0xffffff);
+                    s.mesh.scale.set(...(satelliteConfig.scale || [0.1, 0.1, 0.1]));
                 }
             });
 
-            flyCameraToSatellite(tleSatData.mesh, 3000, false); // Fly to the detailed model itself
+            if (tleSatData.mesh) flyCameraToSatellite(tleSatData.mesh, 3000, false);
             if (simParams.showOrbit && currentSelectedSatellite) {
                 updateOrbitTrajectory(scene, simParams, currentSelectedSatellite);
             }
-
         } else {
-            console.error("Failed to load detailed satellite model for NORAD ID:", noradId, "(showSatellite returned null)");
-            // Fallback: ensure the TLE sprite for this satellite is selected and camera flies to it.
             if (tleSatData) {
-                selectSatelliteSprite(tleSatData); // Visually select the TLE sprite
-                if (tleSatData.mesh) flyCameraToSatellite(tleSatData.mesh, 1000, true); // Fly to the TLE sprite
+                selectSatelliteSprite(tleSatData);
+                if (tleSatData.mesh) flyCameraToSatellite(tleSatData.mesh, 1000, true);
             } else {
                 if (satelliteSelectDropdown) satelliteSelectDropdown.value = "None";
                 simParams.selectedSatelliteName = "None";
@@ -612,121 +669,75 @@
             scene.remove(detailedSatelliteModel);
             detailedSatelliteModel = null;
 
-            // If a TLE sprite was hidden for this detailed model, make it visible again
             if (oldNoradId) {
                 const tleSat = satellites.find(s => s.norad_id.toString() === oldNoradId.toString());
-                if (tleSat && tleSat.mesh) {
+                if (tleSat?.mesh) {
                     tleSat.mesh.visible = true;
-                    // Ensure its isSelected state is false if another sat isn't immediately selected
-                    // This is typically handled by updateSatelliteList or selection logic
                 }
             }
         }
     }
 
-
     const clock = new THREE.Clock();
     let cameraMove = null;
 
-    /**
-     * Smooth flight from the current camera position to either a sprite or a
-     * detailed satellite model.  For models, we frame them at *least* the same
-     * distance used for sprites so the view is consistent.
-     *
-     * @param {THREE.Object3D} targetObject  The sprite or model to frame.
-     * @param {number} [millis=1500]         Flight duration in ms.
-     * @param {boolean} [isSprite=false]     Pass true when targetObject is a sprite.
-     */
-    /**
-     * Smooth flight from the current camera position to either a sprite or a
-     * detailed satellite model.  For models, we frame them at *least* the same
-     * distance used for sprites so the view is consistent.
-     *
-     * @param {THREE.Object3D} targetObject  The sprite or model to frame.
-     * @param {number} [millis=1500]         Flight duration in ms.
-     * @param {boolean} [isSprite=false]     Pass true when targetObject is a sprite.
-     */
     function flyCameraToSatellite(targetObject, millis = 1500, isSprite = false) {
-        if (!targetObject || !camera || !controls) {
-            console.warn("flyCameraToSatellite: Missing target, camera, or controls.");
-            return;
-        }
+        if (!targetObject || !camera || !controls) return;
 
-        const earthCenter = new THREE.Vector3(0, 0, 0);
-        const targetPos = new THREE.Vector3().setFromMatrixPosition(targetObject.matrixWorld);
-        const dirToTarget = new THREE.Vector3().subVectors(targetPos, earthCenter).normalize();
+        const earthCenter = V_TMP1.set(0, 0, 0);
+        const targetPos = V_TMP2.setFromMatrixPosition(targetObject.matrixWorld);
+        const dirToTarget = V_TMP3.subVectors(targetPos, earthCenter).normalize();
 
         let distance;
-
-        /* ---------- sprite path ---------- */
         if (isSprite) {
-            distance = EARTH_SCENE_RADIUS * 0.5;          // fixed offset
-        }
-
-        /* ---------- detailed‑model path ---------- */
-        else {
-            // Estimate model diameter then back off ~3× that size
+            distance = EARTH_SCENE_RADIUS * 0.5;
+        } else {
             const bbox = new THREE.Box3().setFromObject(targetObject);
             const size = new THREE.Vector3();
             bbox.getSize(size);
             const modelDiameter = Math.max(size.x, size.y, size.z, 0.5 * KM_TO_SCENE_UNITS * 1000);
-            distance = modelDiameter;
-
-            // Make sure we never get *closer* than the sprite framing distance
-            distance = Math.max(distance, EARTH_SCENE_RADIUS * 0.5);
+            distance = Math.max(modelDiameter, EARTH_SCENE_RADIUS * 0.5);
         }
 
-        // Final camera position = target position + outward offset
-        const endCamPos = new THREE.Vector3().addVectors(
-            targetPos,
-            dirToTarget.clone().multiplyScalar(distance)
-        );
-
-        /* ---------- animation set‑up ---------- */
+        const endCamPos = V_TMP3.copy(dirToTarget).multiplyScalar(distance).add(targetPos);
         const startCamPos = camera.position.clone();
         const startTarget = controls.target.clone();
-        const endTarget = targetPos.clone();               // always look at the sat
+        const endTarget = targetPos.clone();
 
         cameraMove = {
             startTime: clock.getElapsedTime(),
             duration: millis / 1000,
             startCamPos,
-            endCamPos,
+            endCamPos: endCamPos.clone(),
             startTarget,
             endTarget
         };
 
-        controls.enabled = false; // re‑enabled when the flight completes
-        controls.reset();             // OrbitControls’ built‑in reset
+        controls.enabled = false;
+        controls.reset();
         camera.position.set(...sceneConfig.camera.position);
         controls.target.set(0, 0, 0);
     }
 
     function resetCameraToDefault() {
-        if (camera && controls && sceneConfig && sceneConfig.camera && sceneConfig.camera.position) {
-            // Stop any ongoing camera flight
+        if (camera && controls && sceneConfig?.camera?.position) {
             cameraMove = null;
-
             const startCamPos = camera.position.clone();
             const endCamPos = new THREE.Vector3(...sceneConfig.camera.position);
             const startTarget = controls.target.clone();
-            const endTarget = new THREE.Vector3(0, 0, 0); // Look at Earth center
-
+            const endTarget = new THREE.Vector3(0, 0, 0);
             cameraMove = {
                 startTime: clock.getElapsedTime(),
-                duration: 1.0, // 1 second to reset
+                duration: 1.0,
                 startCamPos, endCamPos,
                 startTarget, endTarget
             };
-            controls.enabled = false; // Disable during animation, re-enable in animate loop
-        } else {
-            console.warn("Cannot reset camera: camera, controls, or sceneConfig not fully initialized.");
+            controls.enabled = false;
         }
     }
 
     function updateSatelliteList() {
         if (!satellites || !satelliteSelectDropdown || !companyFilterSelect) {
-            console.warn("updateSatelliteList: DOM elements not ready or satellites not loaded.");
             if (satelliteCountDisplay) satelliteCountDisplay.textContent = '0';
             if (satelliteSelectDropdown) satelliteSelectDropdown.innerHTML = '<option value="None">None</option>';
             if (companyFilterSelect) {
@@ -743,22 +754,18 @@
             return;
         }
 
-        // Base filtering (ignored for visibility when showOnlySelectedSatellite is true)
         const filteredTLEs = satellites.filter(s =>
             (simParams.orbitTypeFilter === "ALL" || s.orbitType === simParams.orbitTypeFilter) &&
             (simParams.companyFilter === "ALL COMPANY" || s.company === simParams.companyFilter)
         );
 
-        // ---- Sprite visibility (with "show only selected" override) ----
         satellites.forEach(s => {
             if (!s.mesh) return;
 
-            // Default visibility from filters
             const isVisibleInFilter =
                 (simParams.orbitTypeFilter === "ALL" || s.orbitType === simParams.orbitTypeFilter) &&
                 (simParams.companyFilter === "ALL COMPANY" || s.company === simParams.companyFilter);
 
-            // Hide the sprite if a detailed model for the same NORAD is currently shown
             const isDetailedModelForThisSat =
                 detailedSatelliteModel &&
                 detailedSatelliteModel.userData &&
@@ -766,20 +773,16 @@
 
             let visible = isVisibleInFilter && !isDetailedModelForThisSat;
 
-            // OVERRIDE: show only the selected satellite (sprite) if enabled
             if (simParams.showOnlySelectedSatellite) {
                 if (!currentSelectedSatellite) {
-                    // No selection → hide all
                     visible = false;
                 } else {
-                    // Only the selected TLE sprite is visible (unless replaced by detailed model)
                     visible = (s === currentSelectedSatellite) && !isDetailedModelForThisSat;
                 }
             }
 
             s.mesh.visible = visible;
 
-            // Visual cues only if visible
             if (s.mesh.visible) {
                 const isActuallySelected = currentSelectedSatellite === s;
                 s.mesh.material.color.set(isActuallySelected ? 0xff0000 : 0xffffff);
@@ -788,16 +791,11 @@
             }
         });
 
-        // Satellite count display: reflect current mode
         if (satelliteCountDisplay) {
-            if (simParams.showOnlySelectedSatellite) {
-                satelliteCountDisplay.textContent = currentSelectedSatellite ? '1' : '0';
-            } else {
-                satelliteCountDisplay.textContent = filteredTLEs.length.toString();
-            }
+            satelliteCountDisplay.textContent =
+                simParams.showOnlySelectedSatellite ? (currentSelectedSatellite ? '1' : '0') : filteredTLEs.length.toString();
         }
 
-        // ---- Repopulate company filter from ALL satellites (sorted) ----
         const uniqueCompanies = Array.from(new Set(satellites.map(s => s.company))).sort();
         const currentCompanySelection = companyFilterSelect.value;
         companyFilterSelect.innerHTML = '<option value="ALL COMPANY">ALL COMPANY</option>';
@@ -815,7 +813,6 @@
             companyFilterSelect.value = "ALL COMPANY";
         }
 
-        // ---- Repopulate satellite dropdown from FILTERED TLEs ----
         const previousDropdownValue = satelliteSelectDropdown.value;
         satelliteSelectDropdown.innerHTML = '<option value="None">None</option>';
         filteredTLEs.forEach(s => {
@@ -825,16 +822,11 @@
             satelliteSelectDropdown.appendChild(option);
         });
 
-        // Restore dropdown selection if still valid under filters; else sync to "None"
         if (filteredTLEs.some(s => s.satellite_name === previousDropdownValue)) {
             satelliteSelectDropdown.value = previousDropdownValue;
         } else {
-            // If the selected sat is not in the filtered set, keep internal selection
-            // but reflect "None" in the dropdown (matches prior behavior)
             satelliteSelectDropdown.value = "None";
             if (currentSelectedSatellite && !filteredTLEs.includes(currentSelectedSatellite)) {
-                // If detailed model was for a sat no longer in filter, we clear model & selection
-                // unless showOnlySelectedSatellite is true (in which case we keep showing only the selected).
                 if (!simParams.showOnlySelectedSatellite) {
                     clearDetailedSatelliteView();
                     currentSelectedSatellite = null;
@@ -843,8 +835,6 @@
             }
         }
 
-        // If dropdown is "None" but a detailed model is showing and showOnlySelectedSatellite is off,
-        // clear detailed model to stay consistent with UI.
         if (satelliteSelectDropdown.value === "None" && detailedSatelliteModel && !simParams.showOnlySelectedSatellite) {
             clearDetailedSatelliteView();
             currentSelectedSatellite = null;
@@ -852,43 +842,39 @@
         }
     }
 
-
-    // Selects the TLE sprite (visual changes)
     function selectSatelliteSprite(tleSatData) {
-        // Deselect any previously selected TLE sprite
         satellites.forEach(s => {
             if (s.mesh && s.isSelected) {
                 s.isSelected = false;
-                if (s.mesh.visible) { // Only change if visible
+                if (s.mesh.visible) {
                     s.mesh.material.color.set(0xffffff);
                     s.mesh.scale.set(...(satelliteConfig.scale || [0.1, 0.1, 0.1]));
                 }
             }
         });
 
-        currentSelectedSatellite = tleSatData; // Store the TLE data object
+        currentSelectedSatellite = tleSatData;
 
-        if (tleSatData && tleSatData.mesh) {
+        if (tleSatData?.mesh) {
             tleSatData.isSelected = true;
-            if (tleSatData.mesh.visible) { // Only change if visible
-                tleSatData.mesh.material.color.set(0xff0000); // Red
-                tleSatData.mesh.scale.set(...(satelliteConfig.scale || [0.1, 0.1, 0.1]).map(v => v * 1.5)); // Larger
+            if (tleSatData.mesh.visible) {
+                tleSatData.mesh.material.color.set(0xff0000);
+                tleSatData.mesh.scale.set(...(satelliteConfig.scale || [0.1, 0.1, 0.1]).map(v => v * 1.5));
             }
             simParams.selectedSatelliteName = tleSatData.satellite_name;
             if (satelliteSelectDropdown) satelliteSelectDropdown.value = tleSatData.satellite_name;
             updateOrbitTrajectory(scene, simParams, tleSatData);
         } else {
-            // Deselecting
             simParams.selectedSatelliteName = "None";
             if (satelliteSelectDropdown) satelliteSelectDropdown.value = "None";
-            removeAllGeometry(scene); // Clear orbit line
+            removeAllGeometry(scene);
         }
-        updateSatelliteInfo(satelliteInfoDiv, tleSatData); // Update text info panel
+        updateSatelliteInfo(satelliteInfoDiv, tleSatData);
     }
 
     window.addEventListener('keydown', e => {
-        if (e.key === 'r') {            // press “r” to reset
-            controls.reset();             // OrbitControls’ built‑in reset
+        if (e.key === 'r') {
+            controls.reset();
             camera.position.set(...sceneConfig.camera.position);
             controls.target.set(0, 0, 0);
         }
@@ -910,7 +896,7 @@
     function animate() {
         requestAnimationFrame(animate);
 
-        /*── Camera easing ──*/
+        /* Camera easing */
         if (cameraMove) {
             const tReal = clock.getElapsedTime();
             const f = Math.min((tReal - cameraMove.startTime) / cameraMove.duration, 1);
@@ -918,150 +904,117 @@
             camera.position.lerpVectors(cameraMove.startCamPos, cameraMove.endCamPos, s);
             controls.target.lerpVectors(cameraMove.startTarget, cameraMove.endTarget, s);
             controls.update();
-            if (f >= 1) {
-                cameraMove = null;
-                controls.enabled = true;
-            }
+            if (f >= 1) { cameraMove = null; controls.enabled = true; }
         } else {
             controls.update();
         }
 
-        /*── Simulation clock (minutes·timeWarp per real-second) ──*/
+        /* Simulation clock: minutes * timeWarp per second */
         const dtReal = clock.getDelta();
-        simParams.simDate = new Date(
-            simParams.simDate.getTime() + dtReal * 1000 * 60 * simParams.timeWarp
-        );
+        simMillis += dtReal * 1000 * 60 * simParams.timeWarp;
+        SIM_DATE.setTime(simMillis);
+        simParams.simDate = SIM_DATE; // keep external readers happy
 
-        const simNow = simParams.simDate;
         const jDay = satellite.jday(
-            simNow.getUTCFullYear(), simNow.getUTCMonth() + 1, simNow.getUTCDate(),
-            simNow.getUTCHours(), simNow.getUTCMinutes(), simNow.getUTCSeconds()
+            SIM_DATE.getUTCFullYear(), SIM_DATE.getUTCMonth() + 1, SIM_DATE.getUTCDate(),
+            SIM_DATE.getUTCHours(), SIM_DATE.getUTCMinutes(), SIM_DATE.getUTCSeconds()
         );
         const gmstNow = satellite.gstime(jDay);
-        const rotY = -gmstNow;                               // scene rotation
+        const rotY = -gmstNow;
 
-        /*── update slider read-out (factor | UTC time) ──*/
+        // Update the UTC text ~2 Hz and the slider number immediately (cheap)
+        const nowPerf = performance.now();
+        if (nowPerf - lastClockUpdate > 500) {
+            lastClockUpdate = nowPerf;
+            const clockEl = document.getElementById("utcClockDisplay");
+            if (clockEl) clockEl.textContent = formatUTCString(SIM_DATE);
+        }
         if (timeWarpVal) {
-            const pad = n => n.toString().padStart(2, '0');
-            const utcStr =
-                `${simNow.getUTCFullYear()}-` +
-                `${pad(simNow.getUTCMonth() + 1)}-` +
-                `${pad(simNow.getUTCDate())} ` +
-                `${pad(simNow.getUTCHours())}:` +
-                `${pad(simNow.getUTCMinutes())}:` +
-                `${pad(simNow.getUTCSeconds())}`;
-            document.getElementById("utcClockDisplay").textContent = formatUTCString(simParams.simDate);
-
             timeWarpVal.textContent = simParams.timeWarp < 1 ? '0' : `${simParams.timeWarp}`;
         }
 
-        /*── Earth rotation ──*/
+        /* Earth rotation */
         if (earthMesh) earthMesh.rotation.y = rotY;
 
-        /* helper → ECF → scene coords */
-        const toScene = (x, y, z) =>
-            new THREE.Vector3(x, z, y)
-                .applyAxisAngle(new THREE.Vector3(0, 1, 0), rotY)
-                .multiplyScalar(KM_TO_SCENE_UNITS);
+        /* Visible TLE sprites */
+        for (const s of satellites) {
+            if (!s.mesh || !s.mesh.visible || !s.satrec) continue;
+            const pv = satellite.propagate(s.satrec, SIM_DATE);
+            if (!pv || !pv.position) continue;
+            const e = satellite.eciToEcf(pv.position, gmstNow);
+            ecefToScene(s.mesh.position, e.x, e.y, e.z, rotY);
+        }
 
-        /*── Visible TLE sprites ──*/
-        satellites.forEach(s => {
-            if (!s.mesh?.visible || !s.satrec) return;
-            try {
-                const pv = satellite.propagate(s.satrec, simNow);
-                if (!pv?.position) return;
+        /* Detailed model (selected) */
+        if (detailedSatelliteModel?.visible && currentSelectedSatellite?.satrec) {
+            const pv = satellite.propagate(currentSelectedSatellite.satrec, SIM_DATE);
+            if (pv?.position) {
                 const e = satellite.eciToEcf(pv.position, gmstNow);
-                s.mesh.position.copy(toScene(e.x, e.y, e.z));
-            } catch { /* ignore */
+                ecefToScene(detailedSatelliteModel.position, e.x, e.y, e.z, rotY);
             }
+        }
+
+        /* LVLH orbit frame (selected) */
+        if (simParams.showOrbitFrame && orbitFrame && currentSelectedSatellite?.satrec && currentSelectedSatellite.mesh?.visible) {
+            const pv = satellite.propagate(currentSelectedSatellite.satrec, SIM_DATE);
+            if (pv?.position && pv?.velocity) {
+                const ep = satellite.eciToEcf(pv.position, gmstNow);
+                const ev = satellite.eciToEcf(pv.velocity, gmstNow);
+                updateOrbitFrame(
+                    orbitFrame,
+                    ecefToScene(V_TMP1, ep.x, ep.y, ep.z, rotY),
+                    ecefToScene(V_TMP2, ev.x, ev.y, ev.z, rotY)
+                );
+            }
+        }
+
+        /* YPR frame */
+        if (simParams.showYPR && yprFrame && currentSelectedSatellite?.mesh?.visible) {
+            const pos = detailedSatelliteModel ? detailedSatelliteModel.position : currentSelectedSatellite.mesh.position;
+            updateYPRFrame(yprFrame, pos, simParams.yawDeg, simParams.pitchDeg, simParams.rollDeg);
+        }
+
+        /* Earth/Moon controls target */
+        if (!cameraMove && controls) {
+            if (simParams.otherSelection === 'Moon' && moon) {
+                // Unit vector Earth→Moon
+                V_TMP1.copy(moon.position).normalize();
+                const moonRadius = EARTH_SCENE_RADIUS * 0.27;
+                const keepDist = Math.max(moonRadius * 4, EARTH_SCENE_RADIUS * 0.6);
+                V_TMP2.copy(V_TMP1).multiplyScalar(keepDist).add(moon.position);
+
+                // dt-aware smoothing keeps stable when Time× changes
+                const chaseSmooth = 1 - Math.pow(0.001, dtReal); // fast, stable
+                camera.position.lerp(V_TMP2, chaseSmooth);
+
+                controls.target.copy(moon.position);
+                controls.update();
+            } else if (currentSelectedSatellite?.mesh?.visible) {
+                const satPos = detailedSatelliteModel ? detailedSatelliteModel.position : currentSelectedSatellite.mesh.position;
+                V_TMP1.copy(satPos).normalize();
+                V_TMP2.copy(satPos).add(V_TMP1.multiplyScalar(EARTH_SCENE_RADIUS));
+                // Optional: camera.position.copy(V_TMP2);
+                controls.target.set(0, 0, 0);
+                controls.update();
+            }
+        }
+
+        /* Footprints */
+        updateFootprints(currentSelectedSatellite, gmstNow, {
+            showFootprint: !!simParams.showFootprint,
+            mercatorCtx: null,
+            simDate: SIM_DATE
         });
 
-        /*── Detailed model (selected) ──*/
-        if (detailedSatelliteModel?.visible && currentSelectedSatellite?.satrec) {
-            try {
-                const pv = satellite.propagate(currentSelectedSatellite.satrec, simNow);
-                if (pv?.position) {
-                    const e = satellite.eciToEcf(pv.position, gmstNow);
-                    detailedSatelliteModel.position.copy(toScene(e.x, e.y, e.z));
-                }
-            } catch { /* keep last good pos */
-            }
-        }
-
-        /*── LVLH orbit frame (selected) ──*/
-        if (simParams.showOrbitFrame &&
-            orbitFrame &&
-            currentSelectedSatellite?.satrec &&
-            currentSelectedSatellite.mesh?.visible) {
-            try {
-                const pv = satellite.propagate(currentSelectedSatellite.satrec, simNow);
-                if (pv?.position && pv?.velocity) {
-                    const ep = satellite.eciToEcf(pv.position, gmstNow);
-                    const ev = satellite.eciToEcf(pv.velocity, gmstNow);
-                    updateOrbitFrame(
-                        orbitFrame,
-                        toScene(ep.x, ep.y, ep.z),
-                        toScene(ev.x, ev.y, ev.z)
-                    );
-                }
-            } catch { /* ignore */
-            }
-        }
-
-        /*── YPR frame ──*/
-        if (simParams.showYPR && yprFrame && currentSelectedSatellite?.mesh?.visible) {
-            const pos = detailedSatelliteModel
-                ? detailedSatelliteModel.position
-                : currentSelectedSatellite.mesh.position;
-            updateYPRFrame(
-                yprFrame, pos,
-                simParams.yawDeg, simParams.pitchDeg, simParams.rollDeg
-            );
-        }
-
-        /*──────── Earth-centred “chase” camera ────────*/
-        if (!cameraMove && controls && currentSelectedSatellite?.mesh?.visible) {
-            const satPos = detailedSatelliteModel
-                ? detailedSatelliteModel.position
-                : currentSelectedSatellite.mesh.position;
-
-            const dir = satPos.clone().normalize();
-            const camPos = satPos.clone().add(dir.multiplyScalar(EARTH_SCENE_RADIUS));
-            //camera.position.copy(camPos); // if you wish to move camera itself
-            controls.target.set(0, 0, 0);   // always look at Earth centre
-            controls.update();
-        }
-
-        /*── 👣 Footprint ───────────────────────────────────────────*/
-        if (simParams.showFootprint) {
-            updateFootprints(currentSelectedSatellite, gmstNow, {
-                showFootprint: true,
-                mercatorCtx: null,
-                simDate: simNow
-            });
-        } else {
-            updateFootprints(currentSelectedSatellite, gmstNow, {
-                showFootprint: false,
-                mercatorCtx: null,
-                simDate: simNow
-            });
-        }
-        /*───────────────────────────────────────────────────────────*/
-
-
-        /*── Render 3-D vs Mercator ──*/
+        /* Render 3-D vs Mercator */
         const show3D = simParams.view3D;
         if (renderer) renderer.domElement.style.display = show3D ? 'block' : 'none';
         if (show3D) {
             renderer.render(scene, camera);
             update3DLabelsPosition(camera, simParams);
         } else {
-            ['labelXecr', 'labelYecr', 'labelZecr',
-                'labelNorthPole', 'labelEquatorLine', 'labelGreenwichMeridian']
-                .forEach(id => {
-                    const el = document.getElementById(id);
-                    if (el) el.style.display = 'none';
-                });
+            ['labelXecr','labelYecr','labelZecr','labelNorthPole','labelEquatorLine','labelGreenwichMeridian']
+                .forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
         }
 
         if (mercatorContainer) {
@@ -1075,33 +1028,19 @@
                         mercatorCanvasElement.width = w;
                         mercatorCanvasElement.height = h;
                     }
-
-                    // ⬇⬇ NEW: decide which satellites to draw in 2-D
-                    // If "show only selected" and we have one, draw that one regardless of sprite visibility.
-                    // Otherwise, draw all satellites that are currently visible (as before).
-                    const satsToDraw = (simParams.showOnlySelectedSatellite && currentSelectedSatellite)
-                        ? [currentSelectedSatellite]
-                        : satellites.filter(s => s.mesh?.visible);
-
-                    // ⬇⬇ UPDATED: pass sats + time context to the Mercator renderer
-                    updateMercatorMap(simParams, {
-                        sats: satsToDraw,
-                        gmstNow,
-                        simDate: simNow
-                    });
-
-                    if (simParams.showFootprint) {
-                        updateFootprints(currentSelectedSatellite, gmstNow, {
-                            showFootprint: true,
-                            mercatorCtx,
-                            simDate: simNow
-                        });
-                    } else {
-                        updateFootprints(currentSelectedSatellite, gmstNow, {
-                            showFootprint: false,
-                            mercatorCtx,
-                            simDate: simNow
-                        });
+                    // Throttle Mercator to ~30 FPS
+                    if (performance.now() - lastMercatorRedraw > 33) {
+                        lastMercatorRedraw = performance.now();
+                        updateMercatorMap(simParams);
+                        if (simParams.showFootprint) {
+                            updateFootprints(currentSelectedSatellite, gmstNow, {
+                                showFootprint: true, mercatorCtx, simDate: SIM_DATE
+                            });
+                        } else {
+                            updateFootprints(currentSelectedSatellite, gmstNow, {
+                                showFootprint: false, mercatorCtx, simDate: SIM_DATE
+                            });
+                        }
                     }
                 }
             } else {
@@ -1109,10 +1048,17 @@
             }
         }
 
-        /*── Day / Night shading ──*/
+        /* Day / Night & Sun */
         if (simParams.showDayNight) {
-            drawDayNight3D(scene, earthMesh, simNow, simParams.showDayNight, EARTH_SCENE_RADIUS);         // your scene-scale Earth radius);
+            drawDayNight3D(scene, earthMesh, SIM_DATE, {
+                showSun:  simParams.view3D,
+                showHalo: simParams.view3D,
+                earthRadius: EARTH_SCENE_RADIUS
+            });
         }
+
+        /* Moon */
+        if (moon) updateMoon(moon, SIM_DATE, gmstNow);
     }
 
     function onWindowResize() {
@@ -1121,60 +1067,51 @@
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
-        // If Mercator map is full screen or its container resizes with window, update it too
         if (mercatorContainer && mercatorContainer.style.display !== 'none' && mapBackgroundDiv) {
-            const currentMapContainerWidth = mapBackgroundDiv.clientWidth;
-            const currentMapContainerHeight = mapBackgroundDiv.clientHeight;
-            if (mercatorCanvasElement.width !== currentMapContainerWidth || mercatorCanvasElement.height !== currentMapContainerHeight) {
-                mercatorCanvasElement.width = currentMapContainerWidth;
-                mercatorCanvasElement.height = currentMapContainerHeight;
-                mapWidth = currentMapContainerWidth; // Update global dimension vars if used elsewhere
-                mapHeight = currentMapContainerHeight;
-                // updateMercatorMap(); // Redraw immediately, or let animate loop handle it
+            const w = mapBackgroundDiv.clientWidth;
+            const h = mapBackgroundDiv.clientHeight;
+            if (mercatorCanvasElement.width !== w || mercatorCanvasElement.height !== h) {
+                mercatorCanvasElement.width = w;
+                mercatorCanvasElement.height = h;
             }
         }
     }
-
     window.addEventListener('resize', onWindowResize);
 
     async function start() {
         try {
-
-            // Now that configs are loaded (including sceneConfig), initialize 3D environment
             init3D();
-            yprFrame = createYPRFrame(scene);          // after init3D()
+            yprFrame = createYPRFrame(scene);
             setYPRVisibility(yprFrame, false);
-            initMercatorView(); // Initialize Mercator view (can be done after 3D)
+            initMercatorView();
             initFootprintRenderer(scene, earthMesh, mercatorCtx);
-            await setupTLESatellites(scene); // Load TLE data and create satellite sprites
+            await setupTLESatellites(scene);
 
-            setupHTMLControls(); // Setup UI controls and their event listeners
-            updateSatelliteList(); // Populate dropdowns and filter based on initial simParams
-            updateECEFAxesVisibility(simParams); // Set initial visibility of ECEF axes and labels
+            setupHTMLControls();
+            updateSatelliteList();
+            updateECEFAxesVisibility(simParams);
 
-            // Initial orbit display based on simParams and if a satellite is pre-selected (though usually not)
             if (simParams.showOrbit && currentSelectedSatellite) {
                 updateOrbitTrajectory(scene, simParams, currentSelectedSatellite);
             } else {
-                simParams.showOrbit = false; // Ensure it's off if no sat selected
-                if (showOrbitToggle) showOrbitToggle.checked = false;
+                simParams.showOrbit = false;
+                const t = document.getElementById('showOrbitToggle');
+                if (t) t.checked = false;
             }
 
-            animate(); // Start the main animation loop
+            animate();
         } catch (e) {
             console.error("Critical error during initialization sequence:", e);
-            // Display a user-friendly error message on the page
             document.body.innerHTML = `
-                <div style="color:red; background:white; border: 2px solid red; padding:20px; font-family:monospace; margin: 20px;">
-                    <h1>Application Initialization Failed</h1>
-                    <p>A critical error occurred. Please check the browser console (usually F12) for more details.</p>
-                    <pre>Error: ${e.message}</pre>
-                    <p>Try refreshing the page. If the problem persists, ensure all resources (configs, TLEs, textures) are accessible (e.g., from GitHub or local paths) and that there are no network issues.</p>
-                </div>`;
+        <div style="color:red; background:white; border: 2px solid red; padding:20px; font-family:monospace; margin: 20px;">
+          <h1>Application Initialization Failed</h1>
+          <p>Check console (F12) for more details.</p>
+          <pre>Error: ${e.message}</pre>
+        </div>`;
         }
     }
 
-    start(); // Execute the main startup function
+    start();
 </script>
 </body>
 </html>

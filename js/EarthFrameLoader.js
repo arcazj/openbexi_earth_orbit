@@ -1,4 +1,4 @@
-// ecefAxes.js – keeps original signatures, now actually works
+// EarthFrameLoader.js – keeps original signatures, now actually works
 import * as THREE from 'three';
 import {
     EARTH_SCENE_RADIUS,
