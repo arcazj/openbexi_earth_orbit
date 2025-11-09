@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>OBJ Viewer – starlink & O3b (Three.js)</title>
+    <title>OBJ Viewer – starlink & starlink_V2 (Three.js)</title>
     <style>
         :root {
             --bg: #0e1116;
@@ -74,9 +74,9 @@
     <h2>OBJ Viewer <span class="badge">MEO + GEO</span></h2>
 
     <div class="row"><label>Show starlink V1 (LEO)</label><input id="showstarlink" type="checkbox" checked></div>
-    <div class="row"><label>Show O3b (MEO)</label><input id="showO3b" type="checkbox" checked></div>
+    <div class="row"><label>Show starlink_V2 (MEO)</label><input id="showstarlink_V2" type="checkbox" checked></div>
     <div class="row"><label>Wireframe (starlink_V1)</label><input id="wirestarlink" type="checkbox"></div>
-    <div class="row"><label>Wireframe (O3b)</label><input id="wireO3b" type="checkbox"></div>
+    <div class="row"><label>Wireframe (starlink_V2)</label><input id="wirestarlink_V2" type="checkbox"></div>
     <div class="row"><label>Global Scale</label><input id="scale" type="range" min="0.25" max="2.0" step="0.01" value="1.0"></div>
     <div class="row"><label>Auto-Rotate</label><input id="autorotate" type="checkbox" checked></div>
     <div class="row"><label>BG Color</label><input id="bgcolor" type="color" value="#0e1116"></div>
@@ -88,8 +88,8 @@
         <ul style="margin:6px 0 0 16px; padding:0; line-height:1.3">
             <li>obj/starlink_V1.mtl</li>
             <li>obj/starlink_V1.obj</li>
-            <li>obj/o3b.mtl</li>
-            <li>obj/o3b.obj</li>
+            <li>obj/starlink_V2.mtl</li>
+            <li>obj/starlink_V2.obj</li>
         </ul>
     </div>
 </div>
@@ -127,9 +127,14 @@
     scene.add(hemi);
 
     const dir = new THREE.DirectionalLight(0xffffff, 1.2);
-    dir.position.set(4, 8, 6);
+    dir.position.set(-4, -8, -6);
     dir.castShadow = false;
     scene.add(dir);
+
+    const dir2 = new THREE.DirectionalLight(0xffffff, 1.2);
+    dir2.position.set(4, 8, 6);
+    dir2.castShadow = false;
+    scene.add(dir2);
 
     // --------- Ground / Helpers ---------
     const grid = new THREE.GridHelper(80, 80, 0x3a3f4a, 0x232936);
@@ -148,12 +153,12 @@
     starlinkGroup.name = 'starlink_V1';
     starlinkGroup.position.x = -7.0; // side-by-side spacing
 
-    const o3bGroup = new THREE.Group();
-    o3bGroup.name = 'O3b';
-    o3bGroup.position.x = +7.0;
+    const starlink_V2Group = new THREE.Group();
+    starlink_V2Group.name = 'starlink_V2';
+    starlink_V2Group.position.x = +7.0;
 
     root.add(starlinkGroup);
-    root.add(o3bGroup);
+    root.add(starlink_V2Group);
 
     // --------- Loaders ---------
     const mtlLoader = new MTLLoader();
@@ -226,7 +231,7 @@
     renderer.domElement.addEventListener('dblclick', () => {
         const visibleGroups = [];
         if (starlinkGroup.visible) visibleGroups.push(starlinkGroup);
-        if (o3bGroup.visible) visibleGroups.push(o3bGroup);
+        if (starlink_V2Group.visible) visibleGroups.push(starlink_V2Group);
         if (!visibleGroups.length) return;
         // Pick the one closer to controls.target
         let best = visibleGroups[0];
@@ -241,9 +246,9 @@
     // --------- UI Bindings ---------
     const ui = {
         showstarlink: document.getElementById('showstarlink'),
-        showO3b: document.getElementById('showO3b'),
+        showstarlink_V2: document.getElementById('showstarlink_V2'),
         wirestarlink: document.getElementById('wirestarlink'),
-        wireO3b: document.getElementById('wireO3b'),
+        wirestarlink_V2: document.getElementById('wirestarlink_V2'),
         scale: document.getElementById('scale'),
         autorotate: document.getElementById('autorotate'),
         bgcolor: document.getElementById('bgcolor'),
@@ -251,9 +256,9 @@
     };
 
     ui.showstarlink.addEventListener('change', () => starlinkGroup.visible = ui.showstarlink.checked);
-    ui.showO3b.addEventListener('change', () => o3bGroup.visible = ui.showO3b.checked);
+    ui.showstarlink_V2.addEventListener('change', () => starlink_V2Group.visible = ui.showstarlink_V2.checked);
     ui.wirestarlink.addEventListener('change', () => setWireframe(starlinkGroup, ui.wirestarlink.checked));
-    ui.wireO3b.addEventListener('change', () => setWireframe(o3bGroup, ui.wireO3b.checked));
+    ui.wirestarlink_V2.addEventListener('change', () => setWireframe(starlink_V2Group, ui.wirestarlink_V2.checked));
     ui.scale.addEventListener('input', () => root.scale.setScalar(parseFloat(ui.scale.value)));
     ui.autorotate.addEventListener('change', () => {/* handled in render loop */});
     ui.bgcolor.addEventListener('input', () => scene.background = new THREE.Color(ui.bgcolor.value));
@@ -271,10 +276,10 @@
     (async function init() {
         try {
             const starlink = await loadObjWithMtl(starlinkGroup, 'obj/starlink_V1.mtl', 'obj/starlink_V1.obj');
-            const o3b = await loadObjWithMtl(o3bGroup, 'obj/o3b.mtl', 'obj/o3b.obj');
+            const starlink_V2 = await loadObjWithMtl(starlink_V2Group, 'obj/starlink_V2.mtl', 'obj/starlink_V2.obj');
             // Optional: initial wireframe off but compute initial framing
             setWireframe(starlinkGroup, false);
-            setWireframe(o3bGroup, false);
+            setWireframe(starlink_V2Group, false);
             // Frame both by fitting to the entire root
             fitCameraToObject(camera, root, 1.35);
         } catch (err) {

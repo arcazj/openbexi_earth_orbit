@@ -1,6 +1,6 @@
 # Blender v3.2.0 Beta OBJ File: 'rendering_01.blend'
 # www.blender.org
-mtllib starlink.mtl
+mtllib obj/starlink.mtl
 o camera_right_Cube.003
 v 1.245706 0.073897 -0.054564
 v 1.260607 0.073897 -0.015096
