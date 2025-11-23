@@ -340,3 +340,61 @@ canvas {
 }
 
 
+
+/* Timeline HUD */
+.timeline-hud {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 250px;
+  background: rgba(0, 0, 0, 0.9);
+  color: #e0e0e0;
+  border-top: 1px solid #444;
+  z-index: 2500;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.timeline-hud.timeline-collapsed {
+  height: 32px;
+  overflow: hidden;
+}
+
+.timeline-hud.timeline-collapsed .timeline-canvas {
+  display: none;
+}
+
+.timeline-canvas {
+  width: 100%;
+  background: transparent;
+}
+
+.timeline-detail {
+  flex: 3;
+}
+
+.timeline-overview {
+  flex: 1;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.timeline-toggle {
+  position: absolute;
+  top: 6px;
+  right: 12px;
+  padding: 4px 8px;
+  background: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  border: 1px solid #555;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  z-index: 2501;
+}
+
+.timeline-toggle:hover {
+  border-color: #888;
+}
