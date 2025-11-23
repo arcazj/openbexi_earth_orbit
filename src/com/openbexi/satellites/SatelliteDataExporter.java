@@ -10,6 +10,9 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Calendar;
 import java.util.Base64;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -70,7 +73,7 @@ public class SatelliteDataExporter {
 
         };
 
-        JSONArray allSatellites = new JSONArray();
+        Map<String, JSONObject> satellitesByNorad = new LinkedHashMap<>();
         for (String url : sourceUrls) {
             try {
                 String company = extractGroupFromUrl(url);
@@ -86,7 +89,11 @@ public class SatelliteDataExporter {
                     String tleLine1 = lines[i + 1].trim();
                     String tleLine2 = lines[i + 2].trim();
                     JSONObject sat = transformSatelliteTLEObject(company, nameLine, tleLine1, tleLine2);
-                    allSatellites.add(sat);
+                    String noradId = sat.get("norad_id").toString();
+                    if (satellitesByNorad.containsKey(noradId)) {
+                        satellitesByNorad.remove(noradId);
+                    }
+                    satellitesByNorad.put(noradId, sat);
                     i += 2;  // Advance to the next block.
                 }
             } catch (IOException e) {
@@ -97,6 +104,10 @@ public class SatelliteDataExporter {
 
         String outputPath = "json/tle/TLE.json";
         try {
+            JSONArray allSatellites = new JSONArray();
+            for (JSONObject sat : satellitesByNorad.values()) {
+                allSatellites.add(sat);
+            }
             writeJsonToFile(allSatellites, outputPath);
             System.out.println("Exported satellite data to " + outputPath);
         } catch (IOException e) {
@@ -114,7 +125,8 @@ public class SatelliteDataExporter {
      * It writes the results to "json/tle/satellite_launch_dates.json".
      */
     private static void extractLaunchDates() {
-        JSONArray launchDates = new JSONArray();
+        Map<String, JSONObject> launchDates = new LinkedHashMap<>();
+        Map<String, String> nameToNorad = new HashMap<>();
         int currentYear = Calendar.getInstance().get(Calendar.YEAR);
         for (int year = 1990; year <= currentYear; year++) {
             for (int month = 1; month <= 12; month++) {
@@ -124,7 +136,26 @@ public class SatelliteDataExporter {
                     String html = fetchHtmlFromUrl(url);
                     JSONArray pageLaunches = extractLaunchDatesFromPage(html);
                     for (Object obj : pageLaunches) {
-                        launchDates.add(obj);
+                        JSONObject sat = (JSONObject) obj;
+                        String noradId = sat.get("norad_id").toString();
+                        String name = sat.get("name").toString();
+
+                        if (launchDates.containsKey(noradId)) {
+                            JSONObject removed = launchDates.remove(noradId);
+                            String removedName = removed.get("name").toString();
+                            String mappedNorad = nameToNorad.get(removedName);
+                            if (mappedNorad != null && mappedNorad.equals(noradId)) {
+                                nameToNorad.remove(removedName);
+                            }
+                        }
+
+                        if (nameToNorad.containsKey(name)) {
+                            String previousNorad = nameToNorad.remove(name);
+                            launchDates.remove(previousNorad);
+                        }
+
+                        launchDates.put(noradId, sat);
+                        nameToNorad.put(name, noradId);
                     }
                 } catch (IOException e) {
                     System.err.println("Error fetching launch dates for " + year + "-" + monthStr);
@@ -133,7 +164,11 @@ public class SatelliteDataExporter {
             }
         }
         try {
-            writeJsonToFile(launchDates, "json/tle/satellite_launch_dates.json");
+            JSONArray uniqueLaunchDates = new JSONArray();
+            for (JSONObject sat : launchDates.values()) {
+                uniqueLaunchDates.add(sat);
+            }
+            writeJsonToFile(uniqueLaunchDates, "json/tle/satellite_launch_dates.json");
             System.out.println("Extracted launch dates saved to json/tle/satellite_launch_dates.json");
         } catch (IOException e) {
             System.err.println("Error writing launch dates file");
