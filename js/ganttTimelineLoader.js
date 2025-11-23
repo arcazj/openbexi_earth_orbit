@@ -13,12 +13,10 @@ const NOW_COLOR = '#ff4444';
 const BRUSH_COLOR = 'rgba(255,255,255,0.15)';
 const BRUSH_BORDER = 'rgba(255,255,255,0.35)';
 
-const MS_DAY = 24 * 60 * 60 * 1000;
+const MS_DAY = 24 * 60 * 60 * 1000 *2;
 const MS_YEAR = 365.25 * MS_DAY;
-const OVERVIEW_SPACING_TARGET = 360;
+const OVERVIEW_SPACING_TARGET = 360/2;
 const OVERVIEW_MIN_RANGE = MS_YEAR * 1.5;
-const DEFAULT_DETAIL_RANGE = MS_DAY * 180; // roughly six months
-const OVERVIEW_PADDING = MS_YEAR * 0.5; // half-year padding on each side
 
 function createHudElements() {
     const container = document.createElement('div');
@@ -173,28 +171,11 @@ export function initTimeline(satellites, arg2, arg3) {
         scheduleDraw();
     });
 
-    const earliestLaunch = timelineData[0].time;
-    const latestLaunch = timelineData[timelineData.length - 1].time;
-    const dataRange = latestLaunch - earliestLaunch;
-    const overviewPadding = Math.max(OVERVIEW_PADDING, dataRange * 0.05);
-    const overviewRange = Math.max(OVERVIEW_MIN_RANGE, dataRange + overviewPadding * 2);
+    let detailStart = centerDate.getTime() - MS_DAY * 3.5;
+    let detailEnd = centerDate.getTime() + MS_DAY * 3.5;
 
-    let overviewStart = earliestLaunch - overviewPadding;
-    let overviewEnd = overviewStart + overviewRange;
-
-    const centerTime = Math.min(Math.max(centerDate.getTime(), earliestLaunch), latestLaunch);
-    const detailRange = DEFAULT_DETAIL_RANGE;
-    let detailStart = centerTime - detailRange / 2;
-    let detailEnd = centerTime + detailRange / 2;
-
-    if (detailStart < overviewStart) {
-        detailEnd += overviewStart - detailStart;
-        detailStart = overviewStart;
-    }
-    if (detailEnd > overviewEnd) {
-        detailStart -= detailEnd - overviewEnd;
-        detailEnd = overviewEnd;
-    }
+    let overviewStart = new Date(centerDate.getUTCFullYear() - 10, 0, 1).getTime();
+    let overviewEnd = new Date(centerDate.getUTCFullYear() + 10, 0, 1).getTime();
 
     let detailPositions = [];
 
