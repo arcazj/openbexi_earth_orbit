@@ -1,6 +1,6 @@
 const DETAIL_RATIO = 0.75;
 const HUD_HEIGHT = 250;
-const DOT_RADIUS = 3;
+const DOT_RADIUS = 1;
 const ROW_HEIGHT = 13;
 const FONT = '9px sans-serif';
 const TOP_PADDING = 16;
@@ -15,6 +15,8 @@ const BRUSH_BORDER = 'rgba(255,255,255,0.35)';
 
 const MS_DAY = 24 * 60 * 60 * 1000;
 const MS_YEAR = 365.25 * MS_DAY;
+const OVERVIEW_SPACING_TARGET = 360;
+const OVERVIEW_MIN_RANGE = MS_YEAR * 1.5;
 
 function createHudElements() {
     const container = document.createElement('div');
@@ -49,7 +51,7 @@ function formatLabel(date, msPerPixel) {
     if (msPerPixel < MS_DAY / 80) {
         return `${pad(date.getUTCDate())}-${pad(date.getUTCMonth() + 1)}-${date.getUTCFullYear()}`;
     }
-    if (msPerPixel < MS_DAY * 30 / 80) {
+    if (msPerPixel < (MS_DAY * 30) / 40) {
         return `${pad(date.getUTCMonth() + 1)}-${date.getUTCFullYear()}`;
     }
     return `${date.getUTCFullYear()}`;
@@ -59,8 +61,8 @@ function pad(n) {
     return n.toString().padStart(2, '0');
 }
 
-function chooseInterval(rangeMs, width) {
-    const target = (rangeMs / width) * 120;
+function chooseInterval(rangeMs, width, spacingTarget = 120) {
+    const target = (rangeMs / width) * spacingTarget;
     const intervals = [
         { type: 'day', days: 1, ms: MS_DAY },
         { type: 'day', days: 3, ms: 3 * MS_DAY },
@@ -289,7 +291,7 @@ export function initTimeline(satellites, arg2, arg3) {
         ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
 
         const range = overviewEnd - overviewStart;
-        const interval = chooseInterval(range, width);
+        const interval = chooseInterval(range, width, OVERVIEW_SPACING_TARGET);
         const ticks = generateTicks(new Date(overviewStart), new Date(overviewEnd), interval);
         const msPerPixel = range / width;
 
@@ -298,23 +300,46 @@ export function initTimeline(satellites, arg2, arg3) {
         ctx.font = FONT;
         ctx.textBaseline = 'top';
 
-        ticks.forEach(t => {
+        ticks.forEach((t, idx) => {
             const x = timeToX(t.getTime(), overviewStart, overviewEnd, width);
             ctx.beginPath();
             ctx.moveTo(x + 0.5, 0);
             ctx.lineTo(x + 0.5, height);
             ctx.stroke();
             const label = formatLabel(t, msPerPixel);
-            if (label && (interval.type === 'year' || ctx.measureText(label).width < 80)) {
+            if (!label) return;
+
+            const nextTick = ticks[idx + 1];
+            const spacing = nextTick ? timeToX(nextTick.getTime(), overviewStart, overviewEnd, width) - x : width / ticks.length;
+            if (spacing > ctx.measureText(label).width + 10) {
                 ctx.fillText(label, x + 3, 2);
             }
+        });
+
+        const bucketCount = Math.max(10, Math.min(Math.floor(width / 8), 240));
+        const bucketWidth = width / bucketCount;
+        const bucketHeight = height * 0.6;
+        const buckets = new Array(bucketCount).fill(0);
+        timelineData.forEach(item => {
+            if (item.time < overviewStart || item.time > overviewEnd) return;
+            const idx = Math.min(bucketCount - 1, Math.max(0, Math.floor((item.time - overviewStart) / (overviewEnd - overviewStart) * bucketCount)));
+            buckets[idx] += 1;
+        });
+        const maxBucket = buckets.reduce((m, c) => Math.max(m, c), 0) || 1;
+
+        buckets.forEach((count, i) => {
+            const x = i * bucketWidth;
+            const intensity = Math.min(1, count / maxBucket);
+            ctx.fillStyle = `rgba(0, 255, 127, ${0.15 + intensity * 0.6})`;
+            ctx.fillRect(x, height - bucketHeight, bucketWidth, bucketHeight * intensity);
         });
 
         ctx.fillStyle = DOT_COLOR;
         const decimated = timelineData.filter(d => d.index % 100 === 0);
         decimated.forEach(item => {
+            if (item.time < overviewStart || item.time > overviewEnd) return;
             const x = timeToX(item.time, overviewStart, overviewEnd, width);
-            ctx.fillRect(x - 1, height * 0.6, 2, 2);
+            ctx.fillRect(x - 0.5, height * 0.6, 1, 1);
         });
 
         // Brush representing detail view
@@ -465,7 +490,7 @@ export function initTimeline(satellites, arg2, arg3) {
         const mouseTime = xToTime(e.clientX - rect.left, overviewStart, overviewEnd, overviewCanvas.clientWidth);
         const zoomFactor = Math.exp(-e.deltaY * 0.001);
         const range = overviewEnd - overviewStart;
-        const newRange = Math.min(MS_YEAR * 200, Math.max(MS_DAY * 30, range * zoomFactor));
+        const newRange = Math.min(MS_YEAR * 200, Math.max(OVERVIEW_MIN_RANGE, range * zoomFactor));
         const tRatio = (mouseTime - overviewStart) / range;
         overviewStart = mouseTime - newRange * tRatio;
         overviewEnd = overviewStart + newRange;
