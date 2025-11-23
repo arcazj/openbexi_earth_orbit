@@ -78,7 +78,7 @@
 
     import { createMoon, updateMoon } from './js/MoonFrameLoader.js';
 
-    import { initTimeline } from './js/gattTimelineLoader.js';
+    import { initTimeline } from './js/ganttTimelineLoader.js';
 
     // UI
     const versionNumber = "1.0o";
@@ -155,7 +155,7 @@
     const twHTML = `
   <div id="timeWarpBox"
        style="position:fixed;bottom:5px;left:50%;transform:translateX(-50%);
-              font:12px/1 sans-serif;z-index:2000;">
+              font:12px/1 sans-serif;z-index:3000;">
     <label for="timeWarpSlider">Time&nbsp;×</label>
     <input type="range" id="timeWarpSlider" min="0" max="60" step="1" value="0" style="width:200px;">
     <span id="timeWarpVal">0</span>x
@@ -1113,16 +1113,8 @@
             updateSatelliteList();
             updateECEFAxesVisibility(simParams);
 
-            initTimeline(satellites, simParams.simDate, handleTimelineSelection);
+            //initTimeline(satellites, simParams.simDate, handleTimelineSelection);
 
-            // =========================================================
-            //  NEW: Gantt Timeline Integration
-            // =========================================================
-            // Inside async function start() { ...
-
-            // =========================================================
-            //  FIXED: Gantt Timeline Integration
-            // =========================================================
             initTimeline(satellites, (sat) => {
                 console.log("Timeline Click:", sat.satellite_name);
 
