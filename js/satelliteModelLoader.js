@@ -22,7 +22,7 @@ export const SATELLITE_MODELS_BASE_URL =
 
 // Flat OBJ/MTL asset base (all files live directly under /obj)
 export const SATELLITE_OBJ_BASE_URL =
-    window.SATELLITE_MODELS_BASE_URL || 'obj/';
+    window.SATELLITE_OBJ_BASE_URL  || 'obj/';
 
 // Optional global renderer (for anisotropy)
 const renderer = window.renderer || null;

@@ -78,7 +78,7 @@
 
     import { createMoon, updateMoon } from './js/MoonFrameLoader.js';
 
-    import { initTimeline } from './js/ganttTimelineLoader.js';
+    import { initTimeline } from './js/gattTimelineLoader.js';
 
     // UI
     const versionNumber = "1.0o";
@@ -1101,6 +1101,7 @@
 
     async function start() {
         try {
+            // ... (Previous initialization code: init3D, mercator, TLE loading) ...
             init3D();
             yprFrame = createYPRFrame(scene);
             setYPRVisibility(yprFrame, false);
@@ -1114,6 +1115,45 @@
 
             initTimeline(satellites, simParams.simDate, handleTimelineSelection);
 
+            // =========================================================
+            //  NEW: Gantt Timeline Integration
+            // =========================================================
+            // Inside async function start() { ...
+
+            // =========================================================
+            //  FIXED: Gantt Timeline Integration
+            // =========================================================
+            initTimeline(satellites, (sat) => {
+                console.log("Timeline Click:", sat.satellite_name);
+
+                const dropdown = document.getElementById('satelliteSelect');
+                const orbitFilter = document.getElementById('orbitTypeFilter');
+                const companyFilter = document.getElementById('companyFilter');
+
+                if (dropdown && orbitFilter && companyFilter) {
+                    // 1. Force Reset Filters to ensure the satellite is available in the list
+                    // Update UI elements
+                    orbitFilter.value = 'ALL';
+                    companyFilter.value = 'ALL COMPANY';
+
+                    // Update Internal State (simParams comes from your main script scope)
+                    simParams.orbitTypeFilter = 'ALL';
+                    simParams.companyFilter = 'ALL COMPANY';
+
+                    // 2. Refresh the dropdown list with the new filters
+                    // This function (from your original code) repopulates the <select> options
+                    updateSatelliteList();
+
+                    // 3. Now that the option definitely exists, select it
+                    dropdown.value = sat.satellite_name;
+
+                    // 4. Trigger the standard selection logic
+                    // We mimic a real "change" event
+                    handleSatelliteDropdownChange({ target: dropdown });
+                }
+            });
+            // =========================================================
+
             if (simParams.showOrbit && currentSelectedSatellite) {
                 updateOrbitTrajectory(scene, simParams, currentSelectedSatellite);
             } else {
@@ -1124,13 +1164,7 @@
 
             animate();
         } catch (e) {
-            console.error("Critical error during initialization sequence:", e);
-            document.body.innerHTML = `
-        <div style="color:red; background:white; border: 2px solid red; padding:20px; font-family:monospace; margin: 20px;">
-          <h1>Application Initialization Failed</h1>
-          <p>Check console (F12) for more details.</p>
-          <pre>Error: ${e.message}</pre>
-        </div>`;
+            console.error("Critical error:", e);
         }
     }
 

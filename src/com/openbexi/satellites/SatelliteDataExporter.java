@@ -49,7 +49,24 @@ public class SatelliteDataExporter {
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle",
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=galileo&FORMAT=tle",
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=beidou&FORMAT=tle",
-                "https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle"
+                "https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle",
+                "https://celestrak.org/NORAD/elements/gp.php?GROUP=qianfan&FORMAT=tle",
+                "https://celestrak.org/NORAD/elements/gp.php?GROUP=kuiper&FORMAT=tle",
+                "https://celestrak.org/NORAD/elements/gp.php?GROUP=x-comm&FORMAT=tle",
+                "https://celestrak.org/NORAD/elements/gp.php?GROUP=telesat&FORMAT=tle",
+                "https://celestrak.org/NORAD/elements/gp.php?GROUP=hulianwang&FORMAT=tle",
+                "https://celestrak.org/NORAD/elements/gp.php?GROUP=other-comm&FORMAT=tle",
+                "https://celestrak.org/NORAD/elements/gp.php?GROUP=glo-ops&FORMAT=tle",
+                "https://celestrak.org/NORAD/elements/gp.php?GROUP=cubesat&FORMAT=tle",
+                "https://celestrak.org/NORAD/elements/gp.php?GROUP=science&FORMAT=tle",
+                "https://celestrak.org/NORAD/elements/gp.php?GROUP=military&FORMAT=tle"
+                //"https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle"
+
+
+
+
+
+
 
         };
 
