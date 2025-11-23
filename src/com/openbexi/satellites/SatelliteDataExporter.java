@@ -8,6 +8,7 @@ import java.io.InputStreamReader;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.file.Paths;
 import java.util.Calendar;
 import java.util.Base64;
 import java.util.HashMap;
@@ -89,11 +90,7 @@ public class SatelliteDataExporter {
                     String tleLine1 = lines[i + 1].trim();
                     String tleLine2 = lines[i + 2].trim();
                     JSONObject sat = transformSatelliteTLEObject(company, nameLine, tleLine1, tleLine2);
-                    String noradId = sat.get("norad_id").toString();
-                    if (satellitesByNorad.containsKey(noradId)) {
-                        satellitesByNorad.remove(noradId);
-                    }
-                    satellitesByNorad.put(noradId, sat);
+                    addSatelliteIfAbsent(satellitesByNorad, sat);
                     i += 2;  // Advance to the next block.
                 }
             } catch (IOException e) {
@@ -233,7 +230,7 @@ public class SatelliteDataExporter {
     private static String getLaunchDateByNorad(String noradId) {
         String launchDate = "no data";
         try {
-            File file = new File("json/tle/satellite_launch_dates.json");
+            File file = Paths.get(System.getProperty("user.dir"), "json", "tle", "satellite_launch_dates.json").toFile();
             if (!file.exists())
                 return launchDate;
             JSONParser parser = new JSONParser();
@@ -304,6 +301,14 @@ public class SatelliteDataExporter {
         in.close();
         conn.disconnect();
         return content.toString();
+    }
+
+    /**
+     * Adds a satellite entry only if the NORAD ID is not already present.
+     */
+    private static void addSatelliteIfAbsent(Map<String, JSONObject> satellitesByNorad, JSONObject satellite) {
+        String noradId = satellite.get("norad_id").toString();
+        satellitesByNorad.putIfAbsent(noradId, satellite);
     }
 
     /**
