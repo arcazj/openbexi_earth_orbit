@@ -4,11 +4,14 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.json.simple.JSONObject;
 
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -61,5 +64,28 @@ public class SatelliteDataExporterTest {
 
         result = invoke("99999");
         assertEquals("no data", result);
+    }
+
+    @Test
+    void ignoresDuplicateNoradIds() throws Exception {
+        Method m = Class.forName("com.openbexi.satellites.SatelliteDataExporter")
+                .getDeclaredMethod("addSatelliteIfAbsent", Map.class, JSONObject.class);
+        m.setAccessible(true);
+
+        Map<String, JSONObject> satellites = new LinkedHashMap<>();
+
+        JSONObject first = new JSONObject();
+        first.put("norad_id", "12345");
+        first.put("satellite_name", "FIRST");
+
+        JSONObject duplicate = new JSONObject();
+        duplicate.put("norad_id", "12345");
+        duplicate.put("satellite_name", "DUPLICATE");
+
+        m.invoke(null, satellites, first);
+        m.invoke(null, satellites, duplicate);
+
+        assertEquals(1, satellites.size());
+        assertEquals("FIRST", satellites.get("12345").get("satellite_name"));
     }
 }
