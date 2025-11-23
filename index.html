@@ -78,6 +78,8 @@
 
     import { createMoon, updateMoon } from './js/MoonFrameLoader.js';
 
+    import { initTimeline } from './js/ganttTimelineLoader.js';
+
     // UI
     const versionNumber = "1.0o";
     const versionRepoUrl = "https://github.com/arcazj/openbexi_earth_orbit";
@@ -872,6 +874,25 @@
         updateSatelliteInfo(satelliteInfoDiv, tleSatData);
     }
 
+    function handleTimelineSelection(tleSatData) {
+        if (!tleSatData) return;
+        if (orbitTypeFilterSelect) {
+            orbitTypeFilterSelect.value = 'ALL';
+            simParams.orbitTypeFilter = 'ALL';
+        }
+        if (companyFilterSelect) {
+            companyFilterSelect.value = 'ALL COMPANY';
+            simParams.companyFilter = 'ALL COMPANY';
+        }
+        simParams.showOnlySelectedSatellite = false;
+        updateSatelliteList();
+        if (satelliteSelectDropdown) {
+            satelliteSelectDropdown.value = tleSatData.satellite_name;
+            const changeEvent = new Event('change');
+            satelliteSelectDropdown.dispatchEvent(changeEvent);
+        }
+    }
+
     window.addEventListener('keydown', e => {
         if (e.key === 'r') {
             controls.reset();
@@ -1090,6 +1111,8 @@
             setupHTMLControls();
             updateSatelliteList();
             updateECEFAxesVisibility(simParams);
+
+            initTimeline(satellites, simParams.simDate, handleTimelineSelection);
 
             if (simParams.showOrbit && currentSelectedSatellite) {
                 updateOrbitTrajectory(scene, simParams, currentSelectedSatellite);
