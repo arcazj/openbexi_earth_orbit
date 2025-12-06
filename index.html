@@ -81,7 +81,7 @@
     import { initTimeline } from './js/ganttTimelineLoader.js';
 
     // UI
-    const versionNumber = "1.0o";
+    const versionNumber = "1.0p";
     const versionRepoUrl = "https://github.com/arcazj/openbexi_earth_orbit";
     const versionText = `version ${versionNumber} - hosted at`;
     document.getElementById('ob_menu').innerHTML = satelliteMenuLoader();
@@ -1006,7 +1006,7 @@
 
                 // dt-aware smoothing keeps stable when Time× changes
                 const chaseSmooth = 1 - Math.pow(0.001, dtReal); // fast, stable
-                camera.position.lerp(V_TMP2, chaseSmooth);
+                //camera.position.lerp(V_TMP2, chaseSmooth);
 
                 controls.target.copy(moon.position);
                 controls.update();
