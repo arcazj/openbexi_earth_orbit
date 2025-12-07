@@ -81,7 +81,7 @@
     import { initTimeline } from './js/ganttTimelineLoader.js';
 
     // UI
-    const versionNumber = "1.0p";
+    const versionNumber = "1.0q";
     const versionRepoUrl = "https://github.com/arcazj/openbexi_earth_orbit";
     const versionText = `version ${versionNumber} - hosted at`;
     document.getElementById('ob_menu').innerHTML = satelliteMenuLoader();
@@ -132,7 +132,7 @@
         pitchDeg: 0,
         rollDeg: 0,
         showYPR: false,
-        showDayNight: false,
+        showDayNight: true,
         simDate: new Date(),
         timeWarp: 1,
         showFootprint: false,
@@ -381,14 +381,27 @@
         }
 
         showOrbitToggle.addEventListener('change', (e) => {
-            simParams.showOrbit = e.target.checked;
-            if (currentSelectedSatellite && simParams.showOrbit) {
+            const wantOrbit = e.target.checked;
+
+            // If user turned orbit OFF → immediately clear all orbit geometry
+            if (!wantOrbit) {
+                simParams.showOrbit = false;
+                removeAllGeometry(scene);   // ⬅ clears 3-D orbit line(s) and related geometry
+                return;
+            }
+
+            // From here, user is turning orbit ON
+            if (currentSelectedSatellite) {
+                simParams.showOrbit = true;
                 updateOrbitTrajectory(scene, simParams, currentSelectedSatellite);
             } else {
+                // No satellite selected → cannot show orbit
                 simParams.showOrbit = false;
                 e.target.checked = false;
+                // (optional: display a small warning to select a satellite)
             }
         });
+
 
         satelliteSelectDropdown.addEventListener('change', handleSatelliteDropdownChange);
 
@@ -450,76 +463,64 @@
             simParams.showDayNight = e.target.checked;
         });
 
-        // Other Selections (Earth/Moon)
-        const otherSelLabel = document.createElement('label');
-        otherSelLabel.textContent = 'Other Selections';
-        otherSelLabel.setAttribute('for', 'otherSelection');
-        otherSelLabel.style.display = 'block';
-        otherSelLabel.style.marginTop = '8px';
+        // === Other Selections (Earth/Moon) ===
+        const otherSel = document.getElementById('otherSelection');
+        if (otherSel) {
+            otherSel.value = simParams.otherSelection;
 
-        const otherSel = document.createElement('select');
-        otherSel.id = 'otherSelection';
-        otherSel.style.width = '100%';
-        ['Earth', 'Moon'].forEach(v => {
-            const opt = document.createElement('option');
-            opt.value = v;
-            opt.textContent = v;
-            otherSel.appendChild(opt);
-        });
-        otherSel.value = simParams.otherSelection;
+            otherSel.addEventListener('change', () => {
+                simParams.otherSelection = otherSel.value;
 
-        if (satelliteSelectDropdown && satelliteSelectDropdown.parentElement) {
-            satelliteSelectDropdown.parentElement.appendChild(otherSelLabel);
-            satelliteSelectDropdown.parentElement.appendChild(otherSel);
-        } else if (controlsContainerElement) {
-            controlsContainerElement.appendChild(otherSelLabel);
-            controlsContainerElement.appendChild(otherSel);
+                if (simParams.otherSelection === 'Moon') {
+                    // Deselect current satellite for clarity (optional)
+                    if (satelliteSelectDropdown) {
+                        satelliteSelectDropdown.value = 'None';
+                        simParams.selectedSatelliteName = 'None';
+                    }
+                    selectSatelliteSprite(null);        // clears selection & orbit line
+                    clearDetailedSatelliteView();       // clears any detailed model
+                    removeAllGeometry(scene);
+
+                    // Fly to Moon
+                    flyCameraToSatellite(moon, 1500, false);
+
+                    // Let users get closer to the Moon
+                    const moonRadius = EARTH_SCENE_RADIUS * 0.27;
+                    controls.minDistance = Math.max(moonRadius * 1.1, 0.05 * EARTH_SCENE_RADIUS);
+                    controls.maxDistance = EARTH_SCENE_RADIUS * 8;
+
+                    // Start orbiting around the Moon immediately
+                    controls.target.copy(moon.position);
+                    controls.update();
+                } else {
+                    // Back to Earth “home” view and initial MEO filter as on app start
+                    resetCameraToDefault();
+
+                    // Restore initial filters (MEO, ALL COMPANY) like fresh start
+                    if (orbitTypeFilterSelect) {
+                        orbitTypeFilterSelect.value = 'MEO';
+                        simParams.orbitTypeFilter = 'MEO';
+                    }
+                    if (companyFilterSelect) {
+                        companyFilterSelect.value = 'ALL COMPANY';
+                        simParams.companyFilter = 'ALL COMPANY';
+                    }
+
+                    // Clear selection
+                    if (satelliteSelectDropdown) {
+                        satelliteSelectDropdown.value = 'None';
+                        simParams.selectedSatelliteName = 'None';
+                    }
+                    selectSatelliteSprite(null);
+                    clearDetailedSatelliteView();
+                    removeAllGeometry(scene);
+
+                    // Rebuild visible sprite set to reflect filters
+                    updateSatelliteList();
+                }
+            });
         }
-
-        otherSel.addEventListener('change', () => {
-            simParams.otherSelection = otherSel.value;
-
-            if (simParams.otherSelection === 'Moon') {
-                if (satelliteSelectDropdown) {
-                    satelliteSelectDropdown.value = 'None';
-                    simParams.selectedSatelliteName = 'None';
-                }
-                selectSatelliteSprite(null);
-                clearDetailedSatelliteView();
-                removeAllGeometry(scene);
-
-                // Fly to Moon and relax min distance
-                flyCameraToSatellite(moon, 1500, false);
-                const moonRadius = EARTH_SCENE_RADIUS * 0.27;
-                controls.minDistance = Math.max(moonRadius * 1.1, 0.05 * EARTH_SCENE_RADIUS);
-                controls.maxDistance = EARTH_SCENE_RADIUS * 8;
-
-                controls.target.copy(moon.position);
-                controls.update();
-            } else {
-                // The user said they call resetCameraToDefault(); keep that path.
-                resetCameraToDefault();
-
-                if (orbitTypeFilterSelect) {
-                    orbitTypeFilterSelect.value = 'MEO';
-                    simParams.orbitTypeFilter = 'MEO';
-                }
-                if (companyFilterSelect) {
-                    companyFilterSelect.value = 'ALL COMPANY';
-                    simParams.companyFilter = 'ALL COMPANY';
-                }
-                if (satelliteSelectDropdown) {
-                    satelliteSelectDropdown.value = 'None';
-                    simParams.selectedSatelliteName = 'None';
-                }
-                selectSatelliteSprite(null);
-                clearDetailedSatelliteView();
-                removeAllGeometry(scene);
-                updateSatelliteList();
-            }
-        });
     }
-
     async function handleSatelliteDropdownChange(event) {
         const selectedNameInDropdown = event.target.value;
         simParams.selectedSatelliteName = selectedNameInDropdown;

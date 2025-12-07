@@ -1,376 +1,402 @@
+:root {
+    --accent: #00aaff;
+}
+
+/* Global layout */
 body {
-  margin: 0;
-  overflow: hidden;
-  font-family: Arial, sans-serif;
-  background-color: #000;
-  color: #fff;
+    margin: 0;
+    overflow: hidden;
+    font-family: Arial, sans-serif;
+    background-color: #000;
+    color: #fff;
 }
 
 canvas {
-  display: block; /* Default for the main 3D canvas */
+    display: block; /* Default for the main 3D canvas */
 }
 
 /* Menu Toggle Button */
 #menuToggleBtn {
-  position: fixed;
-  top: 10px;
-  left: 10px;
-  z-index: 1001; /* Above controls container */
-  background-color: rgba(50, 50, 50, 0.8);
-  color: white;
-  border: 1px solid #666;
-  border-radius: 5px;
-  padding: 8px 12px;
-  cursor: pointer;
-  font-size: 18px;
-  line-height: 1;
-  transition: left 0.3s ease-in-out;
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    z-index: 1001; /* Above controls container */
+    background-color: rgba(50, 50, 50, 0.8);
+    color: white;
+    border: 1px solid #666;
+    border-radius: 5px;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    transition: left 0.3s ease-in-out;
 }
 
 /* Controls Container (Menu Panel) */
 #controlsContainer {
-  position: fixed;
-  top: 10px;
-  left: 10px;
-  background-color: rgba(40, 40, 40, 0.9);
-  padding: 15px;
-  border-radius: 8px;
-  width: 290px;
-  max-height: calc(100vh - 20px);
-  overflow-y: auto;
-  z-index: 1000;
-  box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
-  transition: transform 0.3s ease-in-out;
-  transform: translateX(0%); /* Initially visible */
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    background-color: rgba(40, 40, 40, 0.9);
+    padding: 10px;
+    border-radius: 8px;
+    width: 290px;
+    max-height: calc(100vh - 20px);
+    overflow-y: auto;
+    z-index: 1000;
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+    transition: transform 0.3s ease-in-out;
+    transform: translateX(0%); /* Initially visible */
+    font-family: sans-serif;
 }
 
 #controlsContainer.menu-hidden {
-  transform: translateX(calc(-100% - 20px)); /* Slide out completely */
+    transform: translateX(calc(-100% - 20px)); /* Slide out completely */
 }
 
 /* Version Display within Menu */
 #versionDisplay {
-  color: #888;
-  font-size: 12px;
-  text-align: center;
-  padding: 5px 0 10px 0;
-  border-bottom: 1px solid #555;
-  margin-bottom: 10px;
-  word-wrap: break-word; /* Ensure long links don't break layout */
+    color: #888;
+    font-size: 12px;
+    text-align: center;
+    padding: 5px 0 10px 0;
+    border-bottom: 1px solid #555;
+    margin-bottom: 10px;
+    word-wrap: break-word; /* Ensure long links don't break layout */
 }
 
 #versionDisplay a {
-  color: #00aaff; /* Link color */
-  text-decoration: none;
+    color: #00aaff; /* Link color */
+    text-decoration: none;
 }
 
 #versionDisplay a:hover {
-  text-decoration: underline;
+    text-decoration: underline;
 }
 
 /* Control Groups within Menu */
 .control-group {
-  margin-bottom: 15px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #555;
+    margin-bottom: 1em;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #555;
 }
 
 .control-group:last-child {
-  border-bottom: none;
-  margin-bottom: 0;
-  padding-bottom: 0;
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
 }
 
 /* Collapsible Section Headers (H3) */
 #controlsContainer h3 {
-  color: #00aaff;
-  margin-top: 0;
-  margin-bottom: 10px;
-  font-size: 16px;
-  cursor: pointer;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+    color: #00aaff;
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 #controlsContainer h3 .toggle-icon {
-  font-size: 12px;
-  margin-left: 8px;
-  transition: transform 0.2s ease-in-out;
+    font-size: 12px;
+    margin-left: 8px;
+    transition: transform 0.2s ease-in-out;
 }
 
 #controlsContainer h3 .toggle-icon.collapsed {
-  transform: rotate(-90deg);
+    transform: rotate(-90deg);
 }
 
 /* Collapsible Content Styling */
 .collapsible-content {
-  max-height: 500px; /* Large enough to show content */
-  overflow: hidden;
-  transition: max-height 0.3s ease-in-out, padding 0.3s ease-in-out, margin 0.3s ease-in-out;
+    max-height: 500px; /* Large enough to show content */
+    overflow: hidden;
+    transition:
+            max-height 0.3s ease-in-out,
+            padding 0.3s ease-in-out,
+            margin 0.3s ease-in-out;
 }
 
 .collapsible-content.collapsed {
-  max-height: 0;
-  padding-top: 0 !important; /* Ensure padding collapses */
-  padding-bottom: 0 !important;
-  margin-top: -10px; /* Adjust to pull up following element */
-  border-top: none; /* Hide border if any was applied when open */
+    max-height: 0;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    margin-top: -10px;
+    border-top: none;
 }
-
 
 /* Labels for Controls */
 #controlsContainer label {
-  display: block;
-  margin-bottom: 5px;
-  font-weight: bold;
-  font-size: 13px;
-  color: #ccc;
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+    font-size: 13px;
+    color: #ccc;
 }
 
 /* Select Dropdowns */
 #controlsContainer select {
-  width: 100%;
-  padding: 8px;
-  border-radius: 4px;
-  border: 1px solid #555;
-  background-color: #333;
-  color: #fff;
-  font-size: 13px;
-  box-sizing: border-box; /* Include padding and border in the element's total width and height */
+    width: 100%;
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #555;
+    background-color: #333;
+    color: #fff;
+    font-size: 13px;
+    box-sizing: border-box;
 }
 
 /* Checkboxes */
 #controlsContainer input[type="checkbox"] {
-  margin-right: 5px;
-  vertical-align: middle;
+    margin-right: 5px;
+    vertical-align: middle;
 }
 
-#controlsContainer .checkbox-label { /* Label next to a checkbox */
-  display: inline-block;
-  vertical-align: middle;
-  font-weight: normal;
-  color: #eee;
-  cursor: pointer; /* Make the text label clickable for the checkbox */
+#controlsContainer .checkbox-label {
+    display: inline-block;
+    vertical-align: middle;
+    font-weight: normal;
+    color: #eee;
+    cursor: pointer;
 }
 
 /* Satellite Info Panel */
 #satelliteInfo {
-  margin-top: 1px;
-  color: #fff;
-  font-family: monospace;
-  background-color: #222;
-  padding: 10px;
-  border-radius: 5px;
-  font-size: 11px;
-  white-space: pre-wrap; /* Preserve whitespace and newlines */
-  border: 1px solid #444;
-  max-height: 400px; /* Limit height and enable scroll if needed */
-  overflow-y: auto;
-}
-
-/* Satellite Count Display */
-#satelliteCountDisplay {
-  font-size: 13px;
-  color: #00aaff;
-  font-weight: bold;
-}
-
-/* Mercator Map Styling */
-#mercatorContainer {
-  position: absolute;
-  display: none; /* Hidden by default, JS controls visibility */
-  pointer-events: auto; /* Allow interaction if needed for future features like map panning */
-  border: 1px solid #555;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
-  /* Default to corner position */
-  top: 10px;
-  right: 10px;
-  width: 400px;
-  height: 200px;
-  background-color: #111; /* Fallback if background image fails */
-}
-
-#mercatorContainer.fullscreen {
-  top: 0;
-  left: 0;
-  right: auto; /* Override right positioning for fullscreen */
-  width: 100vw;
-  height: 100vh;
-  border: none; /* No border in fullscreen */
-  box-shadow: none; /* No shadow in fullscreen */
-  z-index: 900; /* Below controls but above 3D canvas if it were visible */
-}
-
-.mapBackground {
-  position: relative;
-  width: 100%; /* Takes full width of its parent (#mercatorContainer) */
-  height: 100%; /* Takes full height of its parent */
-  background-color: #2a2a2a; /* Default background if no image loads */
-  background-repeat: no-repeat;
-  background-size: 100% 100%; /* Ensure it covers the area */
-}
-
-#mercatorCanvas {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-}
-
-.mapBackground.fallback-css {
-  background: #333 url('https://placehold.co/400x200/222222/ffffff?text=Map+Load+Error') no-repeat center center !important;
-  background-size: contain !important;
-}
-
-#mercatorContainer.fullscreen .mapBackground.fallback-css {
-  background: #333 url('https://placehold.co/1920x1080/222222/ffffff?text=Map+Load+Error+Fullscreen') no-repeat center center !important;
-  background-size: contain !important;
-}
-
-/* Styles for 3D Overlay Labels (ECEF Axes, North Pole, Equator, Meridian) */
-.axis-label {
-  position: absolute;
-  background-color: rgba(0, 0, 0, 0.6); /* Semi-transparent background */
-  padding: 2px 5px;
-  border-radius: 3px;
-  pointer-events: none; /* So they don't interfere with mouse controls */
-  transform: translate(-50%, -100%); /* Position top-center of the point */
-  white-space: nowrap;
-  display: none; /* Hidden by default, JS will manage visibility */
-  z-index: 10; /* Ensure they are above the 3D canvas but below UI controls */
-  color: #ddd;
-  font: bold 12px/1.1em sans-serif;
-  text-shadow: 0 0 3px #000;
-}
-/* CSS2DObject labels for detailed satellite models */
-.label {
-  color: #FFF;
-  font-family: sans-serif;
-  padding: 2px;
-  background: rgba(0, 0, 0, 0.6);
-  border-radius: 3px;
-  font-size: 10px;
-  white-space: nowrap;
-}
-/* Sidebar container */
-#controlsContainer {
-  padding: 10px;
-  font-family: sans-serif;
-}
-
-/* Control group styling */
-.control-group {
-  margin-bottom: 1em;
-}
-
-/* Collapsible section headers */
-.control-group h3 {
-  margin: 0 0 0.5em;
-  cursor: pointer;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-/* Flex layout for filters */
-#filtersContent {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-/* Filter column */
-.filter-column {
-  flex: 1 1 45%;
-  text-align: left;
-}
-
-/* Label styles */
-.filter-column label,
-.control-group label {
-  display: block;
-  margin: 4px 0;
-  color: #00aaff;
-}
-
-/* Select box styling */
-.filter-column select {
-  width: 100%;
-}
-
-/* Grid layout for view options */
-#viewContent {
-  display: grid;
-  grid-template-columns: repeat(2, auto);
-  column-gap: 14px;
-  row-gap: 4px;
+    margin-top: 1px;
+    color: #fff;
+    font-family: monospace;
+    background-color: #222;
+    padding: 10px;
+    border-radius: 5px;
+    font-size: 11px;
+    white-space: pre-wrap;
+    border: 1px solid #444;
+    max-height: 400px;
+    overflow-y: auto;
 }
 
 /* Satellite info table */
 #satelliteInfo .meta-table {
-  font-size: 12px;
+    font-size: 12px;
 }
 
 #satelliteInfo .meta-table td.v {
-  color: #ffd966;
+    color: #ffd966;
+}
+
+/* Satellite Count Display */
+#satelliteCountDisplay {
+    font-size: 13px;
+    color: #00aaff;
+    font-weight: bold;
+}
+
+/* Mercator Map Styling */
+#mercatorContainer {
+    position: absolute;
+    display: none; /* Hidden by default, JS controls visibility */
+    pointer-events: auto;
+    border: 1px solid #555;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+    top: 10px;
+    right: 10px;
+    width: 400px;
+    height: 200px;
+    background-color: #111;
+}
+
+#mercatorContainer.fullscreen {
+    top: 0;
+    left: 0;
+    right: auto;
+    width: 100vw;
+    height: 100vh;
+    border: none;
+    box-shadow: none;
+    z-index: 900;
+}
+
+.mapBackground {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background-color: #2a2a2a;
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
+}
+
+#mercatorCanvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.mapBackground.fallback-css {
+    background: #333
+    url('https://placehold.co/400x200/222222/ffffff?text=Map+Load+Error')
+    no-repeat center center !important;
+    background-size: contain !important;
+}
+
+#mercatorContainer.fullscreen .mapBackground.fallback-css {
+    background: #333
+    url('https://placehold.co/1920x1080/222222/ffffff?text=Map+Load+Error+Fullscreen')
+    no-repeat center center !important;
+    background-size: contain !important;
+}
+
+/* Styles for 3D Overlay Labels (ECEF Axes, North Pole, Equator, Meridian) */
+.axis-label {
+    position: absolute;
+    background-color: rgba(0, 0, 0, 0.6);
+    padding: 2px 5px;
+    border-radius: 3px;
+    pointer-events: none;
+    transform: translate(-50%, -100%);
+    white-space: nowrap;
+    display: none;
+    z-index: 10;
+    color: #ddd;
+    font: bold 12px/1.1em sans-serif;
+    text-shadow: 0 0 3px #000;
+}
+
+/* CSS2DObject labels for detailed satellite models */
+.label {
+    color: #fff;
+    font-family: sans-serif;
+    padding: 2px;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: 3px;
+    font-size: 10px;
+    white-space: nowrap;
+}
+
+/* Filters layout */
+#filtersContent {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+/* Filter column */
+.filter-column {
+    flex: 1 1 45%;
+    text-align: left;
+}
+
+/* Filter labels & selects */
+.filter-column label {
+    display: block;
+    margin: 4px 0;
+    color: var(--accent);
+}
+
+.filter-column select {
+    width: 100%;
+}
+
+/* Grid layout for view options (View section) */
+#viewContent {
+    display: grid;
+    grid-template-columns: repeat(2, auto);
+    column-gap: 14px;
+    row-gap: 4px;
 }
 
 /* Timeline HUD */
 .timeline-hud {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 250px;
-  background: rgba(0, 0, 0, 0.9);
-  color: #e0e0e0;
-  border-top: 1px solid #444;
-  z-index: 2500;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.45);
-  overflow: hidden;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 250px;
+    background: rgba(0, 0, 0, 0.9);
+    color: #e0e0e0;
+    border-top: 1px solid #444;
+    z-index: 2500;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.45);
+    overflow: hidden;
 }
 
 .timeline-hud.timeline-collapsed {
-  height: 32px;
-  overflow: hidden;
+    height: 32px;
+    overflow: hidden;
 }
 
 .timeline-hud.timeline-collapsed .timeline-canvas {
-  display: none;
+    display: none;
 }
 
 .timeline-canvas {
-  width: 100%;
-  background: transparent;
+    width: 100%;
+    background: transparent;
 }
 
 .timeline-detail {
-  flex: 3;
+    flex: 3;
 }
 
 .timeline-overview {
-  flex: 1;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+    flex: 1;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .timeline-toggle {
-  position: absolute;
-  top: 6px;
-  right: 12px;
-  padding: 4px 8px;
-  background: rgba(0, 0, 0, 0.8);
-  color: #fff;
-  border: 1px solid #555;
-  border-radius: 4px;
-  font-size: 11px;
-  cursor: pointer;
-  z-index: 2501;
+    position: absolute;
+    top: 6px;
+    right: 12px;
+    padding: 4px 8px;
+    background: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    border: 1px solid #555;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    z-index: 2501;
 }
 
 .timeline-toggle:hover {
-  border-color: #888;
+    border-color: #888;
+}
+
+/* Titles: Filters, View, Satellite Selection, etc. */
+.section-heading {
+    color: var(--accent);
+    font-weight: 600;
+}
+
+/* Subtitle labels: "Select Satellite:", "Other Selections:" */
+.section-subtitle {
+    display: block;
+    margin: 8px 0 4px;
+    color: var(--accent);
+    font-weight: 600;
+}
+
+/* Digital UTC clock */
+#utcClockDisplay {
+    position: fixed;
+    top: 10px;
+    right: 16px;
+    padding: 6px 12px;
+    background: radial-gradient(circle at 30% 30%, #001800, #000000);
+    color: #fffffd; /* bright white */
+    font-family: "SF Mono", "Roboto Mono", "Fira Mono", Menlo, Consolas, monospace;
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    border-radius: 4px;
+    border: 1px solid rgba(15, 161, 205, 0.4);
+    /* text-shadow: 0 0 4px rgba(0, 255, 102, 0.8); */ /* optional glow */
+    box-shadow:
+            0 0 6px rgba(0, 0, 0, 0.8),
+            0 0 12px rgba(0, 255, 102, 0.2);
+    z-index: 2100;
+    white-space: nowrap;
 }
