@@ -192,18 +192,22 @@
     let labelXecrDiv, labelYecrDiv, labelZecrDiv, labelNorthPoleDiv, labelEquatorLineDiv, labelGreenwichMeridianDiv;
 
     function normalizeCompanySelection(selection) {
-        if (!selection || selection.length === 0 || selection.includes(ALL_COMPANY_OPTION)) {
+        const cleaned = Array.from(new Set((selection || []).filter(Boolean)));
+
+        if (cleaned.includes(ALL_COMPANY_OPTION) && cleaned.length > 1) {
+            return cleaned.filter(val => val !== ALL_COMPANY_OPTION);
+        }
+        if (cleaned.length === 0) {
             return [ALL_COMPANY_OPTION];
         }
-        return selection;
+        return cleaned;
     }
 
     function getCompanySelectionFromUI() {
         if (!companyFilterSelect) return [ALL_COMPANY_OPTION];
-        const selected = Array.from(
+        return Array.from(
             companyFilterSelect.querySelectorAll('input[type="checkbox"]:checked')
         ).map(cb => cb.value);
-        return normalizeCompanySelection(selected);
     }
 
     function applyCompanySelectionToUI(selection) {
@@ -250,6 +254,16 @@
 
     function companyMatchesSelection(company) {
         return simParams.companyFilter.includes(ALL_COMPANY_OPTION) || simParams.companyFilter.includes(company);
+    }
+
+    function getCompaniesForOrbitSelection(orbitType) {
+        if (!satellites) return [];
+
+        return Array.from(new Set(
+            satellites
+                .filter(s => (orbitType === "ALL" || s.orbitType === orbitType) && s.company && s.company !== "N/A")
+                .map(s => s.company)
+        )).sort();
     }
 
     function buildFilteredSatellitesBySelection() {
@@ -485,7 +499,16 @@
         companyFilterSelect.addEventListener('change', (event) => {
             if (!event.target || !event.target.matches('input[type="checkbox"]')) return;
 
-            applyCompanySelectionToUI(getCompanySelectionFromUI());
+            const changedValue = event.target.value;
+            let selection = getCompanySelectionFromUI();
+
+            if (changedValue === ALL_COMPANY_OPTION && event.target.checked) {
+                selection = [ALL_COMPANY_OPTION];
+            } else if (selection.includes(ALL_COMPANY_OPTION)) {
+                selection = selection.filter(val => val !== ALL_COMPANY_OPTION);
+            }
+
+            applyCompanySelectionToUI(selection);
             simParams.showOrbit = false;
             if (showOrbitToggle) showOrbitToggle.checked = false;
             removeAllGeometry(scene);
@@ -933,14 +956,12 @@
                 simParams.showOnlySelectedSatellite ? (currentSelectedSatellite ? '1' : '0') : filteredTLEs.length.toString();
         }
 
-        const uniqueCompanies = Array.from(
-            new Set(satellites.map(s => s.company).filter(comp => comp && comp !== "N/A"))
-        ).sort();
+        const companiesForOrbit = getCompaniesForOrbitSelection(simParams.orbitTypeFilter);
         const previousCompanySelection = Array.from(simParams.companyFilter);
         const normalizedSelection = normalizeCompanySelection(
-            previousCompanySelection.filter(val => val === ALL_COMPANY_OPTION || uniqueCompanies.includes(val))
+            previousCompanySelection.filter(val => val === ALL_COMPANY_OPTION || companiesForOrbit.includes(val))
         );
-        renderCompanyFilter(uniqueCompanies, normalizedSelection);
+        renderCompanyFilter(companiesForOrbit, normalizedSelection);
 
         const previousDropdownValue = satelliteSelectDropdown.value;
         satelliteSelectDropdown.innerHTML = '<option value="None">None</option>';
