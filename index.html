@@ -80,6 +80,13 @@
 
     import { initTimeline } from './js/ganttTimelineLoader.js';
 
+    import {
+        initStarLayer,
+        setStarVisibility,
+        updateStarLayer,
+        disposeStarLayer
+    } from './js/skyMapLoader.js';
+
     // UI
     const versionNumber = "1.0r";
     const versionRepoUrl = "https://github.com/arcazj/openbexi_earth_orbit";
@@ -101,6 +108,22 @@
     // Throttles
     let lastClockUpdate = 0;      // ms
     let lastMercatorRedraw = 0;   // ms
+
+    const readSetting = (key, fallback) => {
+        try {
+            const raw = localStorage.getItem(key);
+            return raw === null ? fallback : JSON.parse(raw);
+        } catch (e) {
+            return fallback;
+        }
+    };
+    const persistSetting = (key, value) => {
+        try {
+            localStorage.setItem(key, JSON.stringify(value));
+        } catch (e) {
+            // best-effort persistence
+        }
+    };
 
     // Helper: write ECEF→scene into "out"
     function ecefToScene(out, x, y, z, rotY) {
@@ -137,15 +160,29 @@
         timeWarp: 1,
         showFootprint: false,
         showOnlySelectedSatellite: false,
-        otherSelection: 'Earth'
+        otherSelection: 'Earth',
+        showStars: readSetting('ob_showStars', true),
+        starMagnitudeLimit: readSetting('ob_starMagLimit', 6),
+        starSizeScale: readSetting('ob_starSizeScale', 1),
+        starColorMode: readSetting('ob_starColorMode', 'trueColor'),
+        starShowLabels: readSetting('ob_starShowLabels', false),
+        starLabelDensity: readSetting('ob_starLabelDensity', 8),
+        starOpacity: readSetting('ob_starOpacity', 0.85),
+        observerLatDeg: readSetting('ob_observerLat', 0),
+        observerLonDeg: readSetting('ob_observerLon', 0)
     };
 
     let orbitTypeFilterSelect, companyFilterSelect, satelliteCountDisplay;
     let view3DToggle, viewMercatorToggle, showOrbitToggle, showOrbitFrameToggle;
     let highDefToggleElement, showECEFAxesToggleElement, showOrbitFrameToggleElement;
+    let showStarsToggle, starMagnitudeSlider, starMagnitudeValueLabel, starSizeSlider, starSizeValueLabel,
+        starOpacitySlider, starOpacityValueLabel, starColorModeSelect, starLabelToggle,
+        starLabelDensitySlider, starLabelDensityValue, observerLatInput, observerLonInput;
     let satelliteSelectDropdown, satelliteInfoDiv;
     let controlsContainerElement, menuToggleBtnElement, versionDisplayElement;
     let labelXecrDiv, labelYecrDiv, labelZecrDiv, labelNorthPoleDiv, labelEquatorLineDiv, labelGreenwichMeridianDiv;
+
+    let starLayer = null;
 
     // Time-warp UI
     simParams.timeWarp = 1 / 60;
@@ -287,6 +324,19 @@
         showECEFAxesToggleElement = document.getElementById('showECEFAxesToggle');
         showOrbitFrameToggleElement = document.getElementById('showOrbitFrameToggle');
         showOrbitToggle = document.getElementById('showOrbitToggle');
+        showStarsToggle = document.getElementById('showStarsToggle');
+        starMagnitudeSlider = document.getElementById('starMagnitudeLimit');
+        starMagnitudeValueLabel = document.getElementById('starMagnitudeValue');
+        starSizeSlider = document.getElementById('starSizeScale');
+        starSizeValueLabel = document.getElementById('starSizeValue');
+        starOpacitySlider = document.getElementById('starOpacity');
+        starOpacityValueLabel = document.getElementById('starOpacityValue');
+        starColorModeSelect = document.getElementById('starColorMode');
+        starLabelToggle = document.getElementById('starLabelToggle');
+        starLabelDensitySlider = document.getElementById('starLabelDensity');
+        starLabelDensityValue = document.getElementById('starLabelValue');
+        observerLatInput = document.getElementById('observerLatInput');
+        observerLonInput = document.getElementById('observerLonInput');
 
         satelliteSelectDropdown = document.getElementById('satelliteSelect');
         satelliteInfoDiv = document.getElementById('satelliteInfo');
@@ -315,6 +365,27 @@
         if (showECEFAxesToggleElement) showECEFAxesToggleElement.checked = simParams.showECEFAxes;
         if (showOrbitFrameToggleElement) showOrbitFrameToggleElement.checked = simParams.showOrbitFrame;
         showOrbitToggle.checked = simParams.showOrbit;
+        if (showStarsToggle) showStarsToggle.checked = !!simParams.showStars;
+        if (starMagnitudeSlider && starMagnitudeValueLabel) {
+            starMagnitudeSlider.value = simParams.starMagnitudeLimit;
+            starMagnitudeValueLabel.textContent = `${simParams.starMagnitudeLimit}`;
+        }
+        if (starSizeSlider && starSizeValueLabel) {
+            starSizeSlider.value = simParams.starSizeScale;
+            starSizeValueLabel.textContent = `${simParams.starSizeScale.toFixed(1)}x`;
+        }
+        if (starOpacitySlider && starOpacityValueLabel) {
+            starOpacitySlider.value = simParams.starOpacity;
+            starOpacityValueLabel.textContent = `${simParams.starOpacity}`;
+        }
+        if (starColorModeSelect) starColorModeSelect.value = simParams.starColorMode;
+        if (starLabelToggle) starLabelToggle.checked = !!simParams.starShowLabels;
+        if (starLabelDensitySlider && starLabelDensityValue) {
+            starLabelDensitySlider.value = simParams.starLabelDensity;
+            starLabelDensityValue.textContent = `${simParams.starLabelDensity}`;
+        }
+        if (observerLatInput) observerLatInput.value = simParams.observerLatDeg;
+        if (observerLonInput) observerLonInput.value = simParams.observerLonDeg;
 
         // Time-warp slider
         timeWarpSlider.addEventListener('input', e => {
@@ -357,7 +428,10 @@
             updateSatelliteList();
         });
 
-        view3DToggle.addEventListener('change', (e) => simParams.view3D = e.target.checked);
+        view3DToggle.addEventListener('change', (e) => {
+            simParams.view3D = e.target.checked;
+            setStarVisibility(starLayer, simParams.showStars && simParams.view3D);
+        });
         viewMercatorToggle.addEventListener('change', (e) => simParams.viewMercator = e.target.checked);
 
         if (highDefToggleElement) {
@@ -401,6 +475,69 @@
                 // (optional: display a small warning to select a satellite)
             }
         });
+
+        if (showStarsToggle) {
+            showStarsToggle.addEventListener('change', (e) => {
+                simParams.showStars = e.target.checked;
+                persistSetting('ob_showStars', simParams.showStars);
+                setStarVisibility(starLayer, simParams.showStars && simParams.view3D);
+            });
+        }
+        if (starMagnitudeSlider && starMagnitudeValueLabel) {
+            starMagnitudeSlider.addEventListener('input', (e) => {
+                simParams.starMagnitudeLimit = parseFloat(e.target.value);
+                starMagnitudeValueLabel.textContent = e.target.value;
+                persistSetting('ob_starMagLimit', simParams.starMagnitudeLimit);
+            });
+        }
+        if (starSizeSlider && starSizeValueLabel) {
+            starSizeSlider.addEventListener('input', (e) => {
+                simParams.starSizeScale = parseFloat(e.target.value);
+                starSizeValueLabel.textContent = `${simParams.starSizeScale.toFixed(1)}x`;
+                persistSetting('ob_starSizeScale', simParams.starSizeScale);
+            });
+        }
+        if (starOpacitySlider && starOpacityValueLabel) {
+            starOpacitySlider.addEventListener('input', (e) => {
+                simParams.starOpacity = parseFloat(e.target.value);
+                starOpacityValueLabel.textContent = e.target.value;
+                persistSetting('ob_starOpacity', simParams.starOpacity);
+            });
+        }
+        if (starColorModeSelect) {
+            starColorModeSelect.addEventListener('change', (e) => {
+                simParams.starColorMode = e.target.value;
+                persistSetting('ob_starColorMode', simParams.starColorMode);
+            });
+        }
+        if (starLabelToggle) {
+            starLabelToggle.addEventListener('change', (e) => {
+                simParams.starShowLabels = e.target.checked;
+                persistSetting('ob_starShowLabels', simParams.starShowLabels);
+                if (starLayer && starLayer.labelContainer) {
+                    starLayer.labelContainer.style.display = simParams.starShowLabels && simParams.view3D && simParams.showStars ? 'block' : 'none';
+                }
+            });
+        }
+        if (starLabelDensitySlider && starLabelDensityValue) {
+            starLabelDensitySlider.addEventListener('input', (e) => {
+                simParams.starLabelDensity = parseInt(e.target.value, 10);
+                starLabelDensityValue.textContent = `${simParams.starLabelDensity}`;
+                persistSetting('ob_starLabelDensity', simParams.starLabelDensity);
+            });
+        }
+        if (observerLatInput) {
+            observerLatInput.addEventListener('change', (e) => {
+                simParams.observerLatDeg = parseFloat(e.target.value);
+                persistSetting('ob_observerLat', simParams.observerLatDeg);
+            });
+        }
+        if (observerLonInput) {
+            observerLonInput.addEventListener('change', (e) => {
+                simParams.observerLonDeg = parseFloat(e.target.value);
+                persistSetting('ob_observerLon', simParams.observerLonDeg);
+            });
+        }
 
 
         satelliteSelectDropdown.addEventListener('change', handleSatelliteDropdownChange);
@@ -1028,6 +1165,26 @@
             simDate: SIM_DATE
         });
 
+        if (starLayer) {
+            setStarVisibility(starLayer, simParams.showStars && simParams.view3D);
+            if (simParams.showStars && simParams.view3D) {
+                updateStarLayer(starLayer, {
+                    gmst: gmstNow,
+                    rotY,
+                    magnitudeLimit: simParams.starMagnitudeLimit,
+                    sizeScale: simParams.starSizeScale,
+                    colorMode: simParams.starColorMode,
+                    showLabels: simParams.starShowLabels,
+                    labelDensity: simParams.starLabelDensity,
+                    opacity: simParams.starOpacity,
+                    observerLat: simParams.observerLatDeg,
+                    observerLon: simParams.observerLonDeg,
+                    renderer,
+                    camera
+                });
+            }
+        }
+
         /* Render 3-D vs Mercator */
         const show3D = simParams.view3D;
         if (renderer) renderer.domElement.style.display = show3D ? 'block' : 'none';
@@ -1099,6 +1256,7 @@
         }
     }
     window.addEventListener('resize', onWindowResize);
+    window.addEventListener('beforeunload', () => disposeStarLayer(starLayer));
 
     async function start() {
         try {
@@ -1109,6 +1267,18 @@
             initMercatorView();
             initFootprintRenderer(scene, earthMesh, mercatorCtx);
             await setupTLESatellites(scene);
+
+            starLayer = await initStarLayer(scene, {
+                magnitudeLimit: simParams.starMagnitudeLimit,
+                sizeScale: simParams.starSizeScale,
+                colorMode: simParams.starColorMode,
+                showLabels: simParams.starShowLabels,
+                labelDensity: simParams.starLabelDensity,
+                opacity: simParams.starOpacity,
+                observerLat: simParams.observerLatDeg,
+                observerLon: simParams.observerLonDeg
+            });
+            setStarVisibility(starLayer, simParams.showStars && simParams.view3D);
 
             setupHTMLControls();
             updateSatelliteList();
