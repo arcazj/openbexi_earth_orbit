@@ -217,6 +217,33 @@
         return simParams.companyFilter.includes(ALL_COMPANY_OPTION) || simParams.companyFilter.includes(company);
     }
 
+    function buildFilteredSatellitesBySelection() {
+        const seenNoradIds = new Set();
+        const filtered = [];
+
+        satellites.forEach((s) => {
+            const matchesOrbit = (simParams.orbitTypeFilter === "ALL" || s.orbitType === simParams.orbitTypeFilter);
+            const matchesCompany = companyMatchesSelection(s.company);
+
+            if (!matchesOrbit || !matchesCompany) return;
+
+            const noradKey = s.norad_id?.toString();
+            if (!noradKey) return;
+
+            const isCurrentSelection = currentSelectedSatellite && currentSelectedSatellite.norad_id?.toString() === noradKey;
+
+            if (!seenNoradIds.has(noradKey)) {
+                seenNoradIds.add(noradKey);
+                filtered.push(s);
+            } else if (isCurrentSelection && !filtered.some(f => f.norad_id?.toString() === noradKey)) {
+                // Ensure the currently selected satellite remains the representative for its NORAD id
+                filtered.push(s);
+            }
+        });
+
+        return filtered;
+    }
+
     // Time-warp UI
     simParams.timeWarp = 1 / 60;
     simParams.simDate = new Date();
@@ -829,28 +856,16 @@
             return;
         }
 
-        const filteredTLEs = (() => {
-            const representatives = new Map();
-            satellites.forEach(s => {
-                const matchesOrbit = (simParams.orbitTypeFilter === "ALL" || s.orbitType === simParams.orbitTypeFilter);
-                const matchesCompany = companyMatchesSelection(s.company);
-                if (!matchesOrbit || !matchesCompany) return;
+        const filteredTLEs = buildFilteredSatellitesBySelection();
 
-                const noradKey = s.norad_id;
-                const isCurrentSelection = currentSelectedSatellite && currentSelectedSatellite.norad_id === noradKey;
-                if (!representatives.has(noradKey) || isCurrentSelection) {
-                    representatives.set(noradKey, s);
-                }
-            });
-            return Array.from(representatives.values());
-        })();
-
-        const noradToRepresentative = new Map(filteredTLEs.map(s => [s.norad_id, s]));
+        const noradToRepresentative = new Map(
+            filteredTLEs.map(s => [s.norad_id?.toString(), s])
+        );
 
         satellites.forEach(s => {
             if (!s.mesh) return;
 
-            const repForNorad = noradToRepresentative.get(s.norad_id);
+            const repForNorad = noradToRepresentative.get(s.norad_id?.toString());
             const isVisibleInFilter = repForNorad === s;
 
             const isDetailedModelForThisSat =
