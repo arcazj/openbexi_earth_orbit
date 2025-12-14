@@ -28,7 +28,7 @@ export function satelliteMenuLoader() {
 
         <div class="filter-column">
           <label for="companyFilter">Company:</label>
-          <select id="companyFilter">
+          <select id="companyFilter" multiple size="5">
             <option value="ALL COMPANY">ALL COMPANY</option>
           </select>
         </div>
