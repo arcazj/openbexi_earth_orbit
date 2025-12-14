@@ -69,10 +69,27 @@ function drawGroundTrack(ctx) {
     ctx.lineWidth = 2;
     ctx.strokeStyle = '#ffcc00';
     ctx.beginPath();
+
+    let lastLon = null;
     groundTrackOptions.points.forEach((p, i) => {
         const {x, y} = latLonToMercator(p.latDeg, p.lonDeg);
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+
+        // If the ground track crosses the antimeridian, avoid drawing a
+        // spurious line that connects the end of one orbit period to the
+        // start of the next by starting a new path segment.
+        if (lastLon !== null && Math.abs(p.lonDeg - lastLon) > 180) {
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+        } else if (i === 0) {
+            ctx.moveTo(x, y);
+        } else {
+            ctx.lineTo(x, y);
+        }
+
+        lastLon = p.lonDeg;
     });
+
     ctx.stroke();
     ctx.restore();
 }
