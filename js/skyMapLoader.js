@@ -87,11 +87,6 @@ function ensureLabelPool(container, pool, count) {
     while (pool.length < count) {
         const div = document.createElement('div');
         div.className = 'star-label';
-        div.style.position = 'absolute';
-        div.style.pointerEvents = 'none';
-        div.style.color = '#fff';
-        div.style.font = '11px/1.1 sans-serif';
-        div.style.textShadow = '0 0 4px rgba(0,0,0,0.7)';
         container.appendChild(div);
         pool.push(div);
     }
@@ -107,8 +102,13 @@ function updateLabels(state, labelCandidates, opts) {
     const { camera, renderer } = opts;
     ensureLabelPool(state.labelContainer, state.labelPool, labelCandidates.length);
     const rect = renderer.domElement.getBoundingClientRect();
+    state.labelContainer.style.left = `${rect.left}px`;
+    state.labelContainer.style.top = `${rect.top}px`;
+    state.labelContainer.style.width = `${rect.width}px`;
+    state.labelContainer.style.height = `${rect.height}px`;
     let shown = 0;
-    for (const candidate of labelCandidates.slice(0, opts.labelDensity)) {
+    const placedRects = [];
+    for (const candidate of labelCandidates) {
         const { position, name } = candidate;
         const projected = position.clone().project(camera);
         if (projected.z > 1.0) continue;
@@ -119,7 +119,22 @@ function updateLabels(state, labelCandidates, opts) {
         label.style.top = `${y}px`;
         label.textContent = name;
         label.style.display = 'block';
+
+        const bounds = label.getBoundingClientRect();
+        const labelRect = {
+            left: x - bounds.width * 0.5,
+            right: x + bounds.width * 0.5,
+            top: y - bounds.height,
+            bottom: y
+        };
+        const overlaps = placedRects.some(r => !(labelRect.right < r.left || labelRect.left > r.right || labelRect.bottom < r.top || labelRect.top > r.bottom));
+        if (overlaps) {
+            label.style.display = 'none';
+            continue;
+        }
+        placedRects.push(labelRect);
         shown++;
+        if (shown >= opts.labelDensity) break;
     }
     hideExtraLabels(state.labelPool, shown);
 }
