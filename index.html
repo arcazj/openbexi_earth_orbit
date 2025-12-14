@@ -16,7 +16,7 @@
     </script>
 </head>
 <body>
-<button id="menuToggleBtn">✕</button>
+<button id="menuToggleBtn">☰</button>
 <div id="ob_menu"></div>
 <div id="mercatorContainer">
     <div class="mapBackground">
@@ -99,7 +99,10 @@
     const V_TMP1 = new THREE.Vector3();
     const V_TMP2 = new THREE.Vector3();
     const V_TMP3 = new THREE.Vector3();
+    const V_TMP4 = new THREE.Vector3();
     const AXIS_Y = new THREE.Vector3(0, 1, 0);
+    const R2D = 180 / Math.PI;
+    const SCENE_TO_KM = 1 / KM_TO_SCENE_UNITS;
 
     // Simulation time (reuse Date to avoid GC)
     let simMillis = Date.now();
@@ -133,6 +136,29 @@
             .multiplyScalar(KM_TO_SCENE_UNITS);
     }
 
+    function sceneToEcefKm(sceneVec, rotY) {
+        // Inverse of ecefToScene: rotate back, un-swap axes, convert to km
+        const unrotated = V_TMP4.copy(sceneVec)
+            .multiplyScalar(SCENE_TO_KM)
+            .applyAxisAngle(AXIS_Y, -rotY);
+
+        return {
+            x: unrotated.x,
+            y: unrotated.z,
+            z: unrotated.y
+        };
+    }
+
+    function cartesianToLatLonDeg(vec) {
+        const { x, y, z } = vec;
+        const r = Math.sqrt(x * x + y * y + z * z);
+        if (r === 0) return null;
+
+        const latDeg = Math.asin(z / r) * R2D;
+        const lonDeg = Math.atan2(y, x) * R2D;
+        return { latDeg, lonDeg };
+    }
+
     let moon;
     let scene, camera, renderer, earthMesh, controls;
     let orbitFrame = null;
@@ -161,7 +187,7 @@
         showFootprint: false,
         showOnlySelectedSatellite: false,
         otherSelection: 'Earth',
-        showStars: readSetting('ob_showStars', true),
+        showStars: readSetting('ob_showStars', false),
         starMagnitudeLimit: readSetting('ob_starMagLimit', 6),
         starSizeScale: readSetting('ob_starSizeScale', 1),
         starColorMode: readSetting('ob_starColorMode', 'trueColor'),
@@ -183,6 +209,35 @@
     let labelXecrDiv, labelYecrDiv, labelZecrDiv, labelNorthPoleDiv, labelEquatorLineDiv, labelGreenwichMeridianDiv;
 
     let starLayer = null;
+
+    function applyObserverCoords(latDeg, lonDeg) {
+        if (!Number.isFinite(latDeg) || !Number.isFinite(lonDeg)) return;
+
+        const changed = Math.abs(simParams.observerLatDeg - latDeg) > 1e-3 ||
+            Math.abs(simParams.observerLonDeg - lonDeg) > 1e-3;
+        if (!changed) return;
+
+        simParams.observerLatDeg = latDeg;
+        simParams.observerLonDeg = lonDeg;
+
+        if (observerLatInput) observerLatInput.value = latDeg.toFixed(3);
+        if (observerLonInput) observerLonInput.value = lonDeg.toFixed(3);
+    }
+
+    function syncObserverToView(rotY) {
+        if (!camera) return;
+
+        if (simParams.otherSelection === 'Earth') {
+            const ecef = sceneToEcefKm(camera.position, rotY);
+            const geo = cartesianToLatLonDeg(ecef);
+            if (geo) applyObserverCoords(geo.latDeg, geo.lonDeg);
+        } else if (simParams.otherSelection === 'Moon' && moon) {
+            const relativeVec = V_TMP3.copy(camera.position).sub(moon.position);
+            const ecef = sceneToEcefKm(relativeVec, rotY);
+            const geo = cartesianToLatLonDeg(ecef);
+            if (geo) applyObserverCoords(geo.latDeg, geo.lonDeg);
+        }
+    }
 
     // Time-warp UI
     simParams.timeWarp = 1 / 60;
@@ -1164,6 +1219,8 @@
             mercatorCtx: null,
             simDate: SIM_DATE
         });
+
+        syncObserverToView(rotY);
 
         if (starLayer) {
             setStarVisibility(starLayer, simParams.showStars && simParams.view3D);

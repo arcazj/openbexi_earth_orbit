@@ -5,7 +5,7 @@
 
 export function satelliteMenuLoader() {
     return /* html */ `
-  <div id="controlsContainer">
+  <div id="controlsContainer" class="menu-hidden">
     <div id="versionDisplay"></div>
 
     <!-- Filters -->
