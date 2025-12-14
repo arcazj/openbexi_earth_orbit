@@ -28,9 +28,12 @@ export function satelliteMenuLoader() {
 
         <div class="filter-column">
           <label for="companyFilter">Company:</label>
-          <select id="companyFilter" multiple size="5">
-            <option value="ALL COMPANY">ALL COMPANY</option>
-          </select>
+          <div id="companyFilter" class="company-checkbox-list" role="listbox" aria-multiselectable="true">
+            <label class="company-checkbox">
+              <input type="checkbox" value="ALL COMPANY" checked>
+              <span>ALL COMPANY</span>
+            </label>
+          </div>
         </div>
       </div>
     </div>

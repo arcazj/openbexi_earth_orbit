@@ -200,17 +200,52 @@
 
     function getCompanySelectionFromUI() {
         if (!companyFilterSelect) return [ALL_COMPANY_OPTION];
-        const selected = Array.from(companyFilterSelect.selectedOptions).map(opt => opt.value);
+        const selected = Array.from(
+            companyFilterSelect.querySelectorAll('input[type="checkbox"]:checked')
+        ).map(cb => cb.value);
         return normalizeCompanySelection(selected);
     }
 
     function applyCompanySelectionToUI(selection) {
         if (!companyFilterSelect) return;
         const normalized = normalizeCompanySelection(selection);
-        Array.from(companyFilterSelect.options).forEach(opt => {
-            opt.selected = normalized.includes(opt.value);
+        companyFilterSelect.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            cb.checked = normalized.includes(cb.value);
         });
         simParams.companyFilter = normalized;
+    }
+
+    function createCompanyCheckbox(value, labelText) {
+        const label = document.createElement('label');
+        label.className = 'company-checkbox';
+
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.value = value;
+        input.name = 'companyFilter';
+
+        const textSpan = document.createElement('span');
+        textSpan.textContent = labelText;
+
+        label.appendChild(input);
+        label.appendChild(textSpan);
+
+        return label;
+    }
+
+    function renderCompanyFilter(companies, previousSelection = simParams.companyFilter) {
+        if (!companyFilterSelect) return;
+
+        const normalizedSelection = normalizeCompanySelection(previousSelection);
+        companyFilterSelect.innerHTML = '';
+
+        const options = [ALL_COMPANY_OPTION, ...companies];
+        options.forEach(companyName => {
+            const checkbox = createCompanyCheckbox(companyName, companyName);
+            companyFilterSelect.appendChild(checkbox);
+        });
+
+        applyCompanySelectionToUI(normalizedSelection);
     }
 
     function companyMatchesSelection(company) {
@@ -447,7 +482,9 @@
             updateSatelliteList();
         });
 
-        companyFilterSelect.addEventListener('change', () => {
+        companyFilterSelect.addEventListener('change', (event) => {
+            if (!event.target || !event.target.matches('input[type="checkbox"]')) return;
+
             applyCompanySelectionToUI(getCompanySelectionFromUI());
             simParams.showOrbit = false;
             if (showOrbitToggle) showOrbitToggle.checked = false;
@@ -850,8 +887,7 @@
             if (satelliteCountDisplay) satelliteCountDisplay.textContent = '0';
             if (satelliteSelectDropdown) satelliteSelectDropdown.innerHTML = '<option value="None">None</option>';
             if (companyFilterSelect) {
-                companyFilterSelect.innerHTML = `<option value="${ALL_COMPANY_OPTION}">${ALL_COMPANY_OPTION}</option>`;
-                applyCompanySelectionToUI(simParams.companyFilter);
+                renderCompanyFilter([], simParams.companyFilter);
             }
             return;
         }
@@ -897,21 +933,14 @@
                 simParams.showOnlySelectedSatellite ? (currentSelectedSatellite ? '1' : '0') : filteredTLEs.length.toString();
         }
 
-        const uniqueCompanies = Array.from(new Set(satellites.map(s => s.company))).sort();
+        const uniqueCompanies = Array.from(
+            new Set(satellites.map(s => s.company).filter(comp => comp && comp !== "N/A"))
+        ).sort();
         const previousCompanySelection = Array.from(simParams.companyFilter);
-        companyFilterSelect.innerHTML = `<option value="${ALL_COMPANY_OPTION}">${ALL_COMPANY_OPTION}</option>`;
-        uniqueCompanies.forEach(comp => {
-            if (comp && comp !== "N/A") {
-                const option = document.createElement('option');
-                option.value = comp;
-                option.textContent = comp;
-                companyFilterSelect.appendChild(option);
-            }
-        });
         const normalizedSelection = normalizeCompanySelection(
             previousCompanySelection.filter(val => val === ALL_COMPANY_OPTION || uniqueCompanies.includes(val))
         );
-        applyCompanySelectionToUI(normalizedSelection);
+        renderCompanyFilter(uniqueCompanies, normalizedSelection);
 
         const previousDropdownValue = satelliteSelectDropdown.value;
         satelliteSelectDropdown.innerHTML = '<option value="None">None</option>';
