@@ -5,7 +5,7 @@
 
 export function satelliteMenuLoader() {
     return /* html */ `
-  <div id="controlsContainer" class="menu-hidden">
+  <div id="controlsContainer">
     <div id="versionDisplay"></div>
 
     <!-- Filters -->
@@ -53,45 +53,6 @@ export function satelliteMenuLoader() {
 
         <label><input type="checkbox" id="showOrbitFrameToggle"> Orbit&nbsp;Frame&nbsp;(LVLH)</label>
         <label><input type="checkbox" id="showDayNightToggle" checked> Day/Night Shading</label>
-        <label><input type="checkbox" id="showStarsToggle"> Show&nbsp;Stars</label>
-      </div>
-    </div>
-
-    <!-- Stars -->
-    <div class="control-group">
-      <h3 data-collapsible-target="starsContent" class="section-heading">
-        Stars <span class="toggle-icon">▾</span>
-      </h3>
-      <div id="starsContent" class="collapsible-content">
-        <label for="starMagnitudeLimit">Magnitude Limit
-          <input type="range" id="starMagnitudeLimit" min="-1.5" max="8" step="0.1" value="6">
-          <span id="starMagnitudeValue">6</span>
-        </label>
-        <label for="starSizeScale">Size Scale
-          <input type="range" id="starSizeScale" min="0.2" max="3" step="0.1" value="1">
-          <span id="starSizeValue">1.0x</span>
-        </label>
-        <label for="starOpacity">Opacity
-          <input type="range" id="starOpacity" min="0.1" max="1" step="0.05" value="0.85">
-          <span id="starOpacityValue">0.85</span>
-        </label>
-        <label for="starColorMode">Color Mode
-          <select id="starColorMode">
-            <option value="trueColor">True Color (B–V)</option>
-            <option value="mono">Monochrome</option>
-          </select>
-        </label>
-        <label><input type="checkbox" id="starLabelToggle"> Show Labels</label>
-        <label for="starLabelDensity">Label Count
-          <input type="range" id="starLabelDensity" min="0" max="20" step="1" value="8">
-          <span id="starLabelValue">8</span>
-        </label>
-        <label for="observerLatInput">Observer Latitude (deg)
-          <input type="number" id="observerLatInput" min="-90" max="90" step="0.1" value="0">
-        </label>
-        <label for="observerLonInput">Observer Longitude (deg)
-          <input type="number" id="observerLonInput" min="-180" max="180" step="0.1" value="0">
-        </label>
       </div>
     </div>
 

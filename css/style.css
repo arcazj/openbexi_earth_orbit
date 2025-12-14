@@ -276,17 +276,6 @@ canvas {
     white-space: nowrap;
 }
 
-/* Starfield labels */
-.star-label {
-    position: absolute;
-    pointer-events: none;
-    color: #fff;
-    font: 11px/1.1 sans-serif;
-    text-shadow: 0 0 4px rgba(0, 0, 0, 0.7);
-    transform: translate(-50%, -100%);
-    white-space: nowrap;
-}
-
 /* Filters layout */
 #filtersContent {
     display: flex;
