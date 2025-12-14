@@ -160,9 +160,11 @@
     let detailedSatelliteModel = null;
     let yprFrame;
 
+    const ALL_COMPANY_OPTION = "ALL COMPANY";
+
     const simParams = {
         orbitTypeFilter: "MEO",
-        companyFilter: "ALL COMPANY",
+        companyFilter: [ALL_COMPANY_OPTION],
         selectedSatelliteName: "None",
         showOrbit: false,
         view3D: true,
@@ -188,6 +190,32 @@
     let satelliteSelectDropdown, satelliteInfoDiv;
     let controlsContainerElement, menuToggleBtnElement, versionDisplayElement;
     let labelXecrDiv, labelYecrDiv, labelZecrDiv, labelNorthPoleDiv, labelEquatorLineDiv, labelGreenwichMeridianDiv;
+
+    function normalizeCompanySelection(selection) {
+        if (!selection || selection.length === 0 || selection.includes(ALL_COMPANY_OPTION)) {
+            return [ALL_COMPANY_OPTION];
+        }
+        return selection;
+    }
+
+    function getCompanySelectionFromUI() {
+        if (!companyFilterSelect) return [ALL_COMPANY_OPTION];
+        const selected = Array.from(companyFilterSelect.selectedOptions).map(opt => opt.value);
+        return normalizeCompanySelection(selected);
+    }
+
+    function applyCompanySelectionToUI(selection) {
+        if (!companyFilterSelect) return;
+        const normalized = normalizeCompanySelection(selection);
+        Array.from(companyFilterSelect.options).forEach(opt => {
+            opt.selected = normalized.includes(opt.value);
+        });
+        simParams.companyFilter = normalized;
+    }
+
+    function companyMatchesSelection(company) {
+        return simParams.companyFilter.includes(ALL_COMPANY_OPTION) || simParams.companyFilter.includes(company);
+    }
 
     // Time-warp UI
     simParams.timeWarp = 1 / 60;
@@ -351,6 +379,7 @@
         const rollVal = document.getElementById('rollVal');
 
         orbitTypeFilterSelect.value = simParams.orbitTypeFilter;
+        applyCompanySelectionToUI(simParams.companyFilter);
         view3DToggle.checked = simParams.view3D;
         viewMercatorToggle.checked = simParams.viewMercator;
         if (highDefToggleElement) highDefToggleElement.checked = simParams.useHighDefTexture;
@@ -391,8 +420,8 @@
             updateSatelliteList();
         });
 
-        companyFilterSelect.addEventListener('change', (e) => {
-            simParams.companyFilter = e.target.value;
+        companyFilterSelect.addEventListener('change', () => {
+            applyCompanySelectionToUI(getCompanySelectionFromUI());
             simParams.showOrbit = false;
             if (showOrbitToggle) showOrbitToggle.checked = false;
             removeAllGeometry(scene);
@@ -545,8 +574,7 @@
                         simParams.orbitTypeFilter = 'MEO';
                     }
                     if (companyFilterSelect) {
-                        companyFilterSelect.value = 'ALL COMPANY';
-                        simParams.companyFilter = 'ALL COMPANY';
+                        applyCompanySelectionToUI([ALL_COMPANY_OPTION]);
                     }
 
                     // Clear selection
@@ -566,6 +594,8 @@
     }
     async function handleSatelliteDropdownChange(event) {
         const selectedNameInDropdown = event.target.value;
+        const selectedOption = event.target.selectedOptions?.[0];
+        const selectedNoradId = selectedOption?.dataset?.noradId;
         simParams.selectedSatelliteName = selectedNameInDropdown;
 
         if (detailedSatelliteModel?.userData?.noradId) {
@@ -595,7 +625,13 @@
             return;
         }
 
-        const tleSatData = satellites.find(s => s.satellite_name === selectedNameInDropdown);
+        let tleSatData = selectedNoradId
+            ? satellites.find(s => s.norad_id.toString() === selectedNoradId)
+            : null;
+
+        if (!tleSatData) {
+            tleSatData = satellites.find(s => s.satellite_name === selectedNameInDropdown);
+        }
         if (!tleSatData) {
             currentSelectedSatellite = null;
             updateSatelliteInfo(satelliteInfoDiv, null);
@@ -787,30 +823,35 @@
             if (satelliteCountDisplay) satelliteCountDisplay.textContent = '0';
             if (satelliteSelectDropdown) satelliteSelectDropdown.innerHTML = '<option value="None">None</option>';
             if (companyFilterSelect) {
-                const currentCompanyVal = companyFilterSelect.value;
-                companyFilterSelect.innerHTML = '<option value="ALL COMPANY">ALL COMPANY</option>';
-                if (currentCompanyVal !== "ALL COMPANY") {
-                    const opt = document.createElement('option');
-                    opt.value = currentCompanyVal;
-                    opt.textContent = currentCompanyVal;
-                    companyFilterSelect.appendChild(opt);
-                    companyFilterSelect.value = currentCompanyVal;
-                }
+                companyFilterSelect.innerHTML = `<option value="${ALL_COMPANY_OPTION}">${ALL_COMPANY_OPTION}</option>`;
+                applyCompanySelectionToUI(simParams.companyFilter);
             }
             return;
         }
 
-        const filteredTLEs = satellites.filter(s =>
-            (simParams.orbitTypeFilter === "ALL" || s.orbitType === simParams.orbitTypeFilter) &&
-            (simParams.companyFilter === "ALL COMPANY" || s.company === simParams.companyFilter)
-        );
+        const filteredTLEs = (() => {
+            const representatives = new Map();
+            satellites.forEach(s => {
+                const matchesOrbit = (simParams.orbitTypeFilter === "ALL" || s.orbitType === simParams.orbitTypeFilter);
+                const matchesCompany = companyMatchesSelection(s.company);
+                if (!matchesOrbit || !matchesCompany) return;
+
+                const noradKey = s.norad_id;
+                const isCurrentSelection = currentSelectedSatellite && currentSelectedSatellite.norad_id === noradKey;
+                if (!representatives.has(noradKey) || isCurrentSelection) {
+                    representatives.set(noradKey, s);
+                }
+            });
+            return Array.from(representatives.values());
+        })();
+
+        const noradToRepresentative = new Map(filteredTLEs.map(s => [s.norad_id, s]));
 
         satellites.forEach(s => {
             if (!s.mesh) return;
 
-            const isVisibleInFilter =
-                (simParams.orbitTypeFilter === "ALL" || s.orbitType === simParams.orbitTypeFilter) &&
-                (simParams.companyFilter === "ALL COMPANY" || s.company === simParams.companyFilter);
+            const repForNorad = noradToRepresentative.get(s.norad_id);
+            const isVisibleInFilter = repForNorad === s;
 
             const isDetailedModelForThisSat =
                 detailedSatelliteModel &&
@@ -820,17 +861,16 @@
             let visible = isVisibleInFilter && !isDetailedModelForThisSat;
 
             if (simParams.showOnlySelectedSatellite) {
-                if (!currentSelectedSatellite) {
-                    visible = false;
-                } else {
-                    visible = (s === currentSelectedSatellite) && !isDetailedModelForThisSat;
-                }
+                visible = isVisibleInFilter &&
+                    !!currentSelectedSatellite &&
+                    currentSelectedSatellite.norad_id === s.norad_id &&
+                    !isDetailedModelForThisSat;
             }
 
             s.mesh.visible = visible;
 
             if (s.mesh.visible) {
-                const isActuallySelected = currentSelectedSatellite === s;
+                const isActuallySelected = currentSelectedSatellite && currentSelectedSatellite.norad_id === s.norad_id;
                 s.mesh.material.color.set(isActuallySelected ? 0xff0000 : 0xffffff);
                 const baseScale = satelliteConfig.scale || [0.1, 0.1, 0.1];
                 s.mesh.scale.set(...(isActuallySelected ? baseScale.map(v => v * 1.5) : baseScale));
@@ -843,8 +883,8 @@
         }
 
         const uniqueCompanies = Array.from(new Set(satellites.map(s => s.company))).sort();
-        const currentCompanySelection = companyFilterSelect.value;
-        companyFilterSelect.innerHTML = '<option value="ALL COMPANY">ALL COMPANY</option>';
+        const previousCompanySelection = Array.from(simParams.companyFilter);
+        companyFilterSelect.innerHTML = `<option value="${ALL_COMPANY_OPTION}">${ALL_COMPANY_OPTION}</option>`;
         uniqueCompanies.forEach(comp => {
             if (comp && comp !== "N/A") {
                 const option = document.createElement('option');
@@ -853,11 +893,10 @@
                 companyFilterSelect.appendChild(option);
             }
         });
-        if (uniqueCompanies.includes(currentCompanySelection)) {
-            companyFilterSelect.value = currentCompanySelection;
-        } else {
-            companyFilterSelect.value = "ALL COMPANY";
-        }
+        const normalizedSelection = normalizeCompanySelection(
+            previousCompanySelection.filter(val => val === ALL_COMPANY_OPTION || uniqueCompanies.includes(val))
+        );
+        applyCompanySelectionToUI(normalizedSelection);
 
         const previousDropdownValue = satelliteSelectDropdown.value;
         satelliteSelectDropdown.innerHTML = '<option value="None">None</option>';
@@ -865,6 +904,7 @@
             const option = document.createElement('option');
             option.value = s.satellite_name;
             option.textContent = s.satellite_name;
+            option.dataset.noradId = s.norad_id;
             satelliteSelectDropdown.appendChild(option);
         });
 
@@ -925,8 +965,7 @@
             simParams.orbitTypeFilter = 'ALL';
         }
         if (companyFilterSelect) {
-            companyFilterSelect.value = 'ALL COMPANY';
-            simParams.companyFilter = 'ALL COMPANY';
+            applyCompanySelectionToUI([ALL_COMPANY_OPTION]);
         }
         simParams.showOnlySelectedSatellite = false;
         updateSatelliteList();
@@ -1170,11 +1209,11 @@
                     // 1. Force Reset Filters to ensure the satellite is available in the list
                     // Update UI elements
                     orbitFilter.value = 'ALL';
-                    companyFilter.value = 'ALL COMPANY';
+                    applyCompanySelectionToUI([ALL_COMPANY_OPTION]);
 
                     // Update Internal State (simParams comes from your main script scope)
                     simParams.orbitTypeFilter = 'ALL';
-                    simParams.companyFilter = 'ALL COMPANY';
+                    simParams.companyFilter = [ALL_COMPANY_OPTION];
 
                     // 2. Refresh the dropdown list with the new filters
                     // This function (from your original code) repopulates the <select> options
