@@ -302,8 +302,8 @@ canvas {
 
 .company-checkbox-list {
     width: 100%;
-    min-height: 200px;
-    max-height: 320px;
+    min-height: 100px;
+    max-height: 120px;
     overflow-y: auto;
     border: 1px solid #555;
     border-radius: 4px;
@@ -319,7 +319,6 @@ canvas {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 6px;
     border-radius: 4px;
     background-color: rgba(255, 255, 255, 0.02);
     cursor: pointer;
