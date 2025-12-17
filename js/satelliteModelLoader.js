@@ -61,6 +61,20 @@ function resolveModelPaths(fileBase) {
     };
 }
 
+function resolveFilePathAndName(filePathOrBase, defaultDir = SATELLITE_OBJ_BASE_URL) {
+    if (filePathOrBase.includes('/')) {
+        const lastSlash = filePathOrBase.lastIndexOf('/') + 1;
+        return {
+            dir: filePathOrBase.slice(0, lastSlash),
+            fileName: filePathOrBase.slice(lastSlash),
+        };
+    }
+    return {
+        dir: defaultDir,
+        fileName: filePathOrBase,
+    };
+}
+
 function placeholderCube(size = 1, color = 0x9999ff) {
     const g = new THREE.BoxGeometry(size, size, size);
     const m = new THREE.MeshStandardMaterial({ color, metalness: 0.3, roughness: 0.6 });
@@ -212,6 +226,71 @@ async function loadOBJWithMTL(fileBase, meta) {
     return root;
 }
 
+/* ─────────────────────────── GLB loading core ───────────────────────────── */
+async function loadGLB(filePathOrBase, meta) {
+    const { dir, fileName } = resolveFilePathAndName(filePathOrBase);
+
+    const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+    const loader = new GLTFLoader();
+    loader.setPath(dir);
+
+    let gltf;
+    try {
+        gltf = await loader.loadAsync(fileName);
+    } catch (e) {
+        console.error(
+            `[${filePathOrBase}] GLB load failed (${dir + fileName}). Using placeholder.`,
+            e
+        );
+        return placeholderCube(0.5);
+    }
+
+    const sceneRoot = gltf.scene || gltf.scenes?.[0] || new THREE.Group();
+    const root = new THREE.Group();
+    root.add(sceneRoot);
+
+    const glbUnitsToMeters = (() => {
+        const u = meta?.geometry?.glb_units ?? meta?.geometry?.obj_units;
+        if (!u) return 1;
+        if (u === 'm') return 1;
+        if (u === 'cm') return 0.01;
+        if (u === 'mm') return 0.001;
+        if (u === 'km') return 1000;
+        if (typeof u === 'number') return u;
+        return 1;
+    })();
+
+    const scale = glbUnitsToMeters * METERS_TO_UNITS;
+    root.scale.setScalar(scale);
+
+    root.traverse(child => {
+        if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+            if (!child.material) {
+                child.material = new THREE.MeshStandardMaterial({
+                    color: 0xb0b0b0,
+                    metalness: 0.5,
+                    roughness: 0.6,
+                });
+            } else if (Array.isArray(child.material)) {
+                child.material.forEach(setTextureAnisotropy);
+            } else {
+                setTextureAnisotropy(child.material);
+            }
+        }
+    });
+
+    if (meta?.geometry?.center_model ?? true) {
+        const box = new THREE.Box3().setFromObject(root);
+        const c = new THREE.Vector3();
+        box.getCenter(c);
+        root.position.sub(c);
+    }
+
+    return root;
+}
+
 /* ───────────────────────── Singleton state ──────────────────────────────── */
 let currentSatModel = null;
 const currentLabels = [];
@@ -222,80 +301,94 @@ export async function showSatellite(noradId, scene, updatedNoradId) {
 
     clearCurrentDetailedSat(scene);
 
-    // Use updatedNoradId if provided; else NORAD
-    const fileBase = (updatedNoradId || noradId); // expects obj/<fileBase>.obj|.mtl
-    const jsonUrl = `${SATELLITE_MODELS_BASE_URL}${fileBase}.json`;
+    const resolvedId = updatedNoradId || noradId;
+    const extMatch = /^(.*)\.([^.]+)$/.exec(resolvedId);
+    const baseName = extMatch ? extMatch[1] : resolvedId;
+    const extension = extMatch ? extMatch[2] : '';
+    const extLower = extension.toLowerCase();
 
+    const jsonUrl = `${SATELLITE_MODELS_BASE_URL}${baseName}.json`;
+
+    let sat = null;
     try {
         // Load metadata JSON first (use your existing CORS-safe fetchJSON)
         const raw = await (window.fetchJSON || fetchJSON)(jsonUrl);
-        const sat = Array.isArray(raw) ? raw[0] : Object.values(raw)[0];
-
+        sat = Array.isArray(raw) ? raw[0] : Object.values(raw)[0];
         if (!sat) {
             console.warn(`[${noradId}] No satellite record in JSON at ${jsonUrl}`);
-            // Even if JSON failed, try to load geometry so caller gets a visual
-            const fallbackRoot = await loadOBJWithMTL(fileBase, {});
-            currentSatModel = fallbackRoot;
-            scene.add(currentSatModel);
-            return currentSatModel;
         }
-
-        // Load OBJ/MTL model
-        const root = await loadOBJWithMTL(fileBase, sat.meta || sat);
-
-        // Preserve your rich userData structure
-        currentSatModel = root;
-        currentSatModel.userData = {
-            updatedNoradId: fileBase,
-            meta: sat.meta || {},
-            orbit: sat.orbit || {},
-            attitude: sat.attitude || sat.meta?.attitude || {},
-            capability: sat.capability || {},
-            attitudeCapability: sat.attitudeCapability || {},
-            payload: sat.payload || {},
-            geometry: sat.geometry || {},
-            footprints: sat.footprints || {},
-            source: sat,
-        };
-
-        // Apply initial attitude if provided
-        const att = currentSatModel.userData.attitude;
-        if (att) {
-            updateBusOrientation(
-                currentSatModel,
-                att.yaw ?? 0,
-                att.pitch ?? 0,
-                att.roll ?? 0
-            );
-        }
-
-        // (Optional) add a name label above the model
-        const CSS2DObjectClass = await ensureCSS2DObject();
-        if (CSS2DObjectClass && sat?.meta?.name) {
-            const div = document.createElement('div');
-            div.className = 'label';
-            div.textContent = sat.meta.name;
-            const lbl = new CSS2DObjectClass(div);
-            const box = new THREE.Box3().setFromObject(currentSatModel);
-            const size = new THREE.Vector3();
-            box.getSize(size);
-            lbl.position.set(0, size.y * 0.55, 0);
-            currentSatModel.add(lbl);
-            currentLabels.push(lbl);
-        }
-
-        // Optional coarse global scale (kept from legacy)
-        currentSatModel.scale.multiplyScalar(0.25);
-
-        scene.add(currentSatModel);
-        return currentSatModel;
     } catch (e) {
-        console.error('showSatellite failed', e);
-        // Last-resort placeholder
-        currentSatModel = placeholderCube(0.5);
-        scene.add(currentSatModel);
-        return currentSatModel;
+        console.warn(`[${resolvedId}] JSON load failed (${jsonUrl}). Proceeding with defaults.`, e);
     }
+
+    const meta = sat?.meta || sat || {};
+
+    let loaderFn = loadOBJWithMTL;
+    let loaderArg = baseName;
+    if (extLower === 'glb') {
+        loaderFn = loadGLB;
+        loaderArg = resolvedId;
+    } else if (extLower === 'obj') {
+        loaderFn = loadOBJWithMTL;
+        loaderArg = baseName;
+    } else if (extension) {
+        console.warn(`[${resolvedId}] Unsupported extension "${extension}". Defaulting to OBJ/MTL.`);
+    }
+
+    let root;
+    try {
+        root = await loaderFn(loaderArg, meta);
+    } catch (e) {
+        console.error(`[${resolvedId}] Model load failed for ${loaderArg}. Using placeholder.`, e);
+        root = placeholderCube(0.5);
+    }
+
+    // Preserve your rich userData structure
+    currentSatModel = root;
+    currentSatModel.userData = {
+        updatedNoradId: resolvedId,
+        meta: sat?.meta || {},
+        orbit: sat?.orbit || {},
+        attitude: sat?.attitude || sat?.meta?.attitude || {},
+        capability: sat?.capability || {},
+        attitudeCapability: sat?.attitudeCapability || {},
+        payload: sat?.payload || {},
+        geometry: sat?.geometry || {},
+        footprints: sat?.footprints || {},
+        source: sat,
+    };
+
+    // Apply initial attitude if provided
+    const att = currentSatModel.userData.attitude;
+    if (att) {
+        updateBusOrientation(
+            currentSatModel,
+            att.yaw ?? 0,
+            att.pitch ?? 0,
+            att.roll ?? 0
+        );
+    }
+
+    // (Optional) add a name label above the model
+    const CSS2DObjectClass = await ensureCSS2DObject();
+    if (CSS2DObjectClass && sat?.meta?.name) {
+        const div = document.createElement('div');
+        div.className = 'label';
+        div.textContent = sat.meta.name;
+        const lbl = new CSS2DObjectClass(div);
+        const box = new THREE.Box3().setFromObject(currentSatModel);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        lbl.position.set(0, size.y * 0.55, 0);
+        currentSatModel.add(lbl);
+        currentLabels.push(lbl);
+    }
+
+    // Optional coarse global scale (kept from legacy)
+    currentSatModel.scale.multiplyScalar(0.25);
+
+    scene.add(currentSatModel);
+    return currentSatModel;
 }
 
 export function clearCurrentDetailedSat(scene) {

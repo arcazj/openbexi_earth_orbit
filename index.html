@@ -739,21 +739,26 @@
             updateOrbitTrajectory(scene, simParams, tleSatData);
         }
 
-        let fileUrl = (usingLocalAssets ? "json/satellites/" : SATELLITES_BASE_URL) + `${tleSatData.norad_id}.json`;
-        let fileExists = await checkFileExists(fileUrl);
+        const stripExtension = id => id.toString().replace(/\.[^.]+$/, '');
+        const buildJsonUrl = (id, preferLocal = usingLocalAssets) =>
+            (preferLocal ? "json/satellites/" : SATELLITES_BASE_URL) + `${stripExtension(id)}.json`;
 
         let updatedNoradId = tleSatData.norad_id;
+        let fileUrl = buildJsonUrl(updatedNoradId, usingLocalAssets);
+        let fileExists = await checkFileExists(fileUrl);
+
         if (!fileExists && usingLocalAssets) {
             console.warn(`Local model file ${fileUrl} not found.`);
         } else if (!fileExists && !usingLocalAssets) {
             console.warn(`GitHub model file ${fileUrl} not found, attempting local fallback.`);
-            fileUrl = "json/satellites/" + `${tleSatData.norad_id}.json`;
+            fileUrl = buildJsonUrl(updatedNoradId, true);
             fileExists = await checkFileExists(fileUrl);
             if (!fileExists) {
                 const nameLower = selectedNameInDropdown.toLowerCase();
-                if (nameLower.includes('3b'))       { updatedNoradId = "O3b";        fileExists = true; }
-                if (nameLower.includes('oneweb'))   { updatedNoradId = "oneweb";     fileExists = true; }
-                if (nameLower.includes('starlink')) { updatedNoradId = "starlink_V1"; fileExists = true; }
+                if (nameLower.includes('3b'))       { updatedNoradId = "O3b";         fileExists = true; }
+                if (nameLower.includes('oneweb'))   { updatedNoradId = "oneweb";      fileExists = true; }
+                if (nameLower.includes('starlink')) { updatedNoradId = "starlink_V1";  fileExists = true; }
+                if (nameLower.includes('iss'))      { updatedNoradId = "ISS.GLB";      fileExists = true; }
             }
         }
 
