@@ -39,6 +39,7 @@ public class SatelliteDataExporter {
 
         // STEP 2: Process TLE sources from CelesTrak and produce the simplified JSON structure.
         String[] sourceUrls = {
+                "https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle",
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=intelsat&FORMAT=tle",
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=ses&FORMAT=tle",
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=eutelsat&FORMAT=tle",

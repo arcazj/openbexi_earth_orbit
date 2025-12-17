@@ -81,7 +81,7 @@
     import { initTimeline } from './js/ganttTimelineLoader.js';
 
     // UI
-    const versionNumber = "1.0r";
+    const versionNumber = "1.1";
     const versionRepoUrl = "https://github.com/arcazj/openbexi_earth_orbit";
     const versionText = `version ${versionNumber} - hosted at`;
     document.getElementById('ob_menu').innerHTML = satelliteMenuLoader();
@@ -755,10 +755,19 @@
             fileExists = await checkFileExists(fileUrl);
             if (!fileExists) {
                 const nameLower = selectedNameInDropdown.toLowerCase();
-                if (nameLower.includes('3b'))       { updatedNoradId = "O3b";         fileExists = true; }
+                if (nameLower.includes('3b'))       { updatedNoradId = "o3b";         fileExists = true; }
                 if (nameLower.includes('oneweb'))   { updatedNoradId = "oneweb";      fileExists = true; }
                 if (nameLower.includes('starlink')) { updatedNoradId = "starlink_V1";  fileExists = true; }
                 if (nameLower.includes('iss'))      { updatedNoradId = "ISS.GLB";      fileExists = true; }
+                if (nameLower.includes('G-16'))      { updatedNoradId = "SSL_1300.GLB";      fileExists = true; }
+                if (nameLower.includes('G-17'))      { updatedNoradId = "SSL_1300.GLB";      fileExists = true; }
+                if (nameLower.includes('is-14'))      { updatedNoradId = "SSL_1300.GLB";      fileExists = true; }
+                if (nameLower.includes('G-18'))      { updatedNoradId = "SSL_1300.GLB";      fileExists = true; }
+                if (nameLower.includes('G-28'))      { updatedNoradId = "SSL_1300.GLB";      fileExists = true; }
+                if (nameLower.includes('G-19'))      { updatedNoradId = "SSL_1300.GLB";      fileExists = true; }
+                if (nameLower.includes('is-20'))      { updatedNoradId = "SSL_1300.GLB";      fileExists = true; }
+                if (nameLower.includes('is-34'))      { updatedNoradId = "SSL_1300.GLB";      fileExists = true; }
+                if (nameLower.includes('is-36'))      { updatedNoradId = "SSL_1300.GLB";      fileExists = true; }
             }
         }
 

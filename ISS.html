@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>ISS GLB Viewer (Three.js Import Map)</title>
+
+    <style>
+        html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }
+        #hud {
+            position: fixed; left: 12px; top: 12px; z-index: 10;
+            font: 13px/1.35 Arial, sans-serif; color: #eaeaea;
+            background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.15);
+            padding: 10px 12px; border-radius: 8px; max-width: 420px;
+        }
+        #barWrap { margin-top: 8px; height: 6px; background: rgba(255,255,255,0.12); border-radius: 999px; overflow: hidden; }
+        #bar { height: 100%; width: 0%; background: rgba(255,255,255,0.75); }
+    </style>
+
+    <script type="importmap">
+        {
+          "imports": {
+            "three": "https://unpkg.com/three@0.176.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.176.0/examples/jsm/"
+          }
+        }
+    </script>
+</head>
+
+<body>
+<div id="hud">
+    <div><b>ISS Viewer</b> — loading <code>obj/ISS.GLB</code></div>
+    <div id="status">Initializing…</div>
+    <div id="barWrap"><div id="bar"></div></div>
+    <div style="margin-top:8px; opacity:0.9">
+        Mouse: rotate / zoom / pan. Use a local web server (not file://).
+    </div>
+</div>
+
+<script type="module">
+    import * as THREE from "three";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+    import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+
+    const statusEl = document.getElementById("status");
+    const barEl = document.getElementById("bar");
+
+    // Scene / Camera / Renderer
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x000000);
+
+    const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.01, 5000);
+    camera.position.set(6, 3, 8);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.0;
+    document.body.appendChild(renderer.domElement);
+
+    // Controls
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.target.set(0, 0, 0);
+
+    // Lights
+    scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    keyLight.position.set(8, 10, 6);
+    scene.add(keyLight);
+
+    const fillLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    fillLight.position.set(-10, -2, -6);
+    scene.add(fillLight);
+
+    // Loader
+    const loader = new GLTFLoader();
+    let issModel = null;
+
+    function centerAndScaleToFit(object3D, targetSize = 7) {
+        const box = new THREE.Box3().setFromObject(object3D);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+
+        const maxDim = Math.max(size.x, size.y, size.z) || 1;
+        const scale = targetSize / maxDim;
+        object3D.scale.setScalar(scale);
+
+        // Recompute after scaling and center at origin
+        const box2 = new THREE.Box3().setFromObject(object3D);
+        const center = new THREE.Vector3();
+        box2.getCenter(center);
+        object3D.position.sub(center);
+    }
+
+    statusEl.textContent = "Loading model…";
+
+    loader.load(
+        "obj/ISS.GLB",
+        (gltf) => {
+            issModel = gltf.scene;
+            centerAndScaleToFit(issModel, 7);
+            scene.add(issModel);
+
+            statusEl.textContent = "Loaded. Rendering…";
+            barEl.style.width = "100%";
+        },
+        (xhr) => {
+            if (!xhr || !xhr.total) return;
+            const pct = Math.max(0, Math.min(100, (xhr.loaded / xhr.total) * 100));
+            barEl.style.width = pct.toFixed(1) + "%";
+            statusEl.textContent = `Loading model… ${pct.toFixed(1)}%`;
+        },
+        (err) => {
+            console.error(err);
+            statusEl.textContent = "Failed to load obj/ISS.GLB. Check path/case and use a web server.";
+            barEl.style.width = "0%";
+        }
+    );
+
+    // Resize
+    window.addEventListener("resize", () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // Render loop
+    function animate() {
+        requestAnimationFrame(animate);
+
+        // Optional slow spin
+        // if (issModel) issModel.rotation.y += 0.001;
+
+        controls.update();
+        renderer.render(scene, camera);
+    }
+    animate();
+</script>
+</body>
+</html>
