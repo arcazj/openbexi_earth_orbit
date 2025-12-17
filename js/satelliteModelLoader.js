@@ -261,7 +261,7 @@ async function loadGLB(filePathOrBase, meta) {
     })();
 
     const scale = glbUnitsToMeters * METERS_TO_UNITS;
-    root.scale.setScalar(scale);
+    root.scale.setScalar(0.001);
 
     root.traverse(child => {
         if (child.isMesh) {
