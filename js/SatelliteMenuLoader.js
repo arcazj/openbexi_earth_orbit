@@ -10,14 +10,16 @@ export function satelliteMenuLoader() {
 
     <!-- Filters -->
     <div class="control-group">
-          <div class="timeline-toggle-row">
-            <button id="launchTimelineToggle" class="timeline-toggle">Show Launch Timeline</button>
-          </div>
-          <div class="timeline-toggle-row">
-            <button id="reentryTimelineToggle" class="timeline-toggle">Show Re-entry Timeline</button>
-          </div>
-   </div>
-
+      <div class="timeline-toggle-row">
+        <button id="launchTimelineToggle" class="timeline-toggle">Show Launch Timeline</button>
+      </div>
+    
+      <div class="timeline-toggle-sep"></div>
+    
+      <div class="timeline-toggle-row">
+        <button id="reentryTimelineToggle" class="timeline-toggle">Show Re-entry Timeline</button>
+      </div>
+    </div>
     <!-- Filters -->
     <div class="control-group">
       <h3 data-collapsible-target="filtersContent" class="section-heading">

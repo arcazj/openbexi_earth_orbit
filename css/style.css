@@ -350,7 +350,6 @@ canvas {
     column-gap: 14px;
     row-gap: 4px;
 }
-
 /* Timeline HUD */
 .timeline-hud {
     position: fixed;
@@ -382,60 +381,49 @@ canvas {
     background: transparent;
 }
 
-.timeline-detail {
-    flex: 3;
-}
+.timeline-detail { flex: 3; }
 
 .timeline-overview {
     flex: 1;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+/* Toggle rows (LEFT aligned) */
+.timeline-toggle-row {
+    display: flex;
+    justify-content: flex-start; /* left */
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+/* Button text LEFT aligned */
 .timeline-toggle {
     position: relative;
-    left: -6px;
+    text-align: left;
     border: none;
     outline: none;
-    background: rgba(0, 0, 0, 0);
+    background: transparent;
     border-radius: 4px;
     color: var(--accent);
     font-weight: 600;
     font-size: 16px;
     cursor: pointer;
     z-index: 2501;
-
+    padding: 0; /* optional: removes default button padding differences */
 }
 
-.timeline-hud .timeline-toggle {
-    position: absolute;
-    top: 6px;
-    right: 12px;
+/* horizontal separator between the two buttons */
+.timeline-toggle-sep {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.12);
+    margin: 6px 0;
 }
-
-.timeline-toggle-row {
-    display: flex;
-    justify-content: flex-end;
-    margin-bottom: 6px;
-    position: relative;
-}
-
-.timeline-hud .timeline-toggle {
-    position: absolute;
-    top: 6px;
-    right: 12px;
-}
-
-.timeline-toggle-row {
-    display: flex;
-    justify-content: flex-end;
-    margin-bottom: 6px;
-    position: relative;
-}
-
 
 .timeline-toggle:hover {
-    border-color: #888;
+    /* border-color removed since border is none; keep a subtle hover instead */
+    opacity: 0.9;
 }
+
 
 /* Titles: Filters, View, Satellite Selection, etc. */
 .section-heading {
