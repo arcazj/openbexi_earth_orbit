@@ -392,14 +392,18 @@ canvas {
 }
 
 .timeline-toggle {
-    padding: 4px 8px;
-    background: rgba(0, 0, 0, 0.8);
-    color: #fff;
-    border: 1px solid #555;
+    position: relative;
+    left: -6px;
+    border: none;
+    outline: none;
+    background: rgba(0, 0, 0, 0);
     border-radius: 4px;
-    font-size: 11px;
+    color: var(--accent);
+    font-weight: 600;
+    font-size: 16px;
     cursor: pointer;
     z-index: 2501;
+
 }
 
 .timeline-hud .timeline-toggle {
@@ -414,6 +418,20 @@ canvas {
     margin-bottom: 6px;
     position: relative;
 }
+
+.timeline-hud .timeline-toggle {
+    position: absolute;
+    top: 6px;
+    right: 12px;
+}
+
+.timeline-toggle-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 6px;
+    position: relative;
+}
+
 
 .timeline-toggle:hover {
     border-color: #888;

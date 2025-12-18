@@ -9,11 +9,12 @@ export function satelliteMenuLoader() {
     <div id="versionDisplay"></div>
 
     <!-- Filters -->
-    <div class="timeline-toggle-row">
-      <button id="launchTimelineToggle" class="timeline-toggle">Show Launch Timeline</button>
-    </div>
+    <div class="control-group">
+          <button id="launchTimelineToggle" class="timeline-toggle">Show Launch Timeline</button>
+   </div>
 
     <div class="control-group">
+     
       <h3 data-collapsible-target="filtersContent" class="section-heading">
         Filters – Satellites Found: <span id="satelliteCountDisplay">0</span>
         <span class="toggle-icon">▾</span>
