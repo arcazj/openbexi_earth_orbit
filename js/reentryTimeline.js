@@ -202,6 +202,40 @@ function buildTimelineData(rawSatellites = []) {
         });
 }
 
+function getTimelineBounds(data) {
+    if (!data || data.length === 0) {
+        const now = Date.now();
+        return { min: now - MS_DAY * 120, max: now + MS_DAY * 210 };
+    }
+    return data.reduce(
+        (acc, item) => {
+            const start = item.type === 'CONFIRMED' ? item.time : item.start;
+            const end = item.type === 'CONFIRMED' ? item.time : item.end;
+            return { min: Math.min(acc.min, start), max: Math.max(acc.max, end) };
+        },
+        { min: Infinity, max: -Infinity }
+    );
+}
+
+function buildTooltipContent(hit) {
+    const decay = hit?.satellite?.decay || {};
+    let line = '';
+    if (hit.type === 'CONFIRMED') {
+        line = `Re-entered: ${formatDateTime(new Date(hit.time))}`;
+    } else {
+        line = `Predicted window: ${formatDate(new Date(hit.start))} → ${formatDate(new Date(hit.end))}`;
+    }
+    const confidence = decay.predicted_decay_window?.confidence;
+    return `
+      <div style="font-weight:bold;">${hit.satellite?.satellite_name || hit.satellite?.norad_id}</div>
+      <div>NORAD: ${hit.satellite?.norad_id || '—'}</div>
+      <div>Status: ${decay.decay_status || hit.type}</div>
+      <div>${line}</div>
+      ${confidence !== undefined ? `<div>Confidence: ${(confidence * 100).toFixed(0)}%</div>` : ''}
+      <div style="max-width:260px;">${decay.decay_reason || hit.reason || ''}</div>
+    `;
+}
+
 export function initReentryTimeline(rawSatellites, onSelect) {
     const toggle = document.getElementById('reentryTimelineToggle');
     const { container, filterSelect, detailCanvas, overviewCanvas, tooltip } = createHudElements();
@@ -215,6 +249,16 @@ export function initReentryTimeline(rawSatellites, onSelect) {
     let overviewEnd = detailEnd + MS_DAY * 180;
     let needsDraw = true;
     let rafScheduled = false;
+
+    const applyInitialWindow = () => {
+        const bounds = getTimelineBounds(timelineData);
+        const margin = MS_DAY * 30;
+        detailStart = Math.min(detailStart, bounds.min - margin);
+        detailEnd = Math.max(detailEnd, bounds.max + margin);
+        overviewStart = Math.min(overviewStart, bounds.min - MS_DAY * 120);
+        overviewEnd = Math.max(overviewEnd, bounds.max + MS_DAY * 120);
+    };
+    applyInitialWindow();
 
     if (toggle) toggle.textContent = SHOW_LABEL;
 
@@ -230,6 +274,7 @@ export function initReentryTimeline(rawSatellites, onSelect) {
 
     const rebuildData = () => {
         timelineData = buildTimelineData(rawSatellites);
+        applyInitialWindow();
         scheduleDraw();
     };
 
@@ -464,22 +509,7 @@ export function initReentryTimeline(rawSatellites, onSelect) {
 
         const hit = detailPositions.find((p) => x >= p.xStart - 4 && x <= p.xEnd + p.labelWidth + 6 && Math.abs(p.y - y) < ROW_HEIGHT / 1.3);
         if (hit) {
-            const decay = hit.item.satellite.decay || {};
-            let line = '';
-            if (hit.item.type === 'CONFIRMED') {
-                line = `Re-entered: ${formatDateTime(new Date(hit.item.time))}`;
-            } else {
-                line = `Predicted window: ${formatDate(new Date(hit.item.start))} → ${formatDate(new Date(hit.item.end))}`;
-            }
-            const confidence = decay.predicted_decay_window?.confidence;
-            tooltip.innerHTML = `
-              <div style="font-weight:bold;">${hit.item.satellite.satellite_name || hit.item.satellite.norad_id}</div>
-              <div>NORAD: ${hit.item.satellite.norad_id || '—'}</div>
-              <div>Status: ${decay.decay_status || hit.item.type}</div>
-              <div>${line}</div>
-              ${confidence !== undefined ? `<div>Confidence: ${(confidence * 100).toFixed(0)}%</div>` : ''}
-              <div style="max-width:260px;">${decay.decay_reason || hit.item.reason || ''}</div>
-            `;
+            tooltip.innerHTML = buildTooltipContent(hit.item);
             tooltip.style.display = 'block';
             tooltip.style.left = `${e.clientX + 12}px`;
             tooltip.style.top = `${e.clientY + 12}px`;
@@ -584,6 +614,7 @@ export function initReentryTimeline(rawSatellites, onSelect) {
     overviewCanvas.addEventListener('mouseleave', () => {
         isOverviewDragging = false;
         brushing = false;
+        tooltip.style.display = 'none';
     });
 
     overviewCanvas.addEventListener('wheel', (e) => {
@@ -599,6 +630,28 @@ export function initReentryTimeline(rawSatellites, onSelect) {
         overviewEnd = overviewStart + newRange;
         scheduleDraw();
     }, { passive: false });
+
+    overviewCanvas.addEventListener('mousemove', (e) => {
+        if (!isVisible || brushing || isOverviewDragging) return;
+        const rect = overviewCanvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const hoverTime = xToTime(x, overviewStart, overviewEnd, overviewCanvas.clientWidth);
+        const filtered = getFilteredData();
+        const range = overviewEnd - overviewStart;
+        const hoverItem = filtered.find((item) => {
+            const start = item.type === 'CONFIRMED' ? item.time : item.start;
+            const end = item.type === 'CONFIRMED' ? item.time : item.end;
+            return hoverTime >= start - range * 0.01 && hoverTime <= end + range * 0.01;
+        });
+        if (hoverItem) {
+            tooltip.innerHTML = buildTooltipContent(hoverItem);
+            tooltip.style.display = 'block';
+            tooltip.style.left = `${e.clientX + 12}px`;
+            tooltip.style.top = `${e.clientY + 12}px`;
+        } else {
+            tooltip.style.display = 'none';
+        }
+    });
 
     scheduleDraw();
 
