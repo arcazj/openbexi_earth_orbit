@@ -186,6 +186,8 @@ export function initTimeline(satellites, arg2, arg3) {
         });
     }
 
+    setVisibility(false);
+
     let detailStart = centerDate.getTime() - MS_DAY * 3.5;
     let detailEnd = centerDate.getTime() + MS_DAY * 3.5;
 
