@@ -79,7 +79,7 @@
     import { createMoon, updateMoon } from './js/MoonFrameLoader.js';
 
     import { initTimeline } from './js/ganttTimelineLoader.js';
-    import { computeDecayEstimates } from './js/decayPredictor.js';
+    import { computeDecayEstimates, loadConfirmedDecays } from './js/decayPredictor.js';
     import { initReentryTimeline } from './js/reentryTimeline.js';
 
     // UI
@@ -1277,7 +1277,8 @@
             initMercatorView();
             initFootprintRenderer(scene, earthMesh, mercatorCtx);
             await setupTLESatellites(scene);
-            computeDecayEstimates(satellites);
+            const confirmedDecays = await loadConfirmedDecays();
+            computeDecayEstimates(satellites, { confirmedDecays });
 
             setupHTMLControls();
             updateSatelliteList();
@@ -1287,6 +1288,9 @@
 
             initTimeline(satellites, handleTimelineSelection);
             reentryTimelineHandle = initReentryTimeline(satellites, handleTimelineSelection);
+            if (reentryTimelineHandle?.refreshData) {
+                reentryTimelineHandle.refreshData();
+            }
             // =========================================================
 
             if (simParams.showOrbit && currentSelectedSatellite) {

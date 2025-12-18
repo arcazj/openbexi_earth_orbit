@@ -37,6 +37,11 @@ const DEFAULTS = {
     backtrackStepMinutes: 120
 };
 
+const DECAY_SOURCE = 'json/decayed/decayed.json';
+const WARN_LIMIT = 5;
+let cachedDecayPromise = null;
+let cachedDecayMap = null;
+
 function safePropagate(satrec, date) {
     try {
         const pv = window.satellite.propagate(satrec, date);
@@ -80,6 +85,108 @@ function confidenceForWindow(crossDate, now, satrec, horizonDays) {
     return Math.max(0.1, Math.min(1, base + proximity * 0.5));
 }
 
+function parseMdyDate(value) {
+    if (typeof value !== 'string') return null;
+    const parts = value.split('/').map((p) => parseInt(p, 10));
+    if (parts.length !== 3) return null;
+    const [month, day, year] = parts;
+    if (!month || !day || !year) return null;
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (Number.isNaN(date.getTime())) return null;
+    const iso = `${date.getUTCFullYear()}-${(date.getUTCMonth() + 1).toString().padStart(2, '0')}-${date
+        .getUTCDate()
+        .toString()
+        .padStart(2, '0')}`;
+    return { date, iso };
+}
+
+function normalizeDecayRecord(raw, warn) {
+    const noradRaw = raw?.NORAD_CAT_ID ?? raw?.norad_cat_id ?? raw?.NORADID ?? raw?.noradId;
+    const noradId = noradRaw === undefined || noradRaw === null ? null : String(noradRaw).trim();
+    if (!noradId) {
+        warn('missing NORAD_CAT_ID');
+        return null;
+    }
+
+    const decayParsed = parseMdyDate(raw?.DECAY_DATE ?? raw?.decay_date);
+    if (!decayParsed) {
+        warn(`invalid DECAY_DATE for NORAD ${noradId}`);
+        return null;
+    }
+
+    const launchParsed = parseMdyDate(raw?.LAUNCH_DATE ?? raw?.launch_date);
+
+    return {
+        noradId,
+        decayDate: decayParsed.date,
+        decayDateIso: decayParsed.iso,
+        launchDateIso: launchParsed?.iso || null,
+        objectName: raw?.OBJECT_NAME || raw?.object_name || null
+    };
+}
+
+function flattenDecayData(data) {
+    if (!data || typeof data !== 'object') return [];
+    const warnMessages = new Set();
+    let warnCount = 0;
+    const warn = (msg) => {
+        if (warnCount < WARN_LIMIT && !warnMessages.has(msg)) {
+            console.warn(`Skipping decayed record: ${msg}`);
+            warnMessages.add(msg);
+            warnCount += 1;
+        }
+    };
+
+    const records = [];
+    Object.keys(data).forEach((key) => {
+        const arr = Array.isArray(data[key]) ? data[key] : [];
+        arr.forEach((entry) => {
+            const normalized = normalizeDecayRecord(entry, warn);
+            if (normalized) records.push(normalized);
+        });
+    });
+    return records;
+}
+
+function buildDecayMap(records) {
+    const map = new Map();
+    records.forEach((rec) => {
+        const existing = map.get(rec.noradId);
+        if (!existing || existing.decayDate < rec.decayDate) {
+            map.set(rec.noradId, rec);
+        }
+    });
+    return map;
+}
+
+export async function loadConfirmedDecays() {
+    if (cachedDecayMap) return cachedDecayMap;
+    if (cachedDecayPromise) return cachedDecayPromise;
+
+    cachedDecayPromise = fetch(DECAY_SOURCE)
+        .then((resp) => {
+            if (!resp.ok) {
+                throw new Error(`HTTP ${resp.status}`);
+            }
+            return resp.json();
+        })
+        .then((json) => {
+            const records = flattenDecayData(json);
+            cachedDecayMap = buildDecayMap(records);
+            return cachedDecayMap;
+        })
+        .catch((err) => {
+            console.error(`Failed to load confirmed decay data from ${DECAY_SOURCE}:`, err.message || err);
+            cachedDecayMap = null;
+            return null;
+        })
+        .finally(() => {
+            cachedDecayPromise = null;
+        });
+
+    return cachedDecayPromise;
+}
+
 export function computeDecayEstimates(satellites, options = {}) {
     const {
         reentryAltitudeKm,
@@ -87,13 +194,26 @@ export function computeDecayEstimates(satellites, options = {}) {
         backtrackDays,
         predictionHorizonDays,
         stepMinutes,
-        backtrackStepMinutes
+        backtrackStepMinutes,
+        confirmedDecays
     } = { ...DEFAULTS, ...options };
 
     const now = options.now ? new Date(options.now) : new Date();
 
     (satellites || []).forEach((sat) => {
         const satrec = sat?.satrec;
+        const satNoradId = sat?.norad_id !== undefined && sat?.norad_id !== null ? String(sat.norad_id).trim() : null;
+
+        if (confirmedDecays && satNoradId && confirmedDecays.has(satNoradId)) {
+            const record = confirmedDecays.get(satNoradId);
+            sat.decay = {
+                decay_status: 'CONFIRMED',
+                decay_reason: 'Source: json/decayed/decayed.json',
+                decay_date: record.decayDateIso,
+                predicted_decay_window: null
+            };
+            return;
+        }
         if (!satrec) {
             sat.decay = {
                 decay_status: 'UNKNOWN',
