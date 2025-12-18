@@ -10,7 +10,12 @@ export function satelliteMenuLoader() {
 
     <!-- Filters -->
     <div class="control-group">
-          <button id="launchTimelineToggle" class="timeline-toggle">Show Launch Timeline</button>
+          <div class="timeline-toggle-row">
+            <button id="launchTimelineToggle" class="timeline-toggle">Show Launch Timeline</button>
+          </div>
+          <div class="timeline-toggle-row">
+            <button id="reentryTimelineToggle" class="timeline-toggle">Show Re-entry Timeline</button>
+          </div>
    </div>
 
     <!-- Filters -->

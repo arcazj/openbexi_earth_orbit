@@ -79,6 +79,8 @@
     import { createMoon, updateMoon } from './js/MoonFrameLoader.js';
 
     import { initTimeline } from './js/ganttTimelineLoader.js';
+    import { computeDecayEstimates } from './js/decayPredictor.js';
+    import { initReentryTimeline } from './js/reentryTimeline.js';
 
     // UI
     const versionNumber = "1.1";
@@ -188,6 +190,7 @@
     let view3DToggle, viewMercatorToggle, showOrbitToggle, showOrbitFrameToggle;
     let highDefToggleElement, showECEFAxesToggleElement, showOrbitFrameToggleElement;
     let satelliteSelectDropdown, satelliteInfoDiv;
+    let reentryTimelineHandle = null;
     let controlsContainerElement, menuToggleBtnElement, versionDisplayElement;
     let labelXecrDiv, labelYecrDiv, labelZecrDiv, labelNorthPoleDiv, labelEquatorLineDiv, labelGreenwichMeridianDiv;
 
@@ -1005,6 +1008,10 @@
             currentSelectedSatellite = null;
             updateSatelliteInfo(satelliteInfoDiv, null);
         }
+
+        if (reentryTimelineHandle?.requestRedraw) {
+            reentryTimelineHandle.requestRedraw();
+        }
     }
 
     function selectSatelliteSprite(tleSatData) {
@@ -1270,6 +1277,7 @@
             initMercatorView();
             initFootprintRenderer(scene, earthMesh, mercatorCtx);
             await setupTLESatellites(scene);
+            computeDecayEstimates(satellites);
 
             setupHTMLControls();
             updateSatelliteList();
@@ -1277,35 +1285,8 @@
 
             //initTimeline(satellites, simParams.simDate, handleTimelineSelection);
 
-            initTimeline(satellites, (sat) => {
-                console.log("Timeline Click:", sat.satellite_name);
-
-                const dropdown = document.getElementById('satelliteSelect');
-                const orbitFilter = document.getElementById('orbitTypeFilter');
-                const companyFilter = document.getElementById('companyFilter');
-
-                if (dropdown && orbitFilter && companyFilter) {
-                    // 1. Force Reset Filters to ensure the satellite is available in the list
-                    // Update UI elements
-                    orbitFilter.value = 'ALL';
-                    applyCompanySelectionToUI([ALL_COMPANY_OPTION]);
-
-                    // Update Internal State (simParams comes from your main script scope)
-                    simParams.orbitTypeFilter = 'ALL';
-                    simParams.companyFilter = [ALL_COMPANY_OPTION];
-
-                    // 2. Refresh the dropdown list with the new filters
-                    // This function (from your original code) repopulates the <select> options
-                    updateSatelliteList();
-
-                    // 3. Now that the option definitely exists, select it
-                    dropdown.value = sat.satellite_name;
-
-                    // 4. Trigger the standard selection logic
-                    // We mimic a real "change" event
-                    handleSatelliteDropdownChange({ target: dropdown });
-                }
-            });
+            initTimeline(satellites, handleTimelineSelection);
+            reentryTimelineHandle = initReentryTimeline(satellites, handleTimelineSelection);
             // =========================================================
 
             if (simParams.showOrbit && currentSelectedSatellite) {
