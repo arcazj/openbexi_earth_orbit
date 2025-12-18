@@ -24,7 +24,7 @@ function createHudElements() {
 
     const toggle = document.createElement('button');
     toggle.className = 'timeline-toggle';
-    toggle.textContent = '▼';
+    toggle.textContent = 'Hide Launch Timeline ▼';
     container.appendChild(toggle);
 
     const detailCanvas = document.createElement('canvas');
@@ -167,7 +167,7 @@ export function initTimeline(satellites, arg2, arg3) {
         isCollapsed = !isCollapsed;
         container.classList.toggle('timeline-collapsed', isCollapsed);
         container.style.height = isCollapsed ? '32px' : `${HUD_HEIGHT}px`;
-        toggle.textContent = isCollapsed ? '▲' : '▼';
+        toggle.textContent = isCollapsed ? 'Show Launch Timeline ▲' : 'Hide Launch Timeline ▼';
         scheduleDraw();
     });
 
