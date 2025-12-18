@@ -392,9 +392,6 @@ canvas {
 }
 
 .timeline-toggle {
-    position: absolute;
-    top: 6px;
-    right: 12px;
     padding: 4px 8px;
     background: rgba(0, 0, 0, 0.8);
     color: #fff;
@@ -403,6 +400,19 @@ canvas {
     font-size: 11px;
     cursor: pointer;
     z-index: 2501;
+}
+
+.timeline-hud .timeline-toggle {
+    position: absolute;
+    top: 6px;
+    right: 12px;
+}
+
+.timeline-toggle-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 6px;
+    position: relative;
 }
 
 .timeline-toggle:hover {
