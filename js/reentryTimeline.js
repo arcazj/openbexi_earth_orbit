@@ -76,6 +76,21 @@ function createHudElements() {
     return { container, filterSelect: select, detailCanvas, overviewCanvas, tooltip };
 }
 
+function getTimelineBounds(data = []) {
+    if (!data.length) return null;
+    let min = Number.POSITIVE_INFINITY;
+    let max = Number.NEGATIVE_INFINITY;
+    data.forEach((item) => {
+        const start = item.type === 'CONFIRMED' ? item.time : item.start;
+        const end = item.type === 'CONFIRMED' ? item.time : item.end;
+        if (start < min) min = start;
+        if (end > max) max = end;
+    });
+    if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+    const padding = Math.max(MS_DAY * 7, (max - min) * 0.05);
+    return { min: min - padding, max: max + padding };
+}
+
 function formatDate(date) {
     return `${date.getUTCFullYear()}-${(date.getUTCMonth() + 1).toString().padStart(2, '0')}-${date.getUTCDate()
         .toString()
@@ -209,10 +224,12 @@ export function initReentryTimeline(rawSatellites, onSelect) {
 
     let isVisible = false;
     let detailPositions = [];
+    let overviewPositions = [];
     let detailStart = Date.now() - MS_DAY * 120;
     let detailEnd = Date.now() + MS_DAY * 210;
     let overviewStart = detailStart - MS_DAY * 180;
     let overviewEnd = detailEnd + MS_DAY * 180;
+    let hasCustomRange = false;
     let needsDraw = true;
     let rafScheduled = false;
 
@@ -228,10 +245,22 @@ export function initReentryTimeline(rawSatellites, onSelect) {
         });
     };
 
+    const resetRangesFromData = () => {
+        const bounds = getTimelineBounds(getFilteredData());
+        if (!bounds) return;
+        detailStart = bounds.min;
+        detailEnd = bounds.max;
+        overviewStart = bounds.min;
+        overviewEnd = bounds.max;
+    };
+
     const rebuildData = () => {
         timelineData = buildTimelineData(rawSatellites);
+        if (!hasCustomRange) resetRangesFromData();
         scheduleDraw();
     };
+
+    resetRangesFromData();
 
     function scheduleDraw() {
         if (!isVisible) return;
@@ -398,17 +427,24 @@ export function initReentryTimeline(rawSatellites, onSelect) {
             }
         });
 
+        overviewPositions = [];
         const filtered = getFilteredData();
         filtered.forEach((item) => {
             if (item.type === 'PREDICTED') {
                 const xStart = timeToX(item.start, overviewStart, overviewEnd, width);
                 const xEnd = timeToX(item.end, overviewStart, overviewEnd, width);
+                const barWidth = Math.max(1, xEnd - xStart);
+                const y = height * 0.55;
                 ctx.fillStyle = `${PREDICTED_COLOR}55`;
-                ctx.fillRect(xStart, height * 0.55, Math.max(1, xEnd - xStart), height * 0.35);
+                ctx.fillRect(xStart, y, barWidth, height * 0.35);
+                overviewPositions.push({ item, xStart, xEnd: xStart + barWidth, y, height: height * 0.35 });
             } else {
                 const x = timeToX(item.time, overviewStart, overviewEnd, width);
+                const y = height * 0.6;
+                const barHeight = height * 0.3;
                 ctx.fillStyle = CONFIRMED_COLOR;
-                ctx.fillRect(x - 0.5, height * 0.6, 2, height * 0.3);
+                ctx.fillRect(x - 0.5, y, 2, barHeight);
+                overviewPositions.push({ item, xStart: x - 0.5, xEnd: x + 1.5, y, height: barHeight });
             }
         });
 
@@ -440,6 +476,7 @@ export function initReentryTimeline(rawSatellites, onSelect) {
 
     detailCanvas.addEventListener('mousedown', (e) => {
         if (!isVisible) return;
+        hasCustomRange = true;
         isDetailDragging = true;
         detailDragStartX = e.clientX;
         detailDragRangeStart = detailStart;
@@ -511,6 +548,7 @@ export function initReentryTimeline(rawSatellites, onSelect) {
     detailCanvas.addEventListener('wheel', (e) => {
         if (!isVisible) return;
         e.preventDefault();
+        hasCustomRange = true;
         const rect = detailCanvas.getBoundingClientRect();
         const mouseTime = xToTime(e.clientX - rect.left, detailStart, detailEnd, detailCanvas.clientWidth);
         const zoomFactor = Math.exp(-e.deltaY * 0.001);
@@ -543,6 +581,7 @@ export function initReentryTimeline(rawSatellites, onSelect) {
             brushing = true;
             brushOffset = x - brushStartX;
         } else {
+            hasCustomRange = true;
             isOverviewDragging = true;
             overviewDragStartX = e.clientX;
             overviewDragRangeStart = overviewStart;
@@ -573,6 +612,37 @@ export function initReentryTimeline(rawSatellites, onSelect) {
             detailStart = detailDuringOverviewStart - deltaMs;
             detailEnd = detailStart + detailRange;
             scheduleDraw();
+            return;
+        }
+
+        if (!isVisible) return;
+
+        const rect = overviewCanvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const hit = overviewPositions.find((p) => x >= p.xStart - 2 && x <= p.xEnd + 2 && y >= p.y && y <= p.y + p.height);
+        if (hit) {
+            const decay = hit.item.satellite.decay || {};
+            let line = '';
+            if (hit.item.type === 'CONFIRMED') {
+                line = `Re-entered: ${formatDateTime(new Date(hit.item.time))}`;
+            } else {
+                line = `Predicted window: ${formatDate(new Date(hit.item.start))} → ${formatDate(new Date(hit.item.end))}`;
+            }
+            const confidence = decay.predicted_decay_window?.confidence;
+            tooltip.innerHTML = `
+              <div style="font-weight:bold;">${hit.item.satellite.satellite_name || hit.item.satellite.norad_id}</div>
+              <div>NORAD: ${hit.item.satellite.norad_id || '—'}</div>
+              <div>Status: ${decay.decay_status || hit.item.type}</div>
+              <div>${line}</div>
+              ${confidence !== undefined ? `<div>Confidence: ${(confidence * 100).toFixed(0)}%</div>` : ''}
+              <div style="max-width:260px;">${decay.decay_reason || hit.item.reason || ''}</div>
+            `;
+            tooltip.style.display = 'block';
+            tooltip.style.left = `${e.clientX + 12}px`;
+            tooltip.style.top = `${e.clientY + 12}px`;
+        } else {
+            tooltip.style.display = 'none';
         }
     });
 
@@ -589,6 +659,7 @@ export function initReentryTimeline(rawSatellites, onSelect) {
     overviewCanvas.addEventListener('wheel', (e) => {
         if (!isVisible) return;
         e.preventDefault();
+        hasCustomRange = true;
         const rect = overviewCanvas.getBoundingClientRect();
         const mouseTime = xToTime(e.clientX - rect.left, overviewStart, overviewEnd, overviewCanvas.clientWidth);
         const zoomFactor = Math.exp(-e.deltaY * 0.001);
