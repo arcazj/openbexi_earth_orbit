@@ -12,6 +12,8 @@ const DOT_COLOR = '#00ff7f';
 const NOW_COLOR = '#ff4444';
 const BRUSH_COLOR = 'rgba(255,255,255,0.15)';
 const BRUSH_BORDER = 'rgba(255,255,255,0.35)';
+const SHOW_LABEL = 'Show Launch Timeline';
+const HIDE_LABEL = 'Hide Launch Timeline';
 
 const MS_DAY = 24 * 60 * 60 * 1000 *2;
 const MS_YEAR = 365.25 * MS_DAY;
@@ -21,11 +23,7 @@ const OVERVIEW_MIN_RANGE = MS_YEAR * 1.5;
 function createHudElements() {
     const container = document.createElement('div');
     container.className = 'timeline-hud';
-
-    const toggle = document.createElement('button');
-    toggle.className = 'timeline-toggle';
-    toggle.textContent = 'Hide Launch Timeline ▼';
-    container.appendChild(toggle);
+    container.style.display = 'none';
 
     const detailCanvas = document.createElement('canvas');
     detailCanvas.className = 'timeline-canvas timeline-detail';
@@ -37,7 +35,7 @@ function createHudElements() {
 
     document.body.appendChild(container);
 
-    return { container, toggle, detailCanvas, overviewCanvas };
+    return { container, detailCanvas, overviewCanvas };
 }
 
 function parseLaunchDate(value) {
@@ -160,16 +158,33 @@ export function initTimeline(satellites, arg2, arg3) {
 
     if (!timelineData.length) return () => {};
 
-    const { container, toggle, detailCanvas, overviewCanvas } = createHudElements();
+    const toggle = document.getElementById('launchTimelineToggle');
+    const { container, detailCanvas, overviewCanvas } = createHudElements();
 
-    let isCollapsed = false;
-    toggle.addEventListener('click', () => {
-        isCollapsed = !isCollapsed;
-        container.classList.toggle('timeline-collapsed', isCollapsed);
-        container.style.height = isCollapsed ? '32px' : `${HUD_HEIGHT}px`;
-        toggle.textContent = isCollapsed ? 'Show Launch Timeline ▲' : 'Hide Launch Timeline ▼';
-        scheduleDraw();
-    });
+    let isVisible = false;
+    if (toggle) toggle.textContent = SHOW_LABEL;
+
+    function setVisibility(visible) {
+        isVisible = visible;
+        if (toggle) {
+            toggle.textContent = visible ? HIDE_LABEL : SHOW_LABEL;
+        }
+
+        if (visible) {
+            container.style.display = '';
+            container.classList.remove('timeline-collapsed');
+            resize();
+            scheduleDraw();
+        } else {
+            container.style.display = 'none';
+        }
+    }
+
+    if (toggle) {
+        toggle.addEventListener('click', () => {
+            setVisibility(!isVisible);
+        });
+    }
 
     let detailStart = centerDate.getTime() - MS_DAY * 3.5;
     let detailEnd = centerDate.getTime() + MS_DAY * 3.5;
@@ -183,6 +198,7 @@ export function initTimeline(satellites, arg2, arg3) {
     let rafScheduled = false;
 
     function scheduleDraw() {
+        if (!isVisible) return;
         needsDraw = true;
         if (!rafScheduled) {
             rafScheduled = true;
@@ -197,7 +213,8 @@ export function initTimeline(satellites, arg2, arg3) {
     }
 
     function resize() {
-        container.style.height = isCollapsed ? '32px' : `${HUD_HEIGHT}px`;
+        if (!isVisible) return;
+        container.style.height = `${HUD_HEIGHT}px`;
         const detailHeight = HUD_HEIGHT * DETAIL_RATIO;
         const overviewHeight = HUD_HEIGHT * (1 - DETAIL_RATIO);
         detailCanvas.style.height = `${detailHeight}px`;
@@ -208,8 +225,8 @@ export function initTimeline(satellites, arg2, arg3) {
         scheduleDraw();
     }
 
-    resize();
     window.addEventListener('resize', resize);
+    setVisibility(false);
 
     function timeToX(time, start, end, width) {
         return ((time - start) / (end - start)) * width;
@@ -353,7 +370,7 @@ export function initTimeline(satellites, arg2, arg3) {
     }
 
     function draw() {
-        if (isCollapsed) return;
+        if (!isVisible) return;
         const detailHeight = detailCanvas.clientHeight;
         const overviewHeight = overviewCanvas.clientHeight;
         const detailCtx = sizeCanvas(detailCanvas, detailHeight);
@@ -370,7 +387,7 @@ export function initTimeline(satellites, arg2, arg3) {
     let detailDragRange = 0;
 
     detailCanvas.addEventListener('mousedown', e => {
-        if (isCollapsed) return;
+        if (!isVisible) return;
         isDetailDragging = true;
         detailDragStartX = e.clientX;
         detailDragRangeStart = detailStart;
@@ -406,7 +423,7 @@ export function initTimeline(satellites, arg2, arg3) {
     });
 
     detailCanvas.addEventListener('wheel', e => {
-        if (isCollapsed) return;
+        if (!isVisible) return;
         e.preventDefault();
         const rect = detailCanvas.getBoundingClientRect();
         const mouseTime = xToTime(e.clientX - rect.left, detailStart, detailEnd, detailCanvas.clientWidth);
@@ -430,7 +447,7 @@ export function initTimeline(satellites, arg2, arg3) {
     let detailDuringOverviewEnd = 0;
 
     overviewCanvas.addEventListener('mousedown', e => {
-        if (isCollapsed) return;
+        if (!isVisible) return;
         const rect = overviewCanvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const width = overviewCanvas.clientWidth;
@@ -484,7 +501,7 @@ export function initTimeline(satellites, arg2, arg3) {
     });
 
     overviewCanvas.addEventListener('wheel', e => {
-        if (isCollapsed) return;
+        if (!isVisible) return;
         e.preventDefault();
         const rect = overviewCanvas.getBoundingClientRect();
         const mouseTime = xToTime(e.clientX - rect.left, overviewStart, overviewEnd, overviewCanvas.clientWidth);
