@@ -205,7 +205,7 @@ function buildTimelineData(rawSatellites = []) {
 export function initReentryTimeline(rawSatellites, onSelect) {
     const toggle = document.getElementById('reentryTimelineToggle');
     const { container, filterSelect, detailCanvas, overviewCanvas, tooltip } = createHudElements();
-    const timelineData = buildTimelineData(rawSatellites);
+    let timelineData = buildTimelineData(rawSatellites);
 
     let isVisible = false;
     let detailPositions = [];
@@ -226,6 +226,11 @@ export function initReentryTimeline(rawSatellites, onSelect) {
             if (mode !== 'ALL' && item.type !== mode) return false;
             return true;
         });
+    };
+
+    const rebuildData = () => {
+        timelineData = buildTimelineData(rawSatellites);
+        scheduleDraw();
     };
 
     function scheduleDraw() {
@@ -605,6 +610,7 @@ export function initReentryTimeline(rawSatellites, onSelect) {
 
     return {
         teardown,
-        requestRedraw: scheduleDraw
+        requestRedraw: scheduleDraw,
+        refreshData: rebuildData
     };
 }
