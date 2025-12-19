@@ -20,6 +20,26 @@ export function satelliteMenuLoader() {
         <button id="reentryTimelineToggle" class="timeline-toggle">Show Re-entry Timeline</button>
       </div>
     </div>
+    
+    <!-- View -->
+    <div class="control-group">
+      <h3 data-collapsible-target="viewContent" class="section-heading">
+        View <span class="toggle-icon">▾</span>
+      </h3>
+
+      <!-- 2-column grid (safer sizing) -->
+      <div id="viewContent" class="collapsible-content"
+           style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));column-gap:14px;row-gap:4px;">
+        <label><input type="checkbox" id="view3DToggle" checked>Globe</label>
+        <label><input type="checkbox" id="viewMercatorToggle">Mercator</label>
+        <label><input type="checkbox" id="highDefToggle"> High Def.</label>
+      </div>
+           <div id="viewContent" class="collapsible-content"
+           style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:14px;row-gap:4px;">
+        <label><input type="checkbox" id="showECEFAxesToggle"> ECEF&nbsp;Axes</label>
+        <label><input type="checkbox" id="showDayNightToggle" checked> Day/Night</label>
+      </div>
+    </div>
     <!-- Filters -->
     <div class="control-group">
       <h3 data-collapsible-target="filtersContent" class="section-heading">
@@ -50,27 +70,6 @@ export function satelliteMenuLoader() {
       </div>
     </div>
 
-    <!-- View -->
-    <div class="control-group">
-      <h3 data-collapsible-target="viewContent" class="section-heading">
-        View <span class="toggle-icon">▾</span>
-      </h3>
-
-      <!-- 2-column grid (safer sizing) -->
-      <div id="viewContent" class="collapsible-content"
-           style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:14px;row-gap:4px;">
-
-        <label><input type="checkbox" id="view3DToggle" checked> 3D&nbsp;Globe</label>
-        <label><input type="checkbox" id="viewMercatorToggle"> 2D&nbsp;Mercator</label>
-
-        <label><input type="checkbox" id="highDefToggle"> High&nbsp;Definition</label>
-        <label><input type="checkbox" id="showECEFAxesToggle"> ECEF&nbsp;Axes</label>
-
-        <label><input type="checkbox" id="showOrbitFrameToggle"> Orbit&nbsp;Frame&nbsp;(LVLH)</label>
-        <label><input type="checkbox" id="showDayNightToggle" checked> Day/Night Shading</label>
-      </div>
-    </div>
-
     <!-- Satellite selection -->
     <div class="control-group">
       <h3 data-collapsible-target="satelliteSelectionContent" class="section-heading">
@@ -83,24 +82,15 @@ export function satelliteMenuLoader() {
         <!-- 2-column grid for selection-related toggles -->
         <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:14px;row-gap:4px;">
           <label><input type="checkbox" id="showYPRToggle"> Yaw-Pitch-Roll</label>
-
-          <label class="checkbox-row">
-            <input type="checkbox" id="showFootprintCheckbox">
-            <span>Show Footprint</span>
-          </label>
-
-          <label class="checkbox-row">
-            <input type="checkbox" id="showOnlySelectedSatellite">
-            <span>Show only selected satellite</span>
-          </label>
-
+          <label class="checkbox-row"><input type="checkbox" id="showFootprintCheckbox"><span>Show Footprint</span></label>
+          <label class="checkbox-row"> <input type="checkbox" id="showOnlySelectedSatellite"><span>Show only selected satellite</span></label>
+          <label><input type="checkbox" id="showOrbitFrameToggle"> Orbit&nbsp;Frame&nbsp;(LVLH)</label>
           <label><input type="checkbox" id="showOrbitToggle" checked> Show Orbit</label>
         </div>
 
         <!-- YPR sliders (unique id + hidden by default) -->
         <div id="yprSlidersRow"
              style="display:none;margin-top:6px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));column-gap:14px;row-gap:4px;">
-
           <label style="margin-bottom:4px;display:block;min-width:0;">Yaw:
             <input type="range" id="yawSlider" min="-180" max="180" step="0.1" value="0" style="width:100%;min-width:0;">
             <span id="yawVal">0</span>
@@ -118,23 +108,10 @@ export function satelliteMenuLoader() {
         </div>
 
         <div style="margin-top:8px;">
-          <!-- BLUE BOLD: Select Satellite -->
-          <label for="satelliteSelect" class="section-heading">
-            Select Satellite:
-          </label>
-          <select id="satelliteSelect">
-            <option value="None">None</option>
-          </select>
-
-          <!-- Satellite info (No satellite selected / table) -->
-          <div id="satelliteInfo" style="margin-top:10px;">
-            <div style="font-weight:bold;">No satellite selected</div>
-          </div>
-
-          <!-- BLUE BOLD: Other Selections -->
-          <label for="otherSelection" class="section-subtitle" style="margin-top:10px;">
-            Other Selections:
-          </label>
+          <label for="satelliteSelect" class="section-heading">Select Satellite:</label>
+          <select id="satelliteSelect"><option value="None">None</option></select>
+          <div id="satelliteInfo" style="margin-top:10px;"><div style="font-weight:bold;">No satellite selected</div></div>
+          <label for="otherSelection" class="section-subtitle" style="margin-top:10px;">Other Selections:</label>
           <select id="otherSelection">
             <option value="Earth">Earth</option>
             <option value="Moon">Moon</option>
