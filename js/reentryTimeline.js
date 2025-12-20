@@ -174,7 +174,14 @@ function buildTimelineData(rawSatellites = []) {
             if (decay.decay_status === 'CONFIRMED' && decay.decay_date) {
                 const t = new Date(decay.decay_date);
                 if (!isNaN(t)) {
-                    return { type: 'CONFIRMED', time: t.getTime(), satellite: sat, index: idx, reason: decay.decay_reason };
+                    return {
+                        type: 'CONFIRMED',
+                        time: t.getTime(),
+                        satellite: sat,
+                        index: idx,
+                        reason: decay.decay_reason,
+                        selectable: !sat.synthetic
+                    };
                 }
             }
             if (decay.decay_status === 'PREDICTED' && decay.predicted_decay_window) {
@@ -188,7 +195,8 @@ function buildTimelineData(rawSatellites = []) {
                         confidence: decay.predicted_decay_window.confidence ?? 0,
                         satellite: sat,
                         index: idx,
-                        reason: decay.decay_reason
+                        reason: decay.decay_reason,
+                        selectable: !sat.synthetic
                     };
                 }
             }
@@ -200,6 +208,32 @@ function buildTimelineData(rawSatellites = []) {
             const bt = b.type === 'CONFIRMED' ? b.time : b.start;
             return at - bt;
         });
+}
+
+function buildSyntheticDecays(confirmedDecays, satellites = []) {
+    if (!confirmedDecays || confirmedDecays.size === 0) return [];
+    const existing = new Set(
+        satellites
+            .map((sat) => (sat?.norad_id !== undefined && sat?.norad_id !== null ? String(sat.norad_id).trim() : null))
+            .filter(Boolean)
+    );
+    const synthetic = [];
+    confirmedDecays.forEach((record, noradId) => {
+        if (existing.has(noradId)) return;
+        if (!record?.decayDateIso) return;
+        synthetic.push({
+            norad_id: noradId,
+            satellite_name: record.objectName || `NORAD ${noradId}`,
+            synthetic: true,
+            decay: {
+                decay_status: 'CONFIRMED',
+                decay_reason: 'Source: json/decayed/decayed.json',
+                decay_date: record.decayDateIso,
+                predicted_decay_window: null
+            }
+        });
+    });
+    return synthetic;
 }
 
 function getTimelineBounds(data) {
@@ -236,10 +270,15 @@ function buildTooltipContent(hit) {
     `;
 }
 
-export function initReentryTimeline(rawSatellites, onSelect) {
+export function initReentryTimeline(rawSatellites, onSelect, options = {}) {
     const toggle = document.getElementById('reentryTimelineToggle');
     const { container, filterSelect, detailCanvas, overviewCanvas, tooltip } = createHudElements();
-    let timelineData = buildTimelineData(rawSatellites);
+    const { confirmedDecays } = options;
+    const baseSatellites = Array.isArray(rawSatellites) ? rawSatellites : [];
+    let timelineData = buildTimelineData([
+        ...baseSatellites,
+        ...buildSyntheticDecays(confirmedDecays, baseSatellites)
+    ]);
 
     let isVisible = false;
     let detailPositions = [];
@@ -273,7 +312,11 @@ export function initReentryTimeline(rawSatellites, onSelect) {
     };
 
     const rebuildData = () => {
-        timelineData = buildTimelineData(rawSatellites);
+        const currentBase = Array.isArray(rawSatellites) ? rawSatellites : [];
+        timelineData = buildTimelineData([
+            ...currentBase,
+            ...buildSyntheticDecays(confirmedDecays, currentBase)
+        ]);
         applyInitialWindow();
         scheduleDraw();
     };
@@ -528,7 +571,7 @@ export function initReentryTimeline(rawSatellites, onSelect) {
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
         const hit = detailPositions.find((p) => x >= p.xStart - 4 && x <= p.xEnd + p.labelWidth + 6 && Math.abs(p.y - y) < ROW_HEIGHT / 1.3);
-        if (hit && typeof onSelect === 'function') {
+        if (hit && hit.item.selectable && typeof onSelect === 'function') {
             onSelect(hit.item.satellite);
         }
     });
