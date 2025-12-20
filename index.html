@@ -1287,7 +1287,7 @@
             //initTimeline(satellites, simParams.simDate, handleTimelineSelection);
 
             initTimeline(satellites, handleTimelineSelection);
-            reentryTimelineHandle = initReentryTimeline(satellites, handleTimelineSelection);
+            reentryTimelineHandle = initReentryTimeline(satellites, handleTimelineSelection, { confirmedDecays });
             if (reentryTimelineHandle?.refreshData) {
                 reentryTimelineHandle.refreshData();
             }
