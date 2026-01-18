@@ -25,14 +25,7 @@ public class SatelliteDataExporter {
 
     public static void main(String[] args) {
         try {
-            // STEP 1: Extract launch dates from n2yo pages (if not already done)
-            File launchDatesFile = new File("json/TLE/satellite_launch_dates.json");
-            if (!launchDatesFile.exists()) {
-                System.out.println("Extracting launch dates from n2yo...");
-                extractLaunchDates();
-            } else {
-                System.out.println("Launch dates file exists. Skipping extraction.");
-            }
+            extractLaunchDates();
         } catch(Exception e) {
             e.printStackTrace();
         }
@@ -43,30 +36,53 @@ public class SatelliteDataExporter {
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=intelsat&FORMAT=tle",
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=ses&FORMAT=tle",
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=eutelsat&FORMAT=tle",
-                "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium&FORMAT=tle",
-                "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-NEXT&FORMAT=tle",
-                "https://celestrak.org/NORAD/elements/gp.php?GROUP=orbcomm&FORMAT=tle",
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=swarm&FORMAT=tle",
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=globalstar&FORMAT=tle",
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=amateur&FORMAT=tle",
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=satnogs&FORMAT=tle",
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=oneweb&FORMAT=tle",
-                "https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle",
-                "https://celestrak.org/NORAD/elements/gp.php?GROUP=galileo&FORMAT=tle",
-                "https://celestrak.org/NORAD/elements/gp.php?GROUP=beidou&FORMAT=tle",
-                "https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle",
-                "https://celestrak.org/NORAD/elements/gp.php?GROUP=qianfan&FORMAT=tle",
-                "https://celestrak.org/NORAD/elements/gp.php?GROUP=kuiper&FORMAT=tle",
-                "https://celestrak.org/NORAD/elements/gp.php?GROUP=x-comm&FORMAT=tle",
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=telesat&FORMAT=tle",
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=hulianwang&FORMAT=tle",
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=other-comm&FORMAT=tle",
-                "https://celestrak.org/NORAD/elements/gp.php?GROUP=glo-ops&FORMAT=tle",
+                "https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle",
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=cubesat&FORMAT=tle",
-                "https://celestrak.org/NORAD/elements/gp.php?GROUP=science&FORMAT=tle",
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=military&FORMAT=tle",
+                "https://celestrak.org/NORAD/elements/gp.php?GROUP=galileo&FORMAT=tle",
+                "https://celestrak.org/NORAD/elements/gp.php?GROUP=beidou&FORMAT=tle",
+                "https://celestrak.org/NORAD/elements/gp.php?GROUP=qianfan&FORMAT=tle",
+                "https://celestrak.org/NORAD/elements/gp.php?GROUP=kuiper&FORMAT=tle",
+                "http://celestrak.org/NORAD/elements/gp.php?GROUP=argos&FORMAT=tle",
+                "http://celestrak.org/NORAD/elements/gp.php?GROUP=amateur&FORMAT=tle",
+                "http://celestrak.org/NORAD/elements/gp.php?GROUP=cubesat&FORMAT=tle",
+                "http://celestrak.org/NORAD/elements/gp.php?GROUP=dmc&FORMAT=tle",
+                "http://celestrak.org/NORAD/elements/gp.php?GROUP=education&FORMAT=tle",
+                "http://celestrak.org/NORAD/elements/gp.php?GROUP=geo&FORMAT=tle",
+                "http://celestrak.org/NORAD/elements/gp.php?GROUP=geodetic&FORMAT=tle",
+                "http://celestrak.org/NORAD/elements/gp.php?GROUP=glo-ops&FORMAT=tle",
+                "http://celestrak.org/NORAD/elements/gp.php?GROUP=globalstar&FORMAT=tle",
+                "http://celestrak.org/NORAD/elements/gp.php?GROUP=goes&FORMAT=tle",
+                "http://celestrak.org/NORAD/elements/gp.php?GROUP=gorizont&FORMAT=tle",
+                "http://celestrak.org/NORAD/elements/gp.php?GROUP=gps-ops&FORMAT=tle",
+                "http://celestrak.org/NORAD/elements/gp.php?GROUP=iridium&FORMAT=tle",
+                "http://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-NEXT&FORMAT=tle",
+                "http://celestrak.org/NORAD/elements/gp.php?GROUP=molniya&FORMAT=tle",
+                "http://celestrak.org/NORAD/elements/gp.php?GROUP=orbcomm&FORMAT=tle",
+                "http://celestrak.org/NORAD/elements/gp.php?GROUP=planet&FORMAT=tle",
+                "http://celestrak.org/NORAD/elements/gp.php?GROUP=raduga&FORMAT=tle",
+                "http://celestrak.org/NORAD/elements/gp.php?GROUP=resource&FORMAT=tle",
+                "http://celestrak.org/NORAD/elements/gp.php?GROUP=satnogs&FORMAT=tle",
+                "http://celestrak.org/NORAD/elements/gp.php?GROUP=sarsat&FORMAT=tle",
+                "http://celestrak.org/NORAD/elements/gp.php?GROUP=science&FORMAT=tle",
+                "http://celestrak.org/NORAD/elements/gp.php?GROUP=spire&FORMAT=tle",
+                "http://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle",
+                "http://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle",
+                "http://celestrak.org/NORAD/elements/gp.php?GROUP=swarm&FORMAT=tle",
+                "http://celestrak.org/NORAD/elements/gp.php?GROUP=tdrss&FORMAT=tle",
+                "http://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=tle",
+                "http://celestrak.org/NORAD/elements/gp.php?GROUP=weather&FORMAT=tle",
+                "http://celestrak.org/NORAD/elements/gp.php?GROUP=x-comm&FORMAT=tle",
+                "http://celestrak.org/NORAD/elements/gp.php?GROUP=last-30-days&FORMAT=tle",
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle",
-
         };
 
         Map<String, JSONObject> satellitesByNorad = new LinkedHashMap<>();
