@@ -7,7 +7,7 @@ import java.util.*;
 
 /**
  * buildDecayedDB
- *
+ * https://celestrak.org/NORAD/elements/gp.php?SPECIAL=DECAYING&FORMAT=JSON
  * Reads:  json/satcat.csv   (CelesTrak SATCAT CSV)
  * https://celestrak.org/satcat/search.php CLICK ON Raw SATCAT Data (CSV, Legacy Text)
  * Writes: json/decayed/decayed.json
