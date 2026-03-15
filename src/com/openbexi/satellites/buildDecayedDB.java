@@ -9,6 +9,7 @@ import java.util.*;
  * buildDecayedDB
  *
  * Reads:  json/satcat.csv   (CelesTrak SATCAT CSV)
+ * https://celestrak.org/satcat/search.php CLICK ON Raw SATCAT Data (CSV, Legacy Text)
  * Writes: json/decayed/decayed.json
  *
  * Filters:
