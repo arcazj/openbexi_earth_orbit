@@ -26,17 +26,17 @@ public class SatelliteDataExporter {
     public static void main(String[] args) {
         try {
             extractLaunchDates();
-        } catch(Exception e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
 
         // STEP 2: Process TLE sources from CelesTrak and produce the simplified JSON structure.
         String[] sourceUrls = {
+                "https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle",
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle",
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=intelsat&FORMAT=tle",
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=ses&FORMAT=tle",
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=eutelsat&FORMAT=tle",
-                "https://celestrak.org/NORAD/elements/gp.php?GROUP=swarm&FORMAT=tle",
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=globalstar&FORMAT=tle",
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=amateur&FORMAT=tle",
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=satnogs&FORMAT=tle",
@@ -44,7 +44,6 @@ public class SatelliteDataExporter {
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=telesat&FORMAT=tle",
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=hulianwang&FORMAT=tle",
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=other-comm&FORMAT=tle",
-                "https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle",
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=cubesat&FORMAT=tle",
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=military&FORMAT=tle",
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=galileo&FORMAT=tle",
@@ -75,15 +74,16 @@ public class SatelliteDataExporter {
                 "http://celestrak.org/NORAD/elements/gp.php?GROUP=science&FORMAT=tle",
                 "http://celestrak.org/NORAD/elements/gp.php?GROUP=spire&FORMAT=tle",
                 "http://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle",
-                "http://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle",
-                "http://celestrak.org/NORAD/elements/gp.php?GROUP=swarm&FORMAT=tle",
                 "http://celestrak.org/NORAD/elements/gp.php?GROUP=tdrss&FORMAT=tle",
                 "http://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=tle",
                 "http://celestrak.org/NORAD/elements/gp.php?GROUP=weather&FORMAT=tle",
                 "http://celestrak.org/NORAD/elements/gp.php?GROUP=x-comm&FORMAT=tle",
-                "http://celestrak.org/NORAD/elements/gp.php?GROUP=last-30-days&FORMAT=tle",
+                //"http://celestrak.org/NORAD/elements/gp.php?GROUP=last-30-days&FORMAT=tle",
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle",
         };
+        /*String[] sourceUrls = {
+                "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle",
+                "https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle"};*/
 
         Map<String, JSONObject> satellitesByNorad = new LinkedHashMap<>();
         for (String url : sourceUrls) {
@@ -210,9 +210,9 @@ public class SatelliteDataExporter {
     /**
      * Uses a regex pattern to extract satellite launch rows from an n2yo HTML page.
      * For each row it extracts:
-     *   - Satellite name (from the anchor text)
-     *   - NORAD ID (from the second table cell)
-     *   - Launch date (from the third table cell)
+     * - Satellite name (from the anchor text)
+     * - NORAD ID (from the second table cell)
+     * - Launch date (from the third table cell)
      */
     private static JSONArray extractLaunchDatesFromPage(String html) {
         JSONArray arr = new JSONArray();
@@ -353,9 +353,9 @@ public class SatelliteDataExporter {
     /**
      * Determines the orbit type automatically based on TLE line2.
      * It parses the mean motion (the 8th token) and:
-     *   - Returns "GEO" if mean motion < 2.5,
-     *   - "LEO" if mean motion > 11.0,
-     *   - Otherwise, "MEO".
+     * - Returns "GEO" if mean motion < 2.5,
+     * - "LEO" if mean motion > 11.0,
+     * - Otherwise, "MEO".
      */
     private static String determineOrbit(String tleLine2) {
         if (tleLine2 == null || tleLine2.isEmpty()) {
