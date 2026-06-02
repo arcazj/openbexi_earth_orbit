@@ -44,7 +44,7 @@ export async function checkFileExists(url) {
 export function getFullGitHubUrl(relativePath, base) {
     if (!relativePath || typeof relativePath !== 'string') {
         console.warn("getFullGitHubUrl: received invalid path:", relativePath);
-        return usingLocalAssets ? relativePath.replace(/^\//, '') : null;
+        return null;
     }
     if (relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
         return relativePath;

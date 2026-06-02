@@ -5,6 +5,7 @@
 */
 
 import * as THREE from 'three';
+import { eciToSceneVector, gmstFromJulianDay } from './sceneFrame.js';
 
 /* ≡≡ Sun position in ECI frame from Date (unit vector) ≡≡ */
 function sunEciUnit(date) {
@@ -147,23 +148,19 @@ export function drawDayNight3D(scene, earthMesh, date = new Date(), options = {}
 
     // Time → Sun ECF direction
     const jd = date.valueOf() / 86400000 + 2440587.5;
-    const gmst = window.satellite.gstime(jd);
-    const sECF = eciToEcf(sunECI(jd), gmst);
+    const sunScenePosition = sunSceneVectorFromJD(jd, sunDistance);
 
     // Scene axes use X-Z-Y: (x, z, y)
-    const sx = sECF.x * sunDistance;
-    const sy = sECF.z * sunDistance; // swap Y↔Z
-    const sz = sECF.y * sunDistance;
 
     // Position light + visuals
-    sunLight.position.set(sx, sy, sz);
+    sunLight.position.copy(sunScenePosition);
 
     if (sunMesh.visible) {
-        sunMesh.position.set(sx, sy, sz);
+        sunMesh.position.copy(sunScenePosition);
         sunMesh.lookAt(earthMesh.position);
     }
     if (sunHalo.visible) {
-        sunHalo.position.set(sx, sy, sz);
+        sunHalo.position.copy(sunScenePosition);
         // Sprite size is world-space; scale XY only (Z ignored)
         sunHalo.scale.set(haloSize, haloSize, 1);
     }
@@ -171,11 +168,11 @@ export function drawDayNight3D(scene, earthMesh, date = new Date(), options = {}
 
 /* ≡≡ Greenwich Mean Sidereal Time from Julian Day (rad) ≡≡ */
 export function gmstFromJD(jd) {
-    const T = (jd - 2451545.0) / 36525.0;
-    let gmst = 280.46061837 + 360.98564736629 * (jd - 2451545.0)
-        + 0.000387933 * T * T - (T * T * T) / 38710000;
-    gmst = ((gmst % 360) + 360) % 360; // wrap 0-360
-    return THREE.MathUtils.degToRad(gmst);
+    return gmstFromJulianDay(jd);
+}
+
+export function sunSceneVectorFromJD(jd, distance = 1) {
+    return eciToSceneVector(new THREE.Vector3(), sunECI(jd), distance);
 }
 
 /* ≡≡ Sun position in ECI frame (unit vector) from Julian Day ≡≡ */

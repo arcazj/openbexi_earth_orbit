@@ -1,7 +1,7 @@
 // js/satelliteTLELoader.js
 // -----------------------------------------------------------
 import * as THREE from 'three';
-import {KM_TO_SCENE_UNITS} from './SatelliteConstantLoader.js';
+import { eciToSceneVector } from './sceneFrame.js';
 import {
     satelliteConfig,
     fetchJSON,
@@ -13,64 +13,71 @@ let orbitLine = null;
 export let usingLocalAssets = false;
 let textureLoader = new THREE.TextureLoader();
 
-export function updateOrbitTrajectory(scene, simParams, satData) {
-    if (!simParams.showOrbit || !satData || !satData.satrec) return;
-
-    //How to set getOrbitECIPoints? :
-    //let currentTime = new Date();
-    //const orbitDurationHours = 6; // Generate 6 hours of orbit path
-    //const endTime = new Date(currentTime.getTime() + orbitDurationHours * 60 * 60 * 1000);
-    //const timeStep = 1; // Calculate a point every 1 minute
-    //const orbitECIPoints= getOrbitECIPoints(satData.tle_line1, satData.tle_line2, currentTime, endTime, timeStep);
-
-    const meanMotion = satData.satrec.no;
-    const basePeriod = (2 * Math.PI) / meanMotion; // fundamental orbital period in minutes
-
-    let orbitType, periodMinutes;
-    if (basePeriod > 1400 && basePeriod < 1470) {
-        orbitType = 'GEO';
-        periodMinutes = basePeriod; // one revolution
-    } else if (basePeriod < 225) {
-        orbitType = 'LEO';
-        periodMinutes = (24 * Math.PI) / meanMotion; // 12 revs
-    } else {
-        orbitType = 'MEO';
-        periodMinutes = (4 * Math.PI) / meanMotion; // 2 revs
+function getSatelliteLib(satelliteLib = globalThis.satellite) {
+    if (!satelliteLib?.propagate) {
+        throw new Error('satellite.js is required for orbit propagation.');
     }
+    return satelliteLib;
+}
 
-    const numPoints = 360;
+export function classifyOrbitByPeriodMinutes(periodMinutes) {
+    if (periodMinutes > 1400 && periodMinutes < 1470) return 'GEO';
+    if (periodMinutes < 225) return 'LEO';
+    return 'MEO';
+}
+
+export function getOrbitDurationMinutes(satrec) {
+    const basePeriod = (2 * Math.PI) / satrec.no;
+    const orbitType = classifyOrbitByPeriodMinutes(basePeriod);
+
+    if (orbitType === 'GEO') return basePeriod;
+    if (orbitType === 'LEO') return (24 * Math.PI) / satrec.no;
+    return (4 * Math.PI) / satrec.no;
+}
+
+export function generateOrbitScenePoints(satrec, simDate = new Date(), options = {}) {
+    if (!satrec) return [];
+
+    const {
+        numPoints = 360,
+        satelliteLib = globalThis.satellite
+    } = options;
+    const satLib = getSatelliteLib(satelliteLib);
+    const periodMinutes = getOrbitDurationMinutes(satrec);
     const deltaT = periodMinutes / numPoints;
-    const now = new Date();
+    const startTime = new Date(simDate);
     const orbitPoints = [];
 
     for (let i = 0; i <= numPoints; i++) {
-        const t = new Date(now.getTime() + i * deltaT * 60000);
-        const pv = satellite.propagate(satData.satrec, t);
+        const t = new Date(startTime.getTime() + i * deltaT * 60000);
+        const pv = satLib.propagate(satrec, t);
         if (!pv || !pv.position) continue;
-
-        let pos = pv.position;
-        if (orbitType !== 'GEO') {
-            const gmst = satellite.gstime(t);
-            pos = satellite.eciToEcf(pos, gmst);
-        }
-
-        const scale = KM_TO_SCENE_UNITS;
-        orbitPoints.push(new THREE.Vector3(
-            pos.x * scale,
-            pos.z * scale,
-            pos.y * scale
-        ));
+        orbitPoints.push(eciToSceneVector(new THREE.Vector3(), pv.position));
     }
 
+    return orbitPoints;
+}
+
+function clearOrbitLine(scene) {
     if (typeof orbitLine !== 'undefined' && orbitLine) {
-        scene.remove(orbitLine);
-        orbitLine.geometry.dispose();
-        orbitLine.material.dispose();
+        scene?.remove?.(orbitLine);
+        orbitLine.geometry?.dispose?.();
+        orbitLine.material?.dispose?.();
+        orbitLine = null;
     }
+}
+
+export function updateOrbitTrajectory(scene, simParams, satData) {
+    clearOrbitLine(scene);
+
+    if (!simParams.showOrbit || !satData || !satData.satrec) return null;
+
+    const orbitPoints = generateOrbitScenePoints(satData.satrec, simParams.simDate || new Date());
+    if (orbitPoints.length === 0) return null;
 
     const geometry = new THREE.BufferGeometry().setFromPoints(orbitPoints);
     const material = new THREE.LineBasicMaterial({
-        color: orbitType === 'GEO' ? 0xff0000 : 0xff0000
+        color: 0xff0000
     });
 
     orbitLine = new THREE.Line(geometry, material);
@@ -229,17 +236,13 @@ export async function setupTLESatellites(scene) {
 }
 
 export function removeAllGeometry(scene) {
-    if (orbitLine) {
-        scene.remove(orbitLine);
-        orbitLine.geometry.dispose();
-        orbitLine.material.dispose();
-        orbitLine = null;
-    }
+    clearOrbitLine(scene);
     // Add removal for other types of geometry if needed
 }
 
-export function getOrbitECIPoints(tleLine1, tleLine2, startTime, endTime, timeStepMinutes) {
-    const satrec = satellite.twoline2satrec(tleLine1, tleLine2);
+export function getOrbitECIPoints(tleLine1, tleLine2, startTime, endTime, timeStepMinutes, satelliteLib = globalThis.satellite) {
+    const satLib = getSatelliteLib(satelliteLib);
+    const satrec = satLib.twoline2satrec(tleLine1, tleLine2);
 
     // Error handling for TLE parsing
     if (!satrec) {
@@ -250,13 +253,13 @@ export function getOrbitECIPoints(tleLine1, tleLine2, startTime, endTime, timeSt
     // Check for specific TLE parsing errors if satrec.error is populated by twoline2satrec
     // (Note: satellite.js typically sets satrec.error during propagation, not always during parsing)
 
-    let orbitECIPoints = null;
+    let orbitECIPoints = [];
     let currentTime = new Date(startTime.getTime()); // Create a mutable copy of startTime
 
     while (currentTime <= endTime) {
         // Propagate to the current time to get ECI position and velocity
         // The position is in ECI coordinates (TEME frame), in kilometers.
-        const positionAndVelocity = satellite.propagate(satrec, currentTime);
+        const positionAndVelocity = satLib.propagate(satrec, currentTime);
 
         if (positionAndVelocity && typeof positionAndVelocity.position === 'object' && positionAndVelocity.position !== null) {
             // Add the ECI position object {x, y, z} to our array
@@ -266,30 +269,30 @@ export function getOrbitECIPoints(tleLine1, tleLine2, startTime, endTime, timeSt
             // satrec.error provides a numerical code for the error type
             // (Refer to satellite.js documentation for SatRecError enum values)
             let errorMessage = "Propagation failed";
-            if (satrec.error && satellite.SatRecError) { // Check if SatRecError enum exists
+            if (satrec.error && satLib.SatRecError) { // Check if SatRecError enum exists
                 // Attempt to get a string representation if available (not standard in satellite.js)
                 // Or handle based on numeric satrec.error codes directly
                 switch (satrec.error) {
-                    case satellite.SatRecError.Ok: // Should not happen if positionAndVelocity is null/invalid
+                    case satLib.SatRecError.Ok: // Should not happen if positionAndVelocity is null/invalid
                         errorMessage = "Propagation OK but no position data.";
                         break;
-                    case satellite.SatRecError.MeanElements:
+                    case satLib.SatRecError.MeanElements:
                         errorMessage = "Propagation failed: Mean elements, check TLE.";
                         break;
-                    case satellite.SatRecError.LockheedProp:
+                    case satLib.SatRecError.LockheedProp:
                         errorMessage = "Propagation failed: Lockheed propagator error.";
                         break;
-                    case satellite.SatRecError.NearSingular:
+                    case satLib.SatRecError.NearSingular:
                         errorMessage = "Propagation failed: Near singular elements.";
                         break;
-                    case satellite.SatRecError.NoSupport:
+                    case satLib.SatRecError.NoSupport:
                         errorMessage = "Propagation failed: No support for this TLE.";
                         break;
-                    case satellite.SatRecError.Recovered:
+                    case satLib.SatRecError.Recovered:
                         errorMessage = "Propagation recovered but position might be suspect.";
                         // Decide if to include this point or not
                         break;
-                    case satellite.SatRecError.Decayed:
+                    case satLib.SatRecError.Decayed:
                         errorMessage = `Satellite decayed at or before ${currentTime.toISOString()}. No further points will be generated.`;
                         console.warn(errorMessage);
                         // Optionally, break the loop if the satellite has decayed

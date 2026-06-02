@@ -1,11 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <module version="4">
-  <component name="AdditionalModuleElements">
-    <content url="file://$MODULE_DIR$" dumb="true">
-      <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/tools" isTestSource="false" />
-    </content>
-  </component>
   <component name="FacetManager">
     <facet type="javaeeApplication" name="javaEEApplication2">
       <configuration>
@@ -15,6 +9,20 @@
       </configuration>
     </facet>
     <facet type="javaeeApplication" name="javaEEApplication3">
+      <configuration>
+        <descriptors>
+          <deploymentDescriptor name="application.xml" url="file://$MODULE_DIR$/META-INF/application.xml" />
+        </descriptors>
+      </configuration>
+    </facet>
+    <facet type="javaeeApplication" name="javaEEApplication4">
+      <configuration>
+        <descriptors>
+          <deploymentDescriptor name="application.xml" url="file://$MODULE_DIR$/META-INF/application.xml" />
+        </descriptors>
+      </configuration>
+    </facet>
+    <facet type="javaeeApplication" name="javaEEApplication5">
       <configuration>
         <descriptors>
           <deploymentDescriptor name="application.xml" url="file://$MODULE_DIR$/META-INF/application.xml" />
@@ -39,6 +47,13 @@
       </configuration>
     </facet>
     <facet type="javaeeApplication" name="javaEEApplication">
+      <configuration>
+        <descriptors>
+          <deploymentDescriptor name="application.xml" url="file://$MODULE_DIR$/META-INF/application.xml" />
+        </descriptors>
+      </configuration>
+    </facet>
+    <facet type="javaeeApplication" name="javaEEApplication6">
       <configuration>
         <descriptors>
           <deploymentDescriptor name="application.xml" url="file://$MODULE_DIR$/META-INF/application.xml" />

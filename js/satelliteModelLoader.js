@@ -7,31 +7,50 @@
 
 import * as THREE from 'three';
 import { fetchJSON } from './SatelliteConfigurationLoader.js';
+import { KM_TO_SCENE_UNITS, EARTH_SCENE_RADIUS, EARTH_RADIUS_KM } from './SatelliteConstantLoader.js';
 
 /* ─────────────────────────── Config & constants ─────────────────────────── */
-const EARTH_RADIUS_KM = 6371;
-const EARTH_SCENE_RADIUS = 10;
-const KM_TO_SCENE_UNITS = EARTH_SCENE_RADIUS / EARTH_RADIUS_KM;
+const appWindow = globalThis.window ?? {};
+export const SATELLITE_MODEL_VISUAL_SCALE = 0.25;
 
 // Scene scale: meters → scene units (can be overridden globally)
-const METERS_TO_UNITS = window.METERS_TO_SCENE_UNITS || 1.0;
+export const METERS_TO_UNITS = appWindow.METERS_TO_SCENE_UNITS || KM_TO_SCENE_UNITS;
 
 // Metadata JSON base (unchanged)
 export const SATELLITE_MODELS_BASE_URL =
-    window.SATELLITE_MODELS_BASE_URL || 'json/satellites/';
+    appWindow.SATELLITE_MODELS_BASE_URL || 'json/satellites/';
 
 // Flat OBJ/MTL asset base (all files live directly under /obj)
 export const SATELLITE_OBJ_BASE_URL =
-    window.SATELLITE_OBJ_BASE_URL  || 'obj/';
+    appWindow.SATELLITE_OBJ_BASE_URL  || 'obj/';
 
 // Optional global renderer (for anisotropy)
-const renderer = window.renderer || null;
+const renderer = appWindow.renderer || null;
 
 /* ───────────────────────── Utilities & helpers ──────────────────────────── */
 export function getNominalAltMeters(meta = {}) {
     if (meta.orbit?.altitude) return meta.orbit.altitude;
     const m = /([\d.]+)\s*km/i.exec(meta?.orbital_slot?.nominal ?? '');
     return m ? parseFloat(m[1]) * 1_000 : 35_786e3; // GEO default
+}
+
+export function unitScaleToMeters(unit, fallback = 1) {
+    if (unit === undefined || unit === null || unit === '') return fallback;
+    if (typeof unit === 'number') return Number.isFinite(unit) && unit > 0 ? unit : fallback;
+
+    const normalized = String(unit).trim().toLowerCase();
+    if (normalized === 'm' || normalized === 'meter' || normalized === 'meters') return 1;
+    if (normalized === 'cm' || normalized === 'centimeter' || normalized === 'centimeters') return 0.01;
+    if (normalized === 'mm' || normalized === 'millimeter' || normalized === 'millimeters') return 0.001;
+    if (normalized === 'km' || normalized === 'kilometer' || normalized === 'kilometers') return 1000;
+
+    const numeric = Number(normalized);
+    return Number.isFinite(numeric) && numeric > 0 ? numeric : fallback;
+}
+
+export function modelScaleToSceneUnits(unit, visualScale = SATELLITE_MODEL_VISUAL_SCALE) {
+    const metersToUnits = globalThis.window?.METERS_TO_SCENE_UNITS || METERS_TO_UNITS;
+    return unitScaleToMeters(unit) * metersToUnits * visualScale;
 }
 
 function setTextureAnisotropy(material) {
@@ -105,7 +124,7 @@ function disposeObject3D(obj) {
 }
 
 /* ──────────────── Optional CSS2D label support (no top-level await) ───────── */
-let CSS2DObject = window.CSS2DObject; // allow external injection
+let CSS2DObject = appWindow.CSS2DObject; // allow external injection
 
 async function ensureCSS2DObject() {
     if (CSS2DObject) return CSS2DObject;
@@ -181,18 +200,7 @@ async function loadOBJWithMTL(fileBase, meta) {
     // Optional unit conversion: OBJ units → meters → scene units
     // If you have metadata like meta.geometry.obj_units ('m','cm','mm'), convert here.
     // Default assumption: OBJ is authored in meters.
-    const objUnitsToMeters = (() => {
-        const u = meta?.geometry?.obj_units;
-        if (!u) return 1;          // meters by default
-        if (u === 'm') return 1;
-        if (u === 'cm') return 0.01;
-        if (u === 'mm') return 0.001;
-        if (u === 'km') return 1000;
-        if (typeof u === 'number') return u; // allow numeric factor
-        return 1;
-    })();
-
-    const scale = objUnitsToMeters * METERS_TO_UNITS;
+    const scale = modelScaleToSceneUnits(meta?.geometry?.obj_units);
     root.scale.setScalar(scale);
 
     // Improve shading/material defaults if no MTL or weak materials
@@ -249,19 +257,8 @@ async function loadGLB(filePathOrBase, meta) {
     const root = new THREE.Group();
     root.add(sceneRoot);
 
-    const glbUnitsToMeters = (() => {
-        const u = meta?.geometry?.glb_units ?? meta?.geometry?.obj_units;
-        if (!u) return 1;
-        if (u === 'm') return 1;
-        if (u === 'cm') return 0.01;
-        if (u === 'mm') return 0.001;
-        if (u === 'km') return 1000;
-        if (typeof u === 'number') return u;
-        return 1;
-    })();
-
-    const scale = glbUnitsToMeters * METERS_TO_UNITS;
-    root.scale.setScalar(0.001);
+    const scale = modelScaleToSceneUnits(meta?.geometry?.glb_units ?? meta?.geometry?.obj_units);
+    root.scale.setScalar(scale);
 
     root.traverse(child => {
         if (child.isMesh) {
@@ -312,7 +309,7 @@ export async function showSatellite(noradId, scene, updatedNoradId) {
     let sat = null;
     try {
         // Load metadata JSON first (use your existing CORS-safe fetchJSON)
-        const raw = await (window.fetchJSON || fetchJSON)(jsonUrl);
+        const raw = await (globalThis.window?.fetchJSON || fetchJSON)(jsonUrl);
         sat = Array.isArray(raw) ? raw[0] : Object.values(raw)[0];
         if (!sat) {
             console.warn(`[${noradId}] No satellite record in JSON at ${jsonUrl}`);
@@ -384,9 +381,6 @@ export async function showSatellite(noradId, scene, updatedNoradId) {
         currentLabels.push(lbl);
     }
 
-    // Optional coarse global scale (kept from legacy)
-    currentSatModel.scale.multiplyScalar(0.25);
-
     scene.add(currentSatModel);
     return currentSatModel;
 }
@@ -402,4 +396,4 @@ export function clearCurrentDetailedSat(scene) {
 }
 
 /* ───────────────────────── Optional: exports for reuse ──────────────────── */
-export { KM_TO_SCENE_UNITS, METERS_TO_UNITS };
+export { KM_TO_SCENE_UNITS, EARTH_SCENE_RADIUS, EARTH_RADIUS_KM };

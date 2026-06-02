@@ -3,13 +3,23 @@
 import * as THREE from 'three';
 // It's assumed you have a constants file like this.
 // If not, replace with direct values: e.g., const EARTH_RADIUS_KM = 6371;
-import { KM_TO_SCENE_UNITS, EARTH_RADIUS_KM } from './SatelliteConstantLoader.js';
+import { EARTH_RADIUS_KM } from './SatelliteConstantLoader.js';
+import { eciToSceneVector } from './sceneFrame.js';
 
 let _scene;
 let _earthMesh; // A reference to the main Earth mesh is now needed
 let footprintMesh3D; // This will now be a mesh with a custom shader material
 
 const R_E_KM = EARTH_RADIUS_KM;
+
+export function isValidFootprintDistance(distanceKm, earthRadiusKm = R_E_KM) {
+    return Number.isFinite(distanceKm) && distanceKm > earthRadiusKm;
+}
+
+export function calculateFootprintAngularRadius(distanceKm, earthRadiusKm = R_E_KM) {
+    if (!isValidFootprintDistance(distanceKm, earthRadiusKm)) return null;
+    return Math.acos(earthRadiusKm / distanceKm);
+}
 
 // --- Vertex Shader for the Footprint ---
 // This shader is responsible for setting up the coordinates for the fragment shader.
@@ -203,7 +213,11 @@ export function updateFootprints(selectedSat, gmstRad, { showFootprint, mercator
     // --- High-Precision Calculations ---
     // Calculate the angular radius (lambda) of the footprint cone. This is the
     // half-angle of the cone formed by the satellite and the Earth's limb (horizon).
-    const lambda = Math.acos(R_E_KM / d_km);
+    const lambda = calculateFootprintAngularRadius(d_km, R_E_KM);
+    if (lambda === null) {
+        footprintMesh3D.visible = false;
+        return;
+    }
 
     // Get the sub-satellite point (the point on Earth directly below the satellite)
     const jday = satellite.jday(simDateObj);
@@ -241,8 +255,7 @@ export function updateFootprints(selectedSat, gmstRad, { showFootprint, mercator
     // Convert satellite's ECI coordinates (km) to Three.js scene coordinates.
     // Note the Y and Z axes are swapped to match the common convention in 3D graphics
     // where Y is the "up" axis (polar axis in this case).
-    const satPosWC = new THREE.Vector3(pv.position.x, pv.position.z, pv.position.y)
-        .multiplyScalar(KM_TO_SCENE_UNITS);
+    const satPosWC = eciToSceneVector(new THREE.Vector3(), pv.position);
 
     // Update the shader uniforms with the new satellite position and footprint angle
     const material = footprintMesh3D.material;

@@ -3,6 +3,7 @@
 
 import * as THREE from 'three';
 import { KM_TO_SCENE_UNITS } from './SatelliteConstantLoader.js';
+import { eciToSceneVector, sceneCoordinatesFromEciKm } from './sceneFrame.js';
 
 // Mean Moon distance and period (simplified)
 const MOON_MEAN_DISTANCE_KM = 384_400;         // km
@@ -64,42 +65,32 @@ export function createMoon(scene, earthSceneRadius = 10, opts = {}) {
     return moonMesh;
 }
 
-/**
- * Update Moon position each frame.
- * Simple circular equatorial orbit with sidereal period (fast & visually good).
- * @param {THREE.Object3D} moon
- * @param {Date} simDate
- * @param {number} gmstNow - GMST (rad), consistent with your Earth rotation
- */
-export function updateMoon(moon, simDate, gmstNow) {
-    if (!moon || !simDate) return;
-
-    // Time since J2000 in days
+export function getApproximateMoonEciKm(simDate) {
     const jd = simDate.valueOf() / 86400000 + 2440587.5;
     const daysSinceJ2000 = jd - 2451545.0;
-
-    // Mean motion (rad/day) and phase
     const meanMotion = TWO_PI / MOON_SIDEREAL_DAYS;
     const theta = (daysSinceJ2000 * meanMotion) % TWO_PI;
 
-    // ECI position (circular orbit in equatorial plane)
-    const r_km = MOON_MEAN_DISTANCE_KM;
-    const x_eci = r_km * Math.cos(theta);
-    const y_eci = r_km * Math.sin(theta);
-    const z_eci = 0;
+    return {
+        x: MOON_MEAN_DISTANCE_KM * Math.cos(theta),
+        y: MOON_MEAN_DISTANCE_KM * Math.sin(theta),
+        z: 0
+    };
+}
 
-    // ECI -> ECF via GMST
-    const cosG = Math.cos(gmstNow), sinG = Math.sin(gmstNow);
-    const x_ecf =  x_eci * cosG + y_eci * sinG;
-    const y_ecf = -x_eci * sinG + y_eci * cosG;
-    const z_ecf =  z_eci;
+export function getApproximateMoonScenePosition(simDate, scale = KM_TO_SCENE_UNITS) {
+    return sceneCoordinatesFromEciKm(getApproximateMoonEciKm(simDate), scale);
+}
 
-    // ECF -> scene (X, Z, Y) and km -> scene units
-    moon.position.set(
-        x_ecf * KM_TO_SCENE_UNITS,
-        z_ecf * KM_TO_SCENE_UNITS,  // swap Y<->Z
-        y_ecf * KM_TO_SCENE_UNITS
-    );
+/**
+ * Update Moon position each frame.
+ * Approximate visual model: circular equatorial ECI orbit with sidereal period.
+ * @param {THREE.Object3D} moon
+ * @param {Date} simDate
+ */
+export function updateMoon(moon, simDate) {
+    if (!moon || !simDate) return;
 
+    eciToSceneVector(moon.position, getApproximateMoonEciKm(simDate));
     moon.visible = true; // always visible
 }

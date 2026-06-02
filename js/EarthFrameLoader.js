@@ -25,6 +25,8 @@ const e2 = WGS84_F * (2 - WGS84_F);            // first eccentricity squared
 /* ─────────── Module‑scoped state ─────────── */
 const helpers = {};               // ArrowHelpers & graticule meshes
 const labels  = {};               // Cached DOM elements
+const AXIS_Y = new THREE.Vector3(0, 1, 0);
+let currentRotY = 0;
 
 /* ─────────── Utility helpers ─────────── */
 function $lbl(id) {
@@ -36,6 +38,10 @@ function placeLabel(el, x, y) {
     el.style.left   = x + 'px';
     el.style.top    = y + 'px';
     el.style.display = 'block';
+}
+
+function rotateEarthFixed(v, rotY = currentRotY) {
+    return v.clone().applyAxisAngle(AXIS_Y, rotY);
 }
 
 /* Inject the six HTML label <div>s once, if they don’t already exist */
@@ -138,12 +144,31 @@ export function updateECEFAxesVisibility(simParams) {
         });
 }
 
-export function update3DLabelsPosition(camera, simParams) {
+export function updateECEFAxesOrientation(rotY = 0) {
+    currentRotY = rotY;
+    ['xAxis','yAxis','zAxis','equator','meridian'].forEach(k => {
+        if (helpers[k]) helpers[k].rotation.y = rotY;
+    });
+}
+
+export function update3DLabelsPosition(camera, simParams, rotY = currentRotY) {
     /* relies on a global `renderer`, exactly like your original setup */
-    if (!simParams.showECEFAxes || !simParams.view3D || typeof renderer === 'undefined') {
+    if (!simParams.showECEFAxes || typeof renderer === 'undefined') {
         updateECEFAxesVisibility({ showECEFAxes: false });
         return;
     }
+    if (!simParams.view3D) {
+        ['labelXecr','labelYecr','labelZecr',
+            'labelNorthPole','labelEquatorLine','labelGreenwichMeridian']
+            .forEach(id => {
+                const el = $lbl(id);
+                if (el) el.style.display = 'none';
+            });
+        return;
+    }
+
+    updateECEFAxesVisibility(simParams);
+    updateECEFAxesOrientation(rotY);
 
     const proj = v => {
         const p = v.clone().project(camera);
@@ -155,15 +180,15 @@ export function update3DLabelsPosition(camera, simParams) {
 
     // Arrow‑tip labels
     placeLabel($lbl('labelXecr'), ...Object.values(
-        proj(new THREE.Vector3(VISUAL_AXIS_EXTENT + LABEL_OFFSET, 0, 0))));
+        proj(rotateEarthFixed(new THREE.Vector3(VISUAL_AXIS_EXTENT + LABEL_OFFSET, 0, 0), rotY))));
     placeLabel($lbl('labelYecr'), ...Object.values(
-        proj(new THREE.Vector3(0, 0, VISUAL_AXIS_EXTENT + LABEL_OFFSET))));
+        proj(rotateEarthFixed(new THREE.Vector3(0, 0, VISUAL_AXIS_EXTENT + LABEL_OFFSET), rotY))));
     placeLabel($lbl('labelZecr'), ...Object.values(
-        proj(new THREE.Vector3(0, VISUAL_AXIS_EXTENT + LABEL_OFFSET, 0))));
+        proj(rotateEarthFixed(new THREE.Vector3(0, VISUAL_AXIS_EXTENT + LABEL_OFFSET, 0), rotY))));
 
     // North‑pole label
     placeLabel($lbl('labelNorthPole'), ...Object.values(
-        proj(new THREE.Vector3(0, EARTH_SCENE_RADIUS + LABEL_OFFSET, 0))));
+        proj(rotateEarthFixed(new THREE.Vector3(0, EARTH_SCENE_RADIUS + LABEL_OFFSET, 0), rotY))));
 
     // Equator label – nearest point on ring to camera
     const r     = helpers.equator.userData.radius;
@@ -172,7 +197,7 @@ export function update3DLabelsPosition(camera, simParams) {
         ? new THREE.Vector3(r, 0, 0)
         : camXZ.normalize().multiplyScalar(r);
     eqPos.y = LABEL_VERTICAL_OFFSET;
-    placeLabel($lbl('labelEquatorLine'), ...Object.values(proj(eqPos)));
+    placeLabel($lbl('labelEquatorLine'), ...Object.values(proj(rotateEarthFixed(eqPos, rotY))));
 
     // Greenwich meridian label (≈ 30° from north on meridian)
     const theta = THREE.MathUtils.degToRad(30);
@@ -180,5 +205,5 @@ export function update3DLabelsPosition(camera, simParams) {
         r * Math.sin(theta),
         r * Math.cos(theta) + LABEL_VERTICAL_OFFSET,
         0 );
-    placeLabel($lbl('labelGreenwichMeridian'), ...Object.values(proj(merPos)));
+    placeLabel($lbl('labelGreenwichMeridian'), ...Object.values(proj(rotateEarthFixed(merPos, rotY))));
 }

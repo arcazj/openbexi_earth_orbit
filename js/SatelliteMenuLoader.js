@@ -33,9 +33,6 @@ export function satelliteMenuLoader() {
         <label><input type="checkbox" id="view3DToggle" checked>Globe</label>
         <label><input type="checkbox" id="viewMercatorToggle">Mercator</label>
         <label><input type="checkbox" id="highDefToggle"> High Def.</label>
-      </div>
-           <div id="viewContent" class="collapsible-content"
-           style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:14px;row-gap:4px;">
         <label><input type="checkbox" id="showECEFAxesToggle"> ECEF&nbsp;Axes</label>
         <label><input type="checkbox" id="showDayNightToggle" checked> Day/Night</label>
       </div>
@@ -47,24 +44,34 @@ export function satelliteMenuLoader() {
         <span class="toggle-icon">▾</span>
       </h3>
 
-      <div id="filtersContent" class="collapsible-content">
-        <div class="filter-column">
-          <label for="orbitTypeFilter">Orbit Type:</label>
-          <select id="orbitTypeFilter">
-            <option value="ALL">ALL</option>
-            <option value="LEO">LEO</option>
-            <option value="MEO">MEO</option>
-            <option value="GEO">GEO</option>
-          </select>
+      <div id="filtersContent" class="collapsible-content filters-panel">
+        <div class="filter-block">
+          <div class="filter-label">Orbit filter (multi-select):</div>
+          <div id="orbitTypeFilter" class="segmented-control orbit-segmented" role="group" aria-label="Orbit filter">
+            <button type="button" class="segmented-option" data-orbit-filter="GEO" aria-pressed="false">GEO</button>
+            <button type="button" class="segmented-option" data-orbit-filter="MEO" aria-pressed="true">MEO</button>
+            <button type="button" class="segmented-option" data-orbit-filter="LEO" aria-pressed="false">LEO</button>
+            <button type="button" class="segmented-option" data-orbit-filter="HEO" aria-pressed="false">HEO</button>
+            <button type="button" class="segmented-option" data-orbit-filter="OTHER" aria-pressed="false">Other</button>
+          </div>
         </div>
 
-        <div class="filter-column">
-          <label for="companyFilter">Company:</label>
-          <div id="companyFilter" class="company-checkbox-list" role="listbox" aria-multiselectable="true">
-            <label class="company-checkbox">
+        <div class="filter-block">
+          <div class="filter-label">Tag filter (multi-select):</div>
+          <div id="companyFilter" class="tag-chip-list" role="group" aria-label="Tag filter">
+            <label class="filter-chip">
               <input type="checkbox" value="ALL COMPANY" checked>
-              <span>ALL COMPANY</span>
+              <span>All tags</span>
             </label>
+          </div>
+        </div>
+
+        <div class="filter-block">
+          <div class="filter-label">Debris filter:</div>
+          <div id="debrisFilter" class="segmented-control debris-segmented" role="radiogroup" aria-label="Debris filter">
+            <button type="button" class="segmented-option" data-debris-filter="show" aria-pressed="true">Show</button>
+            <button type="button" class="segmented-option" data-debris-filter="hide" aria-pressed="false">Hide</button>
+            <button type="button" class="segmented-option" data-debris-filter="only" aria-pressed="false">Debris only</button>
           </div>
         </div>
       </div>
@@ -90,7 +97,7 @@ export function satelliteMenuLoader() {
 
         <!-- YPR sliders (unique id + hidden by default) -->
         <div id="yprSlidersRow"
-             style="display:none;margin-top:6px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));column-gap:14px;row-gap:4px;">
+             style="display:none;margin-top:6px;grid-template-columns:repeat(3,minmax(0,1fr));column-gap:14px;row-gap:4px;">
           <label style="margin-bottom:4px;display:block;min-width:0;">Yaw:
             <input type="range" id="yawSlider" min="-180" max="180" step="0.1" value="0" style="width:100%;min-width:0;">
             <span id="yawVal">0</span>
