@@ -7,11 +7,13 @@ import {
     fetchJSON,
     getFullGitHubUrl, GITHUB_REPO_RAW_BASE_URL,
 } from './SatelliteConfigurationLoader.js';
+import { EARTH_RADIUS_KM } from './SatelliteConstantLoader.js';
 
 export let satellites = [];
 let orbitLine = null;
 export let usingLocalAssets = false;
 let textureLoader = new THREE.TextureLoader();
+const MIN_ORBIT_RADIUS_KM = EARTH_RADIUS_KM;
 
 function getSatelliteLib(satelliteLib = globalThis.satellite) {
     if (!satelliteLib?.propagate) {
@@ -35,34 +37,80 @@ export function getOrbitDurationMinutes(satrec) {
     return (4 * Math.PI) / satrec.no;
 }
 
-export function generateOrbitScenePoints(satrec, simDate = new Date(), options = {}) {
+export function isFiniteEciPosition(position) {
+    return !!position &&
+        Number.isFinite(position.x) &&
+        Number.isFinite(position.y) &&
+        Number.isFinite(position.z);
+}
+
+export function positionRadiusKm(position) {
+    if (!isFiniteEciPosition(position)) return NaN;
+    return Math.sqrt(position.x * position.x + position.y * position.y + position.z * position.z);
+}
+
+export function isUsableOrbitPosition(position, minRadiusKm = MIN_ORBIT_RADIUS_KM) {
+    const radiusKm = positionRadiusKm(position);
+    return Number.isFinite(radiusKm) && radiusKm >= minRadiusKm;
+}
+
+export function generateOrbitScenePointSegments(satrec, simDate = new Date(), options = {}) {
     if (!satrec) return [];
 
     const {
         numPoints = 360,
-        satelliteLib = globalThis.satellite
+        satelliteLib = globalThis.satellite,
+        minRadiusKm = MIN_ORBIT_RADIUS_KM
     } = options;
     const satLib = getSatelliteLib(satelliteLib);
     const periodMinutes = getOrbitDurationMinutes(satrec);
     const deltaT = periodMinutes / numPoints;
     const startTime = new Date(simDate);
-    const orbitPoints = [];
+    const segments = [];
+    let currentSegment = [];
+
+    const finishSegment = () => {
+        if (currentSegment.length > 1) {
+            segments.push(currentSegment);
+        }
+        currentSegment = [];
+    };
 
     for (let i = 0; i <= numPoints; i++) {
         const t = new Date(startTime.getTime() + i * deltaT * 60000);
         const pv = satLib.propagate(satrec, t);
-        if (!pv || !pv.position) continue;
-        orbitPoints.push(eciToSceneVector(new THREE.Vector3(), pv.position));
+        if (!isUsableOrbitPosition(pv?.position, minRadiusKm)) {
+            finishSegment();
+            continue;
+        }
+        currentSegment.push(eciToSceneVector(new THREE.Vector3(), pv.position));
     }
+    finishSegment();
 
-    return orbitPoints;
+    return segments;
+}
+
+export function generateOrbitScenePoints(satrec, simDate = new Date(), options = {}) {
+    return generateOrbitScenePointSegments(satrec, simDate, options).flat();
 }
 
 function clearOrbitLine(scene) {
     if (typeof orbitLine !== 'undefined' && orbitLine) {
         scene?.remove?.(orbitLine);
+        orbitLine.traverse?.(child => {
+            child.geometry?.dispose?.();
+            if (Array.isArray(child.material)) {
+                child.material.forEach(material => material?.dispose?.());
+            } else {
+                child.material?.dispose?.();
+            }
+        });
         orbitLine.geometry?.dispose?.();
-        orbitLine.material?.dispose?.();
+        if (Array.isArray(orbitLine.material)) {
+            orbitLine.material.forEach(material => material?.dispose?.());
+        } else {
+            orbitLine.material?.dispose?.();
+        }
         orbitLine = null;
     }
 }
@@ -72,15 +120,36 @@ export function updateOrbitTrajectory(scene, simParams, satData) {
 
     if (!simParams.showOrbit || !satData || !satData.satrec) return null;
 
-    const orbitPoints = generateOrbitScenePoints(satData.satrec, simParams.simDate || new Date());
-    if (orbitPoints.length === 0) return null;
+    const orbitSegments = generateOrbitScenePointSegments(satData.satrec, simParams.simDate || new Date());
+    if (orbitSegments.length === 0) return null;
 
-    const geometry = new THREE.BufferGeometry().setFromPoints(orbitPoints);
-    const material = new THREE.LineBasicMaterial({
-        color: 0xff0000
-    });
+    const createLine = (points) => {
+        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        const material = new THREE.LineBasicMaterial({
+            color: 0xff0000,
+            depthTest: true,
+            depthWrite: true,
+            transparent: false,
+            opacity: 1
+        });
+        const line = new THREE.Line(geometry, material);
+        line.name = 'selectedOrbitTrajectory';
+        line.renderOrder = 0;
+        line.userData.depthOccludedByEarth = true;
+        return line;
+    };
 
-    orbitLine = new THREE.Line(geometry, material);
+    orbitLine = orbitSegments.length === 1
+        ? createLine(orbitSegments[0])
+        : new THREE.Group();
+    orbitLine.name = 'selectedOrbitTrajectoryRoot';
+    orbitLine.renderOrder = 0;
+    orbitLine.userData.depthOccludedByEarth = true;
+
+    if (orbitSegments.length > 1) {
+        orbitSegments.forEach(segment => orbitLine.add(createLine(segment)));
+    }
+
     scene.add(orbitLine);
     return orbitLine;
 }
@@ -261,7 +330,7 @@ export function getOrbitECIPoints(tleLine1, tleLine2, startTime, endTime, timeSt
         // The position is in ECI coordinates (TEME frame), in kilometers.
         const positionAndVelocity = satLib.propagate(satrec, currentTime);
 
-        if (positionAndVelocity && typeof positionAndVelocity.position === 'object' && positionAndVelocity.position !== null) {
+        if (isUsableOrbitPosition(positionAndVelocity?.position)) {
             // Add the ECI position object {x, y, z} to our array
             orbitECIPoints.push(positionAndVelocity.position);
         } else {

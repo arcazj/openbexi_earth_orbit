@@ -48,6 +48,7 @@ export function satelliteMenuLoader() {
         <div class="filter-block">
           <div class="filter-label">Orbit filter (multi-select):</div>
           <div id="orbitTypeFilter" class="segmented-control orbit-segmented" role="group" aria-label="Orbit filter">
+            <button type="button" class="segmented-option" data-orbit-filter="ALL" aria-pressed="false">ALL</button>
             <button type="button" class="segmented-option" data-orbit-filter="GEO" aria-pressed="false">GEO</button>
             <button type="button" class="segmented-option" data-orbit-filter="MEO" aria-pressed="true">MEO</button>
             <button type="button" class="segmented-option" data-orbit-filter="LEO" aria-pressed="false">LEO</button>

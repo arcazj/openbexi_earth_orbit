@@ -6,5 +6,6 @@
     "test": "node tests/runAll.js"
   },
   "dependencies": {
+    "three": "0.176.0"
   }
 }

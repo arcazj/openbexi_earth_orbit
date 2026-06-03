@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phased Array Beamforming Simulator</title>
+    <style>
+        /* General Setup */
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #111;
+            color: #eee;
+            overflow: hidden; /* Prevent scrolling of the whole page */
+        }
+        canvas {
+            display: block;
+        }
+
+        /* Main 3D Canvas */
+        #main-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* UI Menu */
+        #ui-menu {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 320px;
+            height: 100vh;
+            background-color: rgba(20, 20, 30, 0.85);
+            backdrop-filter: blur(10px);
+            border-left: 1px solid #444;
+            padding: 15px;
+            box-sizing: border-box;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #666 #333;
+        }
+
+        #ui-menu h2 {
+            margin-top: 0;
+            text-align: center;
+            color: #00aaff;
+            border-bottom: 1px solid #444;
+            padding-bottom: 10px;
+        }
+
+        .control-group {
+            margin-bottom: 18px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #333;
+        }
+        .control-group:last-child {
+            border-bottom: none;
+        }
+
+        .control-group h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 1em;
+            color: #99ccff;
+        }
+
+        .control-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+        }
+
+        .control-row label {
+            white-space: nowrap;
+            margin-right: 10px;
+        }
+
+        input[type="range"] {
+            width: 120px;
+        }
+
+        .value-display {
+            min-width: 60px;
+            text-align: right;
+            background-color: #222;
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+
+        select, input[type="text"], input[type="number"] {
+            background-color: #333;
+            color: #eee;
+            border: 1px solid #555;
+            border-radius: 3px;
+            padding: 4px;
+        }
+
+        /* Checkbox Toggles */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 20px;
+        }
+        .switch input { display:none; }
+        .slider-toggle {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #555;
+            transition: .4s;
+            border-radius: 20px;
+        }
+        .slider-toggle:before {
+            position: absolute;
+            content: "";
+            height: 14px;
+            width: 14px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider-toggle {
+            background-color: #2196F3;
+        }
+        input:checked + .slider-toggle:before {
+            transform: translateX(20px);
+        }
+
+        /* Per-feed controls */
+        #feed-controls-container {
+            max-height: 200px;
+            overflow-y: auto;
+            background-color: rgba(0,0,0,0.2);
+            padding: 5px;
+            border-radius: 4px;
+            border: 1px solid #444;
+        }
+        .feed-control-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: 5px;
+            font-size: 0.8em;
+        }
+        .feed-item {
+            background-color: #303038;
+            padding: 4px;
+            border-radius: 3px;
+        }
+        .feed-item-header {
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 3px;
+        }
+        .feed-param {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .feed-param input {
+            width: 40px;
+            padding: 2px;
+            text-align: center;
+            border: none;
+            background: #444;
+            color: #fff;
+        }
+        .feed-param .stepper {
+            cursor: pointer;
+            padding: 0 4px;
+            user-select: none;
+            background: #555;
+            border-radius: 2px;
+        }
+
+        /* Map/Globe View */
+        #map-view-container {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            width: 30%;
+            height: 30%;
+            background-color: #000;
+            border: 1px solid #888;
+            border-radius: 5px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+            resize: both;
+            overflow: hidden;
+        }
+        #map-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Status Message */
+        #status-message {
+            display: none; /* Hidden by default */
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(255, 255, 0, 0.8);
+            color: #000;
+            padding: 20px 40px;
+            border-radius: 10px;
+            font-size: 1.2em;
+            font-weight: bold;
+            z-index: 1000;
+        }
+
+        /* Radio-style Checkboxes for RF Band */
+        .radio-group label {
+            display: inline-block;
+            background-color: #333;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            margin-right: 5px;
+            border: 1px solid #555;
+            transition: background-color: 0.2s;
+        }
+        .radio-group input[type="checkbox"] {
+            display: none;
+        }
+        .radio-group input[type="checkbox"]:checked + label {
+            background-color: #2196F3;
+            border-color: #58b3f9;
+        }
+
+        /* Contour Labels */
+        .contour-label {
+            color: white;
+            padding: 2px 5px;
+            font-size: 8px;
+            font-family: monospace;
+            user-select: none;
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="main-canvas"></canvas>
+<div id="map-view-container">
+    <canvas id="map-canvas"></canvas>
+</div>
+<div id="status-message">Calculating beam shape, please wait...</div>
+
+<div id="ui-menu">
+    <h2>Beamforming Simulator</h2>
+
+    <!-- Satellite Controls -->
+    <div class="control-group">
+        <h3>Satellite & View</h3>
+        <div class="control-row">
+            <label for="sat-lon">Longitude (°)</label>
+            <input type="range" id="sat-lon" min="-180" max="180" value="0" step="1">
+            <span id="sat-lon-value" class="value-display">0°</span>
+        </div>
+        <div class="control-row">
+            <label for="sat-alt">Altitude (km)</label>
+            <input type="range" id="sat-alt" min="300" max="36000" value="8000" step="10">
+            <span id="sat-alt-value" class="value-display">8000</span>
+        </div>
+        <div class="control-row">
+            <label for="view-toggle">3D Earth View</label>
+            <label class="switch">
+                <input type="checkbox" id="view-toggle" checked>
+                <span class="slider-toggle"></span>
+            </label>
+        </div>
+    </div>
+
+    <!-- Array Controls -->
+    <div class="control-group">
+        <h3>Array Configuration</h3>
+        <div class="control-row">
+            <label for="feeds-x">Feeds X (Nx)</label>
+            <input type="range" id="feeds-x" min="1" max="32" value="4" step="1">
+            <span id="feeds-x-value" class="value-display">4</span>
+        </div>
+        <div class="control-row">
+            <label for="feeds-y">Feeds Y (Ny)</label>
+            <input type="range" id="feeds-y" min="1" max="32" value="4" step="1">
+            <span id="feeds-y-value" class="value-display">4</span>
+        </div>
+        <div class="control-row">
+            <label for="feed-spacing">Spacing (d/λ)</label>
+            <input type="range" id="feed-spacing" min="0.1" max="2.0" value="0.5" step="0.01">
+            <span id="feed-spacing-value" class="value-display">0.50</span>
+        </div>
+        <div class="control-row">
+            <label for="hex-layout">Hexagonal Layout</label>
+            <label class="switch">
+                <input type="checkbox" id="hex-layout">
+                <span class="slider-toggle"></span>
+            </label>
+        </div>
+    </div>
+
+    <!-- RF Controls -->
+    <div class="control-group">
+        <h3>RF Parameters</h3>
+        <div class="control-row radio-group" id="rf-band">
+            <label>Band:</label>
+            <div>
+                <input type="checkbox" id="band-l" name="rf-band-choice" value="L" checked><label for="band-l">L</label>
+                <input type="checkbox" id="band-c" name="rf-band-choice" value="C"><label for="band-c">C</label>
+                <input type="checkbox" id="band-ku" name="rf-band-choice" value="Ku/Ka"><label for="band-ku">Ku/Ka</label>
+            </div>
+        </div>
+        <div class="control-row">
+            <label for="frequency">Frequency (GHz)</label>
+            <input type="range" id="frequency" min="1" max="2" value="1.5" step="0.01">
+            <span id="frequency-value" class="value-display">1.50</span>
+        </div>
+        <div class="control-row">
+            <label for="gain">Element Gain (dBi)</label>
+            <input type="range" id="gain" min="0" max="60" value="10" step="1">
+            <span id="gain-value" class="value-display">10</span>
+        </div>
+    </div>
+
+    <!-- Beam Controls -->
+    <div class="control-group">
+        <h3>Beam Control</h3>
+        <div class="control-row">
+            <label for="azimuth">Azimuth (°)</label>
+            <input type="range" id="azimuth" min="-90" max="90" value="0" step="0.5">
+            <span id="azimuth-value" class="value-display">0.0°</span>
+        </div>
+        <div class="control-row">
+            <label for="elevation">Elevation (°)</label>
+            <input type="range" id="elevation" min="-90" max="90" value="0" step="0.5">
+            <span id="elevation-value" class="value-display">0.0°</span>
+        </div>
+        <div class="control-row">
+            <label for="element-pattern">Element Pattern</label>
+            <select id="element-pattern">
+                <option value="isotropic" selected>Isotropic</option>
+                <option value="cosine">Cosine</option>
+                <option value="sinc">Sinc</option>
+            </select>
+        </div>
+        <div class="control-row">
+            <label for="beam-tapering">Beam Tapering</label>
+            <select id="beam-tapering">
+                <option value="uniform" selected>Uniform</option>
+                <option value="chebyshev">Chebyshev (-20dB)</option>
+                <option value="taylor">Taylor (-25dB, n=4)</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Per-Feed Controls -->
+    <div class="control-group">
+        <h3>Per-Feed Adjustments (<span id="feed-count">16</span> feeds)</h3>
+        <div id="feed-controls-container">
+            <div id="feed-controls-grid" class="feed-control-grid">
+                <!-- Dynamically generated controls will go here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Import Map -->
+<script type="importmap">
+    {
+        "imports": {
+              "three": "https://unpkg.com/three@0.176.0/build/three.module.js",
+             "three/addons/": "https://unpkg.com/three@0.176.0/examples/jsm/",
+            "satellite.js": "https://unpkg.com/satellite.js@4.0.0/dist/satellite.min.js"
+        }
+    }
+</script>
+
+<!-- Main Application Logic -->
+<script type="module">
+    import * as THREE from 'three';
+    import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+    import {CSS2DRenderer, CSS2DObject} from 'three/addons/renderers/CSS2DRenderer.js';
+
+    const C = 299792458; // Speed of light in m/s
+    const EARTH_RADIUS = 6371; // km
+
+    class PhasedArraySimulator {
+        constructor() {
+            this.config = {};
+            this.elements = {};
+            this.feeds = [];
+            this.isCalculating = false;
+            this.debounceTimer = null;
+            this.init();
+        }
+
+        async init() {
+            this.bindUIElements();
+            this.setupScenes();
+            this.collectInitialConfig();
+            this.addEventListeners();
+            await this.generateFeedControls();
+            this.updateSimulation();
+            this.animate();
+        }
+
+        bindUIElements() {
+            const ids = [
+                'sat-lon', 'sat-lon-value', 'sat-alt', 'sat-alt-value', 'view-toggle',
+                'feeds-x', 'feeds-x-value', 'feeds-y', 'feeds-y-value', 'feed-spacing', 'feed-spacing-value', 'hex-layout',
+                'rf-band', 'frequency', 'frequency-value', 'gain', 'gain-value',
+                'azimuth', 'azimuth-value', 'elevation', 'elevation-value',
+                'element-pattern', 'beam-tapering', 'feed-count',
+                'feed-controls-grid', 'status-message',
+                'main-canvas', 'map-canvas', 'map-view-container'
+            ];
+            ids.forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) { console.error(`UI Element with id "${id}" not found!`); return; }
+                const key = id.replace(/-(\w)/g, (m, g) => g.toUpperCase());
+                this.elements[key] = el;
+            });
+        }
+
+        setupScenes() {
+            // Main Scene
+            this.mainScene = new THREE.Scene();
+            this.mainCamera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 100, 50000);
+            this.mainCamera.position.set(0, 15000, 40000);
+            this.mainRenderer = new THREE.WebGLRenderer({ antialias: true, canvas: this.elements.mainCanvas });
+            this.mainRenderer.setSize(window.innerWidth, window.innerHeight);
+            this.mainRenderer.setPixelRatio(window.devicePixelRatio);
+            this.mainControls = new OrbitControls(this.mainCamera, this.mainRenderer.domElement);
+
+            // Map Scene
+            this.mapScene = new THREE.Scene();
+            this.mapCamera = new THREE.PerspectiveCamera(50, this.elements.mapViewContainer.clientWidth / this.elements.mapViewContainer.clientHeight, 1, 10 * EARTH_RADIUS);
+            this.mapCamera.position.set(0, 0, 2 * EARTH_RADIUS);
+            this.mapRenderer = new THREE.WebGLRenderer({ antialias: true, canvas: this.elements.mapCanvas });
+            this.mapRenderer.setSize(this.elements.mapViewContainer.clientWidth, this.elements.mapViewContainer.clientHeight);
+            this.mapRenderer.setPixelRatio(window.devicePixelRatio);
+            this.mapControls = new OrbitControls(this.mapCamera, this.mapRenderer.domElement);
+            this.mapControls.enableZoom = true; this.mapControls.enablePan = true;
+            this.mapControls.minDistance = EARTH_RADIUS * 1.1; this.mapControls.maxDistance = EARTH_RADIUS * 5;
+
+            // Map Label Renderer
+            this.mapLabelRenderer = new CSS2DRenderer();
+            this.mapLabelRenderer.setSize(this.elements.mapViewContainer.clientWidth, this.elements.mapViewContainer.clientHeight);
+            this.mapLabelRenderer.domElement.style.position = 'absolute';
+            this.mapLabelRenderer.domElement.style.top = '0px';
+            this.mapLabelRenderer.domElement.style.pointerEvents = 'none';
+            this.elements.mapViewContainer.appendChild(this.mapLabelRenderer.domElement);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            this.mainScene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(5, 3, 5);
+            this.mainScene.add(directionalLight);
+            this.mapScene.add(new THREE.AmbientLight(0xffffff, 0.8));
+            const mapDirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            mapDirLight.position.set(5, 3, 5);
+            this.mapScene.add(mapDirLight);
+
+            // Globe Object
+            const textureLoader = new THREE.TextureLoader();
+            textureLoader.setCrossOrigin('anonymous');
+            const earthTexture = textureLoader.load('textures/earthmap1k.jpg', () => this.requestUpdate());
+            const earthMaterial = new THREE.MeshPhongMaterial({ map: earthTexture, transparent: true, opacity: 0.9 });
+            const earthGeometry = new THREE.SphereGeometry(EARTH_RADIUS, 64, 64);
+
+            this.mainEarth = new THREE.Mesh(earthGeometry, earthMaterial);
+            this.mainScene.add(this.mainEarth);
+
+            this.mapEarth = new THREE.Mesh(earthGeometry, new THREE.MeshPhongMaterial({ map: earthTexture }));
+            this.mapScene.add(this.mapEarth);
+
+            this.mapPlane = new THREE.Mesh( new THREE.PlaneGeometry(EARTH_RADIUS * 2 * Math.PI, EARTH_RADIUS * Math.PI), new THREE.MeshBasicMaterial({ map: earthTexture, side: THREE.DoubleSide }) );
+            this.mapPlane.visible = false; this.mapScene.add(this.mapPlane);
+
+            // Satellite and Array Assembly
+            this.satelliteGroup = new THREE.Group(); this.mainScene.add(this.satelliteGroup);
+            this.feedsGroup = new THREE.Group(); this.satelliteGroup.add(this.feedsGroup);
+
+            this.arrayPlaneHelper = new THREE.Mesh( new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: 0x00aaff, wireframe: true, side: THREE.DoubleSide, }) );
+            this.arrayPlaneHelper.material.depthTest = false; this.arrayPlaneHelper.renderOrder = 999;
+            this.satelliteGroup.add(this.arrayPlaneHelper);
+
+            // Beam visualization
+            this.beamMaterial = new THREE.MeshPhysicalMaterial({ color: 0xD4AF37, metalness: 0.2, roughness: 0.1, ior: 1.5, transmission: 0.9, thickness: 0.5, transparent: false, opacity: 0.2, wireframe: false, side: THREE.DoubleSide });
+            this.beamMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 128, 64), this.beamMaterial);
+            this.satelliteGroup.add(this.beamMesh);
+
+            // Contour lines container
+            this.contourGroup = new THREE.Group(); this.mapScene.add(this.contourGroup);
+        }
+
+        collectInitialConfig() {
+            this.config.satLon = parseFloat(this.elements.satLon.value); this.config.satAlt = parseFloat(this.elements.satAlt.value);
+            this.config.is3DView = this.elements.viewToggle.checked;
+            this.config.Nx = parseInt(this.elements.feedsX.value); this.config.Ny = parseInt(this.elements.feedsY.value);
+            this.config.d = parseFloat(this.elements.feedSpacing.value); this.config.isHexLayout = this.elements.hexLayout.checked;
+            this.config.band = document.querySelector('input[name="rf-band-choice"]:checked').value;
+            this.config.freq = parseFloat(this.elements.frequency.value); this.config.gain = parseFloat(this.elements.gain.value);
+            this.config.az = parseFloat(this.elements.azimuth.value); this.config.el = parseFloat(this.elements.elevation.value);
+            this.config.pattern = this.elements.elementPattern.value; this.config.taper = this.elements.beamTapering.value;
+        }
+
+        addEventListeners() {
+            const controls = {
+                'satLon': { prop: 'satLon', unit: '°', fixed: 0 }, 'satAlt': { prop: 'satAlt', unit: 'km', fixed: 0 },
+                'feedsX': { prop: 'Nx', unit: '', fixed: 0 }, 'feedsY': { prop: 'Ny', unit: '', fixed: 0 },
+                'feedSpacing': { prop: 'd', unit: 'λ', fixed: 2 }, 'frequency': { prop: 'freq', unit: 'GHz', fixed: 2 },
+                'gain': { prop: 'gain', unit: 'dBi', fixed: 0 }, 'azimuth': { prop: 'az', unit: '°', fixed: 1 },
+                'elevation': { prop: 'el', unit: '°', fixed: 1 },
+            };
+
+            for (const key in controls) {
+                const el = this.elements[key]; const { prop, unit, fixed } = controls[key];
+                if (el) {
+                    el.addEventListener('input', (e) => {
+                        const value = parseFloat(e.target.value); this.config[prop] = value;
+                        const displayEl = this.elements[`${key}Value`];
+                        if (displayEl) { displayEl.textContent = `${value.toFixed(fixed)}${unit}`; }
+                        this.requestUpdate();
+                    });
+                }
+            }
+
+            this.elements.viewToggle.addEventListener('change', (e) => { this.config.is3DView = e.target.checked; this.toggleMapView(this.config.is3DView); this.requestUpdate(); });
+            this.elements.hexLayout.addEventListener('change', (e) => { this.config.isHexLayout = e.target.checked; this.requestUpdate(); });
+            this.elements.elementPattern.addEventListener('change', (e) => { this.config.pattern = e.target.value; this.requestUpdate(); });
+            this.elements.beamTapering.addEventListener('change', (e) => { this.config.taper = e.target.value; this.requestUpdate(); });
+
+            this.elements.rfBand.addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    document.querySelectorAll('input[name="rf-band-choice"]').forEach(cb => { if (cb !== e.target) cb.checked = false; });
+                    this.config.band = e.target.value; this.updateFrequencySlider(); this.requestUpdate();
+                } else { e.target.checked = true; }
+            });
+
+            window.addEventListener('resize', () => this.onWindowResize(), false);
+
+            this.elements.feedControlsGrid.addEventListener('input', e => {
+                if (e.target.dataset.feedIndex === undefined) return;
+                const idx = parseInt(e.target.dataset.feedIndex); const param = e.target.dataset.param;
+                this.feeds[idx][param] = parseFloat(e.target.value);
+                this.requestUpdate();
+            });
+            this.elements.feedControlsGrid.addEventListener('click', e => {
+                if (!e.target.classList.contains('stepper')) return;
+                const input = e.target.parentElement.querySelector('input');
+                const step = parseFloat(input.step) * (e.target.dataset.dir === 'up' ? 1 : -1);
+                input.value = (parseFloat(input.value) + step).toFixed(1);
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+        }
+
+        updateFrequencySlider() {
+            const ranges = {
+                'L': {min: 1, max: 2, val: 1.5, step: 0.01}, 'C': {min: 4, max: 8, val: 6, step: 0.05}, 'Ku/Ka': {min: 12, max: 40, val: 14, step: 0.1}
+            };
+            const bandConfig = ranges[this.config.band]; const freqSlider = this.elements.frequency;
+            freqSlider.min = bandConfig.min; freqSlider.max = bandConfig.max;
+            freqSlider.value = bandConfig.val; freqSlider.step = bandConfig.step;
+            freqSlider.dispatchEvent(new Event('input'));
+        }
+
+        toggleMapView(is3D) {
+            this.mapEarth.visible = is3D; this.mapPlane.visible = !is3D;
+            this.mapControls.enabled = is3D;
+            if (!is3D) {
+                this.mapCamera.position.set(0, 0, EARTH_RADIUS * Math.PI); this.mapCamera.lookAt(0, 0, 0);
+            } else { this.mapCamera.position.set(0, 0, 2 * EARTH_RADIUS); }
+            this.mapControls.reset();
+        }
+
+        async generateFeedControls() {
+            const newFeedCount = this.config.Nx * this.config.Ny;
+            if (this.feeds.length === newFeedCount) return;
+
+            this.elements.feedControlsGrid.innerHTML = ''; this.elements.feedCount.textContent = `${newFeedCount}`;
+            const oldFeeds = [...this.feeds]; this.feeds = [];
+            for (let i = 0; i < newFeedCount; i++) {
+                this.feeds.push(oldFeeds[i] || { amp: 1.0, phase: 0.0 });
+                const item = document.createElement('div'); item.className = 'feed-item';
+                item.innerHTML = `
+                        <div class="feed-item-header">Feed ${i}</div>
+                        <div class="feed-param"> <label>A:</label> <span class="stepper" data-dir="down">-</span> <input type="number" value="${this.feeds[i].amp.toFixed(1)}" step="0.1" min="0" max="2" data-feed-index="${i}" data-param="amp"> <span class="stepper" data-dir="up">+</span> </div>
+                        <div class="feed-param"> <label>Φ:</label> <span class="stepper" data-dir="down">-</span> <input type="number" value="${this.feeds[i].phase.toFixed(1)}" step="10" min="-180" max="180" data-feed-index="${i}" data-param="phase"> <span class="stepper" data-dir="up">+</span> </div>
+                    `;
+                this.elements.feedControlsGrid.appendChild(item);
+            }
+        }
+
+        requestUpdate() {
+            clearTimeout(this.debounceTimer);
+            this.debounceTimer = setTimeout(() => {
+                if (this.isCalculating) return;
+
+                const totalElements = this.config.Nx * this.config.Ny;
+                if (totalElements > 256) {
+                    this.elements.statusMessage.style.display = 'block'; this.isCalculating = true;
+                    setTimeout(() => {
+                        this.updateSimulation();
+                        this.elements.statusMessage.style.display = 'none'; this.isCalculating = false;
+                    }, 50);
+                } else {
+                    this.updateSimulation();
+                }
+            }, 100);
+        }
+
+        async updateSimulation() {
+            this.collectInitialConfig();
+            await this.generateFeedControls();
+
+            const satPos = new THREE.Vector3(0, 0, EARTH_RADIUS + this.config.satAlt);
+            const lonAngle = THREE.MathUtils.degToRad(this.config.satLon);
+            satPos.applyAxisAngle(new THREE.Vector3(0, 1, 0), lonAngle);
+            this.satelliteGroup.position.copy(satPos);
+
+            this.satelliteGroup.lookAt(this.mainEarth.position);
+            this.satelliteGroup.rotateZ(Math.PI);
+
+            this.updateFeedsVisuals();
+            this.updateArrayHelperGeometry();
+            this.updateBeamShape();
+            this.updateContours();
+        }
+
+        updateFeedsVisuals() {
+            while(this.feedsGroup.children.length) {
+                const child = this.feedsGroup.children[0]; this.feedsGroup.remove(child);
+                child.geometry.dispose(); if(child.material.dispose) child.material.dispose();
+            }
+
+            const feedPositions = this.getElementPositions();
+            const lambda = C / (this.config.freq * 1e9);
+            const radius = lambda * this.config.d / 4; const height = lambda / 10;
+
+            const feedGeometry = new THREE.CylinderGeometry(radius, radius, height, 16);
+            feedGeometry.rotateX(Math.PI / 2);
+            const feedMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000, metalness: 0.8, roughness: 0.3 });
+
+            feedPositions.forEach(pos => {
+                const feedMesh = new THREE.Mesh(feedGeometry, feedMaterial);
+                feedMesh.position.set(pos.x, pos.y, 0);
+                this.feedsGroup.add(feedMesh);
+            });
+        }
+
+        updateArrayHelperGeometry() {
+            const { Nx, Ny, d, isHexLayout, freq } = this.config;
+            const lambda = C / (freq * 1e9); const spacing = d * lambda;
+            const width = (Nx > 1 ? (Nx - 1) : 0.5) * spacing;
+            const height = (Ny > 1 ? (Ny - 1) : 0.5) * spacing * (isHexLayout ? Math.sqrt(3) / 2 : 1);
+            this.arrayPlaneHelper.geometry.dispose();
+            this.arrayPlaneHelper.geometry = new THREE.PlaneGeometry(width, height);
+        }
+
+        getElementPositions() {
+            const { Nx, Ny, d, isHexLayout, freq } = this.config;
+            const lambda = C / (freq * 1e9); const spacing = d * lambda;
+            const positions = [];
+            const width = (Nx - 1) * spacing; const height = (Ny - 1) * spacing * (isHexLayout ? Math.sqrt(3)/2 : 1);
+            for (let n = 0; n < Ny; n++) {
+                for (let m = 0; m < Nx; m++) {
+                    let x = m * spacing; let y = n * spacing * (isHexLayout ? Math.sqrt(3)/2 : 1);
+                    if (isHexLayout && n % 2 === 1) x += spacing / 2;
+                    positions.push({ x: x - width / 2, y: y - height / 2 });
+                }
+            }
+            return positions;
+        }
+
+        getElementPattern(theta) {
+            if (theta > Math.PI / 2) return 0;
+            switch(this.config.pattern) {
+                case 'cosine': return Math.cos(theta);
+                case 'sinc':
+                    const u = Math.PI * Math.sin(theta);
+                    return u === 0 ? 1 : Math.abs(Math.sin(u) / u);
+                default: return 1.0;
+            }
+        }
+
+        arrayFactor(theta, phi) {
+            const { freq, az, el } = this.config;
+            const lambda = C / (freq * 1e9); const k = 2 * Math.PI / lambda;
+            const steering_az_rad = THREE.MathUtils.degToRad(az); const steering_el_rad = THREE.MathUtils.degToRad(el);
+            const u = Math.sin(theta) * Math.cos(phi); const v = Math.sin(theta) * Math.sin(phi);
+            const u0 = Math.sin(steering_el_rad) * Math.cos(steering_az_rad); const v0 = Math.sin(steering_el_rad) * Math.sin(steering_az_rad);
+            const elementPos = this.getElementPositions();
+            let af_real = 0, af_imag = 0;
+            for (let i = 0; i < elementPos.length; i++) {
+                const pos = elementPos[i]; const weight = this.feeds[i].amp;
+                const userPhase = THREE.MathUtils.degToRad(this.feeds[i].phase);
+                const phase = k * (pos.x * (u - u0) + pos.y * (v - v0)) + userPhase;
+                af_real += weight * Math.cos(phase); af_imag += weight * Math.sin(phase);
+            }
+            return Math.sqrt(af_real * af_real + af_imag * af_imag);
+        }
+
+        updateBeamShape() {
+            const positions = this.beamMesh.geometry.attributes.position;
+            const vertex = new THREE.Vector3(); let maxGain = 0;
+            const gainValues = new Float32Array(positions.count);
+
+            for (let i = 0; i < positions.count; i++) {
+                vertex.fromBufferAttribute(positions, i).normalize();
+                const theta = Math.acos(vertex.z); const phi = Math.atan2(vertex.y, -vertex.x);
+                const ep = this.getElementPattern(theta); const af = this.arrayFactor(theta, phi);
+                const gain = ep * af;
+                gainValues[i] = gain; if (gain > maxGain) maxGain = gain;
+            }
+            if (maxGain === 0) maxGain = 1;
+
+            for (let i = 0; i < positions.count; i++) {
+                vertex.fromBufferAttribute(positions, i).normalize();
+                let gain = gainValues[i] / maxGain;
+                gain = Math.max(gain, 0.01);
+                // FIXED: Scale the beam's length by a large constant for stable visualization
+                vertex.multiplyScalar(gain * 20000);
+                positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
+            }
+            positions.needsUpdate = true;
+            this.beamMesh.geometry.computeVertexNormals();
+        }
+
+        updateContours() {
+            while(this.contourGroup.children.length > 0) {
+                const child = this.contourGroup.children[0]; this.contourGroup.remove(child);
+                if(child.isCSS2DObject){ child.element.remove(); }
+                else { if(child.geometry) child.geometry.dispose(); if(child.material) child.material.dispose(); }
+            }
+
+            const contourLevelsDb = [0, -3, -6, -10];
+            const colors = [0xffffff, 0xff0000, 0xffff00, 0x00ffff];
+
+            let maxGain = 0; const gainGrid = [];
+            const angularRes = 64;
+            let maxTheta = Math.asin(EARTH_RADIUS / (EARTH_RADIUS + this.config.satAlt)) * 1.2;
+            for(let j = 0; j < angularRes; j++) {
+                const row = [];
+                for(let i = 0; i < angularRes; i++) {
+                    const theta = (j / (angularRes - 1)) * maxTheta;
+                    const phi = (i / (angularRes - 1)) * 2 * Math.PI;
+                    const gain = this.getElementPattern(theta) * this.arrayFactor(theta, phi);
+                    if(gain > maxGain) maxGain = gain;
+                    row.push(gain);
+                }
+                gainGrid.push(row);
+            }
+            if (maxGain === 0) return;
+
+            const satPos = this.satelliteGroup.position;
+            const earthSphere = new THREE.Sphere(new THREE.Vector3(0,0,0), EARTH_RADIUS);
+
+            contourLevelsDb.forEach((db, cIndex) => {
+                // FIXED: The isovalue must be normalized, just like the grid data.
+                const linearLevel = Math.pow(10, db / 10);
+                const segments = this.march(gainGrid, angularRes, angularRes, linearLevel * maxGain); // Use un-normalized level
+                const chains = this.stitchSegments(segments);
+
+                chains.forEach(chain => {
+                    const points = [];
+                    for (const p of chain) {
+                        const phi = (p.x / (angularRes - 1)) * 2 * Math.PI;
+                        const theta = (p.y / (angularRes - 1)) * maxTheta;
+                        let direction = new THREE.Vector3().setFromSphericalCoords(1, theta, phi);
+                        direction.applyQuaternion(this.satelliteGroup.quaternion);
+                        const ray = new THREE.Ray(satPos, direction);
+                        const intersectionPoint = new THREE.Vector3();
+                        if (ray.intersectSphere(earthSphere, intersectionPoint)) {
+                            points.push(intersectionPoint);
+                        }
+                    }
+
+                    if (points.length > 2) {
+                        const material = new THREE.LineBasicMaterial({ color: colors[cIndex], linewidth: 2 });
+                        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                        this.contourGroup.add(new THREE.Line(geometry, material));
+
+                        const labelDiv = document.createElement('div');
+                        labelDiv.className = 'contour-label';
+                        labelDiv.textContent = `${db} dB`;
+                        const contourLabel = new CSS2DObject(labelDiv);
+                        contourLabel.position.copy(points[0]).multiplyScalar(1.01);
+                        this.contourGroup.add(contourLabel);
+                    }
+                });
+            });
+        }
+
+        march(grid, width, height, isovalue) {
+            const segments = [];
+            const lerp = (p1, p2, v1, v2) => {
+                if (Math.abs(v1 - v2) < 1e-9) return p1;
+                const t = (isovalue - v1) / (v2 - v1);
+                return { x: p1.x + t * (p2.x - p1.x), y: p1.y + t * (p2.y - p1.y) };
+            };
+
+            for (let y = 0; y < height - 1; y++) {
+                for (let x = 0; x < width - 1; x++) {
+                    const v = [grid[y][x], grid[y][x+1], grid[y+1][x+1], grid[y+1][x]];
+                    const p = [{x,y}, {x:x+1,y}, {x:x+1,y:y+1}, {x,y:y+1}];
+
+                    let squareIndex = 0;
+                    if (v[0] >= isovalue) squareIndex |= 1;
+                    if (v[1] >= isovalue) squareIndex |= 2;
+                    if (v[2] >= isovalue) squareIndex |= 4;
+                    if (v[3] >= isovalue) squareIndex |= 8;
+
+                    // Asymptotic Decider for saddle points
+                    if (squareIndex === 5 || squareIndex === 10) {
+                        const centerVal = (v[0] + v[1] + v[2] + v[3]) / 4;
+                        if ((centerVal >= isovalue && squareIndex === 5) || (centerVal < isovalue && squareIndex === 10)) {
+                            // No change needed for this configuration
+                        } else {
+                            squareIndex = (squareIndex === 5) ? 10 : 5;
+                        }
+                    }
+
+                    // Corrected Marching Squares lookup table
+                    switch (squareIndex) {
+                        case 1:  segments.push([lerp(p[0],p[3],v[0],v[3]), lerp(p[0],p[1],v[0],v[1])]); break;
+                        case 2:  segments.push([lerp(p[0],p[1],v[0],v[1]), lerp(p[1],p[2],v[1],v[2])]); break;
+                        case 3:  segments.push([lerp(p[0],p[3],v[0],v[3]), lerp(p[1],p[2],v[1],v[2])]); break;
+                        case 4:  segments.push([lerp(p[1],p[2],v[1],v[2]), lerp(p[2],p[3],v[2],v[3])]); break;
+                        case 5:  segments.push([lerp(p[0],p[1],v[0],v[1]), lerp(p[0],p[3],v[0],v[3])], [lerp(p[1],p[2],v[1],v[2]), lerp(p[2],p[3],v[2],v[3])]); break;
+                        case 6:  segments.push([lerp(p[0],p[1],v[0],v[1]), lerp(p[2],p[3],v[2],v[3])]); break;
+                        case 7:  segments.push([lerp(p[0],p[3],v[0],v[3]), lerp(p[2],p[3],v[2],v[3])]); break;
+                        case 8:  segments.push([lerp(p[2],p[3],v[2],v[3]), lerp(p[0],p[3],v[0],v[3])]); break;
+                        case 9:  segments.push([lerp(p[0],p[1],v[0],v[1]), lerp(p[2],p[3],v[2],v[3])]); break;
+                        case 10: segments.push([lerp(p[0],p[1],v[0],v[1]), lerp(p[1],p[2],v[1],v[2])], [lerp(p[0],p[3],v[0],v[3]), lerp(p[2],p[3],v[2],v[3])]); break;
+                        case 11: segments.push([lerp(p[0],p[3],v[0],v[3]), lerp(p[1],p[2],v[1],v[2])]); break;
+                        case 12: segments.push([lerp(p[1],p[2],v[1],v[2]), lerp(p[0],p[3],v[0],v[3])]); break;
+                        case 13: segments.push([lerp(p[0],p[1],v[0],v[1]), lerp(p[2],p[3],v[2],v[3])]); break;
+                        case 14: segments.push([lerp(p[0],p[1],v[0],v[1]), lerp(p[0],p[3],v[0],v[3])]); break;
+                    }
+                }
+            }
+            return segments;
+        }
+
+        stitchSegments(segments) {
+            if (!segments || segments.length === 0) return [];
+            const chains = [];
+            const segs = [...segments];
+
+            while (segs.length > 0) {
+                let chain = segs.pop();
+                let searching = true;
+                while(searching) {
+                    searching = false;
+                    for (let i = segs.length - 1; i >= 0; i--) {
+                        const p_start = chain[0];
+                        const p_end = chain[chain.length - 1];
+                        const s_start = segs[i][0];
+                        const s_end = segs[i][1];
+
+                        if (Math.abs(p_end.x - s_start.x) < 1e-5 && Math.abs(p_end.y - s_start.y) < 1e-5) {
+                            chain.push(s_end); segs.splice(i, 1); searching = true; break;
+                        }
+                        if (Math.abs(p_end.x - s_end.x) < 1e-5 && Math.abs(p_end.y - s_end.y) < 1e-5) {
+                            chain.push(s_start); segs.splice(i, 1); searching = true; break;
+                        }
+                        if (Math.abs(p_start.x - s_end.x) < 1e-5 && Math.abs(p_start.y - s_end.y) < 1e-5) {
+                            chain.unshift(s_start); segs.splice(i, 1); searching = true; break;
+                        }
+                        if (Math.abs(p_start.x - s_start.x) < 1e-5 && Math.abs(p_start.y - s_start.y) < 1e-5) {
+                            chain.unshift(s_end); segs.splice(i, 1); searching = true; break;
+                        }
+                    }
+                }
+                chains.push(chain);
+            }
+            return chains;
+        }
+
+
+        onWindowResize() {
+            this.mainCamera.aspect = window.innerWidth / window.innerHeight;
+            this.mainCamera.updateProjectionMatrix();
+            this.mainRenderer.setSize(window.innerWidth, window.innerHeight);
+
+            const mapBox = this.elements.mapViewContainer;
+            if(mapBox.clientWidth > 0 && mapBox.clientHeight > 0){
+                this.mapCamera.aspect = mapBox.clientWidth / mapBox.clientHeight;
+                this.mapCamera.updateProjectionMatrix();
+                this.mapRenderer.setSize(mapBox.clientWidth, mapBox.clientHeight);
+                this.mapLabelRenderer.setSize(mapBox.clientWidth, mapBox.clientHeight);
+            }
+        }
+
+        animate() {
+            requestAnimationFrame(() => this.animate());
+            this.mainControls.update();
+            this.mapControls.update();
+
+            this.mainRenderer.render(this.mainScene, this.mainCamera);
+            this.mapRenderer.render(this.mapScene, this.mapCamera);
+            this.mapLabelRenderer.render(this.mapScene, this.mapCamera);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        new PhasedArraySimulator();
+    });
+
+</script>
+</body>
+</html>

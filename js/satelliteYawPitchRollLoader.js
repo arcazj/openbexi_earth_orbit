@@ -97,6 +97,11 @@ export function updateYPRFrame(ypr, satPos, yawDeg=0, pitchDeg=0, rollDeg=0) {
         "ZYX"                      // apply Z, then Y, then X
     );
     const q = new THREE.Quaternion().setFromEuler(euler);
+    updateYPRFrameQuaternion(ypr, satPos, q);
+}
+
+export function updateYPRFrameQuaternion(ypr, satPos, q) {
+    if (!ypr || !satPos || !q) return;
 
     /* rotated unit axes */
     const xHat = new THREE.Vector3(1,0,0).applyQuaternion(q);

@@ -53,6 +53,130 @@ export function modelScaleToSceneUnits(unit, visualScale = SATELLITE_MODEL_VISUA
     return unitScaleToMeters(unit) * metersToUnits * visualScale;
 }
 
+function materialLooksInvisible(material) {
+    if (!material) return true;
+    if (material.visible === false) return true;
+    if (Number.isFinite(material.opacity) && material.opacity <= 0.05) return true;
+    return false;
+}
+
+function materialColorLooksBlack(material) {
+    const color = material?.color;
+    if (!color) return false;
+    if ([color.r, color.g, color.b].every(value => Number.isFinite(value))) {
+        return color.r <= 0.02 && color.g <= 0.02 && color.b <= 0.02;
+    }
+    if (Number.isFinite(color.value)) {
+        return color.value === 0x000000;
+    }
+    return false;
+}
+
+function ensureVisibleMaterial(material) {
+    if (!material) {
+        return new THREE.MeshStandardMaterial({
+            color: 0xcfd8ff,
+            metalness: 0.15,
+            roughness: 0.55
+        });
+    }
+
+    material.visible = true;
+    if (Number.isFinite(material.opacity) && material.opacity <= 0.05) {
+        material.opacity = 1;
+    }
+    if (Number.isFinite(material.opacity) && material.opacity >= 0.95) {
+        material.transparent = false;
+    }
+    if (THREE.DoubleSide !== undefined) {
+        material.side = THREE.DoubleSide;
+    }
+    if (!material.map && material.color?.set && materialColorLooksBlack(material)) {
+        material.color.set(0xcfd8ff);
+    }
+    material.needsUpdate = true;
+    return material;
+}
+
+export function diagnoseModelVisibility(root) {
+    if (!root) {
+        return {
+            visible: false,
+            reason: 'model root is missing',
+            meshCount: 0,
+            diameterSceneUnits: 0
+        };
+    }
+
+    let meshCount = 0;
+    let visibleMeshCount = 0;
+    let materialCount = 0;
+    let invisibleMaterialCount = 0;
+
+    root.traverse(child => {
+        if (!child?.isMesh) return;
+        meshCount += 1;
+        if (child.visible !== false) visibleMeshCount += 1;
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        materials.forEach(material => {
+            materialCount += 1;
+            if (materialLooksInvisible(material)) invisibleMaterialCount += 1;
+        });
+    });
+
+    const box = new THREE.Box3().setFromObject(root);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    const diameterSceneUnits = Math.max(size.x || 0, size.y || 0, size.z || 0);
+    const visible = root.visible !== false &&
+        meshCount > 0 &&
+        visibleMeshCount > 0 &&
+        Number.isFinite(diameterSceneUnits) &&
+        diameterSceneUnits > 0;
+
+    return {
+        visible,
+        reason: visible
+            ? 'model has visible mesh geometry and nonzero bounds'
+            : 'model has no visible mesh geometry or nonzero bounds',
+        meshCount,
+        visibleMeshCount,
+        materialCount,
+        invisibleMaterialCount,
+        diameterSceneUnits,
+        scale: {
+            x: root.scale?.x ?? 1,
+            y: root.scale?.y ?? 1,
+            z: root.scale?.z ?? 1
+        }
+    };
+}
+
+export function prepareModelForSelectedView(root) {
+    if (!root) return diagnoseModelVisibility(root);
+    root.visible = true;
+    root.frustumCulled = false;
+
+    root.traverse(child => {
+        if (!child?.isMesh) return;
+        child.visible = true;
+        child.frustumCulled = false;
+        child.castShadow = true;
+        child.receiveShadow = true;
+
+        if (Array.isArray(child.material)) {
+            child.material = child.material.map(ensureVisibleMaterial);
+        } else {
+            child.material = ensureVisibleMaterial(child.material);
+        }
+    });
+
+    const diagnostics = diagnoseModelVisibility(root);
+    root.userData = root.userData || {};
+    root.userData.modelVisibility = diagnostics;
+    return diagnostics;
+}
+
 function setTextureAnisotropy(material) {
     if (!renderer) return;
     const maxAniso = renderer.capabilities.getMaxAnisotropy();
@@ -151,7 +275,7 @@ export function updateBusOrientation(modelGroup, yawDeg = 0, pitchDeg = 0, rollD
 }
 
 /* ───────────────────────── OBJ/MTL loading core ─────────────────────────── */
-async function loadOBJWithMTL(fileBase, meta) {
+async function loadOBJWithMTL(fileBase, meta, { usePlaceholderOnFailure = true } = {}) {
     const { dir, mtlName, objName } = resolveModelPaths(fileBase);
 
     // Lazy-load loaders from addons (r176+)
@@ -191,9 +315,11 @@ async function loadOBJWithMTL(fileBase, meta) {
         root = await objLoader.loadAsync(objName);
     } catch (e) {
         console.error(
-            `[${fileBase}] OBJ load failed (${dir + objName}). Using placeholder.`,
+            `[${fileBase}] OBJ load failed (${dir + objName}).`
+            + (usePlaceholderOnFailure ? ' Using placeholder.' : ''),
             e
         );
+        if (!usePlaceholderOnFailure) throw e;
         root = placeholderCube(0.5);
     }
 
@@ -235,7 +361,7 @@ async function loadOBJWithMTL(fileBase, meta) {
 }
 
 /* ─────────────────────────── GLB loading core ───────────────────────────── */
-async function loadGLB(filePathOrBase, meta) {
+async function loadGLB(filePathOrBase, meta, { usePlaceholderOnFailure = true } = {}) {
     const { dir, fileName } = resolveFilePathAndName(filePathOrBase);
 
     const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
@@ -247,9 +373,11 @@ async function loadGLB(filePathOrBase, meta) {
         gltf = await loader.loadAsync(fileName);
     } catch (e) {
         console.error(
-            `[${filePathOrBase}] GLB load failed (${dir + fileName}). Using placeholder.`,
+            `[${filePathOrBase}] GLB load failed (${dir + fileName}).`
+            + (usePlaceholderOnFailure ? ' Using placeholder.' : ''),
             e
         );
+        if (!usePlaceholderOnFailure) throw e;
         return placeholderCube(0.5);
     }
 
@@ -293,18 +421,26 @@ let currentSatModel = null;
 const currentLabels = [];
 
 /* ───────────────────────── Public API: show/clear ───────────────────────── */
-export async function showSatellite(noradId, scene, updatedNoradId) {
+export async function showSatellite(noradId, scene, updatedNoradId, options = {}) {
     if (!scene) throw new Error('showSatellite: scene is required');
 
     clearCurrentDetailedSat(scene);
 
-    const resolvedId = updatedNoradId || noradId;
+    const resolvedId = options.assetId || updatedNoradId || noradId;
+    const metadataId = options.metadataId || resolvedId;
     const extMatch = /^(.*)\.([^.]+)$/.exec(resolvedId);
     const baseName = extMatch ? extMatch[1] : resolvedId;
     const extension = extMatch ? extMatch[2] : '';
     const extLower = extension.toLowerCase();
+    const metadataBaseName = String(metadataId).replace(/\.[^.]+$/, '');
 
-    const jsonUrl = `${SATELLITE_MODELS_BASE_URL}${baseName}.json`;
+    const jsonUrl = `${SATELLITE_MODELS_BASE_URL}${metadataBaseName}.json`;
+    const usePlaceholderOnFailure = options.usePlaceholderOnFailure ?? true;
+
+    console.info(
+        `[${noradId}] Loading selected satellite model asset "${resolvedId}" with metadata "${metadataBaseName}".`,
+        options.attemptedPaths ? { attemptedPaths: options.attemptedPaths } : ''
+    );
 
     let sat = null;
     try {
@@ -322,10 +458,10 @@ export async function showSatellite(noradId, scene, updatedNoradId) {
 
     let loaderFn = loadOBJWithMTL;
     let loaderArg = baseName;
-    if (extLower === 'glb') {
+    if (options.kind === 'glb' || extLower === 'glb') {
         loaderFn = loadGLB;
         loaderArg = resolvedId;
-    } else if (extLower === 'obj') {
+    } else if (options.kind === 'obj-mtl' || extLower === 'obj') {
         loaderFn = loadOBJWithMTL;
         loaderArg = baseName;
     } else if (extension) {
@@ -334,16 +470,17 @@ export async function showSatellite(noradId, scene, updatedNoradId) {
 
     let root;
     try {
-        root = await loaderFn(loaderArg, meta);
+        root = await loaderFn(loaderArg, meta, { usePlaceholderOnFailure });
     } catch (e) {
-        console.error(`[${resolvedId}] Model load failed for ${loaderArg}. Using placeholder.`, e);
+        console.error(`[${resolvedId}] Model load failed for ${loaderArg}.`, e);
+        if (!usePlaceholderOnFailure) return null;
         root = placeholderCube(0.5);
     }
 
     // Preserve your rich userData structure
-    currentSatModel = root;
-    currentSatModel.userData = {
+    root.userData = {
         updatedNoradId: resolvedId,
+        metadataId: metadataBaseName,
         meta: sat?.meta || {},
         orbit: sat?.orbit || {},
         attitude: sat?.attitude || sat?.meta?.attitude || {},
@@ -356,31 +493,51 @@ export async function showSatellite(noradId, scene, updatedNoradId) {
     };
 
     // Apply initial attitude if provided
-    const att = currentSatModel.userData.attitude;
+    const att = root.userData.attitude;
     if (att) {
         updateBusOrientation(
-            currentSatModel,
+            root,
             att.yaw ?? 0,
             att.pitch ?? 0,
             att.roll ?? 0
         );
     }
 
+    const visibilityDiagnostics = prepareModelForSelectedView(root);
+    console.info(
+        `[${noradId}] Model visibility diagnostics for "${resolvedId}".`,
+        visibilityDiagnostics
+    );
+    if (!visibilityDiagnostics.visible && !usePlaceholderOnFailure) {
+        disposeObject3D(root);
+        return null;
+    }
+
     // (Optional) add a name label above the model
+    const pendingLabels = [];
     const CSS2DObjectClass = await ensureCSS2DObject();
     if (CSS2DObjectClass && sat?.meta?.name) {
         const div = document.createElement('div');
         div.className = 'label';
         div.textContent = sat.meta.name;
         const lbl = new CSS2DObjectClass(div);
-        const box = new THREE.Box3().setFromObject(currentSatModel);
+        const box = new THREE.Box3().setFromObject(root);
         const size = new THREE.Vector3();
         box.getSize(size);
         lbl.position.set(0, size.y * 0.55, 0);
-        currentSatModel.add(lbl);
-        currentLabels.push(lbl);
+        root.add(lbl);
+        pendingLabels.push(lbl);
     }
 
+    if (typeof options.shouldAttach === 'function' && !options.shouldAttach()) {
+        disposeObject3D(root);
+        pendingLabels.forEach(l => l.parent && l.parent.remove(l));
+        console.info(`[${noradId}] Ignored stale model load for "${resolvedId}".`);
+        return null;
+    }
+
+    currentSatModel = root;
+    currentLabels.push(...pendingLabels);
     scene.add(currentSatModel);
     return currentSatModel;
 }

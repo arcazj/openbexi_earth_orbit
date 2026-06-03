@@ -1,173 +1,158 @@
-# Three.js Earth with Satellite Simulation from TLE data
+# OpenBEXI Earth Orbit
 
-This project uses Three.js and dat.GUI to simulate Earth with orbiting satellites using TLE data from [CelesTrak](https://celestrak.org/NORAD) and https://github.com/shashwatak/satellite-js (License: MIT). It visualizes satellites in LEO, MEO, and GEO with realistic 3D positioning and interactive controls.
+OpenBEXI Earth Orbit is a browser-based satellite visualization app built with plain HTML, CSS, JavaScript modules, Three.js, and satellite.js. It renders Earth, satellite positions from TLE data, orbit paths, footprints, day/night lighting, Moon context, and 2D Mercator map views.
 
 ## Live Demo
 
-[Live Demo](https://arcazj.github.io/openbexi_earth_orbit/index.html)
-
-
-# Three.js Earth with Random Satellite Simulation
-The  project is a Three.js-based simulation that visualizes Earth with orbiting satellites. The simulation includes three types of satellite orbits: Low Earth Orbit (LEO), Medium Earth Orbit (MEO), and Geostationary Orbit (GEO). Users can interactively adjust the number of satellites in each orbit, as well as modify camera settings like Field of View (FOV) and Zoom.
-
-# Constellation Examples
-Below are visualizations of OneWeb and Starlink satellite constellations:  
-
-![Earth with Satellite Simulation](images/openbexi_earth_orbit_ONEWEB.PNG)
-![Earth with Satellite Simulation](images/openbexi_earth_orbit_STARLINK.PNG)
-
-# Features
-
-- 3D Earth model rendered using Three.js.
-- Visualization of three types of satellite orbits: Low Earth Orbit (LEO), Medium Earth Orbit (MEO), and Geostationary Orbit (GEO).
-- Interactive controls using `dat.GUI` to adjust:
-    - Number of satellites for each orbit type (LEO, MEO, GEO).
-    - Camera settings such as Field of View (FOV) and Zoom.
-- Dynamic positioning of satellites to simulate realistic orbit patterns.
-- Satellites are displayed as sprites for better performance and realistic visualization.
-- Adjustable inclination and rotation effects for LEO and MEO satellites.
-
-# Roadmap
-
-# OpenBEXI Earth Orbit Visualizer
-
-**Version 1.0**
-
-A web-based application to visualize satellite orbits in real-time in both 3D and 2D, using Two-Line Element (TLE) data. This project is built with plain HTML, CSS, and JavaScript, leveraging Three.js for 3D rendering and satellite.js for orbital mechanics calculations.
-
----
-
-**[Link to Live Demo (if you set one up via GitHub Pages or another hosting service)]**
-
-**(Consider adding a screenshot or GIF of the application in action here!)**
-`[Screenshot of the application: e.g., 3D Earth view with satellites and orbits]`
-
----
+[OpenBEXI Earth Orbit on GitHub Pages](https://arcazj.github.io/openbexi_earth_orbit/index.html)
 
 ## Features
 
-* **3D Globe View:**
-    * Interactive 3D Earth with texture.
-    * Satellites rendered as sprites, positioned dynamically based on real-time TLE data.
-    * Option to display the orbital path for any selected satellite.
-    * Camera controls (orbit, zoom, pan) via Three.js OrbitControls.
-    * Toggleable High-Definition Earth texture.
-* **2D Mercator Map View:**
-    * 2D Mercator projection of Earth.
-    * Real-time plotting of satellite ground tracks.
-    * Day/Night terminator overlay using a high accuracy NOAA SPA solar model.
-    * Labels for satellites with leader lines and basic overlap avoidance.
-* **Interactive Controls Panel:**
-    * **Menu Visibility:** Toggle button (☰/✕) to show/hide the entire controls panel with a sliding animation.
-    * **Version Display:** Shows current version and links to this GitHub repository.
-    * **Collapsible Sections:** "Filters," "View," and "Orbit/Extras" for organized control access.
-    * **Filters:**
-        * Filter satellites by orbit type (ALL, LEO, MEO, GEO).
-        * Filter satellites by operating company (dynamically populated).
-        * Live count of satellites matching current filter criteria.
-    * **View Options:**
-        * Toggle 3D Globe view.
-        * Toggle 2D Mercator map view.
-        * **View Modes:**
-            * 3D Globe only (fullscreen).
-            * 2D Mercator only (fullscreen).
-            * Hybrid view (3D Globe with corner 2D Mercator map).
-        * Toggle "High Definition" Earth texture for the 3D view.
-    * **Orbit Display:** Toggle visibility of the selected satellite's orbit.
-    * **Satellite Selection:**
-        * Dropdown list of currently visible satellites.
-        * Detailed information panel for the selected satellite (Company, Name, Orbit Type, Launch Date, NORAD ID, TLE lines).
-* **Data Handling:**
-    * Loads TLE data and configuration settings from JSON files.
-    * Defaults to fetching assets (configs, TLEs, textures, icons, CSS) directly from this GitHub repository (`master` branch).
-    * Includes a fallback mechanism to attempt loading assets from local paths if GitHub fetching fails.
-    * Further fallback to hardcoded defaults if both remote and local loading fail.
+- 3D Earth globe with satellite markers propagated from TLE data.
+- 3D orbit paths with explicit Earth depth occlusion and Mercator ground tracks that reject invalid, non-finite, decayed, or below-Earth propagation samples before drawing.
+- 2D Mercator map with satellite labels, selected-satellite highlighting, selected ground tracks, and day/night overlay.
+- Multi-select orbit filters for `ALL`, `GEO`, `MEO`, `LEO`, `HEO`, and `Other`.
+- Multi-select tag/operator filters such as `Starlink`, `One Web`, `SES`, `Intelsat`, `Weather`, and `Iridium`.
+- Debris filtering modes: show all, hide debris, or debris only.
+- Selected-satellite details, orbit path display, footprint display, LVLH orbit frame, and yaw/pitch/roll controls.
+- Local detailed model loading for selected satellites using OBJ/MTL and GLB assets under `obj/`.
+- Selected-satellite observer framing in 3D: selecting a satellite smoothly moves the camera to a close observer view with Earth centered behind the satellite.
+- Selected detailed models use a close 100 m observer target where practical, with a documented visual fallback when model scale or clipping would otherwise make the model unreadable.
+- Nadir-oriented detailed satellite models: the selected model treats local `+Z` as the Earth-facing axis and points it toward Earth's center before applying yaw/pitch/roll bias.
+- 2D/Mercator selected-satellite UX: selection is highlighted with a clear marker ring instead of applying 3D-only camera-distance behavior.
+- Mercator selected-satellite state uses the selected NORAD ID, so ground tracks and marker rings still render when a detailed 3D model hides the selected sprite.
+- High-definition Earth texture toggle, ECEF axes, Moon view, launch timeline, and re-entry timeline.
 
-## Tech Stack
+## Orbit and Ground-Track Notes
 
-* **HTML5**
-* **CSS3**
-* **JavaScript (ES Modules)**
-* **Three.js (r176):** For 3D rendering and WebGL.
-* **satellite.js (v4.0.0):** For TLE parsing and satellite position propagation.
-* **No external UI frameworks:** All UI elements are plain HTML styled with CSS.
+The app uses `satellite.js@6.0.2` for TLE propagation. Some TLEs can return invalid propagated samples, especially for decayed or unstable objects. Orbit and Mercator rendering reject non-finite positions and below-Earth samples before drawing. When invalid samples occur in the middle of a path, the app splits the line instead of connecting through Earth or across an invalid Mercator segment.
 
-## File Structure
+The 3D orbit line uses normal depth testing and render order so Earth can occlude portions of the orbit that are behind the globe. GEO orbit fixes should not change the physical propagated orbit radius unless tests prove the propagation radius is wrong.
 
-The project relies on the following directory structure for its assets, whether fetched remotely from this repository or used locally:
+GEO Mercator ground tracks can be nearly stationary. When the generated GEO ground track collapses below visible inset size, the Mercator renderer draws a short visible fallback segment around the sub-satellite point so `Show Orbit` does not appear blank.
 
-openbexi_earth_orbit/
-├── index.html              # Main application file
-├── css/
-│   └── style.css           # External stylesheet
-├── config/                 # JSON configuration files
-│   ├── earth.json
-│   ├── constants.json
-│   ├── satellite.json
-│   ├── scene.json
-│   └── controls.json
-├── json/
-│   └── tle/                # TLE data files
-│       ├── TLE.json
-│       └── TLE_backup.json
-├── textures/               # Image textures
-│   ├── 1_earth_16k.jpg     (HD Earth)
-│   ├── earthmap1k.jpg      (Mercator background)
-│   └── earthmap1k_light.jpg (Standard Earth)
-└── icons/                  # Icons
-└── ob_satellite.png    (Satellite icon for 3D and 2D map)
+## Selected-Satellite View Notes
 
+Version 1.4.2 targets an apparent real-world observer distance of 100 meters from the selected detailed satellite model. The exact real-world distance is converted to scene units through `KM_TO_SCENE_UNITS`.
 
-## Setup and Usage
+Because the app uses visual scaling for readability, the implementation applies a minimum visual fallback distance when the literal 100-meter scene distance would clip the camera or make the satellite unreadable. For detailed models, the selected view temporarily reduces the camera near plane so the model can be framed close instead of being forced hundreds of kilometers away by default clipping settings. The selected satellite remains in the foreground, and the camera is placed outward from Earth through the satellite so Earth appears behind it.
 
-The application is designed to be run directly from a web server.
+The selected satellite model axis convention is:
 
-1.  **Clone the Repository (Optional, if you want to run locally or modify):**
-    ```bash
-    git clone [https://github.com/arcazj/openbexi_earth_orbit.git](https://github.com/arcazj/openbexi_earth_orbit.git)
-    cd openbexi_earth_orbit
-    ```
+```text
+local +Z = Earth-facing / nadir axis
+```
 
-2.  **Running the Application:**
-    * **Default Behavior (Fetching from GitHub):** Simply open the `index.html` file through a local web server. The application will attempt to load its configuration, TLE data, textures, icons, and CSS from this GitHub repository (`master` branch) via `raw.githubusercontent.com`. An internet connection is required.
-    * **Using a Local Web Server (Recommended for local development):**
-        Due to browser security restrictions with ES Modules and `Workspace` API (for local file access fallback), you should serve `index.html` using a local web server. Examples:
-        * If you have Python 3: `python -m http.server`
-        * If you have Node.js and npm: `npx serve` or `npx live-server`
-        Then open `http://localhost:8000` (or the port specified by your server) in your browser.
-    * **Local Asset Fallback:** If the application cannot fetch assets from GitHub, it will attempt to load them from local relative paths (e.g., `config/earth.json`, `textures/earthmap1k.jpg`). For this to work, you must have the complete file structure (as shown above) available relative to where `index.html` is served.
+Yaw, pitch, and roll are applied as a bias on top of that nadir-facing orientation.
 
-3.  **Interacting with the Simulation:**
-    * Use the controls panel on the left to filter satellites, change views, and display information.
-    * Use your mouse to interact with the 3D globe (orbit, zoom, pan).
+## 3D Model Asset Matching
 
-## Configuration
+When a satellite is selected, the app first highlights the TLE sprite, then attempts to resolve a local detailed model from `obj/`.
 
-The simulation can be customized by modifying the JSON files in the `config/` directory and the TLE data in `json/tle/`:
+Model matching is deterministic:
 
-* **`config/earth.json`:** Earth's diameter, paths to Earth textures (standard and HD).
-* **`config/satellite.json`:** Default satellite icon path, scale for 3D sprites, Mercator map icon path.
-* **`config/scene.json`:** Initial camera position, field of view, lighting properties.
-* **`config/controls.json`:** Settings for the Three.js `OrbitControls`.
-* **`config/constants.json`:** For any other general constants you might want to define.
-* **`json/tle/TLE.json`:** The primary source for satellite Two-Line Element sets. You can replace this with updated TLEs from sources like Celestrak.
-* **`json/tle/TLE_backup.json`:** A fallback TLE file if the primary one fails to load.
+- Exact NORAD/metadata mappings are preferred when available.
+- If exact metadata is unavailable, normalized satellite names, company/operator tags, and constellation aliases are used.
+- Known local fallbacks include Starlink, OneWeb, O3b, ISS, and SSL 1300-style GEO satellites.
+- OBJ/MTL assets are loaded as `obj/<asset>.obj` with optional `obj/<asset>.mtl`.
+- GLB assets are loaded directly from `obj/<asset>.glb`.
 
-Paths for textures and icons within the config files should be relative to the repository root (e.g., `textures/my_texture.jpg`, `icons/my_icon.png`). The application will construct the full URL for fetching from GitHub or use these paths directly for local fallback.
+The sprite remains visible while the model is loading. If the local model is missing, fails to load, or becomes stale because the user selected another satellite, the app keeps the selected sprite visible instead of showing the wrong model or a blank selection.
 
-## How to Contribute
+The app logs model visibility diagnostics for selected detailed models, including mesh count, bounding diameter, scale, and material visibility status. It also applies fallback material visibility settings and a camera-side fill light so models remain inspectable even when an asset material or texture is weak.
 
-Contributions, issues, and feature requests are welcome! Please feel free to:
-* Open an issue to discuss a bug or a new feature.
-* Fork the repository and submit a pull request.
+## Isolated Model Viewer
+
+Use `display_satellite.html` to verify local satellite model assets independently from TLE propagation and satellite selection logic:
+
+```text
+http://127.0.0.1:8000/display_satellite.html
+```
+
+The viewer defaults to `obj/starlink_V1.obj` and `obj/starlink_V1.mtl`, but it can select current OBJ/MTL and GLB assets under `obj/`. It also supports a custom entry such as `ISS.glb`, `oneweb.obj`, or `starlink_V1` for newly added local assets. The viewer centers the model, adds inspection lighting, and fits the camera to the model bounds. If a model is visible in `display_satellite.html` but not after selecting a matching satellite in `index.html`, the issue is in the selected-satellite scene integration rather than the local model asset.
+
+## Requirements
+
+- A modern browser with ES module support.
+- Node.js for automated tests.
+- Python 3 or another local static HTTP server for browser smoke testing.
+
+Browser runtime dependencies are loaded by `index.html`:
+
+- Three.js `0.184.0` via import map. Keep `three` and `three/addons/` on the same version.
+- satellite.js `6.0.2` via CDN script.
+
+Node test dependencies are declared in `package.json`.
+
+## Setup
+
+Install Node dependencies:
+
+```powershell
+npm install
+```
+
+Serve the app locally:
+
+```powershell
+py -m http.server 8000 --bind 127.0.0.1
+```
+
+Open:
+
+```text
+http://127.0.0.1:8000/index.html
+```
+
+Do not use `file://` for normal development because ES modules, JSON, textures, and model assets need HTTP-style loading.
+
+## Testing
+
+Run automated tests:
+
+```powershell
+npm test
+```
+
+Run JavaScript syntax checks:
+
+```powershell
+Get-ChildItem -File .\js -Filter *.js | ForEach-Object { node --check $_.FullName }
+```
+
+Run the browser and manual regression checklist in `Test_and_Integration.md` before considering a release complete.
+
+## Project Structure
+
+- `index.html`: Main browser app and integration point for rendering, controls, selection, and animation.
+- `display_satellite.html`: Isolated local OBJ/MTL and GLB viewer for direct satellite model visibility checks.
+- `css/`: Styling for the app, menu, filters, labels, and map layout.
+- `js/`: Browser modules for coordinates, satellite loading, models, menu, footprints, frames, day/night, Moon, timelines, and map rendering.
+- `json/tle/`: TLE source data.
+- `json/satellites/`: Satellite metadata and model configuration.
+- `textures/`: Earth, Moon, satellite, and material textures.
+- `icons/`: Satellite and UI icon assets.
+- `obj/`: OBJ, MTL, and GLB satellite model assets.
+- `tests/`: Node-based deterministic regression tests.
+- `tools/`: Utility scripts.
+
+## Markdown Files
+
+- `README.md`: Project overview, setup, features, testing commands, and documentation index.
+- `PROMPT.md`: General execution prompt only; release-specific content belongs in prompt history.
+- `PROMPT_History.md`: Release-specific prompts and implementation requirements by date and version.
+- `Test_and_Integration.md`: Authoritative automated, browser, manual, domain, visual, and regression acceptance checklist.
+
+## Development Notes
+
+- For each new release in `PROMPT_History.md`, update the visible `index.html` version tag to match the latest release version.
+- Keep browser import maps synchronized: `three` and `three/addons/` must use the same verified Three.js version.
+- Keep `PROMPT.md` limited to the `General Execution Prompt`; put all release history in `PROMPT_History.md`.
+- Keep reusable coordinate, scale, orientation, and framing math in `js/sceneFrame.js` when practical so browser behavior and automated tests stay aligned.
+- Keep `Test_and_Integration.md` current whenever features, controls, or accepted verification procedures change.
+- Keep `README.md` current when setup, usage, test commands, features, architecture, or known limitations change.
+- Avoid mixing generated assets, build outputs, or unrelated untracked files into feature changes.
 
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
-
-## Acknowledgements
-
-* **Three.js:** For the powerful 3D graphics library.
-* **satellite.js:** For the robust TLE propagation and orbital mechanics calculations.
-* **(If applicable) Data Sources:** e.g., Celestrak for TLE data.
-* **(If applicable) Texture Sources:** e.g., NASA Visible Earth for Earth textures.
