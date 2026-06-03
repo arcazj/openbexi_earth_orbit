@@ -16,7 +16,7 @@
     </script>
 </head>
 <body>
-<button id="menuToggleBtn">☰</button>
+<button id="menuToggleBtn" aria-label="Close menu">Close</button>
 <div id="ob_menu"></div>
 <div id="mercatorContainer">
     <div class="mapBackground">
@@ -97,16 +97,36 @@
     import { initTimeline } from './js/ganttTimelineLoader.js';
     import { computeDecayEstimates, loadConfirmedDecays } from './js/decayPredictor.js';
     import { initReentryTimeline } from './js/reentryTimeline.js';
+    import {
+        createStartupPerformanceTracker,
+        processInChunks,
+        scheduleDeferredWork
+    } from './js/startupPerformance.js';
 
     // UI
-    const versionNumber = "1.4.5";
+    const perfLoggingEnabled = (() => {
+        try {
+            return new URLSearchParams(window.location.search).has('perf') ||
+                localStorage.getItem('openbexiStartupPerf') === '1';
+        } catch (err) {
+            return false;
+        }
+    })();
+    const startupPerf = createStartupPerformanceTracker({
+        label: 'openbexi-earth-orbit',
+        logEnabled: perfLoggingEnabled
+    });
+    startupPerf.mark('module-loaded');
+
+    const versionNumber = "1.5.4";
     const versionRepoUrl = "https://github.com/arcazj/openbexi_earth_orbit";
     const versionText = `version ${versionNumber} - hosted at`;
     document.getElementById('ob_menu').innerHTML = satelliteMenuLoader();
+    startupPerf.mark('menu-rendered');
 
-    // ─────────────────────────────────────────────────────────────
+    // -------------------------------------------------------------------------
     // Perf constants and reusable scratch objects
-    // ─────────────────────────────────────────────────────────────
+    // -------------------------------------------------------------------------
     const V_TMP1 = new THREE.Vector3();
     const V_TMP2 = new THREE.Vector3();
     const V_TMP3 = new THREE.Vector3();
@@ -118,6 +138,13 @@
     const SELECTED_SATELLITE_TARGET_METERS = 100;
     const SELECTED_MODEL_CAMERA_NEAR_METERS = 1;
     const SELECTED_MODEL_CAMERA_NEAR_SCENE_UNITS = metersToSceneUnits(SELECTED_MODEL_CAMERA_NEAR_METERS);
+    const SATELLITE_SETUP_CHUNK_SIZE = 300;
+    const DECAY_ESTIMATE_CHUNK_SIZE = 2;
+    const MENU_COLLAPSE_STORAGE_KEY = 'openbexi.menu.collapsedSections';
+    const DEFAULT_EXPANDED_ACCORDION_SECTIONS = new Set(['filtersContent', 'satelliteSelectionContent']);
+    const DEFAULT_COLLAPSED_ACCORDION_SECTIONS = new Set(['viewContent', 'timelineContent', 'otherSelectionsContent', 'settingsContent']);
+    const SATELLITE_SEARCH_LIMIT = 40;
+    const EXCLUDED_COMPANY_FILTER_OPTIONS = new Set(['ACTIVE']);
 
     // Simulation time (reuse Date to avoid GC)
     let simMillis = Date.now();
@@ -143,9 +170,9 @@
         }
     };
 
-    // Helper: write ECEF→scene into "out"
+    // Helper: write ECEF -> scene into "out"
     function ecefToScene(out, x, y, z, rotY) {
-        // Swap Y↔Z for scene, rotate around Y, scale to scene units
+        // Swap Y/Z for scene, rotate around Y, scale to scene units.
         return ecfToSceneVector(out, { x, y, z }, rotY);
     }
 
@@ -248,7 +275,17 @@
     let view3DToggle, viewMercatorToggle, showOrbitToggle, showOrbitFrameToggle;
     let highDefToggleElement, showECEFAxesToggleElement, showOrbitFrameToggleElement;
     let satelliteSelectDropdown, satelliteInfoDiv;
+    let satelliteSearchInput, satelliteSearchResults, satelliteSearchClearButton, satelliteSearchEmpty;
+    let filterStatusSummary, filterEmptyState, resetFiltersButton, resetFiltersEmptyButton, selectedSatelliteSummary;
+    let currentSearchResults = [];
+    let activeSearchResultIndex = -1;
+    let launchTimelineHandle = null;
     let reentryTimelineHandle = null;
+    let animationLoopStarted = false;
+    let deferredStartupWorkScheduled = false;
+    let launchTimelineInitialized = false;
+    let launchTimelineInitializing = false;
+    let reentryTimelineInitializing = false;
     let controlsContainerElement, menuToggleBtnElement, versionDisplayElement;
     let labelXecrDiv, labelYecrDiv, labelZecrDiv, labelNorthPoleDiv, labelEquatorLineDiv, labelGreenwichMeridianDiv;
 
@@ -295,7 +332,9 @@
     }
 
     function normalizeCompanySelection(selection) {
-        const cleaned = Array.from(new Set((selection || []).filter(Boolean)));
+        const cleaned = Array.from(new Set((selection || [])
+            .filter(Boolean)
+            .filter(value => !EXCLUDED_COMPANY_FILTER_OPTIONS.has(value.toString().trim().toUpperCase()))));
 
         if (cleaned.includes(ALL_COMPANY_OPTION) && cleaned.length > 1) {
             return cleaned.filter(val => val !== ALL_COMPANY_OPTION);
@@ -423,7 +462,8 @@
                 .filter(s => orbitMatchesSelection(s.orbitType, orbitSelection) &&
                     debrisMatchesSelection(s) &&
                     s.company &&
-                    s.company !== "N/A")
+                    s.company !== "N/A" &&
+                    !EXCLUDED_COMPANY_FILTER_OPTIONS.has(s.company.toString().trim().toUpperCase()))
                 .map(s => s.company)
         )).sort();
     }
@@ -433,6 +473,139 @@
         if (showOrbitToggle) showOrbitToggle.checked = false;
         removeAllGeometry(scene);
         updateSatelliteList();
+    }
+
+    function setTimelineButtonState(id, text, disabled = false) {
+        const control = document.getElementById(id);
+        if (!control) return;
+        const labelText = control.closest('label')?.querySelector('span');
+        if (labelText) {
+            labelText.textContent = text;
+        } else {
+            control.textContent = text;
+        }
+        control.disabled = !!disabled;
+        control.setAttribute('aria-busy', disabled ? 'true' : 'false');
+    }
+
+    function setSatelliteLoadingState(text) {
+        if (satelliteCountDisplay) satelliteCountDisplay.textContent = text;
+        if (satelliteSelectDropdown) {
+            satelliteSelectDropdown.innerHTML = `<option value="None">${text}</option>`;
+            satelliteSelectDropdown.value = 'None';
+        }
+        if (satelliteSearchInput) {
+            satelliteSearchInput.value = '';
+            satelliteSearchInput.placeholder = text;
+            satelliteSearchInput.disabled = true;
+        }
+        if (satelliteSearchClearButton) satelliteSearchClearButton.disabled = true;
+    }
+
+    function startAnimationLoopOnce() {
+        if (animationLoopStarted) return;
+        animationLoopStarted = true;
+        startupPerf.markOnce('animation-loop-started');
+        animate();
+    }
+
+    function scheduleDeferredStartupWork() {
+        if (deferredStartupWorkScheduled) return;
+        deferredStartupWorkScheduled = true;
+
+        setTimelineButtonState('launchTimelineToggle', 'Preparing Launch Timeline...', true);
+        setTimelineButtonState('reentryTimelineToggle', 'Preparing Re-entry Timeline...', true);
+
+        scheduleDeferredWork(() => {
+            initializeLaunchTimelineDeferred();
+        }, { timeout: 1000 });
+
+        scheduleDeferredWork(() => {
+            initializeReentryTimelineDeferred().catch((err) => {
+                console.error('Deferred re-entry timeline initialization failed:', err);
+                setTimelineButtonState('reentryTimelineToggle', 'Re-entry Timeline Unavailable', true);
+            });
+        }, { timeout: 2000 });
+    }
+
+    function initializeLaunchTimelineDeferred() {
+        if (launchTimelineInitialized || launchTimelineInitializing) return;
+        launchTimelineInitializing = true;
+        startupPerf.mark('launch-timeline-init-start');
+        try {
+            launchTimelineHandle = initTimeline(satellites, handleTimelineSelection);
+            launchTimelineInitialized = true;
+            setTimelineButtonState('launchTimelineToggle', 'Show Launch Timeline', false);
+            startupPerf.mark('launch-timeline-ready', { count: satellites.length });
+        } finally {
+            launchTimelineInitializing = false;
+        }
+    }
+
+    async function initializeReentryTimelineDeferred() {
+        if (reentryTimelineHandle || reentryTimelineInitializing) return;
+        reentryTimelineInitializing = true;
+        try {
+            startupPerf.mark('decay-data-load-start');
+            const confirmedDecays = await loadConfirmedDecays();
+            startupPerf.mark('decay-data-ready', { confirmed: confirmedDecays?.size || 0 });
+            startupPerf.mark('decay-estimates-start', { count: satellites.length });
+
+            const estimateDate = new Date();
+            let lastProgressUpdate = 0;
+            await processInChunks(
+                satellites,
+                (sat) => {
+                    computeDecayEstimates([sat], { confirmedDecays, now: estimateDate });
+                },
+                {
+                    chunkSize: DECAY_ESTIMATE_CHUNK_SIZE,
+                    afterChunk: ({ processed, total }) => {
+                        const now = performance.now();
+                        if (now - lastProgressUpdate > 500 || processed === total) {
+                            lastProgressUpdate = now;
+                            setTimelineButtonState(
+                                'reentryTimelineToggle',
+                                `Preparing Re-entry Timeline ${processed}/${total}`,
+                                true
+                            );
+                        }
+                    }
+                }
+            );
+
+            startupPerf.mark('decay-estimates-ready', { count: satellites.length });
+            reentryTimelineHandle = initReentryTimeline(satellites, handleTimelineSelection);
+            if (reentryTimelineHandle?.refreshData) {
+                reentryTimelineHandle.refreshData();
+            }
+            setTimelineButtonState('reentryTimelineToggle', 'Show Re-entry Timeline', false);
+            startupPerf.mark('reentry-timeline-ready', { count: satellites.length });
+            startupPerf.logSummary();
+        } finally {
+            reentryTimelineInitializing = false;
+        }
+    }
+
+    function hideTimelineById(toggleId) {
+        const toggle = document.getElementById(toggleId);
+        const handle = toggleId === 'launchTimelineToggle' ? launchTimelineHandle : reentryTimelineHandle;
+
+        if (toggle?.checked) {
+            toggle.checked = false;
+            toggle.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if (handle?.setVisible) {
+            handle.setVisible(false);
+        }
+    }
+
+    function syncExclusiveTimelineSelection(activeToggleId) {
+        if (activeToggleId === 'launchTimelineToggle') {
+            hideTimelineById('reentryTimelineToggle');
+        } else if (activeToggleId === 'reentryTimelineToggle') {
+            hideTimelineById('launchTimelineToggle');
+        }
     }
 
     function buildFilteredSatellitesBySelection() {
@@ -463,6 +636,188 @@
         return filtered;
     }
 
+    function debounceMenuStateWrite(key, value) {
+        persistSetting(key, value);
+    }
+
+    function debrisFilterLabel(mode = simParams.debrisFilter) {
+        if (mode === DEBRIS_FILTER_HIDE) return 'Debris hidden';
+        if (mode === DEBRIS_FILTER_ONLY) return 'Debris only';
+        return 'Debris shown';
+    }
+
+    function updateFilterStatus(filteredTLEs = []) {
+        const orbitLabel = isAllOrbitSelection(simParams.orbitTypeFilter)
+            ? 'ALL orbits'
+            : normalizeOrbitSelection(simParams.orbitTypeFilter).join(' + ') || 'All orbits';
+        const companySelection = normalizeCompanySelection(simParams.companyFilter);
+        const companyLabel = companySelection.includes(ALL_COMPANY_OPTION)
+            ? 'All tags'
+            : companySelection.map(formatCompanyLabel).join(' + ');
+        const count = filteredTLEs.length;
+        if (filterStatusSummary) {
+            filterStatusSummary.textContent = `${orbitLabel} + ${companyLabel} + ${debrisFilterLabel()} | ${count} satellites`;
+        }
+        if (filterEmptyState) {
+            filterEmptyState.hidden = count !== 0;
+        }
+    }
+
+    function updateSelectedSatelliteSummary(satData = currentSelectedSatellite) {
+        if (!selectedSatelliteSummary) return;
+        if (!satData) {
+            selectedSatelliteSummary.textContent = 'No satellite selected';
+            return;
+        }
+        selectedSatelliteSummary.textContent =
+            `${satData.satellite_name || 'Selected satellite'} | NORAD ${satData.norad_id || 'N/A'} | ${satData.orbitType || 'N/A'} | ${satData.company || 'N/A'}`;
+    }
+
+    function setSatelliteSelectToSatellite(satData) {
+        if (!satelliteSelectDropdown || !satData) return false;
+        const norad = satData.norad_id?.toString();
+        const option = Array.from(satelliteSelectDropdown.options)
+            .find(opt => opt.dataset?.noradId === norad);
+        if (option) {
+            satelliteSelectDropdown.value = option.value;
+            return true;
+        }
+        satelliteSelectDropdown.value = satData.satellite_name || 'None';
+        return satelliteSelectDropdown.value === satData.satellite_name;
+    }
+
+    function satelliteSearchText(satData) {
+        return [
+            satData?.satellite_name,
+            satData?.norad_id,
+            satData?.orbitType,
+            satData?.company
+        ].filter(Boolean).join(' ').toLowerCase();
+    }
+
+    function satelliteSearchLabel(satData) {
+        return satData?.satellite_name || `NORAD ${satData?.norad_id || 'unknown'}`;
+    }
+
+    function closeSatelliteSearchResults() {
+        if (satelliteSearchResults) satelliteSearchResults.hidden = true;
+        if (satelliteSearchInput) {
+            satelliteSearchInput.setAttribute('aria-expanded', 'false');
+            satelliteSearchInput.removeAttribute('aria-activedescendant');
+        }
+        activeSearchResultIndex = -1;
+    }
+
+    function renderSatelliteSearchResults(filteredTLEs = buildFilteredSatellitesBySelection(), forceOpen = false) {
+        if (!satelliteSearchInput || !satelliteSearchResults) return;
+
+        const query = satelliteSearchInput.value.trim().toLowerCase();
+        const matches = query
+            ? filteredTLEs.filter(s => satelliteSearchText(s).includes(query))
+            : filteredTLEs.slice(0, Math.min(12, SATELLITE_SEARCH_LIMIT));
+
+        currentSearchResults = matches.slice(0, SATELLITE_SEARCH_LIMIT);
+        if (activeSearchResultIndex >= currentSearchResults.length) activeSearchResultIndex = currentSearchResults.length - 1;
+        if (activeSearchResultIndex < -1) activeSearchResultIndex = -1;
+
+        satelliteSearchResults.innerHTML = '';
+        currentSearchResults.forEach((sat, index) => {
+            const item = document.createElement('li');
+            item.id = `satelliteSearchOption-${index}`;
+            item.className = `satellite-search-option${index === activeSearchResultIndex ? ' is-active' : ''}`;
+            item.setAttribute('role', 'option');
+            item.setAttribute('aria-selected', index === activeSearchResultIndex ? 'true' : 'false');
+            item.dataset.noradId = sat.norad_id;
+            const title = document.createElement('strong');
+            title.textContent = satelliteSearchLabel(sat);
+            const meta = document.createElement('small');
+            meta.textContent = `NORAD ${sat.norad_id || 'N/A'} | ${sat.orbitType || 'N/A'} | ${sat.company || 'N/A'}`;
+            item.append(title, meta);
+            item.addEventListener('mousedown', (event) => {
+                event.preventDefault();
+                selectSatelliteFromSearch(index);
+            });
+            satelliteSearchResults.appendChild(item);
+        });
+
+        const hasResults = currentSearchResults.length > 0;
+        const shouldOpen = forceOpen || query.length > 0;
+        satelliteSearchResults.hidden = !hasResults || !shouldOpen;
+        satelliteSearchInput.setAttribute('aria-expanded', !satelliteSearchResults.hidden ? 'true' : 'false');
+        if (activeSearchResultIndex >= 0 && !satelliteSearchResults.hidden) {
+            satelliteSearchInput.setAttribute('aria-activedescendant', `satelliteSearchOption-${activeSearchResultIndex}`);
+        } else {
+            satelliteSearchInput.removeAttribute('aria-activedescendant');
+        }
+        if (satelliteSearchEmpty) {
+            satelliteSearchEmpty.hidden = !(query.length > 0 && !hasResults);
+        }
+    }
+
+    function selectSatelliteFromSearch(index) {
+        const sat = currentSearchResults[index];
+        if (!sat || !satelliteSelectDropdown) return;
+        setSatelliteSelectToSatellite(sat);
+        satelliteSearchInput.value = satelliteSearchLabel(sat);
+        closeSatelliteSearchResults();
+        satelliteSelectDropdown.dispatchEvent(new Event('change'));
+    }
+
+    function syncSatelliteSearchWithSelection() {
+        if (!satelliteSearchInput) return;
+        satelliteSearchInput.value = currentSelectedSatellite ? satelliteSearchLabel(currentSelectedSatellite) : '';
+        if (satelliteSearchEmpty) satelliteSearchEmpty.hidden = true;
+        closeSatelliteSearchResults();
+    }
+
+    function resetFiltersToDefaults() {
+        if (satelliteSearchInput) satelliteSearchInput.value = '';
+        if (satelliteSearchEmpty) satelliteSearchEmpty.hidden = true;
+        closeSatelliteSearchResults();
+        applyOrbitSelectionToUI(DEFAULT_ORBIT_FILTER);
+        applyCompanySelectionToUI(DEFAULT_COMPANY_FILTER);
+        applyDebrisFilterToUI(DEBRIS_FILTER_SHOW);
+        refreshFilteredSatelliteView();
+    }
+
+    function setAccordionSectionCollapsed(targetId, collapsed, collapsedSections = null) {
+        const targetContent = document.getElementById(targetId);
+        const header = document.querySelector(`#controlsContainer h3[data-collapsible-target="${targetId}"]`);
+        const icon = header?.querySelector('.toggle-icon');
+        if (!targetContent || !header) return;
+
+        targetContent.classList.toggle('collapsed', collapsed);
+        if (icon) {
+            icon.classList.toggle('collapsed', collapsed);
+            icon.textContent = collapsed ? '>' : 'v';
+        }
+        header.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+
+        if (collapsedSections) {
+            if (collapsed) collapsedSections.add(targetId);
+            else collapsedSections.delete(targetId);
+            DEFAULT_EXPANDED_ACCORDION_SECTIONS.forEach(id => collapsedSections.delete(id));
+        }
+    }
+
+    function expandCollapsibleSection(targetId) {
+        const collapsedSections = new Set(readSetting(MENU_COLLAPSE_STORAGE_KEY, []));
+        setAccordionSectionCollapsed(targetId, false, collapsedSections);
+        debounceMenuStateWrite(MENU_COLLAPSE_STORAGE_KEY, Array.from(collapsedSections));
+    }
+
+    function ensureYPRControlsVisibleForSelection() {
+        const showYPRToggle = document.getElementById('showYPRToggle');
+        const yprSlidersRow = document.getElementById('yprSlidersRow');
+        if (showYPRToggle) showYPRToggle.checked = !!simParams.showYPR;
+        if (yprSlidersRow) yprSlidersRow.style.display = simParams.showYPR ? 'grid' : 'none';
+        setYPRVisibility(yprFrame, !!simParams.showYPR);
+
+        if (simParams.showYPR) {
+            expandCollapsibleSection('satelliteSelectionContent');
+        }
+    }
+
     // Time-warp UI
     simParams.timeWarp = 1 / 60;
     simParams.simDate = new Date();
@@ -472,7 +827,7 @@
   <div id="timeWarpBox"
        style="position:fixed;top:5px;left:50%;transform:translateX(-50%);
               font:12px/1 sans-serif;z-index:3000;">
-    <label for="timeWarpSlider">Time&nbsp;×</label>
+    <label for="timeWarpSlider">Time x</label>
     <input type="range" id="timeWarpSlider" min="0" max="60" step="1" value="0" style="width:200px;">
     <span id="timeWarpVal">0</span>x
   </div>`;
@@ -619,6 +974,15 @@
 
         satelliteSelectDropdown = document.getElementById('satelliteSelect');
         satelliteInfoDiv = document.getElementById('satelliteInfo');
+        satelliteSearchInput = document.getElementById('satelliteSearchInput');
+        satelliteSearchResults = document.getElementById('satelliteSearchResults');
+        satelliteSearchClearButton = document.getElementById('satelliteSearchClear');
+        satelliteSearchEmpty = document.getElementById('satelliteSearchEmpty');
+        filterStatusSummary = document.getElementById('filterStatusSummary');
+        filterEmptyState = document.getElementById('filterEmptyState');
+        resetFiltersButton = document.getElementById('resetFiltersButton');
+        resetFiltersEmptyButton = document.getElementById('resetFiltersEmptyButton');
+        selectedSatelliteSummary = document.getElementById('selectedSatelliteSummary');
 
         // Labels
         labelXecrDiv = document.getElementById('labelXecr');
@@ -646,6 +1010,15 @@
         if (showECEFAxesToggleElement) showECEFAxesToggleElement.checked = simParams.showECEFAxes;
         if (showOrbitFrameToggleElement) showOrbitFrameToggleElement.checked = simParams.showOrbitFrame;
         showOrbitToggle.checked = simParams.showOrbit;
+
+        const launchTimelineToggle = document.getElementById('launchTimelineToggle');
+        const reentryTimelineToggle = document.getElementById('reentryTimelineToggle');
+        launchTimelineToggle?.addEventListener('change', () => {
+            if (launchTimelineToggle.checked) syncExclusiveTimelineSelection('launchTimelineToggle');
+        });
+        reentryTimelineToggle?.addEventListener('change', () => {
+            if (reentryTimelineToggle.checked) syncExclusiveTimelineSelection('reentryTimelineToggle');
+        });
 
         // Time-warp slider
         timeWarpSlider.addEventListener('input', e => {
@@ -711,6 +1084,10 @@
             refreshFilteredSatelliteView();
         });
 
+        [resetFiltersButton, resetFiltersEmptyButton].forEach(button => {
+            button?.addEventListener('click', resetFiltersToDefaults);
+        });
+
         if (debrisFilterSelect) {
             debrisFilterSelect.addEventListener('click', (event) => {
                 const button = event.target.closest('button[data-debris-filter]');
@@ -755,10 +1132,10 @@
         showOrbitToggle.addEventListener('change', (e) => {
             const wantOrbit = e.target.checked;
 
-            // If user turned orbit OFF → immediately clear all orbit geometry
+            // If user turned orbit off, immediately clear all orbit geometry.
             if (!wantOrbit) {
                 simParams.showOrbit = false;
-                removeAllGeometry(scene);   // ⬅ clears 3-D orbit line(s) and related geometry
+                removeAllGeometry(scene);
                 return;
             }
 
@@ -767,7 +1144,7 @@
                 simParams.showOrbit = true;
                 updateOrbitTrajectory(scene, simParams, currentSelectedSatellite);
             } else {
-                // No satellite selected → cannot show orbit
+                // No satellite selected, so the orbit cannot be shown.
                 simParams.showOrbit = false;
                 e.target.checked = false;
                 // (optional: display a small warning to select a satellite)
@@ -775,6 +1152,43 @@
         });
 
         satelliteSelectDropdown.addEventListener('change', handleSatelliteDropdownChange);
+        if (satelliteSearchInput) {
+            satelliteSearchInput.addEventListener('input', () => {
+                activeSearchResultIndex = -1;
+                renderSatelliteSearchResults(buildFilteredSatellitesBySelection(), true);
+            });
+            satelliteSearchInput.addEventListener('focus', () => {
+                renderSatelliteSearchResults(buildFilteredSatellitesBySelection(), true);
+            });
+            satelliteSearchInput.addEventListener('keydown', (event) => {
+                if (event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    if (currentSearchResults.length === 0) renderSatelliteSearchResults(buildFilteredSatellitesBySelection(), true);
+                    activeSearchResultIndex = Math.min(currentSearchResults.length - 1, activeSearchResultIndex + 1);
+                    renderSatelliteSearchResults(buildFilteredSatellitesBySelection(), true);
+                } else if (event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    activeSearchResultIndex = Math.max(0, activeSearchResultIndex - 1);
+                    renderSatelliteSearchResults(buildFilteredSatellitesBySelection(), true);
+                } else if (event.key === 'Enter') {
+                    if (activeSearchResultIndex >= 0) {
+                        event.preventDefault();
+                        selectSatelliteFromSearch(activeSearchResultIndex);
+                    }
+                } else if (event.key === 'Escape') {
+                    closeSatelliteSearchResults();
+                }
+            });
+        }
+        if (satelliteSearchClearButton) {
+            satelliteSearchClearButton.addEventListener('click', () => {
+                if (satelliteSearchInput) {
+                    satelliteSearchInput.value = '';
+                    satelliteSearchInput.focus();
+                }
+                renderSatelliteSearchResults(buildFilteredSatellitesBySelection(), true);
+            });
+        }
 
         const showYPRToggle = document.getElementById('showYPRToggle');
         const updateYPRControlsVisibility = (visible) => {
@@ -784,10 +1198,12 @@
         if (showYPRToggle) {
             showYPRToggle.checked = !!simParams.showYPR;
             updateYPRControlsVisibility(showYPRToggle.checked);
+            if (simParams.showYPR) ensureYPRControlsVisibleForSelection();
             showYPRToggle.addEventListener('change', e => {
                 const v = e.target.checked;
                 simParams.showYPR = v;
                 updateYPRControlsVisibility(v);
+                if (v) ensureYPRControlsVisibleForSelection();
             });
         }
 
@@ -808,33 +1224,55 @@
         });
         updateYPRLabels();
 
-        // Collapsible sections
+        // Independent accordion sections. Multiple sections may remain open.
+        const storedCollapsedSections = readSetting(MENU_COLLAPSE_STORAGE_KEY, null);
+        const collapsedSections = new Set(
+            Array.isArray(storedCollapsedSections)
+                ? storedCollapsedSections
+                : Array.from(DEFAULT_COLLAPSED_ACCORDION_SECTIONS)
+        );
+        DEFAULT_EXPANDED_ACCORDION_SECTIONS.forEach(id => collapsedSections.delete(id));
+        const persistCollapsedSections = () => debounceMenuStateWrite(MENU_COLLAPSE_STORAGE_KEY, Array.from(collapsedSections));
         document.querySelectorAll('#controlsContainer h3[data-collapsible-target]').forEach(header => {
             const targetId = header.dataset.collapsibleTarget;
             const targetContent = document.getElementById(targetId);
             const icon = header.querySelector('.toggle-icon');
 
             if (targetContent && icon) {
-                targetContent.classList.remove('collapsed');
-                icon.classList.remove('collapsed');
-                icon.textContent = '▾';
-                header.addEventListener('click', () => {
-                    targetContent.classList.toggle('collapsed');
-                    icon.classList.toggle('collapsed');
-                    icon.textContent = targetContent.classList.contains('collapsed') ? '▸' : '▾';
+                header.tabIndex = 0;
+                header.setAttribute('role', 'button');
+                header.setAttribute('aria-controls', targetId);
+                const isCollapsed = !DEFAULT_EXPANDED_ACCORDION_SECTIONS.has(targetId) && collapsedSections.has(targetId);
+                setAccordionSectionCollapsed(targetId, isCollapsed, collapsedSections);
+
+                const toggleSection = () => {
+                    const nextCollapsed = !targetContent.classList.contains('collapsed');
+                    setAccordionSectionCollapsed(targetId, nextCollapsed, collapsedSections);
+                    persistCollapsedSections();
+                };
+
+                header.addEventListener('click', toggleSection);
+                header.addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        toggleSection();
+                    }
                 });
             }
         });
-
         // Menu toggle button
         if (menuToggleBtnElement && controlsContainerElement) {
+            const updateMenuToggleLabel = () => {
+                const hidden = controlsContainerElement.classList.contains('menu-hidden');
+                menuToggleBtnElement.textContent = hidden ? 'Menu' : 'Close';
+                menuToggleBtnElement.setAttribute('aria-label', hidden ? 'Open menu' : 'Close menu');
+            };
             menuToggleBtnElement.addEventListener('click', () => {
                 controlsContainerElement.classList.toggle('menu-hidden');
-                menuToggleBtnElement.innerHTML = controlsContainerElement.classList.contains('menu-hidden') ? '☰' : '✕';
+                updateMenuToggleLabel();
             });
-            menuToggleBtnElement.innerHTML = controlsContainerElement.classList.contains('menu-hidden') ? '☰' : '✕';
+            updateMenuToggleLabel();
         }
-
         const showDayNightToggle = document.getElementById('showDayNightToggle');
         showDayNightToggle.checked = simParams.showDayNight;
         simParams.showDayNight = showDayNightToggle.checked;
@@ -872,7 +1310,7 @@
                     controls.target.copy(moon.position);
                     controls.update();
                 } else {
-                    // Back to Earth “home” view and initial MEO filter as on app start
+                    // Back to Earth home view and initial MEO filter as on app start.
                     resetCameraToDefault();
 
                     applyOrbitSelectionToUI(DEFAULT_ORBIT_FILTER);
@@ -918,6 +1356,8 @@
             currentSelectedSatellite = null;
             simParams.selectedSatelliteNoradId = null;
             updateSatelliteInfo(satelliteInfoDiv, null);
+            updateSelectedSatelliteSummary(null);
+            syncSatelliteSearchWithSelection();
             resetCameraToDefault();
 
             if (simParams.showOnlySelectedSatellite) {
@@ -926,6 +1366,7 @@
             } else {
                 updateSatelliteList();
             }
+            ensureYPRControlsVisibleForSelection();
             return;
         }
 
@@ -942,13 +1383,19 @@
             updateSatelliteInfo(satelliteInfoDiv, null);
             if (satelliteSelectDropdown) satelliteSelectDropdown.value = "None";
             simParams.selectedSatelliteName = "None";
+            updateSelectedSatelliteSummary(null);
+            syncSatelliteSearchWithSelection();
             updateSatelliteList();
+            ensureYPRControlsVisibleForSelection();
             return;
         }
 
         currentSelectedSatellite = tleSatData;
         simParams.selectedSatelliteNoradId = tleSatData.norad_id?.toString() || null;
         updateSatelliteInfo(satelliteInfoDiv, tleSatData);
+        updateSelectedSatelliteSummary(tleSatData);
+        if (satelliteSearchInput) satelliteSearchInput.value = satelliteSearchLabel(tleSatData);
+        ensureYPRControlsVisibleForSelection();
 
         if (simParams.showOnlySelectedSatellite) {
             satellites.forEach(s => { if (s.mesh) s.mesh.visible = (s === tleSatData); });
@@ -996,8 +1443,7 @@
             }
         }
 
-        const yprSlidersRow = document.getElementById('yprSlidersRow');
-        if (yprSlidersRow) yprSlidersRow.style.display = simParams.showYPR ? 'grid' : 'none';
+        ensureYPRControlsVisibleForSelection();
     }
 
     async function loadAndDisplayDetailedSatellite(noradId, tleSatData, modelResolution, selectionToken) {
@@ -1281,6 +1727,11 @@
         renderCompanyFilter(companiesForOrbit, normalizedSelection);
 
         const filteredTLEs = buildFilteredSatellitesBySelection();
+        if (satelliteSearchInput) {
+            satelliteSearchInput.disabled = false;
+            satelliteSearchInput.placeholder = 'Search satellite or NORAD ID';
+        }
+        if (satelliteSearchClearButton) satelliteSearchClearButton.disabled = false;
 
         const noradToRepresentative = new Map(
             filteredTLEs.map(s => [s.norad_id?.toString(), s])
@@ -1320,16 +1771,23 @@
             satelliteCountDisplay.textContent =
                 simParams.showOnlySelectedSatellite ? (currentSelectedSatellite ? '1' : '0') : filteredTLEs.length.toString();
         }
+        updateFilterStatus(filteredTLEs);
+        updateSelectedSatelliteSummary(currentSelectedSatellite);
 
         const previousDropdownValue = satelliteSelectDropdown.value;
-        satelliteSelectDropdown.innerHTML = '<option value="None">None</option>';
+        const dropdownFragment = document.createDocumentFragment();
+        const noneOption = document.createElement('option');
+        noneOption.value = 'None';
+        noneOption.textContent = 'None';
+        dropdownFragment.appendChild(noneOption);
         filteredTLEs.forEach(s => {
             const option = document.createElement('option');
             option.value = s.satellite_name;
             option.textContent = s.satellite_name;
             option.dataset.noradId = s.norad_id;
-            satelliteSelectDropdown.appendChild(option);
+            dropdownFragment.appendChild(option);
         });
+        satelliteSelectDropdown.replaceChildren(dropdownFragment);
 
         if (filteredTLEs.some(s => s.satellite_name === previousDropdownValue)) {
             satelliteSelectDropdown.value = previousDropdownValue;
@@ -1341,6 +1799,8 @@
                     currentSelectedSatellite = null;
                     simParams.selectedSatelliteNoradId = null;
                     updateSatelliteInfo(satelliteInfoDiv, null);
+                    updateSelectedSatelliteSummary(null);
+                    syncSatelliteSearchWithSelection();
                 }
             }
         }
@@ -1350,7 +1810,14 @@
             currentSelectedSatellite = null;
             simParams.selectedSatelliteNoradId = null;
             updateSatelliteInfo(satelliteInfoDiv, null);
+            updateSelectedSatelliteSummary(null);
+            syncSatelliteSearchWithSelection();
         }
+
+        if (currentSelectedSatellite) {
+            setSatelliteSelectToSatellite(currentSelectedSatellite);
+        }
+        renderSatelliteSearchResults(filteredTLEs, false);
 
         if (reentryTimelineHandle?.requestRedraw) {
             reentryTimelineHandle.requestRedraw();
@@ -1387,6 +1854,9 @@
             removeAllGeometry(scene);
         }
         updateSatelliteInfo(satelliteInfoDiv, tleSatData);
+        updateSelectedSatelliteSummary(tleSatData);
+        if (!tleSatData) syncSatelliteSearchWithSelection();
+        if (simParams.showYPR) ensureYPRControlsVisibleForSelection();
     }
 
     function handleTimelineSelection(tleSatData) {
@@ -1397,10 +1867,11 @@
         simParams.showOnlySelectedSatellite = false;
         updateSatelliteList();
         if (satelliteSelectDropdown) {
-            satelliteSelectDropdown.value = tleSatData.satellite_name;
+            setSatelliteSelectToSatellite(tleSatData);
             const changeEvent = new Event('change');
             satelliteSelectDropdown.dispatchEvent(changeEvent);
         }
+        ensureYPRControlsVisibleForSelection();
     }
 
     window.addEventListener('keydown', e => {
@@ -1522,13 +1993,13 @@
         /* Moon controls target */
         if (!cameraMove && controls) {
             if (simParams.otherSelection === 'Moon' && moon) {
-                // Unit vector Earth→Moon
+                // Unit vector from Earth to Moon.
                 V_TMP1.copy(moon.position).normalize();
                 const moonRadius = EARTH_SCENE_RADIUS * 0.27;
                 const keepDist = Math.max(moonRadius * 4, EARTH_SCENE_RADIUS * 0.6);
                 V_TMP2.copy(V_TMP1).multiplyScalar(keepDist).add(moon.position);
 
-                // dt-aware smoothing keeps stable when Time× changes
+                // dt-aware smoothing keeps stable when Time x changes.
                 const chaseSmooth = 1 - Math.pow(0.001, dtReal); // fast, stable
                 //camera.position.lerp(V_TMP2, chaseSmooth);
 
@@ -1549,6 +2020,7 @@
         if (renderer) renderer.domElement.style.display = show3D ? 'block' : 'none';
         if (show3D) {
             renderer.render(scene, camera);
+            startupPerf.markOnce('first-visible-globe-render');
             update3DLabelsPosition(camera, simParams, rotY);
         } else {
             ['labelXecr','labelYecr','labelZecr','labelNorthPole','labelEquatorLine','labelGreenwichMeridian']
@@ -1621,28 +2093,35 @@
 
     async function start() {
         try {
-            // ... (Previous initialization code: init3D, mercator, TLE loading) ...
+            startupPerf.mark('startup-start');
             init3D();
+            startupPerf.mark('scene-ready');
             yprFrame = createYPRFrame(scene);
             setYPRVisibility(yprFrame, false);
             initMercatorView();
             initFootprintRenderer(scene, earthMesh, mercatorCtx);
-            await setupTLESatellites(scene);
-            const confirmedDecays = await loadConfirmedDecays();
-            computeDecayEstimates(satellites, { confirmedDecays });
-
             setupHTMLControls();
-            updateSatelliteList();
+            setSatelliteLoadingState('Loading satellites...');
+            setTimelineButtonState('launchTimelineToggle', 'Loading satellite data...', true);
+            setTimelineButtonState('reentryTimelineToggle', 'Loading satellite data...', true);
             updateECEFAxesVisibility(simParams);
+            startupPerf.mark('controls-ready');
+            startAnimationLoopOnce();
 
-            //initTimeline(satellites, simParams.simDate, handleTimelineSelection);
-
-            initTimeline(satellites, handleTimelineSelection);
-            reentryTimelineHandle = initReentryTimeline(satellites, handleTimelineSelection);
-            if (reentryTimelineHandle?.refreshData) {
-                reentryTimelineHandle.refreshData();
-            }
-            // =========================================================
+            startupPerf.mark('tle-load-start');
+            await setupTLESatellites(scene, {
+                chunkSize: SATELLITE_SETUP_CHUNK_SIZE,
+                onProgress: ({ processed, total }) => {
+                    if (satelliteCountDisplay) {
+                        satelliteCountDisplay.textContent = `Loading ${processed}/${total}`;
+                    }
+                }
+            });
+            startupPerf.mark('satellite-data-ready', { count: satellites.length });
+            updateSatelliteList();
+            startupPerf.markOnce('first-interactive-ui', { count: satellites.length });
+            startupPerf.logSummary();
+            scheduleDeferredStartupWork();
 
             if (simParams.showOrbit && currentSelectedSatellite) {
                 updateOrbitTrajectory(scene, simParams, currentSelectedSatellite);
@@ -1652,7 +2131,7 @@
                 if (t) t.checked = false;
             }
 
-            animate();
+            startAnimationLoopOnce();
         } catch (e) {
             console.error("Critical error:", e);
         }

@@ -16,6 +16,16 @@ Version 1.4.4 fixes the `Show orbit` regression. 3D orbit geometry must reject n
 
 Version 1.4.5 fixes remaining `Show Orbit` rendering and filter menu issues. GEO orbit paths should keep their physical propagation radius but render with normal Earth depth occlusion, Mercator should show a visible GEO fallback track when the true ground track is nearly stationary, the Orbit filter should include `ALL`, and the filter menu should not expose an `Active` button.
 
+Version 1.5 optimizes `index.html` startup performance. The 3D scene, menu, controls, and first animation frame should render before full TLE sprite processing, decay prediction, and timeline setup complete. Startup timing diagnostics are exposed through `window.openbexiStartupPerformance.summary()` when the page is opened with `?perf=1` or `localStorage.openbexiStartupPerf = "1"`.
+
+Version 1.5.1 improves the left menu user experience. The menu is organized into compact colored tabs/onglets, keeps controls grouped by workflow, adds a searchable satellite selector, converts timeline buttons into checkbox toggles, adds filter reset/status/empty states, improves selected tag styling, and persists useful menu tab/collapse state.
+
+Version 1.5.2 stabilizes the menu redesign. It removes mojibake from UI labels, narrows the menu while preserving internal scrolling, orders tabs as Filters, Satellite, View, Timelines, Other, Settings, makes launch and re-entry timelines mutually exclusive, preserves Yaw/Pitch/Roll slider visibility and values after satellite selection, and filters generated `Active` tag chips from the menu.
+
+Version 1.5.3 replaces the vertical tab rail with independent accordion-style menu sections. Multiple sections may remain open at the same time, expanding one section must not collapse another, `Filters` and `Satellite Selection` always start expanded on page load, and the legacy dark navy/blue section colors with colored left accents are preserved.
+
+Version 1.5.4 fixes expanded accordion header readability. Expanded headers such as `Filters - Satellites Found` and `Satellite Selection` must use dark high-contrast text on the light metallic expanded background while preserving the legacy collapsed header colors and left accents.
+
 ## Test Environment
 
 - Run from the repository root.
@@ -52,6 +62,10 @@ npm test
 - Confirm the visible `index.html` version number matches the latest `PROMPT_History.md` release.
 - Confirm every browser import map uses the same Three.js version for `three` and `three/addons/`.
 - Confirm the verified Three.js version is documented when it changes.
+- Confirm `index.html` starts the animation loop before awaiting TLE setup.
+- Confirm startup timing marks include `first-visible-globe-render`, `satellite-data-ready`, and `first-interactive-ui`.
+- Confirm TLE sprite setup and deferred decay work use named chunk sizes instead of one unbounded synchronous pass.
+- Confirm UI-facing HTML, CSS, JavaScript, generated menu markup, `README.md`, and this file pass the automated mojibake scan for common corrupted markers.
 
 ## Deep Automated Tests
 
@@ -140,10 +154,22 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 ### Menu and UI State
 
 - Test generated menu markup contains no duplicate IDs.
+- Test generated menu markup and UI source files contain no common mojibake markers.
 - Test the Orbit filter includes `ALL`, `GEO`, `MEO`, `LEO`, `HEO`, and `Other`.
 - Test the filter menu does not contain an `Active` button/control.
+- Test generated company/tag chips exclude `Active`, not only the static markup.
 - Test the View section has one collapsible container containing Globe, Mercator, High Def., ECEF Axes, and Day/Night controls.
+- Test menu CSS keeps the narrowed menu width, legacy colored accordion headers, and scrollable long panels.
+- Test the vertical tab rail is removed and the menu uses stacked accordion sections.
+- Test accordion section order is Filters, Satellite Selection, View, Timelines, Other Selections, Settings.
+- Test multiple accordion sections can be open simultaneously.
+- Test expanding one accordion section does not collapse another section.
+- Test `Filters` and `Satellite Selection` are expanded on initial page load even if persisted state exists.
+- Test expanded accordion headers use dark high-contrast text and do not inherit the light global heading color.
 - Test Yaw/Pitch/Roll sliders are hidden by default, shown when enabled, and hidden again when disabled.
+- Test Yaw/Pitch/Roll slider visibility is restored after satellite selection when the YPR toggle is enabled.
+- Test satellite selection does not reset yaw, pitch, or roll slider values unless the user resets them.
+- Test launch and re-entry timeline checkbox logic is mutually exclusive and exposes HUD visibility state.
 - Test `getFullGitHubUrl()` handles `null`, `undefined`, non-string values, absolute URLs, and relative paths without throwing.
 
 ### Regression Coverage
@@ -152,11 +178,27 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Add clear test names and failure messages.
 - Avoid tests that depend on the current wall-clock time unless the time is explicitly injected.
 - Keep browser smoke tests separate from deterministic unit tests.
+- Test startup timing/deferred-work helpers.
+- Test the `index.html` startup structure so first render starts before awaiting TLE setup.
+- Test accordion headers, accessible accordion semantics, searchable satellite selector markup, timeline checkbox toggles, filter reset/status/empty state, and selected tag active styling.
+- Test the menu toggle and time slider use ASCII-safe visible labels.
+
+### Startup Performance
+
+- Open `http://127.0.0.1:8000/index.html?perf=1`.
+- Confirm `window.openbexiStartupPerformance.summary()` returns timing entries.
+- Confirm `first-visible-globe-render` occurs before `satellite-data-ready`.
+- Confirm `first-interactive-ui` occurs after TLE data is loaded and the satellite dropdown/filter state has been populated.
+- Confirm the launch timeline button is temporarily disabled only while launch timeline data is being prepared, then opens and closes normally.
+- Confirm the re-entry timeline button is temporarily disabled while confirmed decay data and decay estimates are prepared in chunks, then opens and closes normally.
+- Confirm deferred timeline preparation does not break satellite selection from either timeline.
+- Confirm the UTC clock and camera controls remain responsive while TLE and deferred timeline work is still preparing.
 
 ## Startup Regression
 
 - Load `index.html` through the local HTTP server.
 - Confirm the 3D globe renders.
+- Confirm the first visible globe render occurs before all 15,728 TLE records have completed sprite setup.
 - Confirm satellite markers render around the globe.
 - Confirm the UTC clock updates.
 - Confirm the left menu opens and closes with the menu button.
@@ -165,6 +207,67 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
   - Tags: `All tags` selected.
   - Debris: `Show` selected.
 - Confirm the satellite count and satellite dropdown populate after TLE data loads.
+
+## Menu UX Regression
+
+- Compare the menu against the problem screenshot and confirm the red-circled menu toggle shows readable text such as `Close` or `Menu`, not corrupted characters.
+- Confirm the time slider label is readable as `Time x` and is not obscured by the narrowed menu.
+- Confirm headings, accordion labels, helper text, toggle icons, time slider labels, and menu buttons render without visible mojibake.
+- Confirm the left menu is thinner than Version 1.5.1 but still usable on desktop and narrow viewports.
+- Confirm dense panels, satellite metadata, and search results scroll internally after menu narrowing.
+- Confirm the vertical tab rail is gone.
+- Confirm the left menu shows stacked accordion sections for Filters, Satellite Selection, View, Timelines, Other Selections, and Settings.
+- Confirm each accordion header keeps the legacy dark navy/blue style and colored left accent.
+- Confirm expanded accordion headers are readable, especially `Filters - Satellites Found` and `Satellite Selection` on initial page load.
+- Confirm the expanded header chevron/toggle marker remains visible.
+- Confirm collapsed accordion headers remain readable.
+- Confirm `Filters` and `Satellite Selection` are expanded immediately after loading `index.html`.
+- Collapse `View`, expand `Timelines`, then expand `Other Selections`; confirm multiple sections remain open simultaneously.
+- Expand one section and confirm no other section collapses.
+- Change filters, reset filters, select a satellite, clear satellite search, toggle YPR, toggle view controls, and toggle timeline checkboxes; confirm accordion state is not reset.
+- Collapse and expand sections, refresh, and confirm `Filters` and `Satellite Selection` start expanded while other remembered section state is respected where practical.
+- Confirm accordion focus outlines are visible and Enter/Space toggles each section header.
+- Confirm the menu remains usable on a narrow viewport with stacked accordion sections and no clipped section labels.
+- Confirm no filter or tag control named `Active` remains.
+- Confirm `Active` does not reappear after changing orbit/debris filters and regenerating tag chips from satellite data.
+- Confirm selected tag chips use the brighter blue metallic/light active style.
+- Confirm `Reset Filters` restores Orbit `MEO`, Tags `All tags`, and Debris `Show`.
+- Confirm the active-filter summary updates after each filter change.
+- Choose a filter combination with zero results and confirm the empty state appears with a reset shortcut.
+- Confirm `Other Selections` is blue-styled and collapsible.
+- Confirm changing `Earth`/`Moon` is not reset by collapsing or expanding accordion sections.
+
+## Satellite Search Regression
+
+- Expand the `Satellite Selection` accordion section.
+- Confirm the `Select Satellite` search field appears between the `Satellite Selection` heading and the satellite-specific checkboxes.
+- Search by satellite name.
+- Search by NORAD ID.
+- Search by orbit type such as `GEO`, `MEO`, or `LEO`.
+- Search by company/tag such as `Starlink`, `One Web`, `SES`, or `Intelsat`.
+- Use Arrow Down, Arrow Up, Enter, Escape, and Tab with the search field.
+- Confirm a no-results message appears for a query with no matches.
+- Use the clear action and confirm the search query is reset.
+- Select a satellite from search and confirm satellite info, selected marker/model behavior, selected summary, orbit, and Mercator selected state still work.
+- Select a satellite from a timeline and confirm the search field and selected summary reflect that selection.
+- Enable `Yaw-Pitch-Roll`, move yaw, pitch, and roll sliders away from zero, then select a satellite from search and confirm the sliders remain visible and keep their values.
+- With `Yaw-Pitch-Roll` enabled, select a satellite from a timeline and confirm the `Satellite Selection` accordion section remains or becomes expanded without collapsing any other open section.
+- Switch between two satellites while `Yaw-Pitch-Roll` is enabled and confirm the sliders remain visible, usable, and unchanged.
+
+## Timeline Checkbox Regression
+
+- Confirm `Show Launch Timeline` and `Show Re-entry Timeline` appear in the `Timelines` accordion section before `Other Selections`.
+- Confirm both timeline controls are checkboxes, not buttons.
+- Check `Show Launch Timeline` and confirm the launch timeline opens.
+- While launch is checked, check `Show Re-entry Timeline` and confirm launch unchecks and the launch HUD hides.
+- Uncheck `Show Launch Timeline` and confirm the launch timeline hides.
+- Check `Show Re-entry Timeline` and confirm the re-entry timeline opens.
+- While re-entry is checked, check `Show Launch Timeline` and confirm re-entry unchecks and the re-entry HUD hides.
+- Uncheck `Show Re-entry Timeline` and confirm the re-entry timeline hides.
+- Confirm only one timeline HUD is visible at a time.
+- Confirm checkbox state always matches HUD visibility.
+- Reload the app and confirm timeline loading/deferred startup states are clear while data is preparing.
+- Confirm disabled timeline checkboxes cannot be toggled while timeline data is not ready.
 
 ## Filter UI Regression
 
@@ -459,6 +562,122 @@ Checks not fully performed in this terminal:
 - Interactive browser confirmation that `INTELSAT 10-02` GEO orbit depth occlusion looks correct from several camera angles remains manual. The automated tests verify that the GEO radius stays physically plausible and that the selected orbit line uses normal depth testing/render order, but screenshot-level visual confirmation requires a browser.
 - Interactive browser confirmation that the Mercator selected ground track remains visible with footprint overlays enabled remains manual. Automated tests cover the stationary-GEO fallback segment and selected-track redraw path.
 
+## Release 1.5 Verification Log
+
+Checks performed on 2026-06-03:
+
+- `PROMPT_History.md` contains the latest `Release Date: 2026-06-03 Version 1.5` entry.
+- `index.html` visible version tag was updated to `1.5`.
+- `npm test`: passed, including `startupPerformance.test.js`, `startupStructure.test.js`, and `releaseStructure.test.js`.
+- `Get-ChildItem -File .\js -Filter *.js | ForEach-Object { node --check $_.FullName }`: passed.
+- `Get-ChildItem -File .\tests -Filter *.js | ForEach-Object { node --check $_.FullName }`: passed.
+- Extracted `index.html` module script plus `node --input-type=module --check`: passed.
+- Extracted `display_satellite.html` module script plus `node --input-type=module --check`: passed.
+- Local HTTP smoke check with `py -m http.server 8000 --bind 127.0.0.1`: `http://127.0.0.1:8000/index.html` returned `HTTP 200 OK`.
+- Headless Chrome DevTools timing check loaded `http://127.0.0.1:8000/index.html?perf=1` and reached `first-interactive-ui`.
+
+Performance measurements from the final headless Chrome run:
+
+- Pre-change baseline lower bound: in Version 1.4.5, `animate()` was called only after `setupTLESatellites`, `loadConfirmedDecays`, `computeDecayEstimates`, launch timeline initialization, and re-entry timeline initialization. In the Release 1.5 timing run, satellite data alone completed at `37.63 s` after module start, so the previous first visible render was blocked until at least `>37.63 s`, plus decay and timeline work.
+- Release 1.5 `first-visible-globe-render`: `1.47 s` after module start (`8.46 s` from navigation start in this headless run).
+- Release 1.5 `window-load`: `2.46 s` after module start.
+- Release 1.5 `satellite-data-ready`: `37.63 s` after module start for `15,728` TLE records.
+- Release 1.5 `first-interactive-ui`: `37.65 s` after module start for `15,728` TLE records.
+
+Checks not fully performed in this terminal:
+
+- Full interactive visual regression for filters, selected models, orbit display, Mercator, launch timeline, and re-entry timeline remains manual. Headless Chrome verified startup timing and first-interactive reachability, but it did not perform screenshot-level visual inspection or all UI interactions.
+- Browser console was not exhaustively captured during the timing run. Automated syntax/tests passed and the headless page reached `first-interactive-ui`.
+
+## Release 1.5.1 Verification Log
+
+Checks performed on 2026-06-03:
+
+- `PROMPT_History.md` contains the latest `Release Date: 2026-06-03 Version 1.5.1` entry.
+- `index.html` visible version tag was updated to `1.5.1`.
+- `npm test`: passed, including `menuUx.test.js`, `startupPerformance.test.js`, `startupStructure.test.js`, and `releaseStructure.test.js`.
+- `Get-ChildItem -File .\js -Filter *.js | ForEach-Object { node --check $_.FullName }`: passed.
+- `Get-ChildItem -File .\tests -Filter *.js | ForEach-Object { node --check $_.FullName }`: passed.
+- Extracted `index.html` module script plus `node --input-type=module --check`: passed.
+- Extracted `display_satellite.html` module script plus `node --input-type=module --check`: passed.
+- `git diff --check`: passed with only existing LF-to-CRLF normalization warnings.
+- Local HTTP smoke check with `py -m http.server 8000 --bind 127.0.0.1`: `http://127.0.0.1:8000/index.html` returned `HTTP 200 OK`.
+- Headless Chrome DevTools runtime check reached `first-interactive-ui`, found 6 menu tabs, confirmed active tab `menuTabFilters`, confirmed the satellite search input exists, confirmed launch and re-entry timeline controls are `checkbox`, and confirmed visible version text `version 1.5.1 - hosted at GitHub Repo`.
+- Headless Chrome DevTools search check queried `MEO` after `first-interactive-ui`; the search combobox expanded and returned 40 visible result options.
+
+Checks not fully performed in this terminal:
+
+- Full visual inspection of the tab rail, blue metallic chip styling, narrow viewport behavior, and manual keyboard navigation remains a browser/manual verification item. Static tests validate the markup/CSS hooks and headless Chrome validates runtime presence, but screenshot-level visual quality requires a visible browser.
+- Full click-through of all domain behaviors after the menu redesign remains manual: detailed model loading, orbit visual rendering, Mercator visual state, footprints, and timeline satellite selection.
+
+## Release 1.5.2 Verification Log
+
+Checks performed on 2026-06-03:
+
+- `PROMPT_History.md` contains the latest `Release Date: 2026-06-03 Version 1.5.2` entry.
+- `index.html` visible version tag was updated to `1.5.2`.
+- Automated mojibake scan across `index.html`, `css/style.css`, `js/SatelliteMenuLoader.js`, `js/ganttTimelineLoader.js`, `js/reentryTimeline.js`, `README.md`, `Test_and_Integration.md`, and generated menu markup: passed with no matches.
+- `npm test`: passed, including `encodingUx.test.js`, `menuUx.test.js`, `startupPerformance.test.js`, `startupStructure.test.js`, and `releaseStructure.test.js`.
+- `Get-ChildItem -File .\js -Filter *.js | ForEach-Object { node --check $_.FullName }`: passed.
+- `Get-ChildItem -File .\tests -Filter *.js | ForEach-Object { node --check $_.FullName }`: passed.
+- Extracted `index.html` module script plus `node --check`: passed.
+- Extracted `display_satellite.html` module script plus `node --check`: passed.
+- `git diff --check`: passed with only existing LF-to-CRLF normalization warnings.
+- Local HTTP smoke check with `py -m http.server 8765 --bind 127.0.0.1`: `http://127.0.0.1:8765/index.html` returned `HTTP 200 OK`.
+- Headless Chrome desktop screenshot check at `1280x900`: confirmed readable `Close` menu button, `Time x` label, visible `version 1.5.2`, thinner menu, no visible mojibake, and tab order `Filters`, `Satellite`, `View`, `Timelines`, `Other`, `Settings`.
+- Headless Chrome narrow screenshot check at `500x900`: confirmed the time slider is readable and unobscured above the menu, the menu starts below the top controls, and the horizontal tab rail remains usable.
+- Resume validation after final narrowing to a `420px` menu and `72px` tab rail: `npm test`, JavaScript syntax checks for `js/` and `tests/`, extracted HTML module syntax checks, `git diff --check`, and the local HTTP smoke check all passed.
+
+Checks not fully performed in this terminal:
+
+- Full interactive visible-browser click-through for timeline exclusivity remains manual. Static and automated tests verify the checkbox exclusivity wiring and timeline handle visibility APIs, but the actual HUD show/hide visual interaction should still be checked in a browser.
+- Full interactive visible-browser click-through for Yaw/Pitch/Roll persistence remains manual. Static and automated tests verify that satellite selection reopens the Satellite Selection section and does not reset slider values, but model orientation and slider usability should still be checked in a browser with a selected satellite.
+
+## Release 1.5.3 Verification Log
+
+Checks performed on 2026-06-03:
+
+- `PROMPT_History.md` contains the latest `Release Date: 2026-06-03 Version 1.5.3` entry.
+- `index.html` visible version tag was updated to `1.5.3`.
+- The generated menu markup no longer contains the vertical tab rail, `role="tablist"`, `role="tab"`, `role="tabpanel"`, or `data-tab-target`.
+- The generated menu markup uses stacked accordion sections with `role="button"`, `aria-controls`, and `aria-expanded` on section headers.
+- Static tests verify `Filters` and `Satellite Selection` start expanded, other sections have collapsed defaults, and persisted collapsed state cannot close those two default-expanded sections on page load.
+- Static tests verify the legacy colored left accents remain for Satellite, View, Timelines, Other, and Settings and the narrowed `420px` menu width remains in place.
+- `npm test`: passed, including `encodingUx.test.js`, `menuUx.test.js`, `startupPerformance.test.js`, `startupStructure.test.js`, and `releaseStructure.test.js`.
+- `Get-ChildItem -File .\js -Filter *.js | ForEach-Object { node --check $_.FullName }`: passed.
+- `Get-ChildItem -File .\tests -Filter *.js | ForEach-Object { node --check $_.FullName }`: passed.
+- Extracted `index.html` module script plus `node --input-type=module --check`: passed.
+- Extracted `display_satellite.html` module script plus `node --input-type=module --check`: passed.
+- `git diff --check`: passed with only existing LF-to-CRLF normalization warnings.
+- Local HTTP smoke check with `py -m http.server 8765 --bind 127.0.0.1`: `http://127.0.0.1:8765/index.html` returned `HTTP 200 OK`.
+
+Checks not fully performed in this terminal:
+
+- Full visible-browser confirmation that the accordion headers visually match the supplied legacy color screenshot remains manual.
+- Full visible-browser interaction confirming multiple sections remain open while changing filters, selecting satellites, toggling YPR, view controls, and timeline controls remains manual. Static tests cover the markup and state wiring, but visual click-through should still be performed in a browser.
+
+## Release 1.5.4 Verification Log
+
+Checks performed on 2026-06-03:
+
+- `PROMPT_History.md` contains the latest `Release Date: 2026-06-03 Version 1.5.4` entry.
+- `index.html` visible version tag was updated to `1.5.4`.
+- Expanded accordion header CSS now uses a selector specific enough to override the global `#controlsContainer h3` color.
+- Static tests verify expanded accordion headers use `#06182c` high-contrast text with `!important`, so light blue text cannot render on the light metallic background.
+- Static tests verify the expanded chevron/toggle marker has an explicit dark readable color.
+- Static tests continue to verify stacked accordion structure, default-expanded `Filters` and `Satellite Selection`, legacy left accents, menu width, mojibake scan, timeline exclusivity, YPR persistence, and `Active` chip exclusion.
+- `npm test`: passed, including `encodingUx.test.js`, `menuUx.test.js`, `startupPerformance.test.js`, `startupStructure.test.js`, and `releaseStructure.test.js`.
+- `Get-ChildItem -File .\js -Filter *.js | ForEach-Object { node --check $_.FullName }`: passed.
+- `Get-ChildItem -File .\tests -Filter *.js | ForEach-Object { node --check $_.FullName }`: passed.
+- Extracted `index.html` module script plus `node --input-type=module --check`: passed.
+- Extracted `display_satellite.html` module script plus `node --input-type=module --check`: passed.
+- `git diff --check`: passed with only existing LF-to-CRLF normalization warnings.
+- Local HTTP smoke check with `py -m http.server 8765 --bind 127.0.0.1`: `http://127.0.0.1:8765/index.html` returned `HTTP 200 OK`.
+
+Checks not fully performed in this terminal:
+
+- Full visible-browser confirmation that `Filters - Satellites Found` and `Satellite Selection` are visually readable on initial page load remains manual.
+
 ## Acceptance Criteria
 
 - The app loads over HTTP without runtime errors.
@@ -466,6 +685,15 @@ Checks not fully performed in this terminal:
 - Debris filtering works and defaults to the previous inclusive behavior.
 - Satellite count, visible markers, and dropdown stay consistent after each filter change.
 - Existing non-filter controls continue to work.
+- No visible mojibake remains in menu labels, tab labels, toggle labels, helper text, or the time slider label.
+- The narrowed menu remains usable and long panels remain scrollable.
+- The menu uses stacked accordion sections instead of the vertical tab rail.
+- Multiple accordion sections can stay open at the same time.
+- `Filters` and `Satellite Selection` start expanded on page load.
+- The accordion order is Filters, Satellite Selection, View, Timelines, Other Selections, Settings.
+- The generated tag/company filter never exposes an `Active` chip.
+- Launch and re-entry timeline checkboxes are mutually exclusive and checkbox state matches HUD visibility.
+- Yaw/Pitch/Roll sliders remain visible and preserve current values after selecting or switching satellites when YPR is enabled.
 - Known local detailed models load from `obj/` for selected satellites.
 - Detailed selected models are visibly inspectable in 3D and are not clipped by the default near plane.
 - Selected satellites remain visible through the sprite fallback when no model exists or model loading fails.

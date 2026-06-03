@@ -233,7 +233,18 @@ export function initReentryTimeline(rawSatellites, onSelect) {
     let needsDraw = true;
     let rafScheduled = false;
 
-    if (toggle) toggle.textContent = SHOW_LABEL;
+    const isCheckboxToggle = toggle?.type === 'checkbox';
+    const toggleLabel = toggle?.closest?.('label')?.querySelector?.('span');
+    const updateToggleState = (visible) => {
+        if (!toggle) return;
+        if (isCheckboxToggle) {
+            toggle.checked = !!visible;
+            if (toggleLabel) toggleLabel.textContent = SHOW_LABEL;
+        } else {
+            toggle.textContent = visible ? HIDE_LABEL : SHOW_LABEL;
+        }
+    };
+    updateToggleState(false);
 
     const getFilteredData = () => {
         const mode = filterSelect.value;
@@ -292,7 +303,7 @@ export function initReentryTimeline(rawSatellites, onSelect) {
 
     function setVisibility(visible) {
         isVisible = visible;
-        if (toggle) toggle.textContent = visible ? HIDE_LABEL : SHOW_LABEL;
+        updateToggleState(visible);
         if (visible) {
             container.style.display = '';
             container.classList.remove('timeline-collapsed');
@@ -305,7 +316,9 @@ export function initReentryTimeline(rawSatellites, onSelect) {
     }
 
     if (toggle) {
-        toggle.addEventListener('click', () => setVisibility(!isVisible));
+        toggle.addEventListener(isCheckboxToggle ? 'change' : 'click', () => {
+            setVisibility(isCheckboxToggle ? toggle.checked : !isVisible);
+        });
     }
 
     filterSelect.addEventListener('change', scheduleDraw);
@@ -506,12 +519,12 @@ export function initReentryTimeline(rawSatellites, onSelect) {
             if (hit.item.type === 'CONFIRMED') {
                 line = `Re-entered: ${formatDateTime(new Date(hit.item.time))}`;
             } else {
-                line = `Predicted window: ${formatDate(new Date(hit.item.start))} → ${formatDate(new Date(hit.item.end))}`;
+                line = `Predicted window: ${formatDate(new Date(hit.item.start))} -> ${formatDate(new Date(hit.item.end))}`;
             }
             const confidence = decay.predicted_decay_window?.confidence;
             tooltip.innerHTML = `
               <div style="font-weight:bold;">${hit.item.satellite.satellite_name || hit.item.satellite.norad_id}</div>
-              <div>NORAD: ${hit.item.satellite.norad_id || '—'}</div>
+              <div>NORAD: ${hit.item.satellite.norad_id || 'N/A'}</div>
               <div>Status: ${decay.decay_status || hit.item.type}</div>
               <div>${line}</div>
               ${confidence !== undefined ? `<div>Confidence: ${(confidence * 100).toFixed(0)}%</div>` : ''}
@@ -627,12 +640,12 @@ export function initReentryTimeline(rawSatellites, onSelect) {
             if (hit.item.type === 'CONFIRMED') {
                 line = `Re-entered: ${formatDateTime(new Date(hit.item.time))}`;
             } else {
-                line = `Predicted window: ${formatDate(new Date(hit.item.start))} → ${formatDate(new Date(hit.item.end))}`;
+                line = `Predicted window: ${formatDate(new Date(hit.item.start))} -> ${formatDate(new Date(hit.item.end))}`;
             }
             const confidence = decay.predicted_decay_window?.confidence;
             tooltip.innerHTML = `
               <div style="font-weight:bold;">${hit.item.satellite.satellite_name || hit.item.satellite.norad_id}</div>
-              <div>NORAD: ${hit.item.satellite.norad_id || '—'}</div>
+              <div>NORAD: ${hit.item.satellite.norad_id || 'N/A'}</div>
               <div>Status: ${decay.decay_status || hit.item.type}</div>
               <div>${line}</div>
               ${confidence !== undefined ? `<div>Confidence: ${(confidence * 100).toFixed(0)}%</div>` : ''}
@@ -681,6 +694,10 @@ export function initReentryTimeline(rawSatellites, onSelect) {
 
     return {
         teardown,
+        setVisible: setVisibility,
+        isVisible() {
+            return isVisible;
+        },
         requestRedraw: scheduleDraw,
         refreshData: rebuildData
     };

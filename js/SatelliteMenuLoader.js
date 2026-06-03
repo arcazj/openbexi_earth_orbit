@@ -1,4 +1,4 @@
-// js/satelliteMenu.js
+﻿// js/satelliteMenu.js
 // -------------------------------------------------------------------
 // Returns HTML markup for the satellite-control sidebar.
 // -------------------------------------------------------------------
@@ -8,124 +8,169 @@ export function satelliteMenuLoader() {
   <div id="controlsContainer">
     <div id="versionDisplay"></div>
 
-    <!-- Filters -->
-    <div class="control-group">
-      <div class="timeline-toggle-row">
-        <button id="launchTimelineToggle" class="timeline-toggle">Show Launch Timeline</button>
-      </div>
-    
-      <div class="timeline-toggle-sep"></div>
-    
-      <div class="timeline-toggle-row">
-        <button id="reentryTimelineToggle" class="timeline-toggle">Show Re-entry Timeline</button>
-      </div>
-    </div>
-    
-    <!-- View -->
-    <div class="control-group">
-      <h3 data-collapsible-target="viewContent" class="section-heading">
-        View <span class="toggle-icon">▾</span>
-      </h3>
+    <div class="menu-accordion" aria-label="OpenBEXI menu sections">
+      <section id="filtersAccordionSection" class="menu-accordion-section menu-section-filters">
+        <h3 id="filtersAccordionHeader" role="button" tabindex="0" aria-controls="filtersContent" aria-expanded="true" data-collapsible-target="filtersContent" class="section-heading menu-accordion-heading menu-accordion-heading-filters" data-default-expanded="true">
+          <span>Filters - Satellites Found: <span id="satelliteCountDisplay">0</span></span>
+          <span class="toggle-icon">v</span>
+        </h3>
 
-      <!-- 2-column grid (safer sizing) -->
-      <div id="viewContent" class="collapsible-content"
-           style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));column-gap:14px;row-gap:4px;">
-        <label><input type="checkbox" id="view3DToggle" checked>Globe</label>
-        <label><input type="checkbox" id="viewMercatorToggle">Mercator</label>
-        <label><input type="checkbox" id="highDefToggle"> High Def.</label>
-        <label><input type="checkbox" id="showECEFAxesToggle"> ECEF&nbsp;Axes</label>
-        <label><input type="checkbox" id="showDayNightToggle" checked> Day/Night</label>
-      </div>
-    </div>
-    <!-- Filters -->
-    <div class="control-group">
-      <h3 data-collapsible-target="filtersContent" class="section-heading">
-        Filters – Satellites Found: <span id="satelliteCountDisplay">0</span>
-        <span class="toggle-icon">▾</span>
-      </h3>
+        <div id="filtersContent" class="collapsible-content filters-panel" aria-labelledby="filtersAccordionHeader">
+          <div class="filter-toolbar">
+            <div id="filterStatusSummary" class="filter-status-summary" aria-live="polite">MEO + All tags + Debris shown | 0 satellites</div>
+            <button id="resetFiltersButton" type="button" class="menu-secondary-action">Reset Filters</button>
+          </div>
+          <div id="filterEmptyState" class="empty-state" hidden>
+            <span>No satellites match these filters.</span>
+            <button id="resetFiltersEmptyButton" type="button">Reset filters</button>
+          </div>
 
-      <div id="filtersContent" class="collapsible-content filters-panel">
-        <div class="filter-block">
-          <div class="filter-label">Orbit filter (multi-select):</div>
-          <div id="orbitTypeFilter" class="segmented-control orbit-segmented" role="group" aria-label="Orbit filter">
-            <button type="button" class="segmented-option" data-orbit-filter="ALL" aria-pressed="false">ALL</button>
-            <button type="button" class="segmented-option" data-orbit-filter="GEO" aria-pressed="false">GEO</button>
-            <button type="button" class="segmented-option" data-orbit-filter="MEO" aria-pressed="true">MEO</button>
-            <button type="button" class="segmented-option" data-orbit-filter="LEO" aria-pressed="false">LEO</button>
-            <button type="button" class="segmented-option" data-orbit-filter="HEO" aria-pressed="false">HEO</button>
-            <button type="button" class="segmented-option" data-orbit-filter="OTHER" aria-pressed="false">Other</button>
+          <div class="filter-block">
+            <div class="filter-label">Orbit filter (multi-select):</div>
+            <div class="menu-helper">Choose one or more orbit families. ALL enables every orbit category.</div>
+            <div id="orbitTypeFilter" class="segmented-control orbit-segmented" role="group" aria-label="Orbit filter">
+              <button type="button" class="segmented-option" data-orbit-filter="ALL" aria-pressed="false">ALL</button>
+              <button type="button" class="segmented-option" data-orbit-filter="GEO" aria-pressed="false">GEO</button>
+              <button type="button" class="segmented-option" data-orbit-filter="MEO" aria-pressed="true">MEO</button>
+              <button type="button" class="segmented-option" data-orbit-filter="LEO" aria-pressed="false">LEO</button>
+              <button type="button" class="segmented-option" data-orbit-filter="HEO" aria-pressed="false">HEO</button>
+              <button type="button" class="segmented-option" data-orbit-filter="OTHER" aria-pressed="false">Other</button>
+            </div>
+          </div>
+
+          <div class="filter-block">
+            <div class="filter-label">Tag filter (multi-select):</div>
+            <div class="menu-helper">Use tags to narrow by constellation, operator, or mission group.</div>
+            <div id="companyFilter" class="tag-chip-list" role="group" aria-label="Tag filter">
+              <label class="filter-chip">
+                <input type="checkbox" value="ALL COMPANY" checked>
+                <span>All tags</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="filter-block">
+            <div class="filter-label">Debris filter:</div>
+            <div class="menu-helper">Show all objects, hide debris, or inspect debris only.</div>
+            <div id="debrisFilter" class="segmented-control debris-segmented" role="radiogroup" aria-label="Debris filter">
+              <button type="button" class="segmented-option" data-debris-filter="show" aria-pressed="true">Show</button>
+              <button type="button" class="segmented-option" data-debris-filter="hide" aria-pressed="false">Hide</button>
+              <button type="button" class="segmented-option" data-debris-filter="only" aria-pressed="false">Debris only</button>
+            </div>
           </div>
         </div>
+      </section>
 
-        <div class="filter-block">
-          <div class="filter-label">Tag filter (multi-select):</div>
-          <div id="companyFilter" class="tag-chip-list" role="group" aria-label="Tag filter">
-            <label class="filter-chip">
-              <input type="checkbox" value="ALL COMPANY" checked>
-              <span>All tags</span>
+      <section id="satelliteAccordionSection" class="menu-accordion-section menu-section-satellite">
+        <h3 id="satelliteAccordionHeader" role="button" tabindex="0" aria-controls="satelliteSelectionContent" aria-expanded="true" data-collapsible-target="satelliteSelectionContent" class="section-heading menu-accordion-heading menu-accordion-heading-satellite" data-default-expanded="true">
+          <span>Satellite Selection</span>
+          <span class="toggle-icon">v</span>
+        </h3>
+
+        <div id="satelliteSelectionContent" class="collapsible-content" aria-labelledby="satelliteAccordionHeader">
+          <div class="satellite-combobox-block">
+            <label for="satelliteSearchInput" class="section-heading">Select Satellite:</label>
+            <div class="menu-helper">Search by name, NORAD ID, orbit type, or tag.</div>
+            <div class="satellite-combobox">
+              <input id="satelliteSearchInput" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="satelliteSearchResults" aria-describedby="satelliteSearchHelp" placeholder="Search satellite or NORAD ID">
+              <button id="satelliteSearchClear" type="button" class="search-clear-button" aria-label="Clear satellite search">Clear</button>
+              <div id="satelliteSearchHelp" class="sr-only">Use arrow keys to navigate results, Enter to select, and Escape to close results.</div>
+              <ul id="satelliteSearchResults" class="satellite-search-results" role="listbox" aria-label="Satellite search results" hidden></ul>
+            </div>
+            <select id="satelliteSelect" class="legacy-satellite-select" aria-hidden="true" tabindex="-1"><option value="None">None</option></select>
+            <div id="satelliteSearchEmpty" class="empty-state" hidden>No satellites match this search.</div>
+          </div>
+
+          <div class="satellite-option-grid">
+            <label><input type="checkbox" id="showYPRToggle"> Yaw-Pitch-Roll</label>
+            <label class="checkbox-row"><input type="checkbox" id="showFootprintCheckbox"><span>Show Footprint</span></label>
+            <label class="checkbox-row"><input type="checkbox" id="showOnlySelectedSatellite"><span>Show only selected satellite</span></label>
+            <label><input type="checkbox" id="showOrbitFrameToggle"> Orbit Frame (LVLH)</label>
+            <label><input type="checkbox" id="showOrbitToggle" checked> Show Orbit</label>
+          </div>
+
+          <div id="yprSlidersRow" class="ypr-slider-grid">
+            <label>Yaw:
+              <input type="range" id="yawSlider" min="-180" max="180" step="0.1" value="0">
+              <span id="yawVal">0</span>
+            </label>
+
+            <label>Pitch:
+              <input type="range" id="pitchSlider" min="-180" max="180" step="0.1" value="0">
+              <span id="pitchVal">0</span>
+            </label>
+
+            <label>Roll:
+              <input type="range" id="rollSlider" min="-180" max="180" step="0.1" value="0">
+              <span id="rollVal">0</span>
             </label>
           </div>
+
+          <div id="selectedSatelliteSummary" class="selected-satellite-summary">No satellite selected</div>
+          <div id="satelliteInfo"><div style="font-weight:bold;">No satellite selected</div></div>
         </div>
+      </section>
 
-        <div class="filter-block">
-          <div class="filter-label">Debris filter:</div>
-          <div id="debrisFilter" class="segmented-control debris-segmented" role="radiogroup" aria-label="Debris filter">
-            <button type="button" class="segmented-option" data-debris-filter="show" aria-pressed="true">Show</button>
-            <button type="button" class="segmented-option" data-debris-filter="hide" aria-pressed="false">Hide</button>
-            <button type="button" class="segmented-option" data-debris-filter="only" aria-pressed="false">Debris only</button>
-          </div>
+      <section id="viewAccordionSection" class="menu-accordion-section menu-section-view">
+        <h3 id="viewAccordionHeader" role="button" tabindex="0" aria-controls="viewContent" aria-expanded="false" data-collapsible-target="viewContent" class="section-heading menu-accordion-heading menu-accordion-heading-view" data-default-collapsed="true">
+          <span>View</span>
+          <span class="toggle-icon">v</span>
+        </h3>
+
+        <div id="viewContent" class="collapsible-content view-option-grid" aria-labelledby="viewAccordionHeader">
+          <label><input type="checkbox" id="view3DToggle" checked>Globe</label>
+          <label><input type="checkbox" id="viewMercatorToggle">Mercator</label>
+          <label><input type="checkbox" id="highDefToggle"> High Def.</label>
+          <label><input type="checkbox" id="showECEFAxesToggle"> ECEF Axes</label>
+          <label><input type="checkbox" id="showDayNightToggle" checked> Day/Night</label>
         </div>
-      </div>
-    </div>
+      </section>
 
-    <!-- Satellite selection -->
-    <div class="control-group">
-      <h3 data-collapsible-target="satelliteSelectionContent" class="section-heading">
-        Satellite Selection <span class="toggle-icon">▾</span>
-      </h3>
-
-      <!-- Single collapsible container (unique id) -->
-      <div id="satelliteSelectionContent" class="collapsible-content">
-
-        <!-- 2-column grid for selection-related toggles -->
-        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:14px;row-gap:4px;">
-          <label><input type="checkbox" id="showYPRToggle"> Yaw-Pitch-Roll</label>
-          <label class="checkbox-row"><input type="checkbox" id="showFootprintCheckbox"><span>Show Footprint</span></label>
-          <label class="checkbox-row"> <input type="checkbox" id="showOnlySelectedSatellite"><span>Show only selected satellite</span></label>
-          <label><input type="checkbox" id="showOrbitFrameToggle"> Orbit&nbsp;Frame&nbsp;(LVLH)</label>
-          <label><input type="checkbox" id="showOrbitToggle" checked> Show Orbit</label>
-        </div>
-
-        <!-- YPR sliders (unique id + hidden by default) -->
-        <div id="yprSlidersRow"
-             style="display:none;margin-top:6px;grid-template-columns:repeat(3,minmax(0,1fr));column-gap:14px;row-gap:4px;">
-          <label style="margin-bottom:4px;display:block;min-width:0;">Yaw:
-            <input type="range" id="yawSlider" min="-180" max="180" step="0.1" value="0" style="width:100%;min-width:0;">
-            <span id="yawVal">0</span>
+      <section id="timelinesAccordionSection" class="menu-accordion-section menu-section-timelines">
+        <h3 id="timelinesAccordionHeader" role="button" tabindex="0" aria-controls="timelineContent" aria-expanded="false" data-collapsible-target="timelineContent" class="section-heading menu-accordion-heading menu-accordion-heading-timelines" data-default-collapsed="true">
+          <span>Timelines</span>
+          <span class="toggle-icon">v</span>
+        </h3>
+        <div id="timelineContent" class="collapsible-content timeline-control-panel" aria-labelledby="timelinesAccordionHeader">
+          <div class="menu-helper">Timeline data loads after the first globe render. Disabled controls are still preparing.</div>
+          <label class="checkbox-row timeline-checkbox-control">
+            <input type="checkbox" id="launchTimelineToggle" aria-describedby="launchTimelineHelp">
+            <span>Show Launch Timeline</span>
           </label>
-
-          <label style="margin-bottom:4px;display:block;min-width:0;">Pitch:
-            <input type="range" id="pitchSlider" min="-180" max="180" step="0.1" value="0" style="width:100%;min-width:0;">
-            <span id="pitchVal">0</span>
+          <div id="launchTimelineHelp" class="menu-helper">Shows launch history for loaded satellites.</div>
+          <label class="checkbox-row timeline-checkbox-control">
+            <input type="checkbox" id="reentryTimelineToggle" aria-describedby="reentryTimelineHelp">
+            <span>Show Re-entry Timeline</span>
           </label>
-
-          <label style="display:block;min-width:0;">Roll:
-            <input type="range" id="rollSlider" min="-180" max="180" step="0.1" value="0" style="width:100%;min-width:0;">
-            <span id="rollVal">0</span>
-          </label>
+          <div id="reentryTimelineHelp" class="menu-helper">Shows confirmed and predicted re-entry information when ready.</div>
         </div>
+      </section>
 
-        <div style="margin-top:8px;">
-          <label for="satelliteSelect" class="section-heading">Select Satellite:</label>
-          <select id="satelliteSelect"><option value="None">None</option></select>
-          <div id="satelliteInfo" style="margin-top:10px;"><div style="font-weight:bold;">No satellite selected</div></div>
-          <label for="otherSelection" class="section-subtitle" style="margin-top:10px;">Other Selections:</label>
+      <section id="otherAccordionSection" class="menu-accordion-section menu-section-other">
+        <h3 id="otherAccordionHeader" role="button" tabindex="0" aria-controls="otherSelectionsContent" aria-expanded="false" data-collapsible-target="otherSelectionsContent" class="section-heading menu-accordion-heading menu-accordion-heading-other other-selections-heading" data-default-collapsed="true">
+          <span>Other Selections</span>
+          <span class="toggle-icon">v</span>
+        </h3>
+        <div id="otherSelectionsContent" class="collapsible-content other-selections-panel" aria-labelledby="otherAccordionHeader">
+          <label for="otherSelection" class="section-subtitle">Other Selections:</label>
+          <div class="menu-helper">Switch the observer context between Earth and Moon without changing the app mode.</div>
           <select id="otherSelection">
             <option value="Earth">Earth</option>
             <option value="Moon">Moon</option>
           </select>
         </div>
-      </div>
+      </section>
+
+      <section id="settingsAccordionSection" class="menu-accordion-section menu-section-settings">
+        <h3 id="settingsAccordionHeader" role="button" tabindex="0" aria-controls="settingsContent" aria-expanded="false" data-collapsible-target="settingsContent" class="section-heading menu-accordion-heading menu-accordion-heading-settings" data-default-collapsed="true">
+          <span>Settings</span>
+          <span class="toggle-icon">v</span>
+        </h3>
+        <div id="settingsContent" class="collapsible-content settings-panel" aria-labelledby="settingsAccordionHeader">
+          <div class="menu-helper">Use the time slider at the top of the screen to control simulation speed.</div>
+          <div class="menu-helper">Startup timing diagnostics are available with <code>?perf=1</code>.</div>
+        </div>
+      </section>
     </div>
   </div>`;
 }
@@ -142,15 +187,15 @@ export function updateSatelliteInfo(infoDiv, sat) {
     }
 
     const m = sat.meta ?? {};
-    const tle1 = sat.tle_line1 ?? '—';
-    const tle2 = sat.tle_line2 ?? '—';
+    const tle1 = sat.tle_line1 ?? 'N/A';
+    const tle2 = sat.tle_line2 ?? 'N/A';
 
     const kv = {
-        orbitType: sat.orbitType ?? m.orbital_slot?.nominal ?? '—',
-        company: sat.company ?? m.manufacturer ?? '—',
-        satellite_name: sat.satellite_name ?? sat.name ?? '—',
-        norad_id: sat.norad_id ?? m.norad_id ?? '—',
-        launch_date: sat.launch_date ?? '—',
+        orbitType: sat.orbitType ?? m.orbital_slot?.nominal ?? 'N/A',
+        company: sat.company ?? m.manufacturer ?? 'N/A',
+        satellite_name: sat.satellite_name ?? sat.name ?? 'N/A',
+        norad_id: sat.norad_id ?? m.norad_id ?? 'N/A',
+        launch_date: sat.launch_date ?? 'N/A',
         tle_line1: tle1,
         tle_line2: tle2
     };

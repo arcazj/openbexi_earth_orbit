@@ -236,6 +236,16 @@ export function computeDecayEstimates(satellites, options = {}) {
         }
 
         const { altitudeKm } = currentState;
+        if (altitudeKm > coarseAltitudeKm) {
+            sat.decay = {
+                decay_status: 'UNKNOWN',
+                decay_reason: `Altitude ${altitudeKm.toFixed(0)} km exceeds coarse decay search limit`,
+                decay_date: null,
+                predicted_decay_window: null
+            };
+            return;
+        }
+
         const backStart = new Date(now.getTime() - backtrackDays * MS_PER_DAY);
         const pastCrossing = findCrossing(
             satrec,
@@ -260,16 +270,6 @@ export function computeDecayEstimates(satellites, options = {}) {
                 decay_status: 'CONFIRMED',
                 decay_reason: `Current altitude ${altitudeKm.toFixed(1)} km below ${reentryAltitudeKm} km threshold`,
                 decay_date: now.toISOString(),
-                predicted_decay_window: null
-            };
-            return;
-        }
-
-        if (altitudeKm > coarseAltitudeKm) {
-            sat.decay = {
-                decay_status: 'UNKNOWN',
-                decay_reason: `Altitude ${altitudeKm.toFixed(0)} km exceeds coarse decay search limit`,
-                decay_date: null,
                 predicted_decay_window: null
             };
             return;

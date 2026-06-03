@@ -8,6 +8,7 @@ import {
     getFullGitHubUrl, GITHUB_REPO_RAW_BASE_URL,
 } from './SatelliteConfigurationLoader.js';
 import { EARTH_RADIUS_KM } from './SatelliteConstantLoader.js';
+import { processInChunks } from './startupPerformance.js';
 
 export let satellites = [];
 let orbitLine = null;
@@ -154,7 +155,12 @@ export function updateOrbitTrajectory(scene, simParams, satData) {
     return orbitLine;
 }
 
-function processSatellites(scene, tleData, baseMaterial) {
+async function processSatellites(scene, tleData, baseMaterial, options = {}) {
+    const {
+        chunkSize = 300,
+        onProgress = null,
+        schedulerOptions = { timeout: 16 }
+    } = options;
     if (tleData.length === 0) return null;
     // Clear existing satellites from scene and array
     satellites.forEach(s => {
@@ -174,7 +180,7 @@ function processSatellites(scene, tleData, baseMaterial) {
         return;
     }
 
-    tleData.forEach(item => {
+    await processInChunks(tleData, (item) => {
         const {company, satellite_name, norad_id, type, launch_date, tle_line1, tle_line2} = item;
         if (!tle_line1 || !tle_line2) {
             console.warn(`Skipping satellite ${satellite_name || norad_id}: missing TLE line1 or line2.`);
@@ -212,13 +218,18 @@ function processSatellites(scene, tleData, baseMaterial) {
             console.error(`Error processing TLE for ${satellite_name || norad_id} (NORAD: ${norad_id}): ${e.message}. TLE1: ${tle_line1}, TLE2: ${tle_line2}`);
             // Optionally, skip adding this satellite or add it with an error state
         }
+    }, {
+        chunkSize,
+        afterChunk: onProgress,
+        schedulerOptions
     });
     console.log(`${satellites.length} satellites processed and added to the scene.`);
     //if (typeof updateSatelliteList === "function") updateSatelliteList(); // Update UI elements
+    return satellites;
 }
 
 
-export async function setupTLESatellites(scene) {
+export async function setupTLESatellites(scene, options = {}) {
     let TLE_BASE_URL = "json/tle/";
     console.log("Attempting to load TLE data from:", TLE_BASE_URL);
     const primaryTleUrl = TLE_BASE_URL + 'TLE.json';
@@ -249,7 +260,7 @@ export async function setupTLESatellites(scene) {
                 errorDiv.innerText = userMessage;
                 document.body.appendChild(errorDiv);
                 // No need for setTimeout, this is a critical error.
-                satellites = processSatellites(scene, [], null); // Process with empty data
+                await processSatellites(scene, [], null, options); // Process with empty data
                 return
             }
         }
@@ -290,7 +301,7 @@ export async function setupTLESatellites(scene) {
                     })
             });
         }
-        processSatellites(scene, tleData, satMaterial);
+        await processSatellites(scene, tleData, satMaterial, options);
 
     } catch (err) {
         console.error("Error in setupTLESatellites (fetching/processing TLEs):", err);
@@ -300,7 +311,7 @@ export async function setupTLESatellites(scene) {
         errorDiv.innerText = userMessage;
         document.body.appendChild(errorDiv);
         setTimeout(() => errorDiv.remove(), 7000);
-        processSatellites(scene, [], null); // Attempt to continue with empty data
+        await processSatellites(scene, [], null, options); // Attempt to continue with empty data
     }
 }
 

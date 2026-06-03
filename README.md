@@ -14,6 +14,9 @@ OpenBEXI Earth Orbit is a browser-based satellite visualization app built with p
 - Multi-select orbit filters for `ALL`, `GEO`, `MEO`, `LEO`, `HEO`, and `Other`.
 - Multi-select tag/operator filters such as `Starlink`, `One Web`, `SES`, `Intelsat`, `Weather`, and `Iridium`.
 - Debris filtering modes: show all, hide debris, or debris only.
+- Accordion-style menu sections for Filters, Satellite Selection, View, Timelines, Other Selections, and Settings, preserving the legacy colored section accents.
+- Searchable satellite selector with typeahead support for satellite name, NORAD ID, orbit type, and company/tag.
+- Filter reset, active-filter summary, and zero-result empty states.
 - Selected-satellite details, orbit path display, footprint display, LVLH orbit frame, and yaw/pitch/roll controls.
 - Local detailed model loading for selected satellites using OBJ/MTL and GLB assets under `obj/`.
 - Selected-satellite observer framing in 3D: selecting a satellite smoothly moves the camera to a close observer view with Earth centered behind the satellite.
@@ -22,6 +25,9 @@ OpenBEXI Earth Orbit is a browser-based satellite visualization app built with p
 - 2D/Mercator selected-satellite UX: selection is highlighted with a clear marker ring instead of applying 3D-only camera-distance behavior.
 - Mercator selected-satellite state uses the selected NORAD ID, so ground tracks and marker rings still render when a detailed 3D model hides the selected sprite.
 - High-definition Earth texture toggle, ECEF axes, Moon view, launch timeline, and re-entry timeline.
+- Timeline checkboxes are mutually exclusive: enabling the launch timeline hides the re-entry timeline, and enabling the re-entry timeline hides the launch timeline.
+- Faster initial startup path: the globe and core controls render before the full TLE sprite pass, while timelines and decay estimates are prepared as deferred work.
+- Optional startup timing diagnostics through `?perf=1` or `localStorage.openbexiStartupPerf = "1"`.
 
 ## Orbit and Ground-Track Notes
 
@@ -122,12 +128,44 @@ Get-ChildItem -File .\js -Filter *.js | ForEach-Object { node --check $_.FullNam
 
 Run the browser and manual regression checklist in `Test_and_Integration.md` before considering a release complete.
 
+## Startup Performance
+
+`index.html` starts the animation loop before waiting for all satellite sprites, decay estimates, and timeline data. This makes the first globe render visible earlier while the satellite list, filters, and optional timeline data continue preparing.
+
+To inspect startup timings, open:
+
+```text
+http://127.0.0.1:8000/index.html?perf=1
+```
+
+Then run this in the browser console:
+
+```javascript
+window.openbexiStartupPerformance.summary()
+```
+
+The timing summary includes lifecycle and app-specific marks such as `dom-content-loaded`, `window-load`, `first-visible-globe-render`, `satellite-data-ready`, and `first-interactive-ui`.
+
+## Menu Usage
+
+The left menu is organized into compact colored accordion sections. Multiple sections can stay open at the same time; expanding one section does not collapse any other section. `Filters` and `Satellite Selection` always start expanded when `index.html` loads. Expanded headers use dark high-contrast text on the light metallic background for readability.
+
+- `Filters`: orbit, tag, debris filters, active summary, and reset action.
+- `Satellite Selection`: searchable satellite selector, selected-satellite status, orbit/footprint/YPR controls, and satellite metadata.
+- `View`: globe, Mercator, high-definition texture, ECEF axes, and day/night controls.
+- `Timelines`: checkbox toggles for launch and re-entry timelines.
+- `Other Selections`: Earth/Moon context selection.
+- `Settings`: simulation and diagnostic notes.
+
+The satellite selector is searchable. Type part of a satellite name, NORAD ID, orbit type, or tag, then use the mouse or keyboard arrow keys plus Enter to select a result. Timeline controls are checkboxes: checked means the timeline is visible; unchecked means it is hidden. Only one timeline can be visible at a time. If Yaw-Pitch-Roll is enabled, selecting or switching satellites keeps the YPR sliders visible and preserves the current yaw, pitch, and roll values.
+
 ## Project Structure
 
 - `index.html`: Main browser app and integration point for rendering, controls, selection, and animation.
 - `display_satellite.html`: Isolated local OBJ/MTL and GLB viewer for direct satellite model visibility checks.
 - `css/`: Styling for the app, menu, filters, labels, and map layout.
 - `js/`: Browser modules for coordinates, satellite loading, models, menu, footprints, frames, day/night, Moon, timelines, and map rendering.
+- `js/startupPerformance.js`: Startup timing, deferred scheduling, and chunked-work helpers used to keep the first render responsive.
 - `json/tle/`: TLE source data.
 - `json/satellites/`: Satellite metadata and model configuration.
 - `textures/`: Earth, Moon, satellite, and material textures.

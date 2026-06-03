@@ -156,19 +156,36 @@ export function initTimeline(satellites, arg2, arg3) {
         .filter(Boolean)
         .sort((a, b) => a.time - b.time);
 
-    if (!timelineData.length) return () => {};
+    if (!timelineData.length) {
+        return {
+            teardown() {},
+            setVisible() {},
+            isVisible() {
+                return false;
+            }
+        };
+    }
 
     const toggle = document.getElementById('launchTimelineToggle');
     const { container, detailCanvas, overviewCanvas } = createHudElements();
 
     let isVisible = false;
-    if (toggle) toggle.textContent = SHOW_LABEL;
+    const isCheckboxToggle = toggle?.type === 'checkbox';
+    const toggleLabel = toggle?.closest?.('label')?.querySelector?.('span');
+    const updateToggleState = (visible) => {
+        if (!toggle) return;
+        if (isCheckboxToggle) {
+            toggle.checked = !!visible;
+            if (toggleLabel) toggleLabel.textContent = SHOW_LABEL;
+        } else {
+            toggle.textContent = visible ? HIDE_LABEL : SHOW_LABEL;
+        }
+    };
+    updateToggleState(false);
 
     function setVisibility(visible) {
         isVisible = visible;
-        if (toggle) {
-            toggle.textContent = visible ? HIDE_LABEL : SHOW_LABEL;
-        }
+        updateToggleState(visible);
 
         if (visible) {
             container.style.display = '';
@@ -181,8 +198,8 @@ export function initTimeline(satellites, arg2, arg3) {
     }
 
     if (toggle) {
-        toggle.addEventListener('click', () => {
-            setVisibility(!isVisible);
+        toggle.addEventListener(isCheckboxToggle ? 'change' : 'click', () => {
+            setVisibility(isCheckboxToggle ? toggle.checked : !isVisible);
         });
     }
 
@@ -518,8 +535,17 @@ export function initTimeline(satellites, arg2, arg3) {
 
     scheduleDraw();
 
-    return () => {
+    const teardown = () => {
+        setVisibility(false);
         window.removeEventListener('resize', resize);
         container.remove();
+    };
+
+    return {
+        teardown,
+        setVisible: setVisibility,
+        isVisible() {
+            return isVisible;
+        }
     };
 }
