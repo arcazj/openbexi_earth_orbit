@@ -89,7 +89,11 @@ function run() {
   assert(css.includes('color: #06182c !important;'), 'expanded accordion headers use dark high-contrast text');
   assert(css.includes('#controlsContainer h3.menu-accordion-heading[aria-expanded="true"] .toggle-icon'), 'expanded accordion chevron has an explicit readable color');
   assert(!css.includes('.menu-accordion-heading[aria-expanded="true"] {\n    color: #00aaff'), 'expanded accordion headers do not use light blue text');
-  assert(css.includes('width: min(420px, calc(100vw - 20px))'), 'menu stays narrowed for release 1.5.4');
+  assert(css.includes('width: min(380px, calc(100vw - 20px))'), 'menu is thinner than the 1.5.4 accordion menu');
+  assert(!css.includes('width: min(420px, calc(100vw - 20px))'), 'previous 420px menu width is no longer used');
+  assert(css.includes('#satelliteCountDisplay'), 'satellite count has a dedicated style hook');
+  assert(css.includes('color: #ff2a2a !important;'), 'satellite count is styled red');
+  assert(css.includes('font-weight: 900;'), 'satellite count is styled bold');
   assert(css.includes('.menu-accordion-section .collapsible-content:not(.collapsed)'), 'long active accordion panels have scroll constraints');
   assert(css.includes('overflow-y: auto'), 'narrowed menu keeps scrollable overflow');
   assert(css.includes('max-height: min(220px, calc(100vh - 260px))'), 'satellite search results stay bounded after narrowing');

@@ -1,4 +1,4 @@
-:root {
+﻿:root {
     --accent: #00aaff;
 }
 
@@ -40,7 +40,7 @@ canvas {
     background-color: rgba(40, 40, 40, 0.9);
     padding: 10px;
     border-radius: 8px;
-    width: min(420px, calc(100vw - 20px));
+    width: min(300px, calc(100vw - 20px));
     max-height: calc(100vh - 20px);
     overflow-y: auto;
     z-index: 1000;
@@ -190,8 +190,9 @@ canvas {
 /* Satellite Count Display */
 #satelliteCountDisplay {
     font-size: 13px;
-    color: #00aaff;
-    font-weight: bold;
+    color: #ff2a2a !important;
+    font-weight: 900;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.65);
 }
 
 /* Mercator Map Styling */
@@ -527,7 +528,7 @@ canvas {
 }
 
 #controlsContainer {
-    width: min(420px, calc(100vw - 20px));
+    width: min(380px, calc(100vw - 20px));
     background: radial-gradient(circle at top left, rgba(39, 70, 102, 0.55), var(--menu-bg) 38%, rgba(10, 12, 16, 0.94));
     border: 1px solid var(--menu-border);
 }

@@ -26,6 +26,8 @@ Version 1.5.3 replaces the vertical tab rail with independent accordion-style me
 
 Version 1.5.4 fixes expanded accordion header readability. Expanded headers such as `Filters - Satellites Found` and `Satellite Selection` must use dark high-contrast text on the light metallic expanded background while preserving the legacy collapsed header colors and left accents.
 
+Version 1.5.5 makes the `Filters - Satellites Found` count red and bold, and narrows the accordion menu again while preserving internal scrolling, time-slider readability, accordion behavior, and existing app controls.
+
 ## Test Environment
 
 - Run from the repository root.
@@ -166,6 +168,8 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test expanding one accordion section does not collapse another section.
 - Test `Filters` and `Satellite Selection` are expanded on initial page load even if persisted state exists.
 - Test expanded accordion headers use dark high-contrast text and do not inherit the light global heading color.
+- Test the satellite count in the Filters header is red and bold.
+- Test the accordion menu width is thinner than the previous `420px` release width.
 - Test Yaw/Pitch/Roll sliders are hidden by default, shown when enabled, and hidden again when disabled.
 - Test Yaw/Pitch/Roll slider visibility is restored after satellite selection when the YPR toggle is enabled.
 - Test satellite selection does not reset yaw, pitch, or roll slider values unless the user resets them.
@@ -219,6 +223,9 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm the left menu shows stacked accordion sections for Filters, Satellite Selection, View, Timelines, Other Selections, and Settings.
 - Confirm each accordion header keeps the legacy dark navy/blue style and colored left accent.
 - Confirm expanded accordion headers are readable, especially `Filters - Satellites Found` and `Satellite Selection` on initial page load.
+- Confirm the numeric satellite count in `Filters - Satellites Found` is red and bold in both expanded and collapsed states.
+- Confirm the menu is visibly thinner than Version 1.5.4 while filters, reset button, search, YPR sliders, timeline checkboxes, metadata, and view controls remain usable.
+- Confirm the time slider remains readable and unobscured after the menu narrowing.
 - Confirm the expanded header chevron/toggle marker remains visible.
 - Confirm collapsed accordion headers remain readable.
 - Confirm `Filters` and `Satellite Selection` are expanded immediately after loading `index.html`.
@@ -678,6 +685,27 @@ Checks not fully performed in this terminal:
 
 - Full visible-browser confirmation that `Filters - Satellites Found` and `Satellite Selection` are visually readable on initial page load remains manual.
 
+## Release 1.5.5 Verification Log
+
+Checks performed on 2026-06-03:
+
+- `PROMPT_History.md` contains the latest `Release Date: 2026-06-03 Version 1.5.5` entry.
+- `index.html` visible version tag was updated to `1.5.5`.
+- Static tests verify the menu width is `380px`, thinner than the previous `420px` release width.
+- Static tests verify the `#satelliteCountDisplay` style hook is red (`#ff2a2a`) and bold (`font-weight: 900`).
+- Static tests continue to verify accordion structure, default-expanded `Filters` and `Satellite Selection`, expanded-header contrast, legacy left accents, mojibake scan, timeline exclusivity, YPR persistence, and `Active` chip exclusion.
+- `npm test`: passed, including `encodingUx.test.js`, `menuUx.test.js`, `startupPerformance.test.js`, `startupStructure.test.js`, and `releaseStructure.test.js`.
+- `Get-ChildItem -File .\js -Filter *.js | ForEach-Object { node --check $_.FullName }`: passed.
+- `Get-ChildItem -File .\tests -Filter *.js | ForEach-Object { node --check $_.FullName }`: passed.
+- Extracted `index.html` module script plus `node --input-type=module --check`: passed.
+- Extracted `display_satellite.html` module script plus `node --input-type=module --check`: passed.
+- `git diff --check`: passed with only existing LF-to-CRLF normalization warnings.
+- Local HTTP smoke check with `py -m http.server 8765 --bind 127.0.0.1`: `http://127.0.0.1:8765/index.html` returned `HTTP 200 OK`.
+
+Checks not fully performed in this terminal:
+
+- Full visible-browser confirmation that the satellite count is red/bold and the thinner menu remains usable remains manual.
+
 ## Acceptance Criteria
 
 - The app loads over HTTP without runtime errors.
@@ -688,6 +716,8 @@ Checks not fully performed in this terminal:
 - No visible mojibake remains in menu labels, tab labels, toggle labels, helper text, or the time slider label.
 - The narrowed menu remains usable and long panels remain scrollable.
 - The menu uses stacked accordion sections instead of the vertical tab rail.
+- The satellite count in the Filters header is red and bold.
+- The accordion menu is thinner than the previous release while staying usable.
 - Multiple accordion sections can stay open at the same time.
 - `Filters` and `Satellite Selection` start expanded on page load.
 - The accordion order is Filters, Satellite Selection, View, Timelines, Other Selections, Settings.

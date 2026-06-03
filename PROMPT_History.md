@@ -1,5 +1,73 @@
 # Prompt History
 
+## Release Date: 2026-06-03  Version 1.5.5
+
+Improve satellite count visibility and make the accordion menu thinner.
+
+The accordion menu is functional, but the satellite count in the `Filters - Satellites Found` header should stand out more, and the left menu should take less horizontal screen space.
+
+Requirements:
+
+1. Make the satellite count red and bold.
+   - In the `Filters - Satellites Found: <count>` accordion header, style only the numeric satellite count.
+   - The count must be red and bold.
+   - Keep the rest of the header readable with the current expanded/collapsed accordion contrast rules.
+   - Ensure the count remains red and bold when the `Filters` section is expanded and when it is collapsed.
+   - Do not break live count updates from filtering or satellite loading.
+
+2. Make the menu thinner.
+   - Reduce the left menu width from the current value.
+   - Keep all controls usable: filters, reset button, satellite search, YPR sliders, timeline checkboxes, metadata, and view controls.
+   - Avoid clipping labels or buttons.
+   - Preserve internal scrolling for long sections.
+   - Preserve the narrow-viewport behavior where the menu stays below the time slider.
+   - The time slider must remain readable and unobscured.
+
+3. Preserve existing accordion behavior.
+   - The vertical tab rail must remain removed.
+   - The menu must remain stacked accordion sections.
+   - Multiple sections must remain allowed to stay open simultaneously.
+   - Expanding one section must not collapse any other section.
+   - `Filters` and `Satellite Selection` must still start expanded on every `index.html` load.
+   - Menu interactions must not reset accordion open/closed state.
+
+4. Preserve existing visual behavior.
+   - Keep the legacy accordion left accent colors.
+   - Keep expanded accordion header text readable with the Version 1.5.4 contrast fix.
+   - Keep collapsed accordion headers readable.
+   - Keep the blue metallic/light selected tag-chip styling.
+   - Keep the dark compact menu style.
+
+5. Preserve existing app behavior.
+   - Search, filters, reset filters, selected satellite summary, timelines, YPR controls, view toggles, orbit display, footprints, Mercator, and startup performance behavior must remain intact.
+   - The `Active` tag/company chip must still be excluded.
+   - Launch and re-entry timeline checkboxes must remain mutually exclusive.
+   - YPR slider visibility and values must still persist after satellite selection.
+
+6. Update tests.
+   - Add or update tests asserting the satellite count span is styled red and bold.
+   - Add or update tests asserting the menu width is thinner than the previous release value.
+   - Keep existing tests for accordion structure, multi-open behavior, initial expanded sections, expanded-header contrast, legacy accents, mojibake scans, timeline exclusivity, YPR persistence, and `Active` chip exclusion.
+
+7. Update documentation.
+   - Update `Test_and_Integration.md` with manual checks for the red bold satellite count and thinner menu.
+   - Include a manual check that the time slider remains unobscured after narrowing the menu.
+   - Update `README.md` if menu usage or appearance documentation changes.
+
+Acceptance criteria:
+
+- The satellite count in `Filters - Satellites Found` is red and bold.
+- The menu is visibly thinner while still usable.
+- Long accordion sections still scroll internally.
+- The time slider remains readable and unobscured.
+- Accordion behavior remains independent and multi-open.
+- `Filters` and `Satellite Selection` still start expanded.
+- Existing filtering, search, timeline, YPR, view, and startup behavior still work.
+- `npm test` passes.
+- JavaScript syntax checks pass.
+
+---
+
 ## Release Date: 2026-06-03  Version 1.5.4
 
 Fix low-contrast expanded accordion header text.

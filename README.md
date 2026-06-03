@@ -148,7 +148,7 @@ The timing summary includes lifecycle and app-specific marks such as `dom-conten
 
 ## Menu Usage
 
-The left menu is organized into compact colored accordion sections. Multiple sections can stay open at the same time; expanding one section does not collapse any other section. `Filters` and `Satellite Selection` always start expanded when `index.html` loads. Expanded headers use dark high-contrast text on the light metallic background for readability.
+The left menu is organized into compact colored accordion sections. Multiple sections can stay open at the same time; expanding one section does not collapse any other section. `Filters` and `Satellite Selection` always start expanded when `index.html` loads. Expanded headers use dark high-contrast text on the light metallic background for readability, and the live satellite count in the Filters header is red and bold.
 
 - `Filters`: orbit, tag, debris filters, active summary, and reset action.
 - `Satellite Selection`: searchable satellite selector, selected-satellite status, orbit/footprint/YPR controls, and satellite metadata.
