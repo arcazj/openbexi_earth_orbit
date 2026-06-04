@@ -30,6 +30,10 @@ Version 1.5.5 makes the `Filters - Satellites Found` count red and bold, and nar
 
 Version 1.5.6 fixes two blocking regressions: the satellite search/autocomplete dropdown must close after selection, `Escape`, `Tab`, or outside click without blocking controls behind it; and the selected-satellite 3D orbit must be explicitly occluded by Earth so behind-globe trajectory segments are not visible through the planet.
 
+Version 1.5.7 moves the `View` accordion section directly below `Filters` so globe/Mercator/display controls are reachable near the top of the left menu while preserving existing accordion behavior and default expanded sections.
+
+Version 1.5.8 moves the `View` accordion section to the very top of the left menu, above `Filters`, while preserving existing accordion behavior and default expanded sections.
+
 ## Test Environment
 
 - Run from the repository root.
@@ -170,7 +174,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test the View section has one collapsible container containing Globe, Mercator, High Def., ECEF Axes, and Day/Night controls.
 - Test menu CSS keeps the narrowed menu width, legacy colored accordion headers, and scrollable long panels.
 - Test the vertical tab rail is removed and the menu uses stacked accordion sections.
-- Test accordion section order is Filters, Satellite Selection, View, Timelines, Other Selections, Settings.
+- Test accordion section order is View, Filters, Satellite Selection, Timelines, Other Selections, Settings.
 - Test multiple accordion sections can be open simultaneously.
 - Test expanding one accordion section does not collapse another section.
 - Test `Filters` and `Satellite Selection` are expanded on initial page load even if persisted state exists.
@@ -259,7 +263,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm beam, footprint, satellite marker, Earth rendering, filters, timelines, YPR controls, and view controls still work.
 - Confirm dense panels, satellite metadata, and search results scroll internally after menu narrowing.
 - Confirm the vertical tab rail is gone.
-- Confirm the left menu shows stacked accordion sections for Filters, Satellite Selection, View, Timelines, Other Selections, and Settings.
+- Confirm the left menu shows stacked accordion sections for View, Filters, Satellite Selection, Timelines, Other Selections, and Settings.
 - Confirm each accordion header keeps the legacy dark navy/blue style and colored left accent.
 - Confirm expanded accordion headers are readable, especially `Filters - Satellites Found` and `Satellite Selection` on initial page load.
 - Confirm the numeric satellite count in `Filters - Satellites Found` is red and bold in both expanded and collapsed states.
@@ -759,7 +763,7 @@ Checks not fully performed in this terminal:
 - The accordion menu is thinner than the previous release while staying usable.
 - Multiple accordion sections can stay open at the same time.
 - `Filters` and `Satellite Selection` start expanded on page load.
-- The accordion order is Filters, Satellite Selection, View, Timelines, Other Selections, Settings.
+- The accordion order is View, Filters, Satellite Selection, Timelines, Other Selections, Settings.
 - The generated tag/company filter never exposes an `Active` chip.
 - Launch and re-entry timeline checkboxes are mutually exclusive and checkbox state matches HUD visibility.
 - Yaw/Pitch/Roll sliders remain visible and preserve current values after selecting or switching satellites when YPR is enabled.

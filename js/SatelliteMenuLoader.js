@@ -9,6 +9,21 @@ export function satelliteMenuLoader() {
     <div id="versionDisplay"></div>
 
     <div class="menu-accordion" aria-label="OpenBEXI menu sections">
+      <section id="viewAccordionSection" class="menu-accordion-section menu-section-view">
+        <h3 id="viewAccordionHeader" role="button" tabindex="0" aria-controls="viewContent" aria-expanded="false" data-collapsible-target="viewContent" class="section-heading menu-accordion-heading menu-accordion-heading-view" data-default-collapsed="true">
+          <span>View</span>
+          <span class="toggle-icon">v</span>
+        </h3>
+
+        <div id="viewContent" class="collapsible-content view-option-grid" aria-labelledby="viewAccordionHeader">
+          <label><input type="checkbox" id="view3DToggle" checked>Globe</label>
+          <label><input type="checkbox" id="viewMercatorToggle">Mercator</label>
+          <label><input type="checkbox" id="highDefToggle"> High Def.</label>
+          <label><input type="checkbox" id="showECEFAxesToggle"> ECEF Axes</label>
+          <label><input type="checkbox" id="showDayNightToggle" checked> Day/Night</label>
+        </div>
+      </section>
+
       <section id="filtersAccordionSection" class="menu-accordion-section menu-section-filters">
         <h3 id="filtersAccordionHeader" role="button" tabindex="0" aria-controls="filtersContent" aria-expanded="true" data-collapsible-target="filtersContent" class="section-heading menu-accordion-heading menu-accordion-heading-filters" data-default-expanded="true">
           <span>Filters - Satellites Found: <span id="satelliteCountDisplay">0</span></span>
@@ -108,21 +123,6 @@ export function satelliteMenuLoader() {
 
           <div id="selectedSatelliteSummary" class="selected-satellite-summary">No satellite selected</div>
           <div id="satelliteInfo"><div style="font-weight:bold;">No satellite selected</div></div>
-        </div>
-      </section>
-
-      <section id="viewAccordionSection" class="menu-accordion-section menu-section-view">
-        <h3 id="viewAccordionHeader" role="button" tabindex="0" aria-controls="viewContent" aria-expanded="false" data-collapsible-target="viewContent" class="section-heading menu-accordion-heading menu-accordion-heading-view" data-default-collapsed="true">
-          <span>View</span>
-          <span class="toggle-icon">v</span>
-        </h3>
-
-        <div id="viewContent" class="collapsible-content view-option-grid" aria-labelledby="viewAccordionHeader">
-          <label><input type="checkbox" id="view3DToggle" checked>Globe</label>
-          <label><input type="checkbox" id="viewMercatorToggle">Mercator</label>
-          <label><input type="checkbox" id="highDefToggle"> High Def.</label>
-          <label><input type="checkbox" id="showECEFAxesToggle"> ECEF Axes</label>
-          <label><input type="checkbox" id="showDayNightToggle" checked> Day/Night</label>
         </div>
       </section>
 

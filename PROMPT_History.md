@@ -1,5 +1,95 @@
 # Prompt History
 
+## Release Date: 2026-06-03  Version 1.5.8
+
+Move the `View` accordion section to the very top of the left menu, above `Filters`.
+
+The visible menu order must now prioritize display controls first so Globe, Mercator, High Def., ECEF Axes, and Day/Night are immediately reachable at the top of the menu.
+
+Requirements:
+
+1. Change the accordion section order.
+   - The left menu order must be: `View`, `Filters`, `Satellite Selection`, `Timelines`, `Other Selections`, `Settings`.
+   - Move only the `View` section position.
+   - Preserve all existing controls inside the `View` section.
+   - Preserve the existing `View` section color/accent styling.
+   - Preserve the existing collapsed/expanded behavior.
+
+2. Preserve default expanded sections.
+   - `Filters` must still start expanded on every `index.html` load.
+   - `Satellite Selection` must still start expanded on every `index.html` load.
+   - `View` may remain collapsed by default unless explicitly changed elsewhere.
+   - Persisted accordion state must not collapse the default-expanded `Filters` or `Satellite Selection` sections.
+
+3. Preserve behavior.
+   - Moving the `View` section must not break Globe, Mercator, High Def., ECEF Axes, or Day/Night toggles.
+   - Moving the `View` section must not break satellite search, selected-satellite summary, `Show Orbit`, `Show Footprint`, YPR controls, filters, timelines, or settings.
+   - Multiple accordion sections must still be allowed to remain open at the same time.
+   - Expanding or collapsing `View` must not collapse any other section.
+
+4. Update tests and documentation.
+   - Update tests that assert accordion section order.
+   - Update `Test_and_Integration.md` with the new menu order.
+   - Update `README.md` if it describes the menu order.
+   - Keep existing tests for dropdown close behavior, selected-orbit Earth occlusion, default-expanded sections, multi-open accordion behavior, YPR persistence, and timeline exclusivity passing.
+
+Acceptance criteria:
+
+- The visible accordion order is `View`, `Filters`, `Satellite Selection`, `Timelines`, `Other Selections`, `Settings`.
+- `View` appears at the very top of the menu, above `Filters`.
+- `Filters` and `Satellite Selection` still start expanded.
+- The `View` controls still work.
+- Satellite selection, orbit, footprint, YPR, filters, timelines, and settings still work.
+- `npm test` passes.
+- JavaScript syntax checks pass.
+
+---
+
+## Release Date: 2026-06-03  Version 1.5.7
+
+Move the `View` accordion section directly below `Filters` in the left menu.
+
+The display controls for Globe, Mercator, High Def., ECEF Axes, and Day/Night should be easier to reach without scrolling past satellite-selection controls.
+
+Requirements:
+
+1. Change the accordion section order.
+   - The left menu order must be: `Filters`, `View`, `Satellite Selection`, `Timelines`, `Other Selections`, `Settings`.
+   - Move only the `View` section position.
+   - Preserve all existing controls inside the `View` section.
+   - Preserve the existing `View` section color/accent styling.
+   - Preserve the existing collapsed/expanded behavior.
+
+2. Preserve default expanded sections.
+   - `Filters` must still start expanded on every `index.html` load.
+   - `Satellite Selection` must still start expanded on every `index.html` load.
+   - `View` may remain collapsed by default unless explicitly changed elsewhere.
+   - Persisted accordion state must not collapse the default-expanded `Filters` or `Satellite Selection` sections.
+
+3. Preserve behavior.
+   - Moving the `View` section must not break Globe, Mercator, High Def., ECEF Axes, or Day/Night toggles.
+   - Moving the `View` section must not break satellite search, selected-satellite summary, `Show Orbit`, `Show Footprint`, YPR controls, filters, timelines, or settings.
+   - Multiple accordion sections must still be allowed to remain open at the same time.
+   - Expanding or collapsing `View` must not collapse any other section.
+
+4. Update tests and documentation.
+   - Update tests that assert accordion section order.
+   - Update `Test_and_Integration.md` with the new menu order.
+   - Update `README.md` if it describes the menu order.
+   - Keep existing tests for dropdown close behavior, selected-orbit Earth occlusion, default-expanded sections, multi-open accordion behavior, YPR persistence, and timeline exclusivity passing.
+
+Acceptance criteria:
+
+- The visible accordion order is `Filters`, `View`, `Satellite Selection`, `Timelines`, `Other Selections`, `Settings`.
+- `View` appears immediately below `Filters`.
+- `Filters` and `Satellite Selection` still start expanded.
+- The `View` controls still work.
+- Satellite selection, orbit, footprint, YPR, filters, timelines, and settings still work.
+- `npm test` passes.
+- JavaScript syntax checks pass.
+
+---
+
 ## Release Date: 2026-06-03  Version 1.5.6
 
 Fix two blocking defects shown in the attached screenshots: the satellite-selection dropdown can remain stuck open and block controls, and selected-satellite orbit trajectories can render through the front of Earth instead of being occluded by the globe.

@@ -42,9 +42,9 @@ function run() {
   const otherSection = indexOfOrFail(html, 'id="otherAccordionSection"', 'other accordion exists');
   const settingsSection = indexOfOrFail(html, 'id="settingsAccordionSection"', 'settings accordion exists');
   assert(
-    filtersSection < satelliteSection && satelliteSection < viewSection && viewSection < timelinesSection &&
+    viewSection < filtersSection && filtersSection < satelliteSection && satelliteSection < timelinesSection &&
       timelinesSection < otherSection && otherSection < settingsSection,
-    'accordion section order is Filters, Satellite Selection, View, Timelines, Other, Settings'
+    'accordion section order is View, Filters, Satellite Selection, Timelines, Other, Settings'
   );
 
   assert(indexHtml.includes("DEFAULT_EXPANDED_ACCORDION_SECTIONS = new Set(['filtersContent', 'satelliteSelectionContent'])"), 'Filters and Satellite Selection are forced open on page load');

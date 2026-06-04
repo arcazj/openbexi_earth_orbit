@@ -14,7 +14,7 @@ OpenBEXI Earth Orbit is a browser-based satellite visualization app built with p
 - Multi-select orbit filters for `ALL`, `GEO`, `MEO`, `LEO`, `HEO`, and `Other`.
 - Multi-select tag/operator filters such as `Starlink`, `One Web`, `SES`, `Intelsat`, `Weather`, and `Iridium`.
 - Debris filtering modes: show all, hide debris, or debris only.
-- Accordion-style menu sections for Filters, Satellite Selection, View, Timelines, Other Selections, and Settings, preserving the legacy colored section accents.
+- Accordion-style menu sections for View, Filters, Satellite Selection, Timelines, Other Selections, and Settings, preserving the legacy colored section accents.
 - Searchable satellite selector with typeahead support for satellite name, NORAD ID, orbit type, and company/tag; selected results close cleanly after mouse, keyboard, Escape, Tab, or outside-click interactions.
 - Filter reset, active-filter summary, and zero-result empty states.
 - Selected-satellite details, orbit path display, footprint display, LVLH orbit frame, and yaw/pitch/roll controls.
@@ -150,9 +150,9 @@ The timing summary includes lifecycle and app-specific marks such as `dom-conten
 
 The left menu is organized into compact colored accordion sections. Multiple sections can stay open at the same time; expanding one section does not collapse any other section. `Filters` and `Satellite Selection` always start expanded when `index.html` loads. Expanded headers use dark high-contrast text on the light metallic background for readability, and the live satellite count in the Filters header is red and bold.
 
+- `View`: globe, Mercator, high-definition texture, ECEF axes, and day/night controls.
 - `Filters`: orbit, tag, debris filters, active summary, and reset action.
 - `Satellite Selection`: searchable satellite selector, selected-satellite status, orbit/footprint/YPR controls, and satellite metadata.
-- `View`: globe, Mercator, high-definition texture, ECEF axes, and day/night controls.
 - `Timelines`: checkbox toggles for launch and re-entry timelines.
 - `Other Selections`: Earth/Moon context selection.
 - `Settings`: simulation and diagnostic notes.
