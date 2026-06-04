@@ -16,11 +16,19 @@ export function satelliteMenuLoader() {
         </h3>
 
         <div id="viewContent" class="collapsible-content view-option-grid" aria-labelledby="viewAccordionHeader">
-          <label><input type="checkbox" id="view3DToggle" checked>Globe</label>
-          <label><input type="checkbox" id="viewMercatorToggle">Mercator</label>
-          <label><input type="checkbox" id="highDefToggle"> High Def.</label>
-          <label><input type="checkbox" id="showECEFAxesToggle"> ECEF Axes</label>
-          <label><input type="checkbox" id="showDayNightToggle" checked> Day/Night</label>
+          <div class="view-control-row view-control-row-two">
+            <label><input type="checkbox" id="view3DToggle" checked>Globe</label>
+            <label><input type="checkbox" id="viewMercatorToggle">Mercator</label>
+          </div>
+          <div class="view-control-row view-control-row-three">
+            <label><input type="checkbox" id="highDefToggle"> High Def.</label>
+            <label><input type="checkbox" id="showECEFAxesToggle"> ECEF Axes</label>
+            <label><input type="checkbox" id="showDayNightToggle" checked> Day/Night</label>
+          </div>
+          <div class="view-control-row view-shortcut-row">
+            <button id="selectFirstStarlinkButton" type="button" class="view-shortcut-button" aria-label="Starlink shortcut unavailable" disabled>Starlink unavailable</button>
+            <button id="selectIssButton" type="button" class="view-shortcut-button" aria-label="ISS shortcut unavailable" disabled>ISS unavailable</button>
+          </div>
         </div>
       </section>
 
@@ -169,6 +177,25 @@ export function satelliteMenuLoader() {
         <div id="settingsContent" class="collapsible-content settings-panel" aria-labelledby="settingsAccordionHeader">
           <div class="menu-helper">Use the time slider at the top of the screen to control simulation speed.</div>
           <div class="menu-helper">Startup timing diagnostics are available with <code>?perf=1</code>.</div>
+        </div>
+      </section>
+
+      <section id="helpAccordionSection" class="menu-accordion-section menu-section-help">
+        <h3 id="helpAccordionHeader" role="button" tabindex="0" aria-controls="helpContent" aria-expanded="false" data-collapsible-target="helpContent" class="section-heading menu-accordion-heading menu-accordion-heading-help" data-default-collapsed="true">
+          <span>Help</span>
+          <span class="toggle-icon">v</span>
+        </h3>
+        <div id="helpContent" class="collapsible-content help-panel" aria-labelledby="helpAccordionHeader">
+          <div class="help-link-list" aria-label="Project help links">
+            <a href="https://github.com/arcazj/openbexi_earth_orbit" title="https://github.com/arcazj/openbexi_earth_orbit" target="_blank" rel="noopener noreferrer">GitHub</a>
+            <a href="README.md" title="README.md">README</a>
+            <a href="PROMPT_History.md" title="PROMPT_History.md">Prompt History</a>
+            <a href="LICENSE" title="LICENSE">License</a>
+          </div>
+          <div class="help-disclaimer" role="note" aria-label="Disclaimer">
+            <strong>Disclaimer:</strong>
+            This app is for visualization, educational, and experimental purposes only. The author is not responsible for inaccurate satellite data, TLE propagation, model rendering, orbital position, attitude/orientation, timing, visualization results, or limitations from third-party libraries including satellite.js. Do not use it for navigation, safety, mission planning, collision avoidance, or operational satellite decisions.
+          </div>
         </div>
       </section>
     </div>

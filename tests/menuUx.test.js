@@ -41,11 +41,35 @@ function run() {
   const timelinesSection = indexOfOrFail(html, 'id="timelinesAccordionSection"', 'timelines accordion exists');
   const otherSection = indexOfOrFail(html, 'id="otherAccordionSection"', 'other accordion exists');
   const settingsSection = indexOfOrFail(html, 'id="settingsAccordionSection"', 'settings accordion exists');
+  const helpSection = indexOfOrFail(html, 'id="helpAccordionSection"', 'help accordion exists');
   assert(
     viewSection < filtersSection && filtersSection < satelliteSection && satelliteSection < timelinesSection &&
-      timelinesSection < otherSection && otherSection < settingsSection,
-    'accordion section order is View, Filters, Satellite Selection, Timelines, Other, Settings'
+      timelinesSection < otherSection && otherSection < settingsSection && settingsSection < helpSection,
+    'accordion section order is View, Filters, Satellite Selection, Timelines, Other, Settings, Help'
   );
+
+  const viewContent = indexOfOrFail(html, 'id="viewContent"', 'View content exists');
+  const globeToggle = indexOfOrFail(html, 'id="view3DToggle"', 'Globe toggle exists');
+  const mercatorToggle = indexOfOrFail(html, 'id="viewMercatorToggle"', 'Mercator toggle exists');
+  const highDefToggle = indexOfOrFail(html, 'id="highDefToggle"', 'High Def toggle exists');
+  const axesToggle = indexOfOrFail(html, 'id="showECEFAxesToggle"', 'ECEF Axes toggle exists');
+  const dayNightToggle = indexOfOrFail(html, 'id="showDayNightToggle"', 'Day/Night toggle exists');
+  const starlinkShortcut = indexOfOrFail(html, 'id="selectFirstStarlinkButton"', 'First Starlink shortcut exists');
+  const issShortcut = indexOfOrFail(html, 'id="selectIssButton"', 'ISS shortcut exists');
+  assert(
+    viewContent < globeToggle && globeToggle < mercatorToggle &&
+      mercatorToggle < highDefToggle && highDefToggle < axesToggle &&
+      axesToggle < dayNightToggle && dayNightToggle < starlinkShortcut &&
+      starlinkShortcut < issShortcut,
+    'View menu order is Globe/Mercator, High Def/ECEF/Day-Night, then First Starlink/ISS shortcuts'
+  );
+  assert(html.includes('view-control-row view-control-row-two'), 'View menu has a two-item first row');
+  assert(html.includes('view-control-row view-control-row-three'), 'View menu has a three-item second row');
+  assert(html.includes('view-control-row view-shortcut-row'), 'View menu has a shortcut button row');
+  assert(html.includes('aria-label="Starlink shortcut unavailable"'), 'Starlink shortcut has unavailable accessible text before TLE load');
+  assert(html.includes('aria-label="ISS shortcut unavailable"'), 'ISS shortcut has unavailable accessible text before TLE load');
+  assert(html.includes('Starlink unavailable'), 'Starlink shortcut has required unavailable fallback text');
+  assert(html.includes('ISS unavailable'), 'ISS shortcut has required unavailable fallback text');
 
   assert(indexHtml.includes("DEFAULT_EXPANDED_ACCORDION_SECTIONS = new Set(['filtersContent', 'satelliteSelectionContent'])"), 'Filters and Satellite Selection are forced open on page load');
   assert(indexHtml.includes('DEFAULT_COLLAPSED_ACCORDION_SECTIONS'), 'other accordion defaults are explicit');
@@ -80,11 +104,20 @@ function run() {
   const timelinePanel = indexOfOrFail(html, 'id="timelineContent"', 'timeline content exists');
   const otherPanel = indexOfOrFail(html, 'id="otherSelectionsContent"', 'other content exists');
   const settingsPanel = indexOfOrFail(html, 'id="settingsContent"', 'settings content exists');
-  assert(timelinePanel < otherPanel && otherPanel < settingsPanel, 'Other section appears between Timelines and Settings');
+  const helpPanel = indexOfOrFail(html, 'id="helpContent"', 'help content exists');
+  assert(timelinePanel < otherPanel && otherPanel < settingsPanel && settingsPanel < helpPanel, 'Help section appears after Settings');
   assert(html.includes('type="checkbox" id="launchTimelineToggle"'), 'launch timeline toggle is a checkbox');
   assert(html.includes('type="checkbox" id="reentryTimelineToggle"'), 're-entry timeline toggle is a checkbox');
   assert(html.includes('other-selections-heading'), 'Other Selections has a blue styling hook');
   assert(html.includes('data-collapsible-target="otherSelectionsContent"'), 'Other Selections is collapsible');
+  assert(html.includes('data-collapsible-target="helpContent"'), 'Help section is collapsible');
+  assert(html.includes('href="https://github.com/arcazj/openbexi_earth_orbit"'), 'Help includes GitHub project link');
+  assert(html.includes('target="_blank" rel="noopener noreferrer"'), 'GitHub Help link opens safely in a new tab');
+  assert(html.includes('href="README.md"'), 'Help includes README link');
+  assert(html.includes('href="PROMPT_History.md"'), 'Help includes Prompt History link');
+  assert(html.includes('href="LICENSE"'), 'Help includes License link');
+  assert(html.includes('for visualization, educational, and experimental purposes only'), 'Help includes legal disclaimer');
+  assert(html.includes('satellite.js'), 'Help disclaimer mentions satellite.js limitations');
 
   assert(css.includes('.menu-accordion-heading'), 'CSS defines accordion headers');
   assert(css.includes('--menu-metal'), 'CSS preserves the metallic blue expanded style');
@@ -112,17 +145,44 @@ function run() {
   assert(css.includes('.menu-accordion-heading-timelines { border-left-color: #d45187; }'), 'Timelines keeps the legacy pink accent');
   assert(css.includes('.menu-accordion-heading-other { border-left-color: #53a7ff; }'), 'Other keeps the legacy blue accent');
   assert(css.includes('.menu-accordion-heading-settings { border-left-color: #77859c; }'), 'Settings keeps the legacy gray-blue accent');
+  assert(css.includes('.menu-accordion-heading-help { border-left-color: #a98cff; }'), 'Help keeps a dedicated legacy-style accent');
+  assert(css.includes('.help-panel'), 'Help panel has dedicated CSS');
+  assert(css.includes('.help-link-list'), 'Help links have dedicated CSS');
+  assert(css.includes('.help-disclaimer'), 'Help disclaimer has dedicated CSS');
   assert(css.includes('.filter-chip input[type="checkbox"]:checked + span'), 'selected tag chips have a distinct active style');
   assert(css.includes(':focus-visible'), 'menu controls have visible focus styling');
   assert(css.includes('@media (max-width: 560px)'), 'menu has narrow viewport behavior');
+  assert(css.includes('.view-control-row-two'), 'View first row has dedicated CSS');
+  assert(css.includes('.view-control-row-three'), 'View second row has dedicated CSS');
+  assert(css.includes('.view-shortcut-row'), 'View shortcut row has dedicated CSS');
+  assert(css.includes('.view-shortcut-button'), 'View shortcut buttons have dedicated CSS');
 
   assert(indexHtml.includes('MENU_COLLAPSE_STORAGE_KEY'), 'index persists collapsed accordion sections');
+  assert(indexHtml.includes("'helpContent'"), 'Help starts collapsed with other non-default accordion sections');
   assert(indexHtml.includes('ensureYPRControlsVisibleForSelection'), 'index preserves YPR controls after satellite selection');
   assert(!/yawSlider\.value\s*=\s*0/.test(indexHtml), 'satellite selection does not reset yaw slider value');
   assert(!/pitchSlider\.value\s*=\s*0/.test(indexHtml), 'satellite selection does not reset pitch slider value');
   assert(!/rollSlider\.value\s*=\s*0/.test(indexHtml), 'satellite selection does not reset roll slider value');
   assert(indexHtml.includes('satelliteSearchText'), 'index implements satellite search matching');
   assert(indexHtml.includes('resetFiltersToDefaults'), 'index implements filter reset');
+  assert(indexHtml.includes('setShowOnlySelectedSatellite(true)'), 'selecting a satellite auto-enables show-only-selected mode');
+  assert(indexHtml.includes('setShowOnlySelectedSatellite(false)'), 'clearing a satellite disables show-only-selected mode');
+  assert(indexHtml.includes('showOnlySelectedSatelliteCheckbox.checked'), 'show-only-selected checkbox is synchronized with simParams');
+  assert(indexHtml.includes('enableHighDefForSelectedSatelliteIfNeeded(tleSatData)'), 'non-MEO/GEO selections auto-enable High Def Earth');
+  assert(indexHtml.includes("orbitType === 'MEO' || orbitType === 'GEO'"), 'MEO and GEO selections do not force High Def on');
+  assert(indexHtml.includes('clearSatelliteSearchInputForNextSelection'), 'search field clears the prior selected label before a new search');
+  assert(indexHtml.includes('satelliteSearchClearedForNextSelection'), 'search clearing preserves the current selected satellite');
+  assert(indexHtml.includes('findFirstStarlinkSatellite'), 'View shortcut can locate the first Starlink satellite');
+  assert(indexHtml.includes('findIssSatellite'), 'View shortcut can locate ISS/ZARYA');
+  assert(indexHtml.includes('selectSatelliteViaShortcut'), 'View shortcuts use the normal satellite selection path');
+  assert(indexHtml.includes('starlinkShortcutState(findFirstStarlinkSatellite())'), 'Starlink shortcut uses dynamic state helper');
+  assert(indexHtml.includes('issShortcutState(findIssSatellite())'), 'ISS shortcut uses dynamic state helper');
+  assert(indexHtml.includes("s?.norad_id?.toString() === ISS_NORAD_ID"), 'ISS shortcut prefers NORAD 25544');
+  assert(indexHtml.includes('iss-velocity-nadir-frame'), 'ISS selected model uses orbital-frame orientation mode');
+  assert(indexHtml.includes('calibrationPitchDeg'), 'ISS orientation diagnostics include pitch calibration');
+  assert(indexHtml.includes('calibrationRollDeg'), 'ISS orientation diagnostics include roll calibration');
+  assert(indexHtml.includes('visible = !!currentSelectedSatellite'), 'show-only visibility is not constrained by current filters');
+  assert(indexHtml.includes('earthInView: selectedCameraFrameKeepsEarthInView'), 'selected-satellite camera metadata checks Earth remains visible');
   assert(indexHtml.includes('isSatelliteDropdownOpen'), 'satellite search uses explicit dropdown open state');
   assert(indexHtml.includes('document.addEventListener(\'pointerdown\''), 'outside clicks close satellite search results');
   assert(indexHtml.includes("event.key === 'Tab'"), 'Tab closes satellite search results without trapping focus');

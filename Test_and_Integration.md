@@ -8,7 +8,7 @@ Version 1.4 adds selected-satellite observer framing and Earth-facing orientatio
 
 Version 1.4.1 fixes selected-satellite detailed model resolution. When a selected satellite has a related local OBJ/MTL or GLB asset under `obj/`, the app should load that local model; otherwise the selected TLE sprite must remain visible as the fallback.
 
-Version 1.4.2 fixes the selected-satellite model visibility regression. Detailed selected models must be visibly inspectable in 3D, with the observer targeting about 100 meters from the satellite when practical, a documented visual fallback when app scaling requires it, and `display_satellite.html` available as an isolated local OBJ/MTL and GLB model viewer.
+Version 1.4.2 fixed the selected-satellite model visibility regression with close observer targeting and `display_satellite.html` as an isolated local OBJ/MTL and GLB model viewer. Version 1.5.9 supersedes the old fallback-distance behavior by requiring the selected detailed-model observer eye to remain at the exact converted 100 m default distance.
 
 Version 1.4.3 cleans up prompt/release structure and dependency versioning. `PROMPT.md` must contain only the general execution prompt, release history must live in `PROMPT_History.md`, `index.html` must display the latest release version, and all browser import maps must use matching Three.js core/addon versions.
 
@@ -33,6 +33,14 @@ Version 1.5.6 fixes two blocking regressions: the satellite search/autocomplete 
 Version 1.5.7 moves the `View` accordion section directly below `Filters` so globe/Mercator/display controls are reachable near the top of the left menu while preserving existing accordion behavior and default expanded sections.
 
 Version 1.5.8 moves the `View` accordion section to the very top of the left menu, above `Filters`, while preserving existing accordion behavior and default expanded sections.
+
+Version 1.5.9 fixes selected-satellite detailed-model visibility at close range. For local OBJ/MTL or GLB selected models, the camera/observer eye must stay exactly 100 real-world meters from the selected satellite target by default. Model bounds and camera FOV are used for visual-scale fitting, near-plane safety, zoom limits, and visibility checks instead of moving the observer farther away. The selected model must remain centered while it moves, and automated tests must confirm at least one known local model is in front of the camera, inside the viewport, and large enough to inspect.
+
+Version 1.5.10 corrects Starlink selected-model orientation and observer placement. Starlink local `+X` must align with propagated velocity, local `+Z` must align with nadir toward Earth, and local `+Y` must complete the right-handed frame. The default Starlink selected view must stay at the 100 m observer-eye distance but use an oblique reference-style camera offset so Earth/horizon appears behind and below the satellite instead of centered directly behind it.
+
+Version 1.5.11 tightens selected-satellite UX. Any satellite selection must automatically enable `Show only selected satellite`, keep that checkbox synchronized with `simParams.showOnlySelectedSatellite`, and keep only the selected satellite visible even when the current filters would otherwise hide it. Selecting a non-`MEO`/non-`GEO` satellite must automatically enable `High Def.` Earth without forcing that setting off for MEO/GEO selections. The selected-satellite observer frame must continue to keep Earth visible behind the satellite. The `View` menu must group `Globe`/`Mercator`, `High Def.`/`ECEF Axes`/`Day/Night`, and `First Starlink`/`ISS` shortcuts on three compact rows. The shortcuts must select the same satellites through the same path as the regular selector. After a satellite selection, the next focus, click, typing, paste, or clear action in the search field must clear only the prior selected label so the user can search for another satellite without clearing the active selection.
+
+Version 1.5.12 adds a Help section and improves shortcut/orientation clarity. The Starlink shortcut must display the resolved NORAD ID as `Starlink (<NORAD ID>)`, with unavailable fallbacks for Starlink and ISS. ISS selected models must use the live velocity/nadir/right-handed orbital frame with ISS-specific calibration diagnostics. The Help accordion must appear after Settings and include GitHub, README, Prompt History, License, and a concise legal disclaimer about data, model, visualization, and `satellite.js` limitations.
 
 ## Test Environment
 
@@ -140,10 +148,15 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 ### Selected-Satellite Framing and Orientation
 
 - Test real-meter to scene-unit conversion for the 75 to 100 m selected-satellite observer range and the 100 m selected-model target.
-- Test the selected-satellite observer distance never falls below the physical target and uses a documented visual fallback when the literal distance would clip or make the satellite unreadable.
+- Test selected detailed-model framing preserves the exact converted 100 m observer-eye distance by default and does not use the old visual fallback that moved the observer farther away.
+- Test selected detailed-model visual fitting uses loaded model bounds and camera FOV to keep the model within the target viewport-size range.
 - Test selected-satellite camera framing places the observer outward from Earth through the selected satellite, with Earth behind the satellite.
 - Test detailed-model framing can use a reduced camera near plane so the model is not forced into the old Earth-radius fallback distance.
-- Test Starlink visual framing uses the local Starlink OBJ bounds and keeps the model large enough to inspect.
+- Test Starlink visual framing uses the local Starlink OBJ bounds and keeps the model large enough to inspect at the 100 m observer distance.
+- Test at least one known local model projects in front of the camera, inside the viewport, and at a non-trivial screen-space size.
+- Test Starlink orbital-frame orientation maps local `+X` to propagated velocity, local `+Z` to nadir, and local `+Y` to the right-handed cross-track axis.
+- Test default Starlink yaw/pitch/roll values preserve the base orbital-frame alignment before user slider bias is applied.
+- Test Starlink selected-view camera offset is oblique, includes velocity and cross-track components, preserves the 100 m observer distance, and is not the old pure radial Earth-centered placement.
 - Test the configured model Earth-facing axis maps to the nadir direction toward Earth's center.
 - Test yaw-only bias preserves nadir pointing for the configured Earth-facing axis.
 
@@ -192,6 +205,23 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test satellite search keeps combobox/listbox accessibility hooks: `aria-expanded`, `aria-controls`, `role="listbox"`, `role="option"`, and active-descendant state.
 - Test launch and re-entry timeline checkbox logic is mutually exclusive and exposes HUD visibility state.
 - Test `getFullGitHubUrl()` handles `null`, `undefined`, non-string values, absolute URLs, and relative paths without throwing.
+- Test the View section lays out Globe/Mercator on one row, High Def./ECEF Axes/Day-Night on one row, and First Starlink/ISS shortcut buttons on one row.
+- Test selecting any satellite automatically checks `Show only selected satellite`, synchronizes `simParams.showOnlySelectedSatellite`, and leaves only that selected satellite visible.
+- Test `Show only selected satellite` visibility is not constrained by the current orbit/tag/debris filters.
+- Test selecting a non-`MEO`/non-`GEO` satellite automatically enables `High Def.` Earth and synchronizes the checkbox.
+- Test selecting `MEO` or `GEO` satellites does not force `High Def.` off.
+- Test First Starlink and ISS shortcut buttons locate satellites from loaded TLE data and dispatch the normal selection path.
+- Test the ISS shortcut prefers NORAD `25544`.
+- Test the satellite search field clears the prior selected label on the next focus/click/type/paste/clear action without clearing the current selected satellite.
+- Test selected-satellite camera metadata confirms Earth remains visible in the selected observer frame.
+- Test the Starlink shortcut dynamic state helper emits `Starlink (<NORAD ID>)` for a resolved Starlink target and `Starlink unavailable` when no target exists.
+- Test the ISS shortcut dynamic state helper emits `ISS` for a resolved ISS target and `ISS unavailable` when no target exists.
+- Test generated menu markup contains a Help accordion section after Settings.
+- Test the Help section contains GitHub, README, Prompt History, and License links.
+- Test the GitHub Help link uses `target="_blank"` and `rel="noopener noreferrer"`.
+- Test the Help section contains the legal disclaimer and mentions `satellite.js`.
+- Test ISS selected-model orientation maps local `+X` to velocity, local `+Y` to the right-handed cross-track/starboard axis, and local `+Z` to nadir.
+- Test ISS orientation diagnostics include `orientationMode`, `modelAxisMapping`, `calibrationYawDeg`, `calibrationPitchDeg`, and `calibrationRollDeg`.
 
 ### Regression Coverage
 
@@ -239,6 +269,22 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm `Filters` and `Satellite Selection` start expanded on every `index.html` load.
 - Confirm multiple accordion sections can stay open at the same time.
 - Confirm selecting filters, tags, debris modes, timelines, and view toggles does not collapse unrelated accordion sections.
+- Confirm the `View` section keeps `Globe` and `Mercator` on one row.
+- Confirm the `View` section keeps `High Def.`, `ECEF Axes`, and `Day/Night` on one row.
+- Confirm the `View` section keeps `First Starlink` and `ISS` shortcut buttons on one row.
+- Click `First Starlink` and confirm the first loaded Starlink is selected, `Show only selected satellite` becomes checked, only that satellite remains visible, `High Def.` becomes checked, and the selected-satellite camera/model path matches normal satellite selection.
+- Click `ISS` and confirm ISS/ZARYA NORAD `25544` is selected through the normal selection path, `Show only selected satellite` becomes checked, only ISS remains visible, and `High Def.` becomes checked because ISS is not MEO/GEO.
+- Select a MEO or GEO satellite after High Def. is enabled and confirm the app does not force High Def. off.
+- Select a satellite that is outside the current filter selection through a shortcut and confirm the selected satellite remains visible even though the filter list is different.
+- After selecting a satellite, focus or click the satellite search field and confirm the previous selected label clears for a new search while the selected-satellite summary and selected marker/model remain active.
+- After selecting a satellite, type or paste into the already-focused search field and confirm the previous selected label clears before the new query is entered.
+- Confirm the Starlink shortcut label updates to `Starlink (<NORAD ID>)` after TLE data loads.
+- Confirm the Starlink shortcut shows `Starlink unavailable` if no Starlink target can be resolved.
+- Confirm the ISS shortcut shows `ISS unavailable` if no ISS target can be resolved.
+- Confirm a `Help` accordion section appears after `Settings`.
+- Open Help and confirm the `GitHub`, `README`, `Prompt History`, and `License` links are readable and clickable.
+- Confirm the GitHub Help link opens in a new tab and the Markdown/license links use relative repository paths.
+- Confirm the Help disclaimer is readable at the current menu width and on narrow screens.
 
 ## Version 1.5.6 Manual Regression
 
@@ -299,7 +345,10 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm a no-results message appears for a query with no matches.
 - Use the clear action and confirm the search query is reset.
 - Select a satellite from search and confirm satellite info, selected marker/model behavior, selected summary, orbit, and Mercator selected state still work.
+- Confirm selecting a satellite from search checks `Show only selected satellite` and leaves only the selected satellite visible.
+- Confirm selecting a non-MEO/GEO satellite from search checks `High Def.`.
 - Select a satellite from a timeline and confirm the search field and selected summary reflect that selection.
+- Confirm selecting a satellite from a timeline also checks `Show only selected satellite` and uses the same camera/model behavior as the main selector.
 - Enable `Yaw-Pitch-Roll`, move yaw, pitch, and roll sliders away from zero, then select a satellite from search and confirm the sliders remain visible and keep their values.
 - With `Yaw-Pitch-Roll` enabled, select a satellite from a timeline and confirm the `Satellite Selection` accordion section remains or becomes expanded without collapsing any other open section.
 - Switch between two satellites while `Yaw-Pitch-Roll` is enabled and confirm the sliders remain visible, usable, and unchanged.
@@ -390,6 +439,9 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
   - A `OneWeb` satellite loads the OneWeb OBJ/MTL model from `obj/`.
   - An `O3b` satellite loads the O3b OBJ/MTL model from `obj/`.
   - `ISS` loads the ISS GLB model from `obj/` when available in the filtered selection.
+  - `ISS` visually uses the reference orbital orientation: `+X` velocity, `+Y` starboard/right-handed cross-track, and `+Z` nadir.
+  - ISS selected-model diagnostics report `orientationMode: "iss-velocity-nadir-frame"` plus yaw, pitch, and roll calibration values.
+  - From at least two camera angles, ISS remains inspectable and Earth remains visible in the initial selected view.
   - A GOES/Intelsat/SES-style GEO satellite loads the SSL 1300 fallback model when applicable.
 - Confirm selecting a satellite with a detailed model lowers near-plane clipping enough that the model is not clipped when the camera is close.
 - Confirm the selected-model fill light makes the model visible even when asset materials or texture lighting are weak.
@@ -398,6 +450,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Switch between two satellites quickly and confirm the app never displays a model for the previously selected satellite.
 - Toggle `Show Footprint`.
 - Toggle `Show only selected satellite`.
+- Select a satellite after manually unchecking `Show only selected satellite` and confirm the checkbox is checked again automatically.
 - Toggle `Orbit Frame (LVLH)`.
 - Toggle `Yaw-Pitch-Roll` and move yaw, pitch, and roll sliders; confirm the selected model and YPR frame remain coherent with nadir/Earth-facing orientation.
 - Switch to Mercator-only mode, select a satellite, and confirm the selected satellite is clearly highlighted without triggering 3D camera-distance behavior.
@@ -417,16 +470,19 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
   - Its 3D orbit trail passes through or very near the marker at the simulation time.
   - Its footprint is plausible for a low Earth orbit.
   - Selected-satellite framing keeps Earth centered behind the satellite and remains readable.
+  - High Def. is automatically enabled when it was previously off.
 - Select a representative MEO satellite and confirm:
   - Its altitude and orbit radius are visually between LEO and GEO.
   - Its orbit trail remains aligned with the marker.
   - Its footprint is larger than LEO and smaller than GEO.
   - Selected-satellite framing keeps Earth centered behind the satellite and remains readable.
+  - High Def. is not forced off if it was already enabled.
 - Select a representative GEO satellite and confirm:
   - It remains near a fixed longitude in Mercator view.
   - Its orbit trail is visually consistent with an equatorial/geosynchronous path.
   - Its footprint is wider than LEO/MEO and remains finite.
   - Selected-satellite framing keeps Earth centered behind the satellite and remains readable.
+  - High Def. is not forced off if it was already enabled.
 - Confirm the Sun/day-night terminator changes as simulation time advances.
 - Confirm the Moon appears at the documented distance and follows the documented model.
 
@@ -463,9 +519,17 @@ py -m http.server 8000 --bind 127.0.0.1
   - Select `Starlink`.
   - Switch debris mode to `Debris only`.
   - Select one satellite and enable orbit display.
+  - Confirm selecting the satellite auto-checks `Show only selected satellite`, leaves only the selected object visible, and keeps the selected satellite active after clearing the search field for a new query.
+  - Confirm selecting a LEO/Starlink/ISS satellite auto-checks `High Def.` and selecting MEO/GEO afterward does not force High Def. off.
   - Confirm the 3D orbit path has no visible line through Earth caused by invalid propagation samples.
   - Select a Starlink satellite and confirm a local detailed model appears.
-  - Confirm the Starlink detailed model is visually centered, close to the camera, and has Earth centered behind it.
+  - Confirm the Starlink detailed model is visually centered, close to the camera, uses the reference-image orientation, has Earth/horizon behind and below it instead of centered directly behind it, and remains visible while moving.
+  - Confirm the selected-model camera/observer eye is using the 100 m default distance in the console `selectedView` diagnostics.
+  - Confirm the selected Starlink diagnostics report `observerPlacement: "starlink-oblique-orbital-frame"` and orientation mode `starlink-velocity-nadir-frame`.
+  - Confirm the Starlink shortcut label includes the resolved NORAD ID.
+  - Select ISS from the shortcut and confirm the selected ISS diagnostics report `orientationMode: "iss-velocity-nadir-frame"` and the ISS model visually follows the reference velocity/nadir/starboard orientation.
+  - Open Help and confirm GitHub, README, Prompt History, License, and the disclaimer are present.
+  - Confirm mouse orbit shows different faces of the selected model and zoom changes observer distance without losing centering.
   - Select a satellite without a model mapping and confirm the selected sprite stays visible.
   - Rapidly select two different satellites and confirm stale model loads do not attach to the scene.
   - Toggle Mercator view.
@@ -506,7 +570,7 @@ Before reporting completion, go through this file and record which checks were p
 - JavaScript syntax checks pass for all `js/*.js`.
 - Extracted module syntax checks pass for `index.html` and `display_satellite.html`.
 - Deep automated tests cover the coordinate-frame, orbit, Sun, Moon, scaling, selected-satellite model resolution, selected-satellite framing/orientation, footprint, menu, and URL-helper requirements above.
-- Automated tests cover Starlink OBJ visual bounds and selected camera distance behavior for 100 m target framing.
+- Automated tests cover Starlink OBJ visual bounds, selected camera distance behavior for exact 100 m target framing, deterministic satellite-visibility projection checks, Starlink velocity/nadir orientation, and oblique non-radial observer placement.
 - Browser smoke test over HTTP passes.
 - Isolated `display_satellite.html` local model viewer checks pass for Starlink default, another OBJ/MTL model, a GLB model, and a custom entry.
 - Filter UI regression passes.
@@ -749,6 +813,115 @@ Checks not fully performed in this terminal:
 
 - Full visible-browser confirmation that the satellite count is red/bold and the thinner menu remains usable remains manual.
 
+## Release 1.5.8 Verification Log
+
+Checks performed on 2026-06-04:
+
+- `PROMPT_History.md` contains the latest `Release Date: 2026-06-03 Version 1.5.8` entry at the top.
+- `index.html` visible version tag is `1.5.8`.
+- Generated menu markup in `js/SatelliteMenuLoader.js` orders accordion sections as `View`, `Filters`, `Satellite Selection`, `Timelines`, `Other Selections`, `Settings`.
+- Static menu tests verify `View` appears above `Filters`, `Filters` and `Satellite Selection` remain default-expanded, `View` remains default-collapsed, and accordion sections remain independently collapsible.
+- `npm test`: passed, including `encodingUx.test.js`, `menuUx.test.js`, `modelResolver.test.js`, `modelVisualFraming.test.js`, `releaseStructure.test.js`, `satelliteOrbitOcclusion.test.js`, `selectedSatelliteView.test.js`, `startupPerformance.test.js`, and `startupStructure.test.js`.
+- `Get-ChildItem -File .\js -Filter *.js | ForEach-Object { node --check $_.FullName }`: passed.
+- `Get-ChildItem -File .\tests -Filter *.js | ForEach-Object { node --check $_.FullName }`: passed.
+- Extracted `index.html` module script plus `node --check`: passed.
+- Extracted `display_satellite.html` module script plus `node --check`: passed.
+- `git diff --check`: passed with only the LF-to-CRLF normalization warning for `tests/releaseStructure.test.js`.
+- Local HTTP smoke check with `py -m http.server 8878 --bind 127.0.0.1`: `http://127.0.0.1:8878/index.html` returned `HTTP 200 OK`.
+
+Checks not fully performed in this terminal:
+
+- Full visible-browser click-through remains manual for Globe, Mercator, High Def., ECEF Axes, Day/Night, satellite search, orbit, footprint, YPR, timeline, and settings interactions. Static tests verify order and state wiring, and HTTP smoke verifies the page serves, but screenshot-level visual confirmation still requires a browser.
+
+## Release 1.5.9 Verification Log
+
+Checks performed on 2026-06-04:
+
+- `PROMPT_History.md` contains the latest `Release Date: 2026-06-04 Version 1.5.9` entry at the top.
+- `index.html` visible version tag is `1.5.9`.
+- Selected detailed-model framing now preserves the converted 100 m observer-eye distance by passing `preservePhysicalDistance` into the selected-satellite camera-frame math.
+- Selected-model visual fitting uses loaded model bounds, camera FOV, and the 100 m observer distance to scale the model into the target viewport-size range without moving the observer farther away.
+- Selected-model tracking keeps the OrbitControls target on the moving detailed model and applies only satellite motion delta to the camera, preserving user zoom and orbit offsets.
+- Static and deterministic tests verify Starlink OBJ bounds, corrected meter-to-scene model scaling, exact 100 m selected-model camera distance, viewport-size fitting, and projected visibility in front of the camera.
+- `npm test`: passed, including `encodingUx.test.js`, `menuUx.test.js`, `modelResolver.test.js`, `modelVisualFraming.test.js`, `releaseStructure.test.js`, `satelliteOrbitOcclusion.test.js`, `selectedSatelliteView.test.js`, `startupPerformance.test.js`, and `startupStructure.test.js`.
+- `Get-ChildItem -File .\js -Filter *.js | ForEach-Object { node --check $_.FullName }`: passed.
+- `Get-ChildItem -File .\tests -Filter *.js | ForEach-Object { node --check $_.FullName }`: passed.
+- Extracted `index.html` module script plus `node --check`: passed.
+- Extracted `display_satellite.html` module script plus `node --check`: passed.
+- `git diff --check`: passed with only LF-to-CRLF normalization warnings for edited files.
+- Local HTTP smoke check with `py -m http.server 8879 --bind 127.0.0.1`: `http://127.0.0.1:8879/index.html` returned `HTTP 200 OK`.
+
+Checks not fully performed in this terminal:
+
+- Full visible-browser confirmation that Starlink, OneWeb, ISS, and SSL 1300 detailed models are centered, visible, and inspectable at the 100 m observer-eye distance remains manual. Automated tests cover deterministic framing math and Starlink projected visibility, but screenshot-level visual inspection requires a browser.
+
+## Release 1.5.10 Verification Log
+
+Checks performed on 2026-06-04:
+
+- `PROMPT_History.md` contains the latest `Release Date: 2026-06-04 Version 1.5.10` entry at the top.
+- `index.html` visible version tag is `1.5.10`.
+- Shared scene-frame math now builds a Starlink-style orbital frame from propagated position and velocity: local `+X` maps to velocity, local `+Z` maps to nadir, and local `+Y` completes the right-handed frame.
+- Starlink selected models use `starlink-velocity-nadir-frame` orientation mode when velocity is available, while non-Starlink models keep the previous nadir-pointing behavior.
+- Starlink selected-camera framing uses `starlink-oblique-orbital-frame` placement at the same 100 m observer-eye distance instead of the old pure radial Earth-centered observer line.
+- Static and deterministic tests verify Starlink orbital-frame axes, right-handedness, yaw-bias behavior, non-radial oblique observer direction, reference-style camera-up vector, and exact 100 m selected-camera distance.
+- `npm test`: passed, including `encodingUx.test.js`, `menuUx.test.js`, `modelResolver.test.js`, `modelVisualFraming.test.js`, `releaseStructure.test.js`, `satelliteOrbitOcclusion.test.js`, `selectedSatelliteView.test.js`, `startupPerformance.test.js`, and `startupStructure.test.js`.
+- `Get-ChildItem -File .\js -Filter *.js | ForEach-Object { node --check $_.FullName }`: passed.
+- `Get-ChildItem -File .\tests -Filter *.js | ForEach-Object { node --check $_.FullName }`: passed.
+- Extracted `index.html` module script plus `node --check`: passed.
+- Extracted `display_satellite.html` module script plus `node --check`: passed.
+- `git diff --check`: passed with only LF-to-CRLF normalization warnings for edited files.
+- Local HTTP smoke check with `py -m http.server 8881 --bind 127.0.0.1`: `http://127.0.0.1:8881/index.html` returned `HTTP 200 OK`.
+
+Checks not fully performed in this terminal:
+
+- Full visible-browser confirmation that the selected Starlink model visually matches the attached reference image remains manual. Automated tests verify the orbital-frame math and oblique camera placement, but screenshot-level visual matching requires a browser.
+
+## Release 1.5.11 Verification Log
+
+Checks performed on 2026-06-04:
+
+- `PROMPT_History.md` contains the latest `Release Date: 2026-06-04 Version 1.5.11` entry at the top.
+- `index.html` visible version tag is `1.5.11`.
+- Generated menu markup in `js/SatelliteMenuLoader.js` lays out the `View` controls as three rows: `Globe`/`Mercator`, `High Def.`/`ECEF Axes`/`Day/Night`, and `First Starlink`/`ISS`.
+- Normal satellite selection, search selection, timeline selection, and shortcut selection use the same selected-satellite path.
+- Automated tests cover show-only auto-selection, non-MEO/GEO High Def. auto-enable, shortcut wiring, search-field clearing, selected visibility outside filters, and Earth-in-view camera metadata.
+- `npm test`: passed, including `encodingUx.test.js`, `menuUx.test.js`, `modelResolver.test.js`, `modelVisualFraming.test.js`, `releaseStructure.test.js`, `satelliteOrbitOcclusion.test.js`, `selectedSatelliteView.test.js`, `startupPerformance.test.js`, and `startupStructure.test.js`.
+- `Get-ChildItem -File .\js -Filter *.js | ForEach-Object { node --check $_.FullName }`: passed.
+- `Get-ChildItem -File .\tests -Filter *.js | ForEach-Object { node --check $_.FullName }`: passed.
+- Extracted `index.html` module script plus `node --input-type=module --check`: passed.
+- Extracted `display_satellite.html` module script plus `node --input-type=module --check`: passed.
+- `git diff --check`: passed with only LF-to-CRLF normalization warnings for edited files.
+- Local HTTP smoke check with `py -m http.server 8882 --bind 127.0.0.1`: `http://127.0.0.1:8882/index.html` returned `HTTP 200`.
+- README Markdown index was checked against repository Markdown files: `PROMPT.md`, `PROMPT_History.md`, `README.md`, and `Test_and_Integration.md`.
+
+Checks not fully performed in this terminal:
+
+- Full visible-browser confirmation of the new View-row layout, First Starlink/ISS shortcut clicks, auto High Def. behavior, show-only visibility, and search-field clearing remains manual unless a browser automation environment is available.
+
+## Release 1.5.12 Verification Log
+
+Checks performed on 2026-06-04:
+
+- `PROMPT_History.md` contains the latest `Release Date: 2026-06-04 Version 1.5.12` entry at the top.
+- `index.html` visible version tag is `1.5.12`.
+- Starlink shortcut dynamic state returns `Starlink (<NORAD ID>)` and `Starlink unavailable`.
+- ISS shortcut dynamic state returns `ISS` and `ISS unavailable`.
+- Help accordion section appears after Settings and includes GitHub, README, Prompt History, License, and disclaimer content.
+- ISS selected-model orientation uses `iss-velocity-nadir-frame` diagnostics with yaw/pitch/roll calibration values.
+- `npm test`: passed, including `encodingUx.test.js`, `menuUx.test.js`, `modelResolver.test.js`, `modelVisualFraming.test.js`, `releaseStructure.test.js`, `satelliteOrbitOcclusion.test.js`, `selectedSatelliteView.test.js`, `shortcutLabels.test.js`, `startupPerformance.test.js`, and `startupStructure.test.js`.
+- `Get-ChildItem -File .\js -Filter *.js | ForEach-Object { node --check $_.FullName }`: passed.
+- `Get-ChildItem -File .\tests -Filter *.js | ForEach-Object { node --check $_.FullName }`: passed.
+- Extracted `index.html` module script plus `node --input-type=module --check`: passed.
+- Extracted `display_satellite.html` module script plus `node --input-type=module --check`: passed.
+- `git diff --check`: passed with only LF-to-CRLF normalization warnings for edited files.
+- Local HTTP smoke check with `py -m http.server 8883 --bind 127.0.0.1`: `http://127.0.0.1:8883/index.html` returned `HTTP 200`.
+- README Markdown index was checked against repository Markdown files: `PROMPT.md`, `PROMPT_History.md`, `README.md`, and `Test_and_Integration.md`.
+
+Checks not fully performed in this terminal:
+
+- Full visible-browser confirmation of ISS model visual orientation from multiple camera angles, Help link navigation on GitHub Pages, and unavailable shortcut states with altered TLE data remains manual unless browser automation and alternate fixture data are available.
+
 ## Acceptance Criteria
 
 - The app loads over HTTP without runtime errors.
@@ -764,11 +937,27 @@ Checks not fully performed in this terminal:
 - Multiple accordion sections can stay open at the same time.
 - `Filters` and `Satellite Selection` start expanded on page load.
 - The accordion order is View, Filters, Satellite Selection, Timelines, Other Selections, Settings.
+- The View menu keeps Globe/Mercator, High Def./ECEF Axes/Day-Night, and First Starlink/ISS on three compact rows.
+- Selecting any satellite automatically checks `Show only selected satellite` and hides all non-selected satellites.
+- The selected satellite remains visible in show-only mode even when current filters would otherwise hide it.
+- Selecting a non-MEO/GEO satellite automatically enables `High Def.` Earth, and MEO/GEO selections never force High Def. off.
+- First Starlink and ISS shortcuts use the normal satellite selection path and move the observer to the selected satellite.
+- The Starlink shortcut displays `Starlink (<NORAD ID>)` after TLE data loads and `Starlink unavailable` when unresolved.
+- The ISS shortcut displays `ISS` when resolved and `ISS unavailable` when unresolved.
+- ISS selected-model orientation maps `+X` to velocity, `+Y` to starboard/right-handed cross-track, and `+Z` to nadir.
+- ISS orientation diagnostics include `iss-velocity-nadir-frame` and yaw/pitch/roll calibration values.
+- The Help accordion appears after Settings and contains GitHub, README, Prompt History, License, and disclaimer content.
+- The satellite search field clears the prior selected label on the next search interaction without clearing the active selected satellite.
+- Selected-satellite camera metadata confirms Earth remains visible behind the selected satellite.
 - The generated tag/company filter never exposes an `Active` chip.
 - Launch and re-entry timeline checkboxes are mutually exclusive and checkbox state matches HUD visibility.
 - Yaw/Pitch/Roll sliders remain visible and preserve current values after selecting or switching satellites when YPR is enabled.
 - Known local detailed models load from `obj/` for selected satellites.
 - Detailed selected models are visibly inspectable in 3D and are not clipped by the default near plane.
+- Detailed selected models preserve the default 100 m camera/observer-eye distance from the selected satellite target.
+- The Starlink satellite-visibility test confirms a known local model is in front of the camera, inside the viewport, and large enough to inspect.
+- Starlink selected-model orientation maps `+X` to velocity, `+Z` to nadir, and `+Y` to the right-handed cross-track axis.
+- Starlink selected-model default observer placement is oblique and not centered directly in front of Earth.
 - Selected satellites remain visible through the sprite fallback when no model exists or model loading fails.
 - Stale asynchronous model loads do not attach after the user changes selection.
 - Selected-satellite 3D framing, 2D/Mercator highlighting, and nadir-oriented YPR/model behavior work without fighting manual camera controls.

@@ -384,10 +384,9 @@ canvas {
 
 /* Grid layout for view options (View section) */
 #viewContent {
-    display: grid;
-    grid-template-columns: repeat(2, auto);
-    column-gap: 14px;
-    row-gap: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
 /* Timeline HUD */
 .timeline-hud {
@@ -732,12 +731,63 @@ canvas {
     pointer-events: none;
 }
 
-.satellite-option-grid,
-.view-option-grid {
+.satellite-option-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 7px 12px;
     margin: 8px 0;
+}
+
+.view-option-grid {
+    margin: 8px 0;
+}
+
+.view-control-row {
+    display: grid;
+    align-items: center;
+    gap: 6px;
+}
+
+.view-control-row-two {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.view-control-row-three {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.view-shortcut-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.view-control-row label {
+    white-space: nowrap;
+    font-size: 12px;
+}
+
+.view-shortcut-button {
+    border: 1px solid rgba(240, 180, 41, 0.55);
+    border-radius: 6px;
+    padding: 5px 6px;
+    background: linear-gradient(180deg, rgba(29, 57, 88, 0.92), rgba(10, 23, 41, 0.92));
+    color: #f7d67c;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1.15;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.view-shortcut-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.48;
+}
+
+.view-shortcut-button:not(:disabled):hover,
+.view-shortcut-button:not(:disabled):focus-visible {
+    background: linear-gradient(180deg, rgba(54, 91, 130, 0.96), rgba(15, 39, 66, 0.96));
+    color: #ffffff;
 }
 
 .ypr-slider-grid {
@@ -763,6 +813,49 @@ canvas {
     border-radius: 8px;
     padding: 8px;
     background: rgba(8, 32, 61, 0.34);
+}
+
+.menu-accordion-heading-help { border-left-color: #a98cff; }
+
+.help-panel {
+    border: 1px solid rgba(169, 140, 255, 0.28);
+    border-radius: 8px;
+    padding: 8px;
+    background: rgba(24, 21, 56, 0.38);
+}
+
+.help-link-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.help-link-list a {
+    border: 1px solid rgba(184, 220, 255, 0.28);
+    border-radius: 6px;
+    padding: 5px 6px;
+    color: #d9ecff;
+    text-decoration: none;
+    background: rgba(8, 32, 61, 0.42);
+    font-size: 12px;
+    text-align: center;
+}
+
+.help-link-list a:hover,
+.help-link-list a:focus-visible {
+    color: #ffffff;
+    border-color: rgba(184, 220, 255, 0.68);
+    background: rgba(54, 91, 130, 0.72);
+}
+
+.help-disclaimer {
+    border-left: 3px solid #a98cff;
+    padding: 7px 8px;
+    background: rgba(0, 0, 0, 0.22);
+    color: #d7e7f8;
+    font-size: 11px;
+    line-height: 1.35;
 }
 
 .timeline-checkbox-control {

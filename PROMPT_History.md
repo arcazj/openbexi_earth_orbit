@@ -1,5 +1,385 @@
 # Prompt History
 
+## Release Date: 2026-06-04  Version 1.5.12
+
+Improve the selected-satellite shortcut labels, correct ISS model orientation, and add a Help section at the end of the menu with project references, license access, and a concise legal notice.
+
+The release builds on Version 1.5.11. Preserve the selected-satellite workflow where shortcut selection, satellite search/dropdown selection, and timeline selection all use the same selection path, enable `Show only selected satellite`, and move the observer to the selected satellite.
+
+Requirements:
+
+1. Rename the Starlink shortcut button dynamically.
+   - Replace the static `First Starlink` button text with:
+     `Starlink (<NORAD ID>)`
+   - `<NORAD ID>` must be the NORAD number of the first loaded Starlink satellite that the shortcut will select.
+   - Example label: `Starlink (12345)`.
+   - Use the same deterministic Starlink match introduced in Version 1.5.11, such as satellite name or company/tag containing `STARLINK`.
+   - Update the button `aria-label` and `title` whenever the dynamic label is updated.
+   - The `aria-label` should clearly identify the selected shortcut target, for example:
+     `Select Starlink satellite NORAD 12345`.
+   - If no Starlink satellite is available, disable the button and set the visible text to `Starlink unavailable`.
+   - Do not change the shortcut selection path. Clicking the button must still use the normal satellite-selection path.
+
+2. Keep the ISS shortcut clear and robust.
+   - The ISS shortcut should remain visible in the `View` menu.
+   - If ISS is found, keep the visible label short, such as `ISS`.
+   - The `aria-label` and `title` must include the resolved ISS name and NORAD ID when available.
+   - Prefer NORAD `25544` when resolving ISS.
+   - Also match common names such as `ISS (ZARYA)` and `ISS`.
+   - If ISS is unavailable, disable the button and set the visible text to `ISS unavailable`.
+   - Clicking ISS must still use the normal satellite-selection path.
+
+3. Correct ISS model yaw/pitch/roll orientation according to the attached reference picture.
+   - Use the attached picture as the visual reference for ISS in-orbit orientation.
+   - ISS local/model axes should align as:
+     - `+X` points along the velocity vector, the direction of travel.
+     - `+Y` points to starboard and completes the right-handed frame.
+     - `+Z` points toward Earth/nadir.
+   - Compute the live ISS orbital frame from propagated position and velocity.
+   - Apply an ISS-specific calibration yaw/pitch/roll or calibration quaternion so the loaded ISS model visually matches this orientation when user yaw, pitch, and roll sliders are all `0`.
+   - User yaw/pitch/roll sliders must remain bias controls applied after the base ISS orbital-frame alignment and calibration.
+   - Do not break the existing Starlink orientation behavior.
+   - Non-Starlink and non-ISS models should keep the current selected-satellite orientation behavior unless a model-specific mapping already exists.
+
+4. Add ISS orientation diagnostics.
+   - When ISS is selected and the ISS-specific orientation calibration is applied, store diagnostics in `detailedSatelliteModel.userData`, including:
+     - `orientationMode`
+     - `modelAxisMapping`
+     - `calibrationYawDeg`
+     - `calibrationPitchDeg`
+     - `calibrationRollDeg`
+   - Use an `orientationMode` value that clearly identifies the behavior, for example `iss-velocity-nadir-frame`.
+   - Log a concise console message when ISS orientation calibration is applied.
+   - The diagnostics should make it easy to confirm that ISS uses velocity/nadir/right-handed frame alignment and not the generic fallback.
+
+5. Keep Earth visible in the selected ISS observer view.
+   - The initial selected ISS view must keep both ISS and part of Earth visible.
+   - Preserve the selected-model default observer-eye distance behavior from previous releases.
+   - Do not move the observer farther away only to make ISS readable unless an existing selected-model rule already requires it.
+   - Mouse orbit and zoom should still allow inspection of ISS from all visible sides.
+
+6. Add a `Help` accordion section at the end of the left menu.
+   - The Help section must appear after `Settings`.
+   - It must use the same accordion behavior as other sections.
+   - It must not be default-expanded unless there is a clear reason.
+   - It must not collapse or reset any other accordion section.
+   - It must use readable styling consistent with the existing legacy menu colors.
+   - It must remain readable at the current thin menu width and on narrow screens.
+
+7. Add project references inside the Help section.
+   - Add short, readable link labels:
+     - `GitHub`
+     - `README`
+     - `Prompt History`
+     - `License`
+   - Link targets:
+     - `GitHub`: `https://github.com/arcazj/openbexi_earth_orbit`
+     - `README`: `README.md`
+     - `Prompt History`: `PROMPT_History.md`
+     - `License`: `LICENSE`
+   - The external GitHub link must open in a new tab and include `rel="noopener noreferrer"`.
+   - Internal repository links should use relative paths.
+   - Add `title` attributes with the full target path or URL.
+   - If an internal link cannot be resolved in a specific hosting environment, keep the link visible and use the raw path as the fallback.
+
+8. Add a legal notice/disclaimer inside the Help section.
+   - Add a visually separated `Disclaimer` block inside Help.
+   - Keep the notice concise and readable so it does not dominate the menu.
+   - The notice must state that this application is provided for visualization, educational, and experimental purposes only.
+   - The notice must state that the author is not responsible for inaccurate satellite data, TLE propagation, model rendering, orbital position, attitude/orientation, timing, or visualization results.
+   - The notice must state that the author is not responsible for issues, inaccuracies, or limitations caused by third-party libraries, including `satellite.js`.
+   - The notice must state that the app must not be used as an authoritative source for navigation, safety, mission planning, collision avoidance, or operational satellite decisions.
+
+9. Preserve existing selected-satellite behavior.
+   - Selecting any satellite must still automatically check `Show only selected satellite`.
+   - Only the selected satellite should remain visible after selection, except when a detailed selected model intentionally hides the sprite.
+   - Selecting non-`MEO`/non-`GEO` satellites must still automatically enable `High Def.` Earth.
+   - Selecting `MEO` or `GEO` satellites must not force `High Def.` off.
+   - The selected-satellite search field must still clear the previous selected label on the next focus/click/type/paste/clear interaction without clearing the active selected satellite.
+   - Starlink and ISS shortcuts must still update the selected summary, search/dropdown state, model loading, orbit/footprint behavior, and observer camera consistently.
+   - Multiple accordion sections must still be allowed to remain open at the same time.
+   - `Filters` and `Satellite Selection` must still load expanded.
+   - Do not break filters, timelines, Mercator, View toggles, orbit display, footprint display, Yaw/Pitch/Roll, or model fallback behavior.
+
+10. Update tests.
+   - Add or update menu tests confirming the Help section exists after `Settings`.
+   - Add or update menu tests confirming the Help section contains links for GitHub, README, Prompt History, and License.
+   - Add or update tests confirming the GitHub link uses `target="_blank"` and `rel="noopener noreferrer"`.
+   - Add or update tests confirming the Help disclaimer text is present.
+   - Add or update tests confirming the Starlink shortcut label is generated as `Starlink (<NORAD ID>)` after satellite data resolves a Starlink target.
+   - Add or update tests confirming the Starlink shortcut disabled fallback label is `Starlink unavailable`.
+   - Add or update tests confirming the ISS shortcut disabled fallback label is `ISS unavailable`.
+   - Add or update selected-satellite orientation tests confirming ISS uses velocity/nadir/right-handed frame alignment with ISS-specific calibration.
+   - Add or update tests confirming ISS orientation diagnostics are written to model `userData`.
+   - Keep existing Starlink orientation tests passing.
+   - Keep existing selected-satellite isolation, High Def., search-clear, and shortcut-path tests passing.
+
+11. Update documentation and integration checks.
+   - Update `README.md` with:
+     - Dynamic `Starlink (<NORAD ID>)` shortcut behavior.
+     - ISS orientation behavior and diagnostics.
+     - Help section links.
+     - License and disclaimer notice.
+   - Update `Test_and_Integration.md` with manual checks for:
+     - Starlink shortcut label and unavailable fallback.
+     - ISS shortcut resolution and unavailable fallback.
+     - ISS visual orientation from at least two camera angles.
+     - Earth remains visible behind ISS in the initial selected view.
+     - Help section appears after Settings.
+     - Help links open correctly from a local HTTP server and from GitHub Pages.
+     - Legal notice is readable.
+     - Existing satellite selection behavior remains unchanged.
+   - Ensure `README.md` still references every repository Markdown file with a short explanation.
+
+Acceptance criteria:
+
+- The latest release entry is `Release Date: 2026-06-04  Version 1.5.12`.
+- The Starlink shortcut displays `Starlink (<NORAD ID>)` after satellite data loads.
+- The Starlink shortcut uses `Starlink unavailable` when no Starlink target can be resolved.
+- The ISS shortcut selects ISS/ZARYA/NORAD `25544` through the normal satellite-selection path.
+- The ISS shortcut uses `ISS unavailable` when no ISS target can be resolved.
+- ISS model orientation visually matches the attached reference: `+X` velocity, `+Y` starboard/right-handed cross-track, `+Z` nadir toward Earth.
+- ISS orientation diagnostics are available in `detailedSatelliteModel.userData`.
+- The initial selected ISS observer view keeps Earth visible.
+- A Help accordion section appears after Settings.
+- Help contains working links for GitHub, README, Prompt History, and License.
+- Help contains a concise legal notice/disclaimer covering satellite data, models, visualization accuracy, and `satellite.js` limitations.
+- Existing selected-satellite camera, visibility, High Def., shortcut, search-clear, and accordion behaviors remain unchanged.
+- `npm test` passes.
+- JavaScript syntax checks pass.
+
+---
+
+## Release Date: 2026-06-04  Version 1.5.11
+
+Improve selected-satellite workflow by automatically isolating the selected satellite and adding quick-selection buttons for Starlink and ISS in the `View` menu.
+
+When the user selects a satellite from any entry point, the app should immediately show only that selected satellite. The existing `Show only selected satellite` checkbox must be checked and synchronized with the internal state. The `View` accordion section must also provide shortcut buttons to select the first Starlink satellite in the loaded satellite list and to select `ISS (ZARYA)`.
+
+Requirements:
+
+1. Automatically enable `Show only selected satellite`.
+   - When any satellite is selected from the satellite search/dropdown, timeline, shortcut button, or other selection path, set the `Show only selected satellite` checkbox to checked.
+   - Synchronize the checkbox state with `simParams.showOnlySelectedSatellite`.
+   - Immediately update visible satellite markers so only the selected satellite remains visible, except for required selected-model behavior where the sprite may be hidden because a detailed model is visible.
+   - Clearing the selected satellite or selecting `None` must restore the existing non-isolated behavior and uncheck the checkbox unless the user explicitly selected another satellite.
+   - Do not break orbit display, footprint display, selected-model loading, Yaw/Pitch/Roll, Mercator selection, or the satellite summary.
+
+2. Automatically enable high-definition Earth for non-MEO/non-GEO selections.
+   - When any selected satellite is not in `MEO` and not in `GEO`, turn on the existing `High Def.` Earth view toggle.
+   - Synchronize the `High Def.` checkbox with the internal high-definition texture state.
+   - Apply the high-definition Earth texture immediately after selection when the app is in 3D globe mode.
+   - The behavior must apply to selection from satellite search/dropdown, timeline, `First Starlink` shortcut, `ISS` shortcut, or any other satellite-selection path.
+   - Do not force high-definition Earth off when a `MEO` or `GEO` satellite is selected; preserve the user's existing High Def. setting for those orbits.
+   - Clearing the selected satellite must not unexpectedly change the user's existing High Def. setting.
+
+3. Keep Earth visible while observing a selected satellite.
+   - Whenever the observer/camera moves to watch a selected satellite, Earth must remain visible somewhere in the camera view.
+   - The observer should always have an eye on Earth while watching the satellite.
+   - The selected satellite should remain the inspection target, but the camera framing must avoid views where only empty space or the model fills the screen and Earth is completely outside the view.
+   - For Starlink, preserve the oblique reference-style view with Earth/horizon behind and below the satellite.
+   - For ISS and other satellites, choose a camera offset or camera-up vector that keeps both the selected satellite and part of Earth visible.
+   - Zoom and mouse orbit should still allow inspection, but the initial selected-satellite view must include Earth.
+   - If a model is very close at the 100 m observer distance, use field-of-view, model visual-scale, camera-up, or slight target-offset adjustments to keep Earth visible without moving the observer farther than the default selected-model distance.
+
+4. Clear the satellite combo/search field before selecting another satellite.
+   - After a satellite is selected from the satellite combo/search field, keep the selected satellite summary visible, but treat the search input as ready for the next selection.
+   - As soon as the user focuses, clicks, or starts typing in the satellite combo/search field to choose another satellite, clear the previous selected satellite text from the input.
+   - The dropdown results should then show the normal unfiltered or newly typed search results instead of being stuck on the previously selected satellite name.
+   - Clearing the combo/search field for the next search must not immediately clear the current selected satellite, selected model, orbit, footprint, or `Show only selected satellite` state.
+   - Selecting a new satellite from the cleared field must still use the same normal satellite-selection path.
+   - Pressing `Escape`, clicking outside, or tabbing away before selecting another satellite should leave the current selected satellite unchanged.
+
+5. Add shortcut buttons in the `View` menu.
+   - Add two compact buttons inside the `View` accordion section:
+     - `First Starlink`
+     - `ISS`
+   - Keep the existing `View` controls for Globe, Mercator, High Def., ECEF Axes, and Day/Night unchanged.
+   - Layout the `View` controls in compact rows:
+     - Row 1: `Globe` and `Mercator` on the same line.
+     - Row 2: `High Def.`, `ECEF Axes`, and `Day/Night` on the same line.
+     - Row 3: `First Starlink` and `ISS` shortcut buttons on the same line.
+   - The rows must remain readable and usable in the thin accordion menu.
+   - On very narrow screens, the layout may wrap only if required to avoid clipping, but desktop/default menu width should show the requested rows.
+   - The shortcut buttons must use the existing legacy menu styling and remain usable in the thin accordion menu.
+   - The buttons must be disabled or show a clear unavailable state until satellite data is loaded and the target satellite can be resolved.
+
+6. Implement `First Starlink` shortcut behavior.
+   - Clicking `First Starlink` must select the first available Starlink satellite from the loaded satellite list.
+   - Use a deterministic match such as satellite name or company/tag containing `STARLINK`.
+   - The shortcut must call the same selection path used by normal satellite selection, not a separate partial implementation.
+   - It must update the satellite search/dropdown state, selected-satellite summary, `Show only selected satellite`, detailed model loading, orbit/footprint behavior, and camera/observer movement.
+   - If a Starlink local model is available, the observer should move to the selected Starlink using the same 100 m selected-model behavior and Starlink oblique orientation implemented in the previous release.
+
+7. Implement `ISS` shortcut behavior.
+   - Clicking `ISS` must select `ISS (ZARYA)` when it exists in the loaded satellite list.
+   - Match robustly against common names such as `ISS (ZARYA)`, `ISS`, or NORAD `25544`.
+   - The shortcut must call the same selection path used by normal satellite selection.
+   - It must update the satellite search/dropdown state, selected-satellite summary, `Show only selected satellite`, detailed model loading, orbit/footprint behavior, and camera/observer movement.
+   - If a local ISS model is available, the observer should move to ISS using the same selected-model camera behavior used for normal satellite selection.
+
+8. Preserve existing behavior.
+   - Do not change the default accordion section order.
+   - Do not collapse any accordion section when a shortcut is clicked.
+   - Do not break multi-open accordion behavior.
+   - Do not break filters, search, selected satellite dropdown behavior, timelines, Mercator, View toggles, orbit display, footprint display, Yaw/Pitch/Roll, or model fallback behavior.
+
+9. Update tests and documentation.
+   - Add or update tests confirming satellite selection automatically checks `Show only selected satellite`.
+   - Add or update tests confirming non-MEO/non-GEO satellite selection automatically enables the `High Def.` Earth toggle without forcing it off for `MEO` or `GEO`.
+   - Add or update tests confirming the selected-satellite initial camera frame keeps Earth in view.
+   - Add or update tests confirming the satellite combo/search input clears on the next focus/click/type after a selection without clearing the current selected satellite.
+   - Add or update tests confirming the `View` menu contains `First Starlink` and `ISS` shortcut buttons.
+   - Add or update tests confirming the `View` menu layout keeps `Globe`/`Mercator`, `High Def.`/`ECEF Axes`/`Day/Night`, and `First Starlink`/`ISS` grouped on their requested rows.
+   - Add or update tests confirming shortcut buttons route through the same satellite-selection path as normal selection.
+   - Add or update tests confirming shortcut selection updates the checkbox, selected satellite summary/search state, and camera/model selection path.
+   - Update `Test_and_Integration.md` with shortcut-button and automatic-isolation checks.
+   - Update `README.md` if menu usage or selected-satellite workflow is described.
+
+Acceptance criteria:
+
+- Selecting any satellite automatically checks `Show only selected satellite`.
+- Selecting a non-`MEO`/non-`GEO` satellite automatically turns on `High Def.` Earth.
+- Selecting a `MEO` or `GEO` satellite does not force `High Def.` off.
+- The initial selected-satellite observer view always keeps Earth visible.
+- After selecting a satellite, focusing/clicking/typing in the satellite combo/search field clears the previous input text so the user can immediately search for another satellite.
+- Clearing the combo/search field for a new search does not clear the current selected satellite until a new satellite is selected or the user explicitly clears selection.
+- Only the selected satellite remains visible after selection.
+- Clearing selection restores the non-isolated behavior and unchecks `Show only selected satellite`.
+- The `View` menu contains compact `First Starlink` and `ISS` shortcut buttons.
+- The `View` menu shows `Globe`/`Mercator`, `High Def.`/`ECEF Axes`/`Day/Night`, and `First Starlink`/`ISS` as three compact rows at the default menu width.
+- Clicking `First Starlink` selects the first loaded Starlink satellite and moves the observer exactly as normal satellite selection does.
+- Clicking `ISS` selects `ISS (ZARYA)`/NORAD `25544` and moves the observer exactly as normal satellite selection does.
+- Shortcut selection updates the search/dropdown, selected summary, model loading, orbit/footprint controls, and observer camera consistently.
+- Existing filters, timelines, Mercator, View toggles, Yaw/Pitch/Roll, accordion behavior, and model fallback behavior remain unchanged.
+- `npm test` passes.
+- JavaScript syntax checks pass.
+
+---
+
+## Release Date: 2026-06-04  Version 1.5.10
+
+Correct the Starlink selected-model yaw/pitch/roll orientation and change the default observer view to match the attached reference image instead of placing the observer on a straight Earth-center line.
+
+The reference orientation is the typical in-orbit Starlink frame:
+
+- `+X` points along the satellite velocity vector, the direction of travel.
+- `+Z` points toward Earth, the nadir direction.
+- `+Y` completes the right-handed frame.
+
+Requirements:
+
+1. Correct Starlink model orientation.
+   - When a Starlink satellite with the local `starlink_V1` OBJ/MTL model is selected, the model must align to the orbital frame shown in the reference image.
+   - Compute the live orbital frame from propagated satellite position and velocity, not from a fixed world rotation.
+   - Define `+Z` as nadir, from the satellite toward Earth's center.
+   - Define `+X` as the velocity direction, tangent to the orbit.
+   - Define `+Y` as the right-handed cross-track axis so the final frame is orthonormal.
+   - If the raw Starlink OBJ axes do not match this frame, add a Starlink-specific calibration quaternion or metadata setting so default yaw/pitch/roll values produce the reference orientation.
+   - Yaw, pitch, and roll sliders must remain user bias controls applied after the base Starlink orbital-frame alignment.
+   - With yaw, pitch, and roll all at `0`, Starlink must already appear in the reference in-orbit orientation.
+
+2. Change the default observer placement for selected Starlink.
+   - Keep the selected-model observer eye at the default 100 real-world meters from the selected satellite target point.
+   - Do not place the observer exactly on the outward radial line from Earth through the satellite.
+   - Do not make the satellite appear centered directly in front of Earth's center.
+   - Use an oblique reference-image-style observer view: the satellite is in the foreground, Earth/horizon is behind and below it, `+X`/velocity reads roughly sideways across the screen, and `+Z`/nadir points down toward Earth.
+   - The observer placement should be computed from the satellite's live `+X`, `+Y`, and `+Z` orbital-frame axes so it follows the satellite correctly as it moves.
+   - The initial camera offset should be configurable, for example an oblique combination of anti-nadir, velocity, and cross-track components, instead of a pure anti-nadir/radial offset.
+   - The selected satellite should remain centered or near-centered enough for inspection, but the Earth background must not be centered directly behind the satellite.
+
+3. Preserve interaction behavior.
+   - Mouse orbit must allow the user to inspect all faces of the Starlink model.
+   - Zoom must keep the selected satellite as the target and must not break the 100 m default observer distance on initial selection.
+   - Automatic tracking must follow the moving Starlink without fighting user orbit or zoom controls.
+   - Existing Yaw/Pitch/Roll controls must continue to work for non-Starlink satellites.
+
+4. Preserve existing fallback behavior.
+   - If Starlink model loading fails, keep the selected TLE sprite visible.
+   - If selected satellite velocity is unavailable or invalid, fall back safely to the previous nadir-only orientation and log a diagnostic.
+   - Do not break selected satellite orbit, footprint, Mercator, filters, timelines, View controls, settings, or accordion behavior.
+
+5. Update tests and documentation.
+   - Add or update tests confirming the Starlink orbital frame maps `+X` to velocity, `+Z` to nadir, and `+Y` to the right-handed cross-track axis.
+   - Add or update tests confirming Starlink Yaw/Pitch/Roll default values do not override or corrupt the base orbital-frame alignment.
+   - Add or update tests/static checks confirming the selected Starlink observer offset is oblique and not the old pure radial Earth-centered view.
+   - Update `Test_and_Integration.md` with the Starlink orientation and oblique observer-view checks.
+   - Update `README.md` if selected-satellite viewing behavior or Yaw/Pitch/Roll behavior is described.
+
+Acceptance criteria:
+
+- Selecting a Starlink satellite shows the local Starlink model in the reference in-orbit orientation.
+- Starlink `+X` aligns with velocity, `+Z` aligns with nadir toward Earth, and `+Y` completes the right-handed frame.
+- Default Starlink yaw, pitch, and roll produce the correct reference orientation before any user slider adjustment.
+- The camera starts 100 real-world meters from the selected Starlink target.
+- The observer view is oblique like the reference image, with Earth/horizon behind and below the satellite, not centered directly behind it.
+- Mouse orbit and zoom still work around the selected Starlink.
+- Existing selected-satellite features, filters, orbit, footprint, Mercator, View controls, timelines, settings, and accordion behavior remain unchanged.
+- `npm test` passes.
+- JavaScript syntax checks pass.
+
+---
+
+## Release Date: 2026-06-04  Version 1.5.9
+
+Fix selected-satellite 3D framing because the satellite model is still too far from the observer after selection.
+
+When a satellite with an associated OBJ/MTL/GLB model under `obj/` is selected, the camera must move close enough that the satellite model is clearly visible and inspectable.
+
+Requirements:
+
+1. Make the selected 3D model visible and close.
+   - The selected satellite model must remain centered in the viewport.
+   - The model must appear close, not as a distant dot.
+   - The observer eye point is the camera position.
+   - The selected satellite target point must be 100 real-world meters from the observer eye point by default.
+   - Convert the 100-meter observer distance through the existing scene-unit conversion and verify the camera-to-satellite target distance uses that converted value.
+   - The loaded model bounding box and camera field of view must be used to validate visibility, near-plane safety, zoom limits, and visual fit, but they must not silently push the observer farther away than the 100-meter default.
+   - By default, at the 100-meter observer distance, the model should fill approximately 35% to 60% of the viewport height while avoiding camera clipping.
+   - If the model is very large or very small, preserve the 100-meter observer distance and use safe alternatives such as near-plane adjustment, control limits, model visual-scale correction, or field-of-view-aware framing instead of moving the observer farther away.
+
+2. Preserve the Earth-behind-satellite view.
+   - Earth must remain visible behind the satellite whenever possible.
+   - The observer should start 100 meters from the selected satellite target point on the outward radial line from Earth through the satellite, so the satellite is in front and Earth is behind it.
+   - The selected satellite should stay centered even while moving along its orbit.
+
+3. Preserve interactive inspection controls.
+   - The user must be able to zoom in and out around the selected satellite.
+   - Mouse left/right movement should orbit around the satellite model so all faces of the satellite can be inspected.
+   - Automatic tracking must not fight user zoom or orbit controls.
+
+4. Preserve existing behavior.
+   - Existing satellite selection, filters, orbit display, footprint display, Yaw/Pitch/Roll controls, View controls, timelines, settings, and accordion behavior must remain unchanged.
+   - If no matching local model exists, keep the selected sprite fallback behavior.
+   - If a model fails to load, keep the selected sprite visible and do not move the camera to an empty target.
+
+5. Update tests and documentation.
+   - Add or update tests/static checks confirming selected-model camera framing uses model bounds and camera field of view.
+   - Add or update tests/static checks confirming the implementation no longer relies only on the old fixed-distance behavior.
+   - Add a satellite-visibility test for at least one known local model mapping, such as Starlink, OneWeb, ISS, or an SSL 1300-style GEO satellite.
+   - The satellite-visibility test must confirm the selected model loads, has visible mesh content, is in front of the camera, projects inside the viewport, and has a non-trivial screen-space size.
+   - The satellite-visibility test must fail if the selected model is behind the camera, off-screen, clipped to zero size, hidden by stale sprite/model state, or too small to inspect.
+   - When browser automation is available, validate the projected screen-space bounding box after selection and assert the model occupies approximately 35% to 60% of the viewport height at the default 100-meter observer distance.
+   - If browser automation is not available in the automated test environment, add deterministic framing-math tests plus a documented manual browser check that selects the same known satellite and confirms the model is visibly centered.
+   - Update `Test_and_Integration.md` with the selected-model visibility and framing checks.
+   - Update `README.md` if selected-satellite viewing behavior or controls are described.
+
+Acceptance criteria:
+
+- Selecting a satellite with a local 3D model immediately brings the model close enough to inspect.
+- The camera/observer eye is 100 real-world meters from the selected satellite target point by default.
+- The model is centered and visibly large on screen.
+- A satellite-visibility test confirms at least one known local 3D model is loaded, visible, in front of the camera, inside the viewport, and large enough to inspect.
+- Earth is visible behind the selected satellite where geometry allows.
+- Zooming changes the observer distance while keeping the satellite centered.
+- Orbiting with the mouse shows different faces of the satellite model.
+- The satellite remains centered while it moves.
+- Existing satellite selection, filters, orbit, footprint, YPR, View controls, timelines, settings, and accordion behavior remain unchanged.
+- `npm test` passes.
+- JavaScript syntax checks pass.
+
+---
+
 ## Release Date: 2026-06-03  Version 1.5.8
 
 Move the `View` accordion section to the very top of the left menu, above `Filters`.

@@ -11,10 +11,10 @@ import { KM_TO_SCENE_UNITS, EARTH_SCENE_RADIUS, EARTH_RADIUS_KM } from './Satell
 
 /* ─────────────────────────── Config & constants ─────────────────────────── */
 const appWindow = globalThis.window ?? {};
-export const SATELLITE_MODEL_VISUAL_SCALE = 0.25;
+export const SATELLITE_MODEL_VISUAL_SCALE = 5;
 
 // Scene scale: meters → scene units (can be overridden globally)
-export const METERS_TO_UNITS = appWindow.METERS_TO_SCENE_UNITS || KM_TO_SCENE_UNITS;
+export const METERS_TO_UNITS = appWindow.METERS_TO_SCENE_UNITS || (KM_TO_SCENE_UNITS / 1000);
 
 // Metadata JSON base (unchanged)
 export const SATELLITE_MODELS_BASE_URL =
