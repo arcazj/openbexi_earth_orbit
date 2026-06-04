@@ -14,7 +14,10 @@ OpenBEXI Earth Orbit is a browser-based satellite visualization app built with p
 - Multi-select orbit filters for `ALL`, `GEO`, `MEO`, `LEO`, `HEO`, and `Other`.
 - Multi-select tag/operator filters such as `Starlink`, `One Web`, `SES`, `Intelsat`, `Weather`, and `Iridium`.
 - Debris filtering modes: show all, hide debris, or debris only.
-- Accordion-style menu sections for View, Filters, Satellite Selection, Timelines, Other Selections, Settings, and Help, preserving the legacy colored section accents.
+- Accordion-style menu sections for View, Filters, Satellite Selection, Timelines, Other Selections, Settings, Share, and Help, preserving the legacy colored section accents.
+- Optional Python server integration for live local API-backed TLE/satellite metadata loading, with automatic local-file fallback when the server is unavailable.
+- Server status indicator with connected, checking, offline, and error states; the status panel shows server URL, data source, version, last load time, and reconnect/refresh.
+- Share menu section for copying or natively sharing a safe link for the selected satellite, view mode, filters, simulation time, and display settings.
 - Searchable satellite selector with typeahead support for satellite name, NORAD ID, orbit type, and company/tag; selected results close cleanly after mouse, keyboard, Escape, Tab, or outside-click interactions.
 - After selecting a satellite, the selector search field clears the previous selected label on the next search interaction without clearing the active selection.
 - Selecting any satellite automatically enables `Show only selected satellite`, synchronizes the checkbox, and keeps the selected satellite visible even when current filters would otherwise hide it.
@@ -32,7 +35,7 @@ OpenBEXI Earth Orbit is a browser-based satellite visualization app built with p
 - High-definition Earth texture toggle, ECEF axes, Moon view, launch timeline, and re-entry timeline.
 - Selecting non-MEO/GEO satellites automatically enables the high-definition Earth texture while MEO/GEO selections never force it off.
 - View shortcuts can select the first loaded Starlink satellite or ISS/ZARYA through the same camera/model path as the normal satellite selector. The Starlink shortcut displays the resolved NORAD ID as `Starlink (<NORAD ID>)`.
-- Help menu links provide quick access to the GitHub project, README, prompt history, license, and a concise visualization/legal disclaimer.
+- Help menu links provide quick access to the GitHub project, README, prompt history, license, Swagger/OpenAPI documentation when the Python server is connected, and a concise visualization/legal disclaimer.
 - Timeline checkboxes are mutually exclusive: enabling the launch timeline hides the re-entry timeline, and enabling the re-entry timeline hides the launch timeline.
 - Faster initial startup path: the globe and core controls render before the full TLE sprite pass, while timelines and decay estimates are prepared as deferred work.
 - Optional startup timing diagnostics through `?perf=1` or `localStorage.openbexiStartupPerf = "1"`.
@@ -56,6 +59,8 @@ For Starlink models, Version 1.5.10 replaces the pure radial observer start with
 Version 1.5.11 keeps the selected-satellite observer workflow consistent across the search selector, timeline selections, and `View` shortcuts. Selecting any satellite automatically switches to show-only-selected mode; selecting LEO/HEO/Other satellites such as Starlink or ISS also enables High Def. Earth so the observer keeps better Earth context behind the satellite.
 
 Version 1.5.12 updates the shortcut labels and Help menu. The Starlink shortcut resolves the first loaded Starlink target and displays its NORAD ID. ISS uses the same velocity/nadir orbital-frame orientation convention as the reference picture, with ISS-specific calibration diagnostics in `detailedSatelliteModel.userData`.
+
+Version 1.5.13 adds an optional Python server data path. When the server is connected, TLE and satellite metadata requests can be served by the local API; when the server is unavailable, slow, invalid, or blocked, the app falls back to the existing local JSON files and keeps the same offline behavior.
 
 The selected satellite model axis convention is:
 
@@ -95,7 +100,7 @@ The viewer defaults to `obj/starlink_V1.obj` and `obj/starlink_V1.mtl`, but it c
 
 - A modern browser with ES module support.
 - Node.js for automated tests.
-- Python 3 or another local static HTTP server for browser smoke testing.
+- Python 3 for the optional local API server or another local static HTTP server for browser smoke testing.
 
 Browser runtime dependencies are loaded by `index.html`:
 
@@ -123,6 +128,31 @@ Open:
 ```text
 http://127.0.0.1:8000/index.html
 ```
+
+Optional API server mode:
+
+```powershell
+py server.py --host 127.0.0.1 --port 8000
+```
+
+Open:
+
+```text
+http://127.0.0.1:8000/index.html
+```
+
+The Python server uses only the standard library. It serves the existing static app plus local API routes:
+
+- `http://127.0.0.1:8000/api/health`
+- `http://127.0.0.1:8000/api/version`
+- `http://127.0.0.1:8000/api/tle`
+- `http://127.0.0.1:8000/api/satellites`
+- `http://127.0.0.1:8000/api/satellite-metadata`
+- `http://127.0.0.1:8000/api/decayed`
+- `http://127.0.0.1:8000/docs`
+- `http://127.0.0.1:8000/openapi.json`
+
+The frontend checks the server with a short timeout. If the check fails or server data is malformed, the app continues with `json/tle/TLE.json`, `json/satellites/`, and other local files. Configure a different API base URL with `?apiBase=http://host:port` or `localStorage.setItem('openbexi.apiBaseUrl', 'http://host:port')`.
 
 Do not use `file://` for normal development because ES modules, JSON, textures, and model assets need HTTP-style loading.
 
@@ -170,11 +200,14 @@ The left menu is organized into compact colored accordion sections. Multiple sec
 - `Timelines`: checkbox toggles for launch and re-entry timelines.
 - `Other Selections`: Earth/Moon context selection.
 - `Settings`: simulation and diagnostic notes.
-- `Help`: GitHub, README, Prompt History, License, and the app disclaimer.
+- `Share`: copy or natively share a safe URL that restores supported app state after satellite data loads.
+- `Help`: GitHub, README, Prompt History, License, Swagger/API docs when connected to the Python server, and the app disclaimer.
 
 The satellite selector is searchable. Type part of a satellite name, NORAD ID, orbit type, or tag, then use the mouse or keyboard arrow keys plus Enter to select a result. Selecting a result closes the dropdown immediately; Escape, Tab, or clicking outside the selector also closes the dropdown so it cannot block `Show Orbit`, `Show Footprint`, or other controls below it. After a satellite is selected, focusing, clicking, typing, pasting, or pressing `Clear` in the search field removes only the old selected label so a new search can start while the selected satellite remains active. Timeline controls are checkboxes: checked means the timeline is visible; unchecked means it is hidden. Only one timeline can be visible at a time. If Yaw-Pitch-Roll is enabled, selecting or switching satellites keeps the YPR sliders visible and preserves the current yaw, pitch, and roll values.
 
 The Help section disclaimer is part of the application UI: OpenBEXI Earth Orbit is for visualization, educational, and experimental purposes only. It is not an authoritative source for navigation, safety, mission planning, collision avoidance, or operational satellite decisions.
+
+When the Python server is connected, the Help section enables Swagger UI and OpenAPI schema links. When disconnected, those links remain visible but disabled with an offline explanation.
 
 ## Project Structure
 
@@ -182,6 +215,7 @@ The Help section disclaimer is part of the application UI: OpenBEXI Earth Orbit 
 - `display_satellite.html`: Isolated local OBJ/MTL and GLB viewer for direct satellite model visibility checks.
 - `css/`: Styling for the app, menu, filters, labels, and map layout.
 - `js/`: Browser modules for coordinates, satellite loading, models, menu, footprints, frames, day/night, Moon, timelines, and map rendering.
+- `server.py`: Optional standard-library Python server for static hosting, API endpoints, CORS, Swagger/OpenAPI docs, and server-backed data loading.
 - `js/startupPerformance.js`: Startup timing, deferred scheduling, and chunked-work helpers used to keep the first render responsive.
 - `json/tle/`: TLE source data.
 - `json/satellites/`: Satellite metadata and model configuration.

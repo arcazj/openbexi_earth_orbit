@@ -41,11 +41,12 @@ function run() {
   const timelinesSection = indexOfOrFail(html, 'id="timelinesAccordionSection"', 'timelines accordion exists');
   const otherSection = indexOfOrFail(html, 'id="otherAccordionSection"', 'other accordion exists');
   const settingsSection = indexOfOrFail(html, 'id="settingsAccordionSection"', 'settings accordion exists');
+  const shareSection = indexOfOrFail(html, 'id="shareAccordionSection"', 'share accordion exists');
   const helpSection = indexOfOrFail(html, 'id="helpAccordionSection"', 'help accordion exists');
   assert(
     viewSection < filtersSection && filtersSection < satelliteSection && satelliteSection < timelinesSection &&
-      timelinesSection < otherSection && otherSection < settingsSection && settingsSection < helpSection,
-    'accordion section order is View, Filters, Satellite Selection, Timelines, Other, Settings, Help'
+      timelinesSection < otherSection && otherSection < settingsSection && settingsSection < shareSection && shareSection < helpSection,
+    'accordion section order is View, Filters, Satellite Selection, Timelines, Other, Settings, Share, Help'
   );
 
   const viewContent = indexOfOrFail(html, 'id="viewContent"', 'View content exists');
@@ -104,18 +105,32 @@ function run() {
   const timelinePanel = indexOfOrFail(html, 'id="timelineContent"', 'timeline content exists');
   const otherPanel = indexOfOrFail(html, 'id="otherSelectionsContent"', 'other content exists');
   const settingsPanel = indexOfOrFail(html, 'id="settingsContent"', 'settings content exists');
+  const sharePanel = indexOfOrFail(html, 'id="shareContent"', 'share content exists');
   const helpPanel = indexOfOrFail(html, 'id="helpContent"', 'help content exists');
-  assert(timelinePanel < otherPanel && otherPanel < settingsPanel && settingsPanel < helpPanel, 'Help section appears after Settings');
+  assert(timelinePanel < otherPanel && otherPanel < settingsPanel && settingsPanel < sharePanel && sharePanel < helpPanel, 'Share section appears after Settings and before Help');
   assert(html.includes('type="checkbox" id="launchTimelineToggle"'), 'launch timeline toggle is a checkbox');
   assert(html.includes('type="checkbox" id="reentryTimelineToggle"'), 're-entry timeline toggle is a checkbox');
   assert(html.includes('other-selections-heading'), 'Other Selections has a blue styling hook');
   assert(html.includes('data-collapsible-target="otherSelectionsContent"'), 'Other Selections is collapsible');
+  assert(html.includes('data-collapsible-target="shareContent"'), 'Share section is collapsible');
   assert(html.includes('data-collapsible-target="helpContent"'), 'Help section is collapsible');
+  assert(html.includes('id="serverStatusButton"'), 'server status button exists');
+  assert(html.includes('aria-label="Checking server connection"'), 'server status has checking accessible text');
+  assert(html.includes('id="serverStatusPanel"'), 'server status panel exists');
+  assert(html.includes('id="serverReconnectButton"'), 'server status exposes reconnect action');
+  assert(html.includes('Server unavailable. Using local satellite data.'), 'server offline message is present');
+  assert(html.includes('id="copyShareLinkButton"'), 'Share section includes Copy Link');
+  assert(html.includes('id="nativeShareButton"'), 'Share section includes native share action');
+  assert(html.includes('id="shareLinkOutput"'), 'Share section includes generated link output');
   assert(html.includes('href="https://github.com/arcazj/openbexi_earth_orbit"'), 'Help includes GitHub project link');
   assert(html.includes('target="_blank" rel="noopener noreferrer"'), 'GitHub Help link opens safely in a new tab');
   assert(html.includes('href="README.md"'), 'Help includes README link');
   assert(html.includes('href="PROMPT_History.md"'), 'Help includes Prompt History link');
   assert(html.includes('href="LICENSE"'), 'Help includes License link');
+  assert(html.includes('Swagger / API Documentation'), 'Help includes Swagger/API documentation section');
+  assert(html.includes('id="swaggerDocsLink"'), 'Help includes Swagger UI link hook');
+  assert(html.includes('id="openApiSchemaLink"'), 'Help includes OpenAPI schema link hook');
+  assert(html.includes('API documentation is available when the Python server is running.'), 'Help explains API docs offline state');
   assert(html.includes('for visualization, educational, and experimental purposes only'), 'Help includes legal disclaimer');
   assert(html.includes('satellite.js'), 'Help disclaimer mentions satellite.js limitations');
 
@@ -145,7 +160,16 @@ function run() {
   assert(css.includes('.menu-accordion-heading-timelines { border-left-color: #d45187; }'), 'Timelines keeps the legacy pink accent');
   assert(css.includes('.menu-accordion-heading-other { border-left-color: #53a7ff; }'), 'Other keeps the legacy blue accent');
   assert(css.includes('.menu-accordion-heading-settings { border-left-color: #77859c; }'), 'Settings keeps the legacy gray-blue accent');
+  assert(css.includes('.menu-accordion-heading-share { border-left-color: #6fd08c; }'), 'Share keeps a dedicated legacy-style accent');
   assert(css.includes('.menu-accordion-heading-help { border-left-color: #a98cff; }'), 'Help keeps a dedicated legacy-style accent');
+  assert(css.includes('.server-status-button'), 'server status has dedicated CSS');
+  assert(css.includes('.server-state-connected .server-status-dot'), 'server connected state has CSS');
+  assert(css.includes('.server-state-disconnected .server-status-dot'), 'server disconnected state has CSS');
+  assert(css.includes('.server-state-error .server-status-dot'), 'server error state has CSS');
+  assert(css.includes('.share-panel'), 'Share panel has dedicated CSS');
+  assert(css.includes('.share-action-row'), 'Share actions have dedicated CSS');
+  assert(css.includes('.api-docs-panel'), 'API docs panel has dedicated CSS');
+  assert(css.includes('.api-docs-link.is-disabled'), 'API docs disabled state has CSS');
   assert(css.includes('.help-panel'), 'Help panel has dedicated CSS');
   assert(css.includes('.help-link-list'), 'Help links have dedicated CSS');
   assert(css.includes('.help-disclaimer'), 'Help disclaimer has dedicated CSS');
@@ -158,7 +182,13 @@ function run() {
   assert(css.includes('.view-shortcut-button'), 'View shortcut buttons have dedicated CSS');
 
   assert(indexHtml.includes('MENU_COLLAPSE_STORAGE_KEY'), 'index persists collapsed accordion sections');
+  assert(indexHtml.includes("'shareContent'"), 'Share starts collapsed with other non-default accordion sections');
   assert(indexHtml.includes("'helpContent'"), 'Help starts collapsed with other non-default accordion sections');
+  assert(indexHtml.includes('checkAndLoadServerTleData'), 'index implements server connection and TLE fallback flow');
+  assert(indexHtml.includes('tleDataOverride: serverTleData'), 'index passes server TLE data to the existing TLE loader only when available');
+  assert(indexHtml.includes('copyCurrentShareLink'), 'index implements Copy Link behavior');
+  assert(indexHtml.includes('applyPendingShareStateAfterSatelliteLoad'), 'index restores share state after satellite data loads');
+  assert(indexHtml.includes('updateApiDocsState'), 'index updates Swagger/API docs connected and offline states');
   assert(indexHtml.includes('ensureYPRControlsVisibleForSelection'), 'index preserves YPR controls after satellite selection');
   assert(!/yawSlider\.value\s*=\s*0/.test(indexHtml), 'satellite selection does not reset yaw slider value');
   assert(!/pitchSlider\.value\s*=\s*0/.test(indexHtml), 'satellite selection does not reset pitch slider value');

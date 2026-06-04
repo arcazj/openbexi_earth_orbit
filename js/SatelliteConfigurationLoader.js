@@ -61,6 +61,22 @@ export function getFullGitHubUrl(relativePath, base) {
  * @returns {Promise<object|Array>}
  */
 export async function fetchJSON(url) {
+    const serverConnection = globalThis.window?.openbexiServerConnection;
+    const serverUrl = serverConnection?.connected && typeof serverConnection.resolveDataUrl === 'function'
+        ? serverConnection.resolveDataUrl(url)
+        : null;
+
+    if (serverUrl) {
+        try {
+            const r = await fetch(serverUrl);
+            if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+            console.info(`Loaded JSON from Python server: ${serverUrl}`);
+            return await r.json();
+        } catch (err) {
+            console.warn(`Server JSON load failed for ${serverUrl}; falling back to ${url}.`, err);
+        }
+    }
+
     try {
         const r = await fetch(url);
         if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);

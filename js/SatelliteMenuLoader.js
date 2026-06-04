@@ -7,6 +7,22 @@ export function satelliteMenuLoader() {
     return /* html */ `
   <div id="controlsContainer">
     <div id="versionDisplay"></div>
+    <div id="serverStatusBlock" class="server-status-block">
+      <button id="serverStatusButton" type="button" class="server-status-button server-state-checking" aria-label="Checking server connection" aria-controls="serverStatusPanel" aria-expanded="false" title="Checking server connection">
+        <span class="server-status-dot" aria-hidden="true"></span>
+        <span id="serverStatusText">Checking server</span>
+      </button>
+      <div id="serverStatusPanel" class="server-status-panel" role="status" aria-live="polite" hidden>
+        <div><span>Server URL</span><strong id="serverStatusUrl">http://127.0.0.1:8000</strong></div>
+        <div><span>Connection</span><strong id="serverStatusState">Checking</strong></div>
+        <div><span>Data source</span><strong id="serverDataSource">Local files</strong></div>
+        <div><span>App version</span><strong id="serverAppVersion">1.5.13</strong></div>
+        <div><span>API version</span><strong id="serverApiVersion">Unavailable</strong></div>
+        <div><span>Last data load</span><strong id="serverLastSync">Never</strong></div>
+        <button id="serverReconnectButton" type="button" class="menu-secondary-action server-reconnect-button">Reconnect / Refresh</button>
+      </div>
+      <div id="serverOfflineNotice" class="server-offline-notice" role="status" aria-live="polite" hidden>Server unavailable. Using local satellite data.</div>
+    </div>
 
     <div class="menu-accordion" aria-label="OpenBEXI menu sections">
       <section id="viewAccordionSection" class="menu-accordion-section menu-section-view">
@@ -180,6 +196,23 @@ export function satelliteMenuLoader() {
         </div>
       </section>
 
+      <section id="shareAccordionSection" class="menu-accordion-section menu-section-share">
+        <h3 id="shareAccordionHeader" role="button" tabindex="0" aria-controls="shareContent" aria-expanded="false" data-collapsible-target="shareContent" class="section-heading menu-accordion-heading menu-accordion-heading-share" data-default-collapsed="true">
+          <span>Share</span>
+          <span class="toggle-icon">v</span>
+        </h3>
+        <div id="shareContent" class="collapsible-content share-panel" aria-labelledby="shareAccordionHeader">
+          <div class="menu-helper">Create a safe link for the current view, filters, selected satellite, simulation time, and display settings.</div>
+          <div id="shareStateSummary" class="share-state-summary">Current app state is ready to share.</div>
+          <div class="share-action-row">
+            <button id="copyShareLinkButton" type="button" class="menu-secondary-action">Copy Link</button>
+            <button id="nativeShareButton" type="button" class="menu-secondary-action">Native Share</button>
+          </div>
+          <input id="shareLinkOutput" class="share-link-output" type="text" readonly aria-label="Generated share link">
+          <div id="shareFeedback" class="share-feedback" role="status" aria-live="polite"></div>
+        </div>
+      </section>
+
       <section id="helpAccordionSection" class="menu-accordion-section menu-section-help">
         <h3 id="helpAccordionHeader" role="button" tabindex="0" aria-controls="helpContent" aria-expanded="false" data-collapsible-target="helpContent" class="section-heading menu-accordion-heading menu-accordion-heading-help" data-default-collapsed="true">
           <span>Help</span>
@@ -191,6 +224,14 @@ export function satelliteMenuLoader() {
             <a href="README.md" title="README.md">README</a>
             <a href="PROMPT_History.md" title="PROMPT_History.md">Prompt History</a>
             <a href="LICENSE" title="LICENSE">License</a>
+          </div>
+          <div class="api-docs-panel" aria-label="Swagger API documentation">
+            <strong>Swagger / API Documentation</strong>
+            <div id="apiDocsStatus" class="menu-helper">API documentation is available when the Python server is running.</div>
+            <div class="api-docs-link-list">
+              <a id="swaggerDocsLink" class="api-docs-link is-disabled" aria-disabled="true" tabindex="-1" title="Swagger UI is available when connected">Swagger UI</a>
+              <a id="openApiSchemaLink" class="api-docs-link is-disabled" aria-disabled="true" tabindex="-1" title="OpenAPI schema is available when connected">OpenAPI Schema</a>
+            </div>
           </div>
           <div class="help-disclaimer" role="note" aria-label="Disclaimer">
             <strong>Disclaimer:</strong>

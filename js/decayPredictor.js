@@ -163,7 +163,13 @@ export async function loadConfirmedDecays() {
     if (cachedDecayMap) return cachedDecayMap;
     if (cachedDecayPromise) return cachedDecayPromise;
 
-    cachedDecayPromise = fetch(DECAY_SOURCE)
+    const serverConnection = globalThis.window?.openbexiServerConnection;
+    const serverDecaySource = serverConnection?.connected && typeof serverConnection.resolveDataUrl === 'function'
+        ? serverConnection.resolveDataUrl(DECAY_SOURCE)
+        : null;
+    const source = serverDecaySource || DECAY_SOURCE;
+
+    cachedDecayPromise = fetch(source)
         .then((resp) => {
             if (!resp.ok) {
                 throw new Error(`HTTP ${resp.status}`);
@@ -176,7 +182,7 @@ export async function loadConfirmedDecays() {
             return cachedDecayMap;
         })
         .catch((err) => {
-            console.error(`Failed to load confirmed decay data from ${DECAY_SOURCE}:`, err.message || err);
+            console.error(`Failed to load confirmed decay data from ${source}:`, err.message || err);
             cachedDecayMap = null;
             return null;
         })

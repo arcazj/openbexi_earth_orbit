@@ -114,6 +114,21 @@
         issShortcutState,
         starlinkShortcutState
     } from './js/satelliteShortcutLabels.js';
+    import {
+        APP_VERSION,
+        checkServerConnection,
+        loadTleDataFromServer,
+        resolveApiBaseUrl,
+        resolveServerDataUrl,
+        serverStatusViewModel
+    } from './js/serverConnection.js';
+    import {
+        buildShareState,
+        buildShareUrl,
+        parseShareStateFromSearch,
+        shareStateSummary,
+        shareUrlContainsUnsafeLocalData
+    } from './js/shareState.js';
 
     // UI
     const perfLoggingEnabled = (() => {
@@ -130,9 +145,12 @@
     });
     startupPerf.mark('module-loaded');
 
-    const versionNumber = "1.5.12";
+    const versionNumber = "1.5.13";
+    if (versionNumber !== APP_VERSION) {
+        console.warn(`Version mismatch: index ${versionNumber}, server module ${APP_VERSION}`);
+    }
     const versionRepoUrl = "https://github.com/arcazj/openbexi_earth_orbit";
-    const versionText = `version ${versionNumber} - hosted at`;
+    const versionText = `Version ${versionNumber} - hosted at`;
     document.getElementById('ob_menu').innerHTML = satelliteMenuLoader();
     startupPerf.mark('menu-rendered');
 
@@ -162,9 +180,10 @@
     const DECAY_ESTIMATE_CHUNK_SIZE = 2;
     const MENU_COLLAPSE_STORAGE_KEY = 'openbexi.menu.collapsedSections';
     const DEFAULT_EXPANDED_ACCORDION_SECTIONS = new Set(['filtersContent', 'satelliteSelectionContent']);
-    const DEFAULT_COLLAPSED_ACCORDION_SECTIONS = new Set(['viewContent', 'timelineContent', 'otherSelectionsContent', 'settingsContent', 'helpContent']);
+    const DEFAULT_COLLAPSED_ACCORDION_SECTIONS = new Set(['viewContent', 'timelineContent', 'otherSelectionsContent', 'settingsContent', 'shareContent', 'helpContent']);
     const SATELLITE_SEARCH_LIMIT = 40;
     const EXCLUDED_COMPANY_FILTER_OPTIONS = new Set(['ACTIVE']);
+    const serverApiBaseUrl = resolveApiBaseUrl();
 
     // Simulation time (reuse Date to avoid GC)
     let simMillis = Date.now();
@@ -292,6 +311,8 @@
         showOnlySelectedSatellite: false,
         otherSelection: 'Earth'
     };
+    const pendingShareState = parseShareStateFromSearch(window.location.search);
+    let pendingShareStateApplied = false;
 
     let orbitTypeFilterSelect, companyFilterSelect, debrisFilterSelect, satelliteCountDisplay;
     let view3DToggle, viewMercatorToggle, showOrbitToggle, showOrbitFrameToggle;
@@ -307,6 +328,20 @@
     let satelliteSearchClearedForNextSelection = false;
     let launchTimelineHandle = null;
     let reentryTimelineHandle = null;
+    let serverStatusButton, serverStatusText, serverStatusPanel, serverStatusUrl;
+    let serverStatusStateElement, serverDataSourceElement, serverAppVersionElement, serverApiVersionElement, serverLastSyncElement;
+    let serverReconnectButton, serverOfflineNotice, swaggerDocsLink, openApiSchemaLink, apiDocsStatus;
+    let copyShareLinkButton, nativeShareButton, shareLinkOutput, shareFeedback, shareStateSummaryElement;
+    let serverConnectionState = {
+        state: 'checking',
+        connected: false,
+        baseUrl: serverApiBaseUrl,
+        dataSource: 'local',
+        version: null,
+        lastSync: null,
+        error: null
+    };
+    let offlineNoticeShown = false;
     let animationLoopStarted = false;
     let deferredStartupWorkScheduled = false;
     let launchTimelineInitialized = false;
@@ -894,6 +929,252 @@
         setShortcutButtonState(selectIssButton, issShortcutState(findIssSatellite()));
     }
 
+    function setOpenBexiServerRuntime(connected) {
+        window.openbexiServerConnection = {
+            connected: !!connected,
+            baseUrl: serverConnectionState.baseUrl,
+            resolveDataUrl: (url) => connected
+                ? resolveServerDataUrl(url, serverConnectionState.baseUrl)
+                : null
+        };
+    }
+
+    function setServerStatusPanelVisible(visible) {
+        if (!serverStatusPanel || !serverStatusButton) return;
+        serverStatusPanel.hidden = !visible;
+        serverStatusButton.setAttribute('aria-expanded', visible ? 'true' : 'false');
+    }
+
+    function updateApiDocsState() {
+        const connected = serverConnectionState.state === 'connected';
+        const docsUrl = `${serverConnectionState.baseUrl}/docs`;
+        const openApiUrl = `${serverConnectionState.baseUrl}/openapi.json`;
+        if (apiDocsStatus) {
+            apiDocsStatus.textContent = connected
+                ? 'Swagger and OpenAPI documentation are available from the connected Python server.'
+                : 'API documentation is available when the Python server is running.';
+        }
+        [
+            [swaggerDocsLink, docsUrl, 'Swagger UI'],
+            [openApiSchemaLink, openApiUrl, 'OpenAPI Schema']
+        ].forEach(([link, href, label]) => {
+            if (!link) return;
+            link.classList.toggle('is-disabled', !connected);
+            link.setAttribute('aria-disabled', connected ? 'false' : 'true');
+            link.title = connected ? href : `${label} is available when connected to the Python server`;
+            if (connected) {
+                link.href = href;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                link.tabIndex = 0;
+            } else {
+                link.removeAttribute('href');
+                link.removeAttribute('target');
+                link.removeAttribute('rel');
+                link.tabIndex = -1;
+            }
+        });
+    }
+
+    function updateServerStatusUI() {
+        const viewModel = serverStatusViewModel(serverConnectionState);
+        if (serverStatusButton) {
+            serverStatusButton.classList.remove(
+                'server-state-checking',
+                'server-state-connected',
+                'server-state-disconnected',
+                'server-state-error'
+            );
+            serverStatusButton.classList.add(viewModel.cssClass);
+            serverStatusButton.title = viewModel.tooltip;
+            serverStatusButton.setAttribute('aria-label', viewModel.ariaLabel);
+        }
+        if (serverStatusText) serverStatusText.textContent = viewModel.text;
+        if (serverStatusUrl) serverStatusUrl.textContent = serverConnectionState.baseUrl || 'Not configured';
+        if (serverStatusStateElement) serverStatusStateElement.textContent = viewModel.text;
+        if (serverDataSourceElement) serverDataSourceElement.textContent = serverConnectionState.dataSource || viewModel.dataSource;
+        if (serverAppVersionElement) serverAppVersionElement.textContent = versionNumber;
+        if (serverApiVersionElement) {
+            serverApiVersionElement.textContent =
+                serverConnectionState.version?.api_version ||
+                serverConnectionState.version?.app_version ||
+                (serverConnectionState.state === 'connected' ? versionNumber : 'Unavailable');
+        }
+        if (serverLastSyncElement) {
+            serverLastSyncElement.textContent = serverConnectionState.lastSync
+                ? serverConnectionState.lastSync.toLocaleString()
+                : 'Never';
+        }
+        if (serverOfflineNotice) {
+            serverOfflineNotice.hidden = !(offlineNoticeShown && serverConnectionState.state !== 'connected');
+        }
+        updateApiDocsState();
+    }
+
+    function setServerConnectionState(patch) {
+        serverConnectionState = { ...serverConnectionState, ...patch };
+        setOpenBexiServerRuntime(serverConnectionState.state === 'connected');
+        updateServerStatusUI();
+    }
+
+    async function checkAndLoadServerTleData() {
+        setServerConnectionState({
+            state: 'checking',
+            connected: false,
+            dataSource: 'checking server',
+            error: null
+        });
+
+        const connection = await checkServerConnection({ baseUrl: serverConnectionState.baseUrl });
+        if (!connection.connected) {
+            offlineNoticeShown = true;
+            console.info('[server] Python server unavailable. Using local satellite data.', connection.error);
+            setServerConnectionState({
+                ...connection,
+                dataSource: 'local files'
+            });
+            return null;
+        }
+
+        setServerConnectionState({
+            ...connection,
+            dataSource: 'loading server data'
+        });
+
+        try {
+            const tleData = await loadTleDataFromServer({ baseUrl: connection.baseUrl });
+            console.info(`[server] Loaded ${tleData.length} TLE records from Python server.`);
+            setServerConnectionState({
+                state: 'connected',
+                connected: true,
+                baseUrl: connection.baseUrl,
+                version: connection.version,
+                dataSource: 'live server',
+                lastSync: new Date(),
+                error: null
+            });
+            return tleData;
+        } catch (err) {
+            offlineNoticeShown = true;
+            console.warn('[server] Server TLE data failed validation or loading. Falling back to local data.', err);
+            setServerConnectionState({
+                state: 'error',
+                connected: false,
+                baseUrl: connection.baseUrl,
+                version: connection.version,
+                dataSource: 'local files',
+                error: err?.message || String(err)
+            });
+            return null;
+        }
+    }
+
+    function refreshShareControls() {
+        const state = buildShareState(simParams, currentSelectedSatellite);
+        const shareUrl = buildShareUrl(window.location.href, simParams, currentSelectedSatellite);
+        if (shareStateSummaryElement) shareStateSummaryElement.textContent = shareStateSummary(state);
+        if (shareLinkOutput) shareLinkOutput.value = shareUrl;
+        if (nativeShareButton) {
+            const supported = typeof navigator.share === 'function';
+            nativeShareButton.disabled = !supported;
+            nativeShareButton.title = supported ? 'Share using the browser native share dialog' : 'Native sharing is not supported by this browser';
+        }
+        return shareUrl;
+    }
+
+    async function copyCurrentShareLink() {
+        const shareUrl = refreshShareControls();
+        if (shareUrlContainsUnsafeLocalData(shareUrl)) {
+            if (shareFeedback) shareFeedback.textContent = 'Share link blocked because it contained unsafe local data.';
+            return;
+        }
+        try {
+            if (navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(shareUrl);
+            } else if (shareLinkOutput) {
+                shareLinkOutput.select();
+                document.execCommand('copy');
+            }
+            if (shareFeedback) shareFeedback.textContent = 'Share link copied.';
+        } catch (err) {
+            if (shareFeedback) shareFeedback.textContent = 'Copy failed. Select the generated link manually.';
+        }
+    }
+
+    async function nativeShareCurrentState() {
+        const shareUrl = refreshShareControls();
+        if (!navigator.share || shareUrlContainsUnsafeLocalData(shareUrl)) return;
+        try {
+            await navigator.share({
+                title: 'OpenBEXI Earth Orbit',
+                text: 'OpenBEXI Earth Orbit shared satellite view',
+                url: shareUrl
+            });
+            if (shareFeedback) shareFeedback.textContent = 'Share dialog opened.';
+        } catch (err) {
+            if (shareFeedback) shareFeedback.textContent = 'Native share was cancelled or unavailable.';
+        }
+    }
+
+    function applyPendingShareStateAfterSatelliteLoad() {
+        if (!pendingShareState || pendingShareStateApplied) return;
+        pendingShareStateApplied = true;
+
+        if (pendingShareState.orbitTypeFilter?.length) applyOrbitSelectionToUI(pendingShareState.orbitTypeFilter);
+        if (pendingShareState.companyFilter?.length) applyCompanySelectionToUI(pendingShareState.companyFilter);
+        applyDebrisFilterToUI(pendingShareState.debrisFilter);
+
+        simParams.view3D = pendingShareState.view3D;
+        simParams.viewMercator = pendingShareState.viewMercator;
+        simParams.showOrbit = pendingShareState.showOrbit;
+        simParams.showFootprint = pendingShareState.showFootprint;
+        simParams.showOnlySelectedSatellite = pendingShareState.showOnlySelectedSatellite;
+        simParams.useHighDefTexture = pendingShareState.useHighDefTexture;
+        simParams.showDayNight = pendingShareState.showDayNight;
+        simParams.showECEFAxes = pendingShareState.showECEFAxes;
+        simParams.showOrbitFrame = pendingShareState.showOrbitFrame;
+        simParams.yawDeg = Number.isFinite(pendingShareState.yawDeg) ? pendingShareState.yawDeg : 0;
+        simParams.pitchDeg = Number.isFinite(pendingShareState.pitchDeg) ? pendingShareState.pitchDeg : 0;
+        simParams.rollDeg = Number.isFinite(pendingShareState.rollDeg) ? pendingShareState.rollDeg : 0;
+        if (pendingShareState.simDate) {
+            simMillis = pendingShareState.simDate.getTime();
+            SIM_DATE.setTime(simMillis);
+            simParams.simDate = SIM_DATE;
+        }
+
+        if (view3DToggle) view3DToggle.checked = simParams.view3D;
+        if (viewMercatorToggle) viewMercatorToggle.checked = simParams.viewMercator;
+        if (showOrbitToggle) showOrbitToggle.checked = simParams.showOrbit;
+        if (highDefToggleElement) highDefToggleElement.checked = simParams.useHighDefTexture;
+        if (showECEFAxesToggleElement) showECEFAxesToggleElement.checked = simParams.showECEFAxes;
+        if (showOrbitFrameToggleElement) showOrbitFrameToggleElement.checked = simParams.showOrbitFrame;
+        if (showOnlySelectedSatelliteCheckbox) showOnlySelectedSatelliteCheckbox.checked = simParams.showOnlySelectedSatellite;
+        const showFootprintChk = document.getElementById('showFootprintCheckbox');
+        if (showFootprintChk) showFootprintChk.checked = simParams.showFootprint;
+        const showDayNightToggle = document.getElementById('showDayNightToggle');
+        if (showDayNightToggle) showDayNightToggle.checked = simParams.showDayNight;
+        const yawSlider = document.getElementById('yawSlider');
+        const pitchSlider = document.getElementById('pitchSlider');
+        const rollSlider = document.getElementById('rollSlider');
+        if (yawSlider) yawSlider.value = simParams.yawDeg;
+        if (pitchSlider) pitchSlider.value = simParams.pitchDeg;
+        if (rollSlider) rollSlider.value = simParams.rollDeg;
+        updateEarthTexture();
+        updateECEFAxesVisibility(simParams);
+        if (orbitFrame) setOrbitFrameVisibility(orbitFrame, simParams.showOrbitFrame);
+        updateSatelliteList();
+
+        const sharedSat = pendingShareState.selectedSatelliteNoradId
+            ? satellites.find(s => s.norad_id?.toString() === pendingShareState.selectedSatelliteNoradId)
+            : satellites.find(s => s.satellite_name === pendingShareState.selectedSatelliteName);
+        if (sharedSat) {
+            selectSatelliteViaShortcut(sharedSat);
+        } else if (pendingShareState.selectedSatelliteNoradId) {
+            console.warn(`[share] Shared NORAD ${pendingShareState.selectedSatelliteNoradId} was not found in loaded data.`);
+        }
+        refreshShareControls();
+    }
+
     function selectSatelliteViaShortcut(satData) {
         if (!satData || !satelliteSelectDropdown) return;
         setSatelliteSelectToSatellite(satData);
@@ -1079,9 +1360,67 @@
             versionLink.href = versionRepoUrl;
             versionLink.textContent = `GitHub Repo`;
             versionLink.target = "_blank";
+            versionLink.rel = "noopener noreferrer";
             versionDisplayElement.textContent = `${versionText} `;
             versionDisplayElement.appendChild(versionLink);
         }
+
+        serverStatusButton = document.getElementById('serverStatusButton');
+        serverStatusText = document.getElementById('serverStatusText');
+        serverStatusPanel = document.getElementById('serverStatusPanel');
+        serverStatusUrl = document.getElementById('serverStatusUrl');
+        serverStatusStateElement = document.getElementById('serverStatusState');
+        serverDataSourceElement = document.getElementById('serverDataSource');
+        serverAppVersionElement = document.getElementById('serverAppVersion');
+        serverApiVersionElement = document.getElementById('serverApiVersion');
+        serverLastSyncElement = document.getElementById('serverLastSync');
+        serverReconnectButton = document.getElementById('serverReconnectButton');
+        serverOfflineNotice = document.getElementById('serverOfflineNotice');
+        swaggerDocsLink = document.getElementById('swaggerDocsLink');
+        openApiSchemaLink = document.getElementById('openApiSchemaLink');
+        apiDocsStatus = document.getElementById('apiDocsStatus');
+
+        copyShareLinkButton = document.getElementById('copyShareLinkButton');
+        nativeShareButton = document.getElementById('nativeShareButton');
+        shareLinkOutput = document.getElementById('shareLinkOutput');
+        shareFeedback = document.getElementById('shareFeedback');
+        shareStateSummaryElement = document.getElementById('shareStateSummary');
+        updateServerStatusUI();
+        refreshShareControls();
+
+        serverStatusButton?.addEventListener('click', () => {
+            setServerStatusPanelVisible(serverStatusPanel?.hidden);
+        });
+        serverStatusButton?.addEventListener('focus', () => {
+            setServerStatusPanelVisible(true);
+        });
+        serverReconnectButton?.addEventListener('click', async () => {
+            const selectedNorad = simParams.selectedSatelliteNoradId;
+            const serverTleData = await checkAndLoadServerTleData();
+            if (!serverTleData || !scene) {
+                setServerConnectionState({ dataSource: 'local files' });
+                return;
+            }
+            setSatelliteLoadingState('Loading server satellites...');
+            await setupTLESatellites(scene, {
+                tleDataOverride: serverTleData,
+                tleDataSource: 'live server',
+                chunkSize: SATELLITE_SETUP_CHUNK_SIZE,
+                onProgress: ({ processed, total }) => {
+                    if (satelliteCountDisplay) {
+                        satelliteCountDisplay.textContent = `Loading ${processed}/${total}`;
+                    }
+                }
+            });
+            updateSatelliteList();
+            if (selectedNorad) {
+                const restored = satellites.find(s => s.norad_id?.toString() === selectedNorad);
+                if (restored) selectSatelliteViaShortcut(restored);
+            }
+            setServerConnectionState({ dataSource: 'live server', lastSync: new Date() });
+        });
+        copyShareLinkButton?.addEventListener('click', copyCurrentShareLink);
+        nativeShareButton?.addEventListener('click', nativeShareCurrentState);
 
         orbitTypeFilterSelect = document.getElementById('orbitTypeFilter');
         companyFilterSelect = document.getElementById('companyFilter');
@@ -2219,6 +2558,7 @@
         }
         renderSatelliteSearchResults(filteredTLEs, false);
         updateViewShortcutButtonsState();
+        refreshShareControls();
 
         if (reentryTimelineHandle?.requestRedraw) {
             reentryTimelineHandle.requestRedraw();
@@ -2515,7 +2855,13 @@
             startAnimationLoopOnce();
 
             startupPerf.mark('tle-load-start');
+            const serverTleData = await checkAndLoadServerTleData();
+            if (!serverTleData) {
+                setServerConnectionState({ dataSource: 'local files' });
+            }
             await setupTLESatellites(scene, {
+                tleDataOverride: serverTleData,
+                tleDataSource: serverTleData ? 'live server' : 'local files',
                 chunkSize: SATELLITE_SETUP_CHUNK_SIZE,
                 onProgress: ({ processed, total }) => {
                     if (satelliteCountDisplay) {
@@ -2525,6 +2871,7 @@
             });
             startupPerf.mark('satellite-data-ready', { count: satellites.length });
             updateSatelliteList();
+            applyPendingShareStateAfterSatelliteLoad();
             startupPerf.markOnce('first-interactive-ui', { count: satellites.length });
             startupPerf.logSummary();
             scheduleDeferredStartupWork();

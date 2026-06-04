@@ -332,12 +332,21 @@ async function processSatellites(scene, tleData, baseMaterial, options = {}) {
 
 
 export async function setupTLESatellites(scene, options = {}) {
+    const {
+        tleDataOverride = null,
+        tleDataSource = 'local files'
+    } = options;
     let TLE_BASE_URL = "json/tle/";
     console.log("Attempting to load TLE data from:", TLE_BASE_URL);
     const primaryTleUrl = TLE_BASE_URL + 'TLE.json';
 
     try {
-        let tleData = await fetchJSON(primaryTleUrl);
+        let tleData = Array.isArray(tleDataOverride) && tleDataOverride.length > 0
+            ? tleDataOverride
+            : await fetchJSON(primaryTleUrl);
+        if (Array.isArray(tleDataOverride) && tleDataOverride.length > 0) {
+            console.info(`Using ${tleData.length} TLE records from ${tleDataSource}.`);
+        }
 
         if (!Array.isArray(tleData) || tleData.length === 0) {
             //console.warn(`TLE data from ${primaryTleUrl} failed or is empty.`);

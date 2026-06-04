@@ -1,5 +1,193 @@
 # Prompt History
 
+## Release Date: 2026-06-04  Version 1.5.13
+
+Add an optional Python server integration while preserving the current local/offline application behavior exactly when the server is unavailable. The existing `index.html` page must be able to connect to the Python server, use server-provided satellite data when connected, and fall back to the current local file loading path without UI breakage or behavior regressions when disconnected.
+
+The release builds on Version 1.5.12. Preserve the existing Help section, selected-satellite workflow, menu accordion behavior, shortcuts, model orientation behavior, local data loading behavior, and GitHub Pages/local static hosting compatibility.
+
+Requirements:
+
+1. Create a Python server for the app.
+   - Add a Python server that can be started locally and accessed by the existing frontend.
+   - Prefer a framework that provides OpenAPI/Swagger documentation, such as FastAPI, unless the repository already has a stronger Python server convention.
+   - The server must support CORS for local frontend development.
+   - The server must expose only known application data and static resources needed by this project. Do not add an arbitrary file-read endpoint.
+   - The server should optionally serve `index.html` and related static assets, but the app must also continue working when hosted statically the current way.
+   - Document the default host, port, startup command, API base URL, and how to change the server URL.
+
+2. Add required API endpoints.
+   - Add `/api/health` for frontend connectivity checks.
+   - Add `/api/version` returning the app/API version, release date, and server metadata.
+   - Add endpoints for all satellite-related data currently loaded directly from local files, including TLE data and satellite metadata used by the frontend.
+   - Add an endpoint or documented route for the OpenAPI schema, such as `/openapi.json`.
+   - Add Swagger UI documentation, such as `/docs`, if supported by the selected framework.
+   - Keep API response shapes simple, documented, and validated before the frontend uses them.
+   - If an API response is malformed, incomplete, times out, or returns an error, the frontend must fall back to local data.
+
+3. Update frontend data loading.
+   - Add a small server-connection layer used by `index.html` and the JavaScript data loaders.
+   - On startup, check the Python server using a short timeout so app startup is not delayed.
+   - Default to the current local-data behavior when the server is unavailable.
+   - When connected, load satellite data, TLE data, and related satellite metadata from the Python server instead of reading those datasets directly from local files.
+   - Do not make per-frame API calls for satellite propagation or rendering. Load/refresh data at startup, on reconnect, or on explicit refresh only.
+   - Validate server data before replacing local data.
+   - If server data fails validation, keep or restore the local data path.
+   - Add clear browser console logs for connection success, connection failure, data-source selection, API errors, and fallback decisions.
+
+4. Add a server connection status icon.
+   - Add a visible status icon that shows whether the app is connected to the Python server.
+   - States must include connected, disconnected/offline, loading/checking, and error.
+   - The icon must include accessible text, `aria-label`, and a tooltip.
+   - Suggested tooltip text:
+     - `Connected to server`
+     - `Offline mode - using local data`
+     - `Checking server connection`
+     - `Server error - using local data`
+   - Clicking or focusing the icon should show a compact status panel with:
+     - server URL
+     - connection state
+     - data source: local, live server, or cached server data if caching is implemented
+     - app version
+     - API/server version when connected
+     - last successful satellite/TLE data load time
+     - reconnect or refresh action
+   - If the server is unavailable, the app must behave exactly as it does today except for the non-blocking status indicator.
+
+5. Add graceful loading and fallback UX.
+   - Show a small non-blocking loading indicator while checking the server or loading server data.
+   - Do not show blocking browser alerts for server connection failures.
+   - Show at most one subtle offline-mode message such as `Server unavailable. Using local satellite data.`
+   - Avoid repeated failure notifications.
+   - Add a manual reconnect or refresh action so users can start the server after the page is already open.
+   - Show the active data source somewhere unobtrusive in the UI.
+   - Show the last successful data load timestamp when available.
+   - If cached server data is implemented, clearly label it as cached and never let it silently override safer local fallback behavior.
+
+6. Update the menu version text.
+   - Update the menu/version display to show:
+     `Version 1.5.13 - hosted at GitHub Repo`
+   - `GitHub Repo` should link to `https://github.com/arcazj/openbexi_earth_orbit`.
+   - The GitHub link must open in a new tab and include `rel="noopener noreferrer"`.
+   - Keep the version text readable in the existing thin menu layout.
+
+7. Add a new `Share` accordion section before `Help`.
+   - Place `Share` immediately before the existing `Help` section.
+   - Use the same accordion behavior as the other menu sections.
+   - Do not default-expand `Share` unless the current menu pattern requires it.
+   - Do not collapse or reset any other accordion section.
+   - Style `Share` consistently with the current menu and with the attached Share reference image.
+   - Add a shareable-link workflow for the current app state.
+   - The shareable state should include selected satellite, view mode, relevant filters, simulation time, and relevant display settings when practical.
+   - If camera/view state can be serialized safely, include it; otherwise document the limitation.
+   - Add `Copy Link`.
+   - Add a native Web Share action when supported by the browser, with a graceful disabled or hidden fallback when unsupported.
+   - Add clear copied/error feedback that matches the existing UI styling.
+   - Shared links must not include local filesystem paths, credentials, private server tokens, or sensitive local configuration.
+   - When the app opens with share parameters, restore the state after satellite data loads and fail safely if referenced data is unavailable.
+
+8. Update the existing `Help` section with Swagger/API documentation.
+   - Keep the Help section after `Share`.
+   - Add a `Swagger` or `API Documentation` subsection inside Help similar to the attached reference image.
+   - When connected to the Python server, link to the Swagger UI route such as `/docs`.
+   - Also expose or link to the OpenAPI schema route such as `/openapi.json`.
+   - When disconnected, show a disabled/offline state with a concise message:
+     `API documentation is available when the Python server is running.`
+   - Keep existing Help links and disclaimer behavior from Version 1.5.12.
+   - Do not break the existing Help links for GitHub, README, Prompt History, and License.
+
+9. Keep CSS and visual design consistent.
+   - Reuse existing CSS variables, colors, fonts, spacing, borders, shadows, accordion styles, menu styles, button styles, and panel behavior.
+   - Do not introduce a separate visual design language for Server Status, Share, or Swagger/API documentation.
+   - New icons, tooltips, panels, banners, buttons, disabled states, copied states, loading states, connected states, disconnected states, and error states must match the current application styling.
+   - Keep the additions readable at the current thin menu width and on narrow screens.
+   - Avoid layout shifts when server status changes from checking to connected, disconnected, or error.
+   - Use subtle inline indicators instead of disruptive popups.
+   - Keep hover, active, focus, disabled, loading, connected, disconnected, and error states visually consistent.
+   - Share and Swagger sections must align visually with the existing menu and Help content.
+   - Do not add a new UI framework just for these additions.
+
+10. Preserve existing local/offline behavior.
+   - If the server is not running, blocked by CORS, unavailable, times out, returns invalid data, or returns an error, the app must behave exactly as it does today.
+   - Static hosting, including GitHub Pages-style hosting, must continue to work without the Python server.
+   - Existing local file paths must remain usable as the fallback data source.
+   - Do not break filters, selected-satellite search/dropdown behavior, Starlink and ISS shortcuts, timelines, Mercator, View toggles, orbit display, footprint display, Yaw/Pitch/Roll controls, selected-model loading, Help links, or model fallback behavior.
+   - Multiple accordion sections must still be allowed to remain open at the same time.
+   - `Filters` and `Satellite Selection` must still load expanded.
+
+11. Add accessibility and keyboard support.
+   - Server status, Share actions, Swagger/API links, reconnect buttons, and disabled states must be keyboard reachable where interactive.
+   - Add clear `aria-label`, `title`, or visible text for icon-only controls.
+   - Focus styling must remain visible and consistent with the current UI.
+   - Disabled Swagger/API actions must communicate why they are disabled.
+
+12. Update tests.
+   - Add or update tests confirming the latest release entry is Version 1.5.13.
+   - Add or update frontend tests confirming disconnected mode falls back to the existing local data path.
+   - Add or update frontend tests confirming connected mode uses server-provided satellite/TLE data.
+   - Add or update tests confirming invalid server responses fall back to local data.
+   - Add or update tests confirming the server status icon renders connected, disconnected, loading, and error states.
+   - Add or update tests confirming the status icon tooltip, accessible labels, and status panel content.
+   - Add or update tests confirming reconnect/refresh actions retry the server check without breaking current local data.
+   - Add or update tests confirming `Share` appears immediately before `Help`.
+   - Add or update tests confirming `Share` uses the existing accordion behavior and does not collapse other sections.
+   - Add or update tests confirming `Copy Link` serializes and restores the supported app state.
+   - Add or update tests confirming shared links do not include unsafe local paths or credentials.
+   - Add or update tests confirming Help contains a Swagger/API documentation subsection.
+   - Add or update tests confirming Swagger/API links are enabled when connected and disabled with an offline explanation when disconnected.
+   - Add or update API/server tests or smoke checks for `/api/health`, `/api/version`, satellite-data endpoints, TLE endpoints, `/docs`, and `/openapi.json`.
+   - Keep existing Help, Starlink shortcut, ISS shortcut, selected-satellite isolation, ISS orientation, High Def., search-clear, and shortcut-path tests passing.
+
+13. Update documentation and integration checks.
+   - Update `README.md` with:
+     - how to start the Python server
+     - default API base URL and how to configure it
+     - offline/local fallback behavior
+     - server status icon behavior
+     - Share section behavior
+     - Swagger/API documentation access
+     - version text update
+   - Ensure `README.md` still references every repository Markdown file with a short explanation.
+   - Update `Test_and_Integration.md` with manual checks for:
+     - app loading without the Python server
+     - app loading with the Python server
+     - server timeout/failure fallback
+     - malformed server response fallback
+     - server status icon states and tooltip
+     - status panel data source and last-sync values
+     - reconnect/refresh after starting the server late
+     - Share link copy and restore
+     - Share UI on narrow screens
+     - Swagger/API docs enabled while connected
+     - Swagger/API docs disabled while disconnected
+     - CSS consistency for all new additions
+     - existing selected-satellite, filter, timeline, Mercator, View, Help, and model behaviors
+   - Add any Python dependency/setup notes needed to run the server and tests.
+
+Acceptance criteria:
+
+- The latest release entry is `Release Date: 2026-06-04  Version 1.5.13`.
+- A Python server can be started locally and reached by the existing frontend.
+- `/api/health`, `/api/version`, satellite-data endpoints, TLE endpoints, Swagger UI, and OpenAPI schema routes are available and documented.
+- The app uses server-provided satellite/TLE data when connected.
+- The app falls back to current local file data when the server is unavailable, slow, blocked, invalid, or disconnected.
+- Offline/static behavior remains visually and functionally equivalent to the current app except for the subtle status indicator.
+- The status icon shows connected, disconnected/offline, loading/checking, and error states with matching CSS, tooltip text, and accessible labels.
+- The status panel shows server URL, connection state, data source, version information, last load time, and reconnect/refresh action.
+- The menu displays `Version 1.5.13 - hosted at GitHub Repo` with a working GitHub link.
+- A `Share` accordion section appears immediately before `Help`.
+- Share link copy/restore works for the supported app state and avoids unsafe local/private data.
+- The Help section includes Swagger/API documentation links that are enabled when connected and clearly disabled when disconnected.
+- All new UI uses CSS consistent with the existing menu, Help section, and attached reference images.
+- Existing Help links and disclaimer remain intact.
+- Existing filters, selected-satellite behavior, Starlink shortcut, ISS shortcut, ISS orientation, timelines, Mercator, View toggles, orbit display, footprint display, Yaw/Pitch/Roll, and model fallback behavior remain unchanged.
+- `npm test` passes.
+- JavaScript syntax checks pass.
+- Python server/API smoke checks pass or limitations are documented.
+- `Test_and_Integration.md` and `README.md` are updated according to `PROMPT.md`.
+
+---
+
 ## Release Date: 2026-06-04  Version 1.5.12
 
 Improve the selected-satellite shortcut labels, correct ISS model orientation, and add a Help section at the end of the menu with project references, license access, and a concise legal notice.

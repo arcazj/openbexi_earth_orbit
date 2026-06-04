@@ -42,6 +42,8 @@ Version 1.5.11 tightens selected-satellite UX. Any satellite selection must auto
 
 Version 1.5.12 adds a Help section and improves shortcut/orientation clarity. The Starlink shortcut must display the resolved NORAD ID as `Starlink (<NORAD ID>)`, with unavailable fallbacks for Starlink and ISS. ISS selected models must use the live velocity/nadir/right-handed orbital frame with ISS-specific calibration diagnostics. The Help accordion must appear after Settings and include GitHub, README, Prompt History, License, and a concise legal disclaimer about data, model, visualization, and `satellite.js` limitations.
 
+Version 1.5.13 adds an optional Python server, server status UI, Share menu, and Swagger/API documentation links. The app must load server-provided TLE and satellite metadata when connected, but must fall back to the current local files without behavioral regressions when the server is disconnected, slow, invalid, or unavailable.
+
 ## Test Environment
 
 - Run from the repository root.
@@ -50,6 +52,12 @@ Version 1.5.12 adds a Help section and improves shortcut/orientation clarity. Th
 
 ```powershell
 py -m http.server 8000 --bind 127.0.0.1
+```
+
+- Optional Python API server:
+
+```powershell
+py server.py --host 127.0.0.1 --port 8000
 ```
 
 - Open:
@@ -82,6 +90,21 @@ npm test
 - Confirm startup timing marks include `first-visible-globe-render`, `satellite-data-ready`, and `first-interactive-ui`.
 - Confirm TLE sprite setup and deferred decay work use named chunk sizes instead of one unbounded synchronous pass.
 - Confirm UI-facing HTML, CSS, JavaScript, generated menu markup, `README.md`, and this file pass the automated mojibake scan for common corrupted markers.
+- Run Python syntax checks:
+
+```powershell
+py -m py_compile server.py
+```
+
+- With the optional Python server running, confirm these endpoints return successful responses:
+  - `/api/health`
+  - `/api/version`
+  - `/api/tle`
+  - `/api/satellites`
+  - `/api/satellite-metadata`
+  - `/api/decayed`
+  - `/docs`
+  - `/openapi.json`
 
 ## Deep Automated Tests
 
@@ -217,11 +240,33 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test the Starlink shortcut dynamic state helper emits `Starlink (<NORAD ID>)` for a resolved Starlink target and `Starlink unavailable` when no target exists.
 - Test the ISS shortcut dynamic state helper emits `ISS` for a resolved ISS target and `ISS unavailable` when no target exists.
 - Test generated menu markup contains a Help accordion section after Settings.
+- Test generated menu markup contains a Share accordion section immediately before Help.
+- Test the server status icon exposes connected, checking, disconnected, and error states through CSS and accessible text.
+- Test the server status panel includes server URL, connection state, data source, app version, API version, last data load, and reconnect/refresh.
+- Test the Share section includes `Copy Link`, native share fallback behavior, generated link output, and copied/error feedback.
+- Test Share links serialize selected satellite, view mode, filters, simulation time, and display settings without local paths, credentials, or server configuration.
+- Test shared links restore supported app state only after satellite data loads and fail safely if the referenced satellite is unavailable.
 - Test the Help section contains GitHub, README, Prompt History, and License links.
+- Test the Help section contains Swagger/API docs links that are enabled when connected and disabled with an offline explanation when disconnected.
 - Test the GitHub Help link uses `target="_blank"` and `rel="noopener noreferrer"`.
 - Test the Help section contains the legal disclaimer and mentions `satellite.js`.
 - Test ISS selected-model orientation maps local `+X` to velocity, local `+Y` to the right-handed cross-track/starboard axis, and local `+Z` to nadir.
 - Test ISS orientation diagnostics include `orientationMode`, `modelAxisMapping`, `calibrationYawDeg`, `calibrationPitchDeg`, and `calibrationRollDeg`.
+
+### Server Data Path
+
+- Test `/api/health` returns status `ok` and version metadata.
+- Test `/api/version` returns app/API version `1.5.13` and release date `2026-06-04`.
+- Test `/api/tle` and `/api/satellites` return valid TLE records with `norad_id`, `tle_line1`, and `tle_line2`.
+- Test `/api/satellite-metadata` lists known metadata files.
+- Test `/api/satellite-metadata/starlink_V1.json` returns one known metadata payload.
+- Test `/api/decayed` returns the confirmed decay dataset.
+- Test `/docs` serves the Swagger/API documentation page.
+- Test `/openapi.json` contains OpenAPI paths for all supported API endpoints.
+- Test frontend disconnected mode falls back to local `json/tle/TLE.json`.
+- Test frontend connected mode uses server-provided TLE data.
+- Test malformed server TLE data is rejected and local fallback remains active.
+- Test model metadata and decay-data fetches use server routes only when the server is connected and fall back to local paths on failure.
 
 ### Regression Coverage
 
@@ -282,7 +327,14 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm the Starlink shortcut shows `Starlink unavailable` if no Starlink target can be resolved.
 - Confirm the ISS shortcut shows `ISS unavailable` if no ISS target can be resolved.
 - Confirm a `Help` accordion section appears after `Settings`.
+- Confirm a `Share` accordion section appears immediately before `Help`.
+- Confirm the server status indicator appears above the accordion menu and does not shift layout when changing between checking, offline, connected, and error states.
+- Confirm the status panel shows server URL, connection state, data source, version values, last load time, and reconnect/refresh.
+- Confirm `Copy Link` produces a URL that restores supported state after data loads.
+- Confirm native share is enabled only when the browser supports it.
 - Open Help and confirm the `GitHub`, `README`, `Prompt History`, and `License` links are readable and clickable.
+- Open Help while the Python server is disconnected and confirm Swagger/API docs are visible but disabled with the offline explanation.
+- Open Help while the Python server is connected and confirm Swagger UI and OpenAPI schema links are enabled.
 - Confirm the GitHub Help link opens in a new tab and the Markdown/license links use relative repository paths.
 - Confirm the Help disclaimer is readable at the current menu width and on narrow screens.
 
@@ -529,6 +581,8 @@ py -m http.server 8000 --bind 127.0.0.1
   - Confirm the Starlink shortcut label includes the resolved NORAD ID.
   - Select ISS from the shortcut and confirm the selected ISS diagnostics report `orientationMode: "iss-velocity-nadir-frame"` and the ISS model visually follows the reference velocity/nadir/starboard orientation.
   - Open Help and confirm GitHub, README, Prompt History, License, and the disclaimer are present.
+  - Open Share and confirm Copy Link creates a safe share URL.
+  - Open Help and confirm Swagger/API docs are disabled when the Python server is not running.
   - Confirm mouse orbit shows different faces of the selected model and zoom changes observer distance without losing centering.
   - Select a satellite without a model mapping and confirm the selected sprite stays visible.
   - Rapidly select two different satellites and confirm stale model loads do not attach to the scene.
@@ -539,6 +593,33 @@ py -m http.server 8000 --bind 127.0.0.1
   - Confirm there is no `Active` filter button/control.
   - Toggle Globe off, select a satellite in Mercator-only mode, then toggle Globe on and confirm 3D selected-satellite framing.
   - Toggle Yaw-Pitch-Roll on and off.
+
+## Python Server Smoke Test
+
+Start the optional server:
+
+```powershell
+py server.py --host 127.0.0.1 --port 8000
+```
+
+Then check:
+
+```text
+http://127.0.0.1:8000/api/health
+http://127.0.0.1:8000/api/version
+http://127.0.0.1:8000/api/tle
+http://127.0.0.1:8000/docs
+http://127.0.0.1:8000/openapi.json
+http://127.0.0.1:8000/index.html
+```
+
+Expected:
+
+- `index.html` loads from the Python server.
+- The status icon changes from checking to connected.
+- Satellite data source shows live server.
+- Swagger/API docs links become enabled in Help.
+- If the server is stopped and the page is refreshed, the app returns to local/offline data behavior.
 
 ## Isolated Model Viewer Check
 
@@ -922,6 +1003,23 @@ Checks not fully performed in this terminal:
 
 - Full visible-browser confirmation of ISS model visual orientation from multiple camera angles, Help link navigation on GitHub Pages, and unavailable shortcut states with altered TLE data remains manual unless browser automation and alternate fixture data are available.
 
+## Release 1.5.13 Verification Log
+
+Checks to perform for this release:
+
+- Confirm `PROMPT_History.md` contains the latest `Release Date: 2026-06-04 Version 1.5.13` entry at the top.
+- Confirm `index.html` visible version tag is `1.5.13`.
+- Confirm `server.py` compiles and serves API, OpenAPI, Swagger docs, and static app routes.
+- Confirm server-connected mode uses `/api/tle` data and enables Help Swagger/API links.
+- Confirm disconnected mode falls back to local files and keeps existing app behavior.
+- Confirm invalid/malformed server TLE data falls back to local files.
+- Confirm Share appears before Help and Copy Link restores supported state after satellite data loads.
+- Confirm status icon states, tooltip text, status panel fields, and reconnect/refresh behavior.
+- Run `npm test`.
+- Run JavaScript syntax checks.
+- Run Python syntax checks.
+- Run browser/static HTTP smoke checks.
+
 ## Acceptance Criteria
 
 - The app loads over HTTP without runtime errors.
@@ -936,7 +1034,16 @@ Checks not fully performed in this terminal:
 - The accordion menu is thinner than the previous release while staying usable.
 - Multiple accordion sections can stay open at the same time.
 - `Filters` and `Satellite Selection` start expanded on page load.
-- The accordion order is View, Filters, Satellite Selection, Timelines, Other Selections, Settings.
+- The accordion order starts with View, Filters, Satellite Selection, Timelines, Other Selections, and Settings.
+- The accordion order is View, Filters, Satellite Selection, Timelines, Other Selections, Settings, Share, Help.
+- The optional Python server exposes `/api/health`, `/api/version`, `/api/tle`, `/api/satellites`, `/api/satellite-metadata`, `/api/decayed`, `/docs`, and `/openapi.json`.
+- Connected mode loads TLE data from the Python server and labels the active data source as server-backed.
+- Disconnected, invalid, slow, or unavailable server states fall back to local file loading without breaking existing behavior.
+- The status icon exposes checking, connected, disconnected/offline, and error states with tooltip text and accessible labels.
+- The status panel shows server URL, connection state, data source, app/API version, last load time, and reconnect/refresh.
+- The Share accordion appears immediately before Help and its UI matches the existing accordion/menu styling.
+- Share links copy and restore supported state without including local filesystem paths, tokens, or private server configuration.
+- Help includes Swagger/API documentation links that are enabled when connected and disabled with an offline explanation when disconnected.
 - The View menu keeps Globe/Mercator, High Def./ECEF Axes/Day-Night, and First Starlink/ISS on three compact rows.
 - Selecting any satellite automatically checks `Show only selected satellite` and hides all non-selected satellites.
 - The selected satellite remains visible in show-only mode even when current filters would otherwise hide it.
