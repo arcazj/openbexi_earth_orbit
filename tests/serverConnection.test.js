@@ -2,6 +2,7 @@ import assert from 'assert';
 import {
   apiEndpoint,
   checkServerConnection,
+  SERVER_STATUS_ICONS,
   loadTleDataFromServer,
   resolveApiBaseUrl,
   resolveServerDataUrl,
@@ -59,12 +60,12 @@ async function run() {
     baseUrl: 'http://127.0.0.1:8000',
     fetchImpl: async (url) => {
       if (url.endsWith('/api/health')) return response(true, { status: 'ok' });
-      if (url.endsWith('/api/version')) return response(true, { api_version: '1.5.13' });
+      if (url.endsWith('/api/version')) return response(true, { api_version: '1.5.14' });
       return response(false, {}, 404);
     }
   });
   assert.strictEqual(connected.state, 'connected', 'health ok marks server connected');
-  assert.strictEqual(connected.version.api_version, '1.5.13', 'version payload is captured');
+  assert.strictEqual(connected.version.api_version, '1.5.14', 'version payload is captured');
 
   const disconnected = await checkServerConnection({
     baseUrl: 'http://127.0.0.1:8000',
@@ -89,9 +90,13 @@ async function run() {
   );
 
   assert.strictEqual(serverStatusViewModel({ state: 'connected' }).tooltip, 'Connected to server');
+  assert.strictEqual(serverStatusViewModel({ state: 'connected' }).icon, SERVER_STATUS_ICONS.connected, 'connected state uses icon');
   assert.strictEqual(serverStatusViewModel({ state: 'checking' }).tooltip, 'Checking server connection');
+  assert.strictEqual(serverStatusViewModel({ state: 'checking' }).icon, 'icons/server_checking.svg', 'checking state uses icon');
   assert.strictEqual(serverStatusViewModel({ state: 'error' }).tooltip, 'Server error - using local data');
+  assert.strictEqual(serverStatusViewModel({ state: 'error' }).icon, 'icons/server_error.svg', 'error state uses icon');
   assert.strictEqual(serverStatusViewModel({ state: 'disconnected' }).tooltip, 'Offline mode - using local data');
+  assert.strictEqual(serverStatusViewModel({ state: 'disconnected' }).icon, 'icons/server_offline.svg', 'offline state uses icon');
 
   console.log('serverConnection tests passed');
 }

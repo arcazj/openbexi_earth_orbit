@@ -17,7 +17,7 @@ from pathlib import Path
 from urllib.parse import quote, unquote, urlparse
 
 
-APP_VERSION = "1.5.13"
+APP_VERSION = "1.5.14"
 RELEASE_DATE = "2026-06-04"
 REPO_URL = "https://github.com/arcazj/openbexi_earth_orbit"
 ROOT = Path(__file__).resolve().parent
@@ -186,6 +186,68 @@ def _docs_html() -> bytes:
     body {{ margin: 0; background: #0f1520; color: #d9ecff; font-family: Arial, sans-serif; }}
     .fallback {{ padding: 16px; border-bottom: 1px solid #274466; background: #111d2c; }}
     .fallback a {{ color: #8ecbff; }}
+    #swagger-ui {{ background: #0f1520; min-height: calc(100vh - 48px); }}
+    .swagger-ui, .swagger-ui .info .title, .swagger-ui .info p, .swagger-ui .opblock-tag,
+    .swagger-ui .opblock .opblock-summary-path, .swagger-ui .opblock .opblock-summary-description,
+    .swagger-ui table thead tr td, .swagger-ui table thead tr th, .swagger-ui .response-col_status,
+    .swagger-ui .response-col_description, .swagger-ui .model-title, .swagger-ui .model,
+    .swagger-ui .parameter__name, .swagger-ui .parameter__type, .swagger-ui .parameter__deprecated,
+    .swagger-ui .tab li, .swagger-ui label, .swagger-ui p, .swagger-ui h4, .swagger-ui h5 {{
+      color: #e8f5ff !important;
+    }}
+    .swagger-ui .info .title small, .swagger-ui .info .title small pre {{
+      background: #d8f2ff !important;
+      color: #06182c !important;
+    }}
+    .swagger-ui .scheme-container {{
+      background: #edf6ff !important;
+      color: #06182c !important;
+      box-shadow: none !important;
+    }}
+    .swagger-ui .scheme-container label, .swagger-ui .scheme-container select {{
+      color: #06182c !important;
+    }}
+    .swagger-ui .opblock.opblock-get {{
+      background: #132640 !important;
+      border-color: #6db6ff !important;
+    }}
+    .swagger-ui .opblock.opblock-get .opblock-summary {{
+      border-color: #6db6ff !important;
+    }}
+    .swagger-ui .opblock .opblock-summary-method {{
+      color: #ffffff !important;
+      text-shadow: 0 1px 1px rgba(0,0,0,0.45);
+    }}
+    .swagger-ui .opblock .opblock-summary-path a span,
+    .swagger-ui .opblock .opblock-summary-path__deprecated {{
+      color: #ffffff !important;
+      font-weight: 800 !important;
+    }}
+    .swagger-ui .opblock .opblock-summary-description {{
+      color: #bdd7f0 !important;
+    }}
+    .swagger-ui .opblock-description-wrapper,
+    .swagger-ui .opblock-external-docs-wrapper,
+    .swagger-ui .opblock-title_normal,
+    .swagger-ui .responses-wrapper,
+    .swagger-ui .parameters-container {{
+      background: #102033 !important;
+      color: #e8f5ff !important;
+    }}
+    .swagger-ui .highlight-code,
+    .swagger-ui .microlight,
+    .swagger-ui pre {{
+      background: #071321 !important;
+      color: #e8f5ff !important;
+    }}
+    .swagger-ui .btn, .swagger-ui .try-out__btn {{
+      color: #e8f5ff !important;
+      border-color: #7fbaff !important;
+      background: #183b63 !important;
+    }}
+    .swagger-ui svg, .swagger-ui .expand-operation svg {{
+      fill: #e8f5ff !important;
+    }}
   </style>
 </head>
 <body>
@@ -207,7 +269,7 @@ def _docs_html() -> bytes:
 
 
 class OpenBexiHandler(SimpleHTTPRequestHandler):
-    server_version = "OpenBEXIHTTP/1.5.13"
+    server_version = "OpenBEXIHTTP/1.5.14"
 
     def __init__(self, *args, serve_static: bool = True, **kwargs):
         self.serve_static = serve_static

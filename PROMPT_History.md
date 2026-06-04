@@ -1,5 +1,94 @@
 # Prompt History
 
+## Release Date: 2026-06-04  Version 1.5.14
+
+Improve the Version 1.5.14 server UI, Share UX, menu consistency, and Swagger/API documentation readability.
+
+Use the attached screenshot as evidence that the Swagger page currently has poor contrast. The `GET` endpoint labels and API route text are difficult to read.
+
+Requirements:
+
+1. Improve Swagger/API documentation contrast.
+   - Make the Swagger page readable in both endpoint headers and expanded endpoint details.
+   - Ensure `GET`, route names, descriptions, response blocks, and schema text have enough contrast.
+   - Keep styling consistent with the current OpenBEXI dark/blue visual theme.
+   - Do not leave default Swagger colors if they conflict with readability.
+
+2. Unify the top menu row.
+   - Place these items on the same horizontal row:
+     - `Close` menu button
+     - `Version 1.5.14 - hosted at GitHub Repo`
+     - server connection status
+   - Keep the row compact and readable in the current menu width.
+   - Avoid layout shifts when server status changes.
+   - On narrow screens, allow wrapping only if needed, but keep the order: `Close`, version, server status.
+
+3. Use server status icons from `./icons`.
+   - Add or reuse icons under `./icons` for:
+     - `server_connected.svg`
+     - `server_offline.svg`
+     - `server_checking.svg`
+     - `server_error.svg`
+   - The UI should use an icon plus accessible text/tooltip.
+   - Do not rely only on color to communicate connection status.
+
+4. Preserve existing behavior.
+   - If the server is disconnected, the app must continue behaving exactly as it does today.
+   - Keep local-data fallback unchanged.
+   - Keep Share, Help, Swagger links, and server reconnect behavior working.
+
+5. CSS consistency.
+   - Reuse the existing menu colors, spacing, borders, shadows, and compact button styles.
+   - The updated row and status icon must look like part of the current UI, not a separate design.
+   - Keep the layout responsive on narrow screens.
+   - Keep `Other Selections` text styled consistently with the other accordion section headers.
+   - Remove or adjust any special CSS that makes `Other Selections` visually different from other accordion headers unless it is only the accent color.
+
+6. Add canvas image sharing.
+   - In the `Share` section, include an image preview or captured image of what is currently visible in the main canvas.
+   - Provide `Preview Image`, `Download Image`, and `Copy Image` actions when supported.
+   - If possible, include the canvas image when using the native Web Share API.
+   - The image capture should reflect the current rendered view, including globe/Mercator mode, selected satellite, model, orbit, footprint, and visible overlays where technically possible.
+   - Support both the 3D globe canvas and Mercator canvas when active.
+   - Capture the canvas after the next render frame, not before rendering completes.
+   - Use `canvas.toBlob()` where possible instead of blocking base64 conversion.
+   - If Clipboard image copy is unsupported, disable `Copy Image` and keep `Download Image`.
+   - Native Web Share should include the image file only when `navigator.canShare()` confirms support.
+   - If browser security blocks canvas export because of cross-origin textures/assets, show a clear non-blocking message and keep link sharing available.
+   - Do not break normal rendering or animation while capturing the image.
+   - Keep the preview and image actions styled consistently with the current Share panel and menu CSS.
+
+7. Tests and documentation.
+   - Add tests for Swagger contrast CSS hooks.
+   - Add tests for icon filenames and status states.
+   - Add tests for top-row menu layout.
+   - Add tests for `Other Selections` header style consistency.
+   - Add tests for Share canvas capture fallback states.
+   - Update `README.md`.
+   - Update `Test_and_Integration.md`.
+
+Acceptance criteria:
+
+- Latest release is `Release Date: 2026-06-04  Version 1.5.14`.
+- Swagger/API docs are readable; `GET` labels and route text have clear contrast.
+- `Close`, `Version 1.5.14 - hosted at GitHub Repo`, and server status appear on one compact row.
+- Server status uses icons from `./icons`.
+- Required icon files exist:
+  - `icons/server_connected.svg`
+  - `icons/server_offline.svg`
+  - `icons/server_checking.svg`
+  - `icons/server_error.svg`
+- Server status still has tooltip and accessible text.
+- Connected, disconnected, checking, and error states are visually distinct and accessible.
+- `Other Selections` text uses the same CSS style treatment as the other menu section headers.
+- The Share section can generate an image capture of the current canvas view.
+- Users can preview, download, and copy the canvas image when browser support/security rules allow it.
+- If canvas image capture is blocked, the app shows a clear fallback message and link sharing still works.
+- Offline/local fallback behavior is unchanged.
+- README and Test_and_Integration are updated.
+
+---
+
 ## Release Date: 2026-06-04  Version 1.5.13
 
 Add an optional Python server integration while preserving the current local/offline application behavior exactly when the server is unavailable. The existing `index.html` page must be able to connect to the Python server, use server-provided satellite data when connected, and fall back to the current local file loading path without UI breakage or behavior regressions when disconnected.

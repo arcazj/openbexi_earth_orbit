@@ -145,7 +145,7 @@
     });
     startupPerf.mark('module-loaded');
 
-    const versionNumber = "1.5.13";
+    const versionNumber = "1.5.14";
     if (versionNumber !== APP_VERSION) {
         console.warn(`Version mismatch: index ${versionNumber}, server module ${APP_VERSION}`);
     }
@@ -328,10 +328,13 @@
     let satelliteSearchClearedForNextSelection = false;
     let launchTimelineHandle = null;
     let reentryTimelineHandle = null;
-    let serverStatusButton, serverStatusText, serverStatusPanel, serverStatusUrl;
+    let serverStatusButton, serverStatusIcon, serverStatusText, serverStatusPanel, serverStatusUrl;
     let serverStatusStateElement, serverDataSourceElement, serverAppVersionElement, serverApiVersionElement, serverLastSyncElement;
     let serverReconnectButton, serverOfflineNotice, swaggerDocsLink, openApiSchemaLink, apiDocsStatus;
     let copyShareLinkButton, nativeShareButton, shareLinkOutput, shareFeedback, shareStateSummaryElement;
+    let previewShareImageButton, downloadShareImageButton, copyShareImageButton, shareImagePreview, shareImagePlaceholder;
+    let latestShareImageBlob = null;
+    let latestShareImageUrl = null;
     let serverConnectionState = {
         state: 'checking',
         connected: false,
@@ -989,6 +992,9 @@
             serverStatusButton.title = viewModel.tooltip;
             serverStatusButton.setAttribute('aria-label', viewModel.ariaLabel);
         }
+        if (serverStatusIcon && viewModel.icon) {
+            serverStatusIcon.src = viewModel.icon;
+        }
         if (serverStatusText) serverStatusText.textContent = viewModel.text;
         if (serverStatusUrl) serverStatusUrl.textContent = serverConnectionState.baseUrl || 'Not configured';
         if (serverStatusStateElement) serverStatusStateElement.textContent = viewModel.text;
@@ -1079,7 +1085,122 @@
             nativeShareButton.disabled = !supported;
             nativeShareButton.title = supported ? 'Share using the browser native share dialog' : 'Native sharing is not supported by this browser';
         }
+        if (copyShareImageButton) {
+            const clipboardImageSupported = typeof ClipboardItem !== 'undefined' && !!navigator.clipboard?.write;
+            copyShareImageButton.disabled = !latestShareImageBlob || !clipboardImageSupported;
+            copyShareImageButton.title = clipboardImageSupported
+                ? 'Copy the latest captured canvas image'
+                : 'Image clipboard copy is not supported by this browser';
+        }
+        if (downloadShareImageButton) {
+            downloadShareImageButton.disabled = !latestShareImageBlob;
+        }
         return shareUrl;
+    }
+
+    function activeShareCanvas() {
+        if (!simParams.view3D && simParams.viewMercator && mercatorCanvasElement) {
+            return { canvas: mercatorCanvasElement, label: 'Mercator canvas' };
+        }
+        if (renderer?.domElement && simParams.view3D) {
+            return { canvas: renderer.domElement, label: '3D globe canvas' };
+        }
+        if (mercatorCanvasElement && simParams.viewMercator) {
+            return { canvas: mercatorCanvasElement, label: 'Mercator canvas' };
+        }
+        return { canvas: renderer?.domElement || mercatorCanvasElement || null, label: 'current canvas' };
+    }
+
+    function canvasToBlob(canvas) {
+        return new Promise((resolve, reject) => {
+            if (!canvas?.toBlob) {
+                reject(new Error('Canvas image capture is not supported by this browser.'));
+                return;
+            }
+            try {
+                canvas.toBlob((blob) => {
+                    if (blob) resolve(blob);
+                    else reject(new Error('Canvas image capture returned no image data.'));
+                }, 'image/png');
+            } catch (err) {
+                reject(err);
+            }
+        });
+    }
+
+    async function captureShareImage() {
+        if (shareFeedback) shareFeedback.textContent = 'Capturing canvas image...';
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+        const { canvas, label } = activeShareCanvas();
+        if (!canvas) {
+            throw new Error('No visible canvas is available to capture.');
+        }
+        const blob = await canvasToBlob(canvas);
+        latestShareImageBlob = blob;
+        if (latestShareImageUrl) URL.revokeObjectURL(latestShareImageUrl);
+        latestShareImageUrl = URL.createObjectURL(blob);
+        if (shareImagePreview) {
+            shareImagePreview.src = latestShareImageUrl;
+            shareImagePreview.hidden = false;
+        }
+        if (shareImagePlaceholder) shareImagePlaceholder.hidden = true;
+        if (shareFeedback) shareFeedback.textContent = `Captured ${label}.`;
+        refreshShareControls();
+        return blob;
+    }
+
+    async function previewCurrentShareImage() {
+        try {
+            await captureShareImage();
+        } catch (err) {
+            latestShareImageBlob = null;
+            if (shareFeedback) {
+                shareFeedback.textContent =
+                    `Canvas image capture is unavailable: ${err?.message || err}. Link sharing still works.`;
+            }
+            refreshShareControls();
+        }
+    }
+
+    async function downloadCurrentShareImage() {
+        try {
+            const blob = latestShareImageBlob || await captureShareImage();
+            const url = latestShareImageUrl || URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `openbexi-earth-orbit-${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            if (shareFeedback) shareFeedback.textContent = 'Canvas image download started.';
+        } catch (err) {
+            if (shareFeedback) {
+                shareFeedback.textContent =
+                    `Download image failed: ${err?.message || err}. Link sharing still works.`;
+            }
+        }
+    }
+
+    async function copyCurrentShareImage() {
+        const clipboardImageSupported = typeof ClipboardItem !== 'undefined' && !!navigator.clipboard?.write;
+        if (!clipboardImageSupported) {
+            if (shareFeedback) shareFeedback.textContent = 'Copy Image is not supported by this browser.';
+            return;
+        }
+        try {
+            const blob = latestShareImageBlob || await captureShareImage();
+            await navigator.clipboard.write([
+                new ClipboardItem({ [blob.type || 'image/png']: blob })
+            ]);
+            if (shareFeedback) shareFeedback.textContent = 'Canvas image copied.';
+            refreshShareControls();
+        } catch (err) {
+            if (shareFeedback) {
+                shareFeedback.textContent =
+                    `Copy image failed: ${err?.message || err}. Link sharing still works.`;
+            }
+        }
     }
 
     async function copyCurrentShareLink() {
@@ -1105,10 +1226,27 @@
         const shareUrl = refreshShareControls();
         if (!navigator.share || shareUrlContainsUnsafeLocalData(shareUrl)) return;
         try {
+            let files = [];
+            if (!latestShareImageBlob) {
+                try {
+                    await captureShareImage();
+                } catch (err) {
+                    if (shareFeedback) shareFeedback.textContent = 'Native share will continue without an image preview.';
+                }
+            }
+            if (latestShareImageBlob && typeof File !== 'undefined' && navigator.canShare) {
+                const imageFile = new File([latestShareImageBlob], 'openbexi-earth-orbit.png', {
+                    type: latestShareImageBlob.type || 'image/png'
+                });
+                if (navigator.canShare({ files: [imageFile] })) {
+                    files = [imageFile];
+                }
+            }
             await navigator.share({
                 title: 'OpenBEXI Earth Orbit',
                 text: 'OpenBEXI Earth Orbit shared satellite view',
-                url: shareUrl
+                url: shareUrl,
+                ...(files.length ? { files } : {})
             });
             if (shareFeedback) shareFeedback.textContent = 'Share dialog opened.';
         } catch (err) {
@@ -1284,7 +1422,7 @@
         defaultCameraFar = camera.far;
         defaultCameraUp = camera.up.clone();
 
-        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setSize(window.innerWidth, window.innerHeight);
         // Keep global shadows on; Sun light in drawDayNight3D has shadows disabled by default
@@ -1366,6 +1504,7 @@
         }
 
         serverStatusButton = document.getElementById('serverStatusButton');
+        serverStatusIcon = document.getElementById('serverStatusIcon');
         serverStatusText = document.getElementById('serverStatusText');
         serverStatusPanel = document.getElementById('serverStatusPanel');
         serverStatusUrl = document.getElementById('serverStatusUrl');
@@ -1385,6 +1524,11 @@
         shareLinkOutput = document.getElementById('shareLinkOutput');
         shareFeedback = document.getElementById('shareFeedback');
         shareStateSummaryElement = document.getElementById('shareStateSummary');
+        previewShareImageButton = document.getElementById('previewShareImageButton');
+        downloadShareImageButton = document.getElementById('downloadShareImageButton');
+        copyShareImageButton = document.getElementById('copyShareImageButton');
+        shareImagePreview = document.getElementById('shareImagePreview');
+        shareImagePlaceholder = document.getElementById('shareImagePlaceholder');
         updateServerStatusUI();
         refreshShareControls();
 
@@ -1421,6 +1565,9 @@
         });
         copyShareLinkButton?.addEventListener('click', copyCurrentShareLink);
         nativeShareButton?.addEventListener('click', nativeShareCurrentState);
+        previewShareImageButton?.addEventListener('click', previewCurrentShareImage);
+        downloadShareImageButton?.addEventListener('click', downloadCurrentShareImage);
+        copyShareImageButton?.addEventListener('click', copyCurrentShareImage);
 
         orbitTypeFilterSelect = document.getElementById('orbitTypeFilter');
         companyFilterSelect = document.getElementById('companyFilter');

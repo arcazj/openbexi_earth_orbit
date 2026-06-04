@@ -6,22 +6,24 @@
 export function satelliteMenuLoader() {
     return /* html */ `
   <div id="controlsContainer">
-    <div id="versionDisplay"></div>
-    <div id="serverStatusBlock" class="server-status-block">
-      <button id="serverStatusButton" type="button" class="server-status-button server-state-checking" aria-label="Checking server connection" aria-controls="serverStatusPanel" aria-expanded="false" title="Checking server connection">
-        <span class="server-status-dot" aria-hidden="true"></span>
-        <span id="serverStatusText">Checking server</span>
-      </button>
-      <div id="serverStatusPanel" class="server-status-panel" role="status" aria-live="polite" hidden>
-        <div><span>Server URL</span><strong id="serverStatusUrl">http://127.0.0.1:8000</strong></div>
-        <div><span>Connection</span><strong id="serverStatusState">Checking</strong></div>
-        <div><span>Data source</span><strong id="serverDataSource">Local files</strong></div>
-        <div><span>App version</span><strong id="serverAppVersion">1.5.13</strong></div>
-        <div><span>API version</span><strong id="serverApiVersion">Unavailable</strong></div>
-        <div><span>Last data load</span><strong id="serverLastSync">Never</strong></div>
-        <button id="serverReconnectButton" type="button" class="menu-secondary-action server-reconnect-button">Reconnect / Refresh</button>
+    <div id="menuHeaderRow" class="menu-header-row" aria-label="Menu, version, and server status">
+      <div id="versionDisplay"></div>
+      <div id="serverStatusBlock" class="server-status-block">
+        <button id="serverStatusButton" type="button" class="server-status-button server-state-checking" aria-label="Checking server connection" aria-controls="serverStatusPanel" aria-expanded="false" title="Checking server connection">
+          <img id="serverStatusIcon" class="server-status-icon" src="icons/server_checking.svg" alt="" aria-hidden="true">
+          <span id="serverStatusText">Checking server</span>
+        </button>
+        <div id="serverStatusPanel" class="server-status-panel" role="status" aria-live="polite" hidden>
+          <div><span>Server URL</span><strong id="serverStatusUrl">http://127.0.0.1:8000</strong></div>
+          <div><span>Connection</span><strong id="serverStatusState">Checking</strong></div>
+          <div><span>Data source</span><strong id="serverDataSource">Local files</strong></div>
+          <div><span>App version</span><strong id="serverAppVersion">1.5.14</strong></div>
+          <div><span>API version</span><strong id="serverApiVersion">Unavailable</strong></div>
+          <div><span>Last data load</span><strong id="serverLastSync">Never</strong></div>
+          <button id="serverReconnectButton" type="button" class="menu-secondary-action server-reconnect-button">Reconnect / Refresh</button>
+        </div>
+        <div id="serverOfflineNotice" class="server-offline-notice" role="status" aria-live="polite" hidden>Server unavailable. Using local satellite data.</div>
       </div>
-      <div id="serverOfflineNotice" class="server-offline-notice" role="status" aria-live="polite" hidden>Server unavailable. Using local satellite data.</div>
     </div>
 
     <div class="menu-accordion" aria-label="OpenBEXI menu sections">
@@ -171,7 +173,7 @@ export function satelliteMenuLoader() {
       </section>
 
       <section id="otherAccordionSection" class="menu-accordion-section menu-section-other">
-        <h3 id="otherAccordionHeader" role="button" tabindex="0" aria-controls="otherSelectionsContent" aria-expanded="false" data-collapsible-target="otherSelectionsContent" class="section-heading menu-accordion-heading menu-accordion-heading-other other-selections-heading" data-default-collapsed="true">
+        <h3 id="otherAccordionHeader" role="button" tabindex="0" aria-controls="otherSelectionsContent" aria-expanded="false" data-collapsible-target="otherSelectionsContent" class="section-heading menu-accordion-heading menu-accordion-heading-other" data-default-collapsed="true">
           <span>Other Selections</span>
           <span class="toggle-icon">v</span>
         </h3>
@@ -209,6 +211,17 @@ export function satelliteMenuLoader() {
             <button id="nativeShareButton" type="button" class="menu-secondary-action">Native Share</button>
           </div>
           <input id="shareLinkOutput" class="share-link-output" type="text" readonly aria-label="Generated share link">
+          <div class="share-image-tools" aria-label="Share image tools">
+            <div class="share-image-preview-frame">
+              <img id="shareImagePreview" class="share-image-preview" alt="Captured current canvas preview" hidden>
+              <div id="shareImagePlaceholder" class="share-image-placeholder">Canvas preview not captured yet.</div>
+            </div>
+            <div class="share-action-row share-image-action-row">
+              <button id="previewShareImageButton" type="button" class="menu-secondary-action">Preview Image</button>
+              <button id="downloadShareImageButton" type="button" class="menu-secondary-action" disabled>Download Image</button>
+              <button id="copyShareImageButton" type="button" class="menu-secondary-action" disabled>Copy Image</button>
+            </div>
+          </div>
           <div id="shareFeedback" class="share-feedback" role="status" aria-live="polite"></div>
         </div>
       </section>

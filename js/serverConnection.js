@@ -1,7 +1,13 @@
-export const APP_VERSION = '1.5.13';
+export const APP_VERSION = '1.5.14';
 export const RELEASE_DATE = '2026-06-04';
 export const DEFAULT_SERVER_TIMEOUT_MS = 800;
 export const API_BASE_STORAGE_KEY = 'openbexi.apiBaseUrl';
+export const SERVER_STATUS_ICONS = {
+    connected: 'icons/server_connected.svg',
+    disconnected: 'icons/server_offline.svg',
+    checking: 'icons/server_checking.svg',
+    error: 'icons/server_error.svg'
+};
 
 export function normalizeApiBaseUrl(value) {
     if (!value || typeof value !== 'string') return '';
@@ -187,6 +193,7 @@ export function serverStatusViewModel(status = {}) {
             tooltip: 'Checking server connection',
             ariaLabel: 'Checking server connection',
             cssClass: 'server-state-checking',
+            icon: SERVER_STATUS_ICONS.checking,
             dataSource
         };
     }
@@ -196,6 +203,7 @@ export function serverStatusViewModel(status = {}) {
             tooltip: 'Connected to server',
             ariaLabel: 'Connected to server',
             cssClass: 'server-state-connected',
+            icon: SERVER_STATUS_ICONS.connected,
             dataSource
         };
     }
@@ -205,6 +213,7 @@ export function serverStatusViewModel(status = {}) {
             tooltip: 'Server error - using local data',
             ariaLabel: 'Server error - using local data',
             cssClass: 'server-state-error',
+            icon: SERVER_STATUS_ICONS.error,
             dataSource: 'local'
         };
     }
@@ -213,6 +222,7 @@ export function serverStatusViewModel(status = {}) {
         tooltip: 'Offline mode - using local data',
         ariaLabel: 'Offline mode - using local data',
         cssClass: 'server-state-disconnected',
+        icon: SERVER_STATUS_ICONS.disconnected,
         dataSource: 'local'
     };
 }
