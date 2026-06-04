@@ -22,6 +22,9 @@ import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 
 public class SatelliteDataExporter {
+    private static final double EARTH_RADIUS_KM = 6378.137;
+    private static final double EARTH_MU_KM3_S2 = 398600.4418;
+    private static final double MINUTES_PER_DAY = 1440.0;
 
     public static void main(String[] args) {
         try {
@@ -83,7 +86,7 @@ public class SatelliteDataExporter {
         };
         /*String[] sourceUrls = {
                 "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle",
-                "https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle"};*/
+                "https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle"};*/;
 
         Map<String, JSONObject> satellitesByNorad = new LinkedHashMap<>();
         for (String url : sourceUrls) {
@@ -341,8 +344,13 @@ public class SatelliteDataExporter {
         String launchDate = getLaunchDateByNorad(noradId);
         sat.put("launch_date", launchDate);
 
-        String orbit = determineOrbit(tleLine2);
+        JSONObject orbitMetrics = extractOrbitMetrics(tleLine2);
+        String orbit = determineOrbit(orbitMetrics);
         sat.put("type", orbit);
+        sat.put("orbit_class", orbit);
+        for (Object key : orbitMetrics.keySet()) {
+            sat.put(key, orbitMetrics.get(key));
+        }
 
         sat.put("tle_line1", (tleLine1 != null && !tleLine1.isEmpty()) ? tleLine1 : "no data");
         sat.put("tle_line2", (tleLine2 != null && !tleLine2.isEmpty()) ? tleLine2 : "no data");
@@ -351,31 +359,102 @@ public class SatelliteDataExporter {
     }
 
     /**
-     * Determines the orbit type automatically based on TLE line2.
-     * It parses the mean motion (the 8th token) and:
-     * - Returns "GEO" if mean motion < 2.5,
-     * - "LEO" if mean motion > 11.0,
-     * - Otherwise, "MEO".
+     * Extracts useful orbit metadata from TLE line 2.
      */
-    private static String determineOrbit(String tleLine2) {
+    private static JSONObject extractOrbitMetrics(String tleLine2) {
+        JSONObject metrics = new JSONObject();
         if (tleLine2 == null || tleLine2.isEmpty()) {
+            return metrics;
+        }
+
+        String[] tokens = tleLine2.trim().split("\\s+");
+        if (tokens.length < 8) {
+            return metrics;
+        }
+
+        Double inclinationDeg = parseDouble(tokens[2]);
+        Double eccentricity = parseTleEccentricity(tokens[4]);
+        Double meanMotion = parseDouble(tokens[7]);
+
+        putIfFinite(metrics, "inclination_deg", inclinationDeg);
+        putIfFinite(metrics, "eccentricity", eccentricity);
+        putIfFinite(metrics, "mean_motion_rev_per_day", meanMotion);
+
+        if (meanMotion != null && meanMotion > 0) {
+            double periodMin = MINUTES_PER_DAY / meanMotion;
+            double meanMotionRadPerSec = meanMotion * 2.0 * Math.PI / 86400.0;
+            double semiMajorAxisKm = Math.cbrt(EARTH_MU_KM3_S2 / (meanMotionRadPerSec * meanMotionRadPerSec));
+            double safeEccentricity = eccentricity != null ? eccentricity : 0.0;
+            double perigeeKm = semiMajorAxisKm * (1.0 - safeEccentricity) - EARTH_RADIUS_KM;
+            double apogeeKm = semiMajorAxisKm * (1.0 + safeEccentricity) - EARTH_RADIUS_KM;
+            double estimatedAltitudeKm = (perigeeKm + apogeeKm) / 2.0;
+
+            putIfFinite(metrics, "period_min", periodMin);
+            putIfFinite(metrics, "semi_major_axis_km", semiMajorAxisKm);
+            putIfFinite(metrics, "perigee_km", perigeeKm);
+            putIfFinite(metrics, "apogee_km", apogeeKm);
+            putIfFinite(metrics, "estimated_altitude_km", estimatedAltitudeKm);
+        }
+
+        return metrics;
+    }
+
+    /**
+     * Determines orbit class from derived metrics, keeping the old LEO/MEO/GEO
+     * behavior while identifying highly eccentric objects.
+     */
+    private static String determineOrbit(JSONObject metrics) {
+        Object meanMotionObj = metrics.get("mean_motion_rev_per_day");
+        Object eccentricityObj = metrics.get("eccentricity");
+        Object perigeeObj = metrics.get("perigee_km");
+        Object apogeeObj = metrics.get("apogee_km");
+
+        if (!(meanMotionObj instanceof Number)) {
             return "no data";
         }
+
+        double meanMotion = ((Number) meanMotionObj).doubleValue();
+        double eccentricity = eccentricityObj instanceof Number ? ((Number) eccentricityObj).doubleValue() : 0.0;
+        double perigeeKm = perigeeObj instanceof Number ? ((Number) perigeeObj).doubleValue() : Double.NaN;
+        double apogeeKm = apogeeObj instanceof Number ? ((Number) apogeeObj).doubleValue() : Double.NaN;
+
+        if (Double.isFinite(perigeeKm) && perigeeKm < 120) {
+            return "DECAYING";
+        }
+        if (eccentricity > 0.25 || (Double.isFinite(apogeeKm) && apogeeKm > 50000)) {
+            return "HEO";
+        }
+        if (meanMotion < 2.5) {
+            return "GEO";
+        }
+        if (meanMotion > 11.0) {
+            return "LEO";
+        }
+        return "MEO";
+    }
+
+    private static Double parseDouble(String value) {
         try {
-            String[] tokens = tleLine2.trim().split("\\s+");
-            if (tokens.length < 8) {
-                return "no data";
-            }
-            double meanMotion = Double.parseDouble(tokens[7]);
-            if (meanMotion < 2.5) {
-                return "GEO";
-            } else if (meanMotion > 11.0) {
-                return "LEO";
-            } else {
-                return "MEO";
-            }
+            return Double.parseDouble(value);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static Double parseTleEccentricity(String token) {
+        if (token == null || token.isEmpty()) {
+            return null;
+        }
+        try {
+            return Double.parseDouble("0." + token.replaceAll("[^0-9]", ""));
         } catch (NumberFormatException e) {
-            return "no data";
+            return null;
+        }
+    }
+
+    private static void putIfFinite(JSONObject obj, String key, Double value) {
+        if (value != null && Double.isFinite(value)) {
+            obj.put(key, value);
         }
     }
 

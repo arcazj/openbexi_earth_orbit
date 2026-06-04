@@ -7,7 +7,7 @@ import {
     fetchJSON,
     getFullGitHubUrl, GITHUB_REPO_RAW_BASE_URL,
 } from './SatelliteConfigurationLoader.js';
-import { EARTH_RADIUS_KM } from './SatelliteConstantLoader.js';
+import { EARTH_RADIUS_KM, EARTH_SCENE_RADIUS } from './SatelliteConstantLoader.js';
 import { processInChunks } from './startupPerformance.js';
 
 export let satellites = [];
@@ -15,6 +15,7 @@ let orbitLine = null;
 export let usingLocalAssets = false;
 let textureLoader = new THREE.TextureLoader();
 const MIN_ORBIT_RADIUS_KM = EARTH_RADIUS_KM;
+const ORBIT_OCCLUSION_RADIUS_PADDING = 0.002;
 
 function getSatelliteLib(satelliteLib = globalThis.satellite) {
     if (!satelliteLib?.propagate) {
@@ -95,6 +96,127 @@ export function generateOrbitScenePoints(satrec, simDate = new Date(), options =
     return generateOrbitScenePointSegments(satrec, simDate, options).flat();
 }
 
+export function isScenePointOccludedByEarth(
+    point,
+    cameraPosition,
+    earthRadiusScene = EARTH_SCENE_RADIUS,
+    radiusPadding = ORBIT_OCCLUSION_RADIUS_PADDING
+) {
+    if (!point || !cameraPosition) return false;
+
+    const earthRadius = Math.max(0, earthRadiusScene + radiusPadding);
+    const dx = point.x - cameraPosition.x;
+    const dy = point.y - cameraPosition.y;
+    const dz = point.z - cameraPosition.z;
+    const a = dx * dx + dy * dy + dz * dz;
+    if (!Number.isFinite(a) || a <= 0) return false;
+
+    const b = 2 * (cameraPosition.x * dx + cameraPosition.y * dy + cameraPosition.z * dz);
+    const c =
+        cameraPosition.x * cameraPosition.x +
+        cameraPosition.y * cameraPosition.y +
+        cameraPosition.z * cameraPosition.z -
+        earthRadius * earthRadius;
+    const discriminant = b * b - 4 * a * c;
+    if (!Number.isFinite(discriminant) || discriminant <= 0) return false;
+
+    const sqrtDiscriminant = Math.sqrt(discriminant);
+    const tEnter = (-b - sqrtDiscriminant) / (2 * a);
+    const tExit = (-b + sqrtDiscriminant) / (2 * a);
+
+    return (tEnter > 0 && tEnter < 1) || (tExit > 0 && tExit < 1);
+}
+
+export function splitOrbitSegmentsByEarthOcclusion(
+    sourceSegments,
+    cameraPosition,
+    earthRadiusScene = EARTH_SCENE_RADIUS
+) {
+    if (!Array.isArray(sourceSegments) || !cameraPosition) return [];
+
+    const visibleSegments = [];
+    const finishSegment = (segment) => {
+        if (segment.length > 1) visibleSegments.push(segment);
+    };
+
+    sourceSegments.forEach(sourceSegment => {
+        let currentSegment = [];
+        sourceSegment.forEach(point => {
+            const occluded = isScenePointOccludedByEarth(point, cameraPosition, earthRadiusScene);
+            if (occluded) {
+                finishSegment(currentSegment);
+                currentSegment = [];
+            } else {
+                currentSegment.push(point);
+            }
+        });
+        finishSegment(currentSegment);
+    });
+
+    return visibleSegments;
+}
+
+function createOrbitLineSegment(points) {
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    const material = new THREE.LineBasicMaterial({
+        color: 0xff0000,
+        depthTest: true,
+        depthWrite: true,
+        transparent: false,
+        opacity: 1
+    });
+    const line = new THREE.Line(geometry, material);
+    line.name = 'selectedOrbitTrajectory';
+    line.renderOrder = 0;
+    line.userData.depthOccludedByEarth = true;
+    return line;
+}
+
+function disposeOrbitLineChildren(group) {
+    if (!group?.children) return;
+    while (group.children.length > 0) {
+        const child = group.children[group.children.length - 1];
+        group.remove(child);
+        child.geometry?.dispose?.();
+        if (Array.isArray(child.material)) {
+            child.material.forEach(material => material?.dispose?.());
+        } else {
+            child.material?.dispose?.();
+        }
+    }
+}
+
+export function refreshSelectedOrbitOcclusion(camera, options = {}) {
+    if (!orbitLine?.userData?.sourceSegments || !camera?.position) return null;
+
+    const {
+        earthRadiusScene = EARTH_SCENE_RADIUS
+    } = options;
+    const cameraPosition = camera.position;
+    const cameraSignature = [
+        cameraPosition.x.toFixed(4),
+        cameraPosition.y.toFixed(4),
+        cameraPosition.z.toFixed(4),
+        earthRadiusScene.toFixed(4)
+    ].join('|');
+
+    if (orbitLine.userData.occlusionCameraSignature === cameraSignature) {
+        return orbitLine.userData.visibleSegments || null;
+    }
+
+    const visibleSegments = splitOrbitSegmentsByEarthOcclusion(
+        orbitLine.userData.sourceSegments,
+        cameraPosition,
+        earthRadiusScene
+    );
+    disposeOrbitLineChildren(orbitLine);
+    visibleSegments.forEach(segment => orbitLine.add(createOrbitLineSegment(segment)));
+    orbitLine.userData.occlusionCameraSignature = cameraSignature;
+    orbitLine.userData.visibleSegments = visibleSegments;
+    orbitLine.userData.visibleSegmentCount = visibleSegments.length;
+    return visibleSegments;
+}
+
 function clearOrbitLine(scene) {
     if (typeof orbitLine !== 'undefined' && orbitLine) {
         scene?.remove?.(orbitLine);
@@ -124,32 +246,12 @@ export function updateOrbitTrajectory(scene, simParams, satData) {
     const orbitSegments = generateOrbitScenePointSegments(satData.satrec, simParams.simDate || new Date());
     if (orbitSegments.length === 0) return null;
 
-    const createLine = (points) => {
-        const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        const material = new THREE.LineBasicMaterial({
-            color: 0xff0000,
-            depthTest: true,
-            depthWrite: true,
-            transparent: false,
-            opacity: 1
-        });
-        const line = new THREE.Line(geometry, material);
-        line.name = 'selectedOrbitTrajectory';
-        line.renderOrder = 0;
-        line.userData.depthOccludedByEarth = true;
-        return line;
-    };
-
-    orbitLine = orbitSegments.length === 1
-        ? createLine(orbitSegments[0])
-        : new THREE.Group();
+    orbitLine = new THREE.Group();
     orbitLine.name = 'selectedOrbitTrajectoryRoot';
     orbitLine.renderOrder = 0;
     orbitLine.userData.depthOccludedByEarth = true;
-
-    if (orbitSegments.length > 1) {
-        orbitSegments.forEach(segment => orbitLine.add(createLine(segment)));
-    }
+    orbitLine.userData.sourceSegments = orbitSegments.map(segment => segment.map(point => point.clone()));
+    orbitLine.userData.occlusionCameraSignature = '';
 
     scene.add(orbitLine);
     return orbitLine;

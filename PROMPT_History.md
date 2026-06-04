@@ -1,5 +1,144 @@
 # Prompt History
 
+## Release Date: 2026-06-03  Version 1.5.6
+
+Fix two blocking defects shown in the attached screenshots: the satellite-selection dropdown can remain stuck open and block controls, and selected-satellite orbit trajectories can render through the front of Earth instead of being occluded by the globe.
+
+These defects must be fixed before adding more pro-version features because they break operator interaction and visual correctness.
+
+Requirements:
+
+0. Inspect the likely target files and functions first.
+   - Start with `index.html`, `css/style.css`, `js/SatelliteMenuLoader.js`, and any renderer/scene module that creates or updates the selected satellite orbit path.
+   - Locate the exact satellite search/autocomplete DOM elements, event handlers, render function, and CSS classes.
+   - Locate the exact `Show Orbit` checkbox handler, selected-orbit creation function, orbit-line material, Earth mesh/material setup, and render pass order.
+   - If the implementation is spread across additional loaders or modules, identify them before changing behavior.
+   - Document the suspected root cause for each defect before applying the fix.
+
+1. Fix the stuck satellite dropdown.
+   - In the screenshot, the red-circled satellite search/autocomplete dropdown remains open after selecting `INTELSAT 902 (IS-902)`.
+   - The dropdown overlays the panel below it and prevents the user from clicking controls behind it, including `Show Orbit`, `Show Footprint`, and other satellite actions.
+   - When the user selects a satellite from the dropdown, the autocomplete result panel must close immediately.
+   - Clicking outside the satellite search field must close the dropdown.
+   - Pressing `Escape` must close the dropdown.
+   - The closed dropdown must not intercept pointer events.
+   - The selected satellite must remain visible in the input or selected-satellite summary after the dropdown closes.
+   - The dropdown must reopen only when the user focuses the search field or types a new query.
+   - The behavior must work with mouse selection, keyboard selection, touch/click selection, and after clearing the selected satellite.
+   - Keyboard selection with `Enter` must select the highlighted result and close the dropdown.
+
+2. Inspect and fix likely dropdown root causes.
+   - Review the satellite search input event handlers.
+   - Review autocomplete/dropdown open/close state.
+   - Review `z-index`, `position`, `pointer-events`, focus, and blur behavior.
+   - Check whether a hidden overlay remains mounted and still intercepts clicks.
+   - Check whether any handler calls `preventDefault`, traps focus, or reopens the dropdown after selection.
+   - Add an explicit dropdown state such as `isSatelliteDropdownOpen` if needed.
+   - Use `display: none` or equivalent for the hidden state, not only opacity.
+   - Use `pointer-events: none` when the dropdown is hidden.
+   - Ensure hidden dropdown parents do not leave an invisible overlay above checkboxes or buttons.
+   - Add defensive cleanup when the satellite selector rerenders or filters change.
+   - Preserve search filtering, the `Clear` button, selected-satellite summary, YPR controls, orbit controls, footprint controls, and timeline controls.
+
+3. Add accessibility requirements for the satellite dropdown.
+   - The search input or combobox wrapper should expose `aria-expanded`.
+   - The dropdown should have a stable ID referenced by `aria-controls`.
+   - The result list should use an appropriate listbox pattern, such as `role="listbox"` with result rows using `role="option"`, if compatible with the existing markup.
+   - The active/highlighted result should be exposed through `aria-activedescendant` or an equivalent accessible pattern.
+   - `Escape` must close the dropdown without changing the selected satellite.
+   - `Tab` should move focus normally and must not trap the user inside the dropdown.
+   - Closing the dropdown must not erase the selected satellite state.
+
+4. Fix selected-satellite orbit rendering through Earth.
+   - In the screenshot, when `Show Orbit` is enabled, red orbit trajectory segments that should be behind Earth are visible in front of Earth.
+   - Earth must occlude orbit segments that are behind it from the camera point of view.
+   - Orbit line segments behind Earth must not render on top of Earth.
+   - Orbit line segments in front of Earth must remain visible.
+   - The behavior must remain correct while rotating, zooming, and panning the 3D view.
+   - The behavior must work for LEO, MEO, GEO, and highly elliptical orbits.
+   - The orbit path must not use `depthTest: false` or forced foreground `renderOrder` settings that make it draw over Earth.
+   - Earth mesh/material must write to the depth buffer, for example with `depthWrite: true`.
+   - If the selected orbit is rendered in a separate overlay/HUD scene or after a depth clear, move it into the main depth-tested 3D scene or explicitly clip/occlude it against Earth.
+
+5. Inspect and fix likely orbit-rendering root causes.
+   - Review the `Show Orbit` rendering function and selected-orbit material.
+   - Review Three.js material settings for orbit lines: `depthTest`, `depthWrite`, `transparent`, and `renderOrder`.
+   - Confirm the Earth material writes to the depth buffer.
+   - Confirm orbit lines are rendered in the same scene/depth pass as Earth, or otherwise correctly depth-tested.
+   - Confirm the orbit path is parented to the correct scene/frame and transformed consistently with Earth.
+   - Check camera near/far planes and depth precision, especially for GEO-scale rendering.
+   - Preferred first fix: render orbit lines in the same 3D scene as Earth with `depthTest: true`, no forced foreground `renderOrder`, and Earth depth writing enabled.
+   - If depth-buffer rendering is insufficient, split the orbit polyline into visible/invisible segments by testing Earth-sphere occlusion from the current camera viewpoint.
+   - Do not solve this by lowering opacity; hidden orbit portions should not be visible through Earth.
+
+6. Review camera and depth precision.
+   - GEO orbit scale can create depth precision artifacts if the camera `near` plane is too small or `far` plane is too large.
+   - Review camera `near` and `far` values for the orbit scene.
+   - If needed, adjust scene scaling, logarithmic depth buffer usage, or near/far ratios without breaking LEO/MEO/GEO visibility.
+   - Confirm orbit occlusion remains stable while zooming close to Earth and zooming out to GEO-scale views.
+
+7. Add or update tests where practical.
+   - Add DOM-level or unit tests for dropdown open/close behavior if the existing test setup supports it.
+   - Test that satellite selection closes the dropdown.
+   - Test that keyboard `Enter` selection closes the dropdown.
+   - Test that `Escape` closes the dropdown.
+   - Test that outside click closes the dropdown.
+   - Test that hidden dropdown state does not intercept pointer events.
+   - Add a deterministic geometry test for Earth/orbit occlusion if practical.
+   - Test or manually verify that selected-orbit material does not use `depthTest: false`.
+   - Test or manually verify that Earth depth writing remains enabled.
+   - Keep existing tests for filters, satellite search, checkboxes, orbit display, footprints, and menu behavior passing.
+
+8. Update documentation.
+   - Update `Test_and_Integration.md` with manual QA steps for the stuck dropdown screenshot scenario.
+   - Update `Test_and_Integration.md` with manual QA steps for the selected-orbit-through-Earth screenshot scenario.
+   - Include checks for LEO, MEO, and GEO orbit occlusion.
+   - Include a regression checklist confirming search, clear, selected summary, orbit, footprint, YPR, timeline, and filter behavior still works.
+
+Manual QA sequence:
+
+1. Load `index.html`.
+2. Open the `Satellite Selection` accordion section.
+3. Search for `INTELSAT`.
+4. Select `INTELSAT 902 (IS-902)`.
+5. Confirm the autocomplete dropdown closes immediately.
+6. Click `Show Orbit` and confirm it toggles without obstruction.
+7. Click `Show Footprint` and confirm it toggles without obstruction.
+8. Search again, press `Escape`, and confirm the dropdown closes.
+9. Search again, click outside the selector, and confirm the dropdown closes.
+10. Enable `Show Orbit`.
+11. Rotate the camera until part of the selected orbit should pass behind Earth.
+12. Confirm the behind-Earth arc is hidden by Earth and the front-side arc remains visible.
+13. Repeat the orbit occlusion check with at least one LEO satellite, one MEO satellite, and one GEO satellite.
+14. Confirm the fixes do not break selected satellite summary, YPR controls, timelines, filters, footprints, or view controls.
+
+Acceptance criteria:
+
+- Select `INTELSAT 902 (IS-902)` or any satellite from the dropdown.
+- The dropdown disappears immediately after selection.
+- Keyboard `Enter` selection closes the dropdown.
+- `Show Orbit` can be checked and unchecked without obstruction.
+- `Show Footprint` and other controls behind the dropdown remain clickable.
+- Pressing `Escape` closes the dropdown.
+- Clicking outside the selector closes the dropdown.
+- The dropdown does not reopen unexpectedly after a satellite is selected.
+- Hidden dropdown state does not intercept pointer events.
+- The `Clear` button still works.
+- Satellite search still filters results.
+- Selected satellite summary still updates correctly.
+- Enable `Show Orbit` for a selected satellite and rotate the camera so part of the orbit passes behind Earth.
+- The behind-Earth orbit arc is fully occluded by the Earth sphere.
+- The front-side orbit arc remains visible.
+- No red orbit segment appears across the Earth surface unless it is genuinely in front of Earth.
+- The orbit-occlusion fix works for at least one LEO satellite, one MEO satellite, and one GEO satellite.
+- Selected-orbit material does not force foreground rendering with `depthTest: false`.
+- Earth rendering continues to write depth so orbit occlusion works.
+- The fixes do not break beam, footprint, satellite marker, Earth rendering, filters, timelines, YPR controls, or menu behavior.
+- `npm test` passes.
+- JavaScript syntax checks pass.
+
+---
+
 ## Release Date: 2026-06-03  Version 1.5.5
 
 Improve satellite count visibility and make the accordion menu thinner.

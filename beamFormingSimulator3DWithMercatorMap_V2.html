@@ -99,7 +99,8 @@
             border: 2px solid #fff;
         }
 
-        .control-group select {
+        .control-group select,
+        .control-group input[type="number"] {
             width: 100%;
             cursor: pointer;
             padding: 8px;
@@ -107,6 +108,107 @@
             background: #333;
             color: #eee;
             border: 1px solid #555;
+            box-sizing: border-box;
+        }
+
+        .control-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+            margin-top: 10px;
+        }
+
+        .metric {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 6px;
+            padding: 6px;
+            font-size: 0.78em;
+        }
+
+        .metric span {
+            display: block;
+            margin-top: 4px;
+            color: #0f8;
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: 700;
+        }
+
+        .link-status {
+            padding: 8px;
+            border-radius: 6px;
+            margin-top: 8px;
+            font-size: 0.85em;
+            font-weight: 700;
+            text-align: center;
+            background: #333;
+            color: #ddd;
+        }
+
+        .link-status.pass {
+            background: rgba(0, 160, 90, 0.25);
+            color: #54ffb0;
+            border: 1px solid rgba(84, 255, 176, 0.35);
+        }
+
+        .link-status.fail {
+            background: rgba(210, 60, 40, 0.25);
+            color: #ff9788;
+            border: 1px solid rgba(255, 151, 136, 0.35);
+        }
+
+        .link-status.warn {
+            background: rgba(255, 193, 7, 0.18);
+            color: #ffd866;
+            border: 1px solid rgba(255, 216, 102, 0.35);
+        }
+
+        .hint {
+            margin: 6px 0 0;
+            font-size: 0.78em;
+            line-height: 1.35;
+            color: #aaa;
+        }
+
+        .button-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .button-row button,
+        .control-group button {
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 5px;
+            border: 1px solid #555;
+            background: #25364d;
+            color: #eee;
+            font-weight: 600;
+        }
+
+        .button-row button:hover,
+        .control-group button:hover {
+            background: #31506f;
+        }
+
+        #scenario-report {
+            width: 100%;
+            min-height: 90px;
+            resize: vertical;
+            box-sizing: border-box;
+            border-radius: 6px;
+            border: 1px solid #555;
+            background: #181b22;
+            color: #ddd;
+            padding: 8px;
+            font: 11px/1.4 'Courier New', Courier, monospace;
         }
 
         .control-group input[type="checkbox"] {
@@ -272,15 +374,142 @@
         </select>
     </div>
 
+    <h3>Satellite &amp; Target</h3>
+    <div class="control-group">
+        <label for="orbit-class-select">Orbit Class</label>
+        <select id="orbit-class-select">
+            <option value="auto" selected>Auto from TLE</option>
+            <option value="LEO">LEO</option>
+            <option value="MEO">MEO</option>
+            <option value="GEO">GEO</option>
+            <option value="HEO">HEO</option>
+            <option value="DECAYING">Decaying</option>
+        </select>
+    </div>
+    <div class="control-group">
+        <label for="satellite-select">Satellite</label>
+        <select id="satellite-select">
+            <option value="">Loading TLE catalog...</option>
+        </select>
+        <p class="hint" id="satellite-count-hint">Waiting for json/tle/TLE.json</p>
+    </div>
+    <div class="control-group">
+        <label>Target Surface Point</label>
+        <div class="control-grid">
+            <input type="number" id="target-lat-input" min="-85" max="85" value="37.7749" step="0.0001" aria-label="Target latitude">
+            <input type="number" id="target-lon-input" min="-180" max="180" value="-122.4194" step="0.0001" aria-label="Target longitude">
+        </div>
+        <p class="hint">Click the 2D map or 3D Earth overlay to update this target.</p>
+    </div>
+
+    <h3>RF Link Budget</h3>
+    <div class="control-group">
+        <label for="computation-mode-select">Computation Mode</label>
+        <select id="computation-mode-select">
+            <option value="required-power" selected>Compute Required Power</option>
+            <option value="coverage-by-power">Coverage By Available Power</option>
+        </select>
+    </div>
+    <div class="control-grid">
+        <div class="control-group">
+            <label for="tx-power-input">Tx Power (dBW)</label>
+            <input type="number" id="tx-power-input" value="20" step="0.5">
+        </div>
+        <div class="control-group">
+            <label for="tx-gain-input">Tx Gain (dBi)</label>
+            <input type="number" id="tx-gain-input" value="35" step="0.5">
+        </div>
+        <div class="control-group">
+            <label for="rx-gain-input">Rx Gain (dBi)</label>
+            <input type="number" id="rx-gain-input" value="32" step="0.5">
+        </div>
+        <div class="control-group">
+            <label for="bandwidth-input">Bandwidth (MHz)</label>
+            <input type="number" id="bandwidth-input" value="100" min="0.001" step="1">
+        </div>
+        <div class="control-group">
+            <label for="noise-temp-input">Noise Temp (K)</label>
+            <input type="number" id="noise-temp-input" value="290" min="1" step="5">
+        </div>
+        <div class="control-group">
+            <label for="losses-input">Losses (dB)</label>
+            <input type="number" id="losses-input" value="4" step="0.5">
+        </div>
+        <div class="control-group">
+            <label for="required-snr-input">Req SNR (dB)</label>
+            <input type="number" id="required-snr-input" value="10" step="0.5">
+        </div>
+        <div class="control-group">
+            <label for="required-margin-input">Req Margin (dB)</label>
+            <input type="number" id="required-margin-input" value="3" step="0.5">
+        </div>
+        <div class="control-group">
+            <label for="min-elevation-input">Min Elev (&deg;)</label>
+            <input type="number" id="min-elevation-input" value="20" min="0" max="90" step="1">
+        </div>
+        <div class="control-group">
+            <label for="backoff-input">Backoff (dB)</label>
+            <input type="number" id="backoff-input" value="1" min="0" step="0.5">
+        </div>
+    </div>
+
+    <div id="link-status" class="link-status warn">Select a satellite to compute link budget.</div>
+    <div class="metric-grid">
+        <div class="metric">Range<span id="metric-range">--</span></div>
+        <div class="metric">Elevation<span id="metric-elevation">--</span></div>
+        <div class="metric">Delay<span id="metric-delay">--</span></div>
+        <div class="metric">Doppler<span id="metric-doppler">--</span></div>
+        <div class="metric">FSPL<span id="metric-fspl">--</span></div>
+        <div class="metric">Req EIRP<span id="metric-required-eirp">--</span></div>
+        <div class="metric">Req Tx Power<span id="metric-required-power">--</span></div>
+        <div class="metric">Margin<span id="metric-margin">--</span></div>
+        <div class="metric">Array HPBW<span id="metric-beamwidth">--</span></div>
+        <div class="metric">Beam Loss<span id="metric-beam-loss">--</span></div>
+    </div>
+
+    <h3>Coverage &amp; Comparison</h3>
+    <div class="control-group">
+        <label class="checkbox-label">
+            <input type="checkbox" id="coverage-toggle-checkbox" checked>
+            <span>Show link-margin heatmap</span>
+        </label>
+    </div>
+    <div class="control-group">
+        <label for="coverage-resolution-select">Coverage Resolution</label>
+        <select id="coverage-resolution-select">
+            <option value="20">Fast 20&deg;</option>
+            <option value="10" selected>Balanced 10&deg;</option>
+            <option value="5">Detailed 5&deg;</option>
+        </select>
+        <p class="hint" id="coverage-summary">Coverage heatmap waits for satellite geometry.</p>
+    </div>
+    <div class="metric-grid">
+        <div class="metric">LEO Req Tx<span id="compare-leo">--</span></div>
+        <div class="metric">MEO Req Tx<span id="compare-meo">--</span></div>
+        <div class="metric">GEO Req Tx<span id="compare-geo">--</span></div>
+        <div class="metric">Best Class<span id="compare-best">--</span></div>
+    </div>
+
+    <h3>Scenario Tools</h3>
+    <div class="button-row">
+        <button type="button" id="save-scenario-btn">Save Scenario</button>
+        <button type="button" id="load-scenario-btn">Load Scenario</button>
+        <button type="button" id="export-report-btn">Export Report</button>
+        <button type="button" id="copy-report-btn">Copy Report</button>
+    </div>
+    <div class="control-group" style="margin-top:10px;">
+        <textarea id="scenario-report" readonly placeholder="Scenario report output appears here."></textarea>
+    </div>
+
     <div id="per-feed-controls-container"></div>
 </div>
 
+<script src="https://unpkg.com/satellite.js@6.0.1/dist/satellite.min.js"></script>
 <script type="importmap">
     {
         "imports": {
               "three": "https://unpkg.com/three@0.176.0/build/three.module.js",
-              "three/addons/": "https://unpkg.com/three@0.176.0/examples/jsm/",
-              "satellite.js": "https://unpkg.com/satellite.js@4.0.0/dist/satellite.min.js"
+              "three/addons/": "https://unpkg.com/three@0.176.0/examples/jsm/"
         }
     }
 </script>
@@ -288,7 +517,30 @@
 <script type="module">
     import * as THREE from 'three';
     import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
-    import {DragControls} from 'three/addons/controls/dragControls.js';
+    import {DragControls} from 'three/addons/controls/DragControls.js';
+    import {
+        dopplerHz,
+        evaluateLinkBudget,
+        propagationDelayMs
+    } from './js/rf/rfLinkBudget.js';
+    import {
+        computeLookGeometry,
+        EARTH_RADIUS_KM,
+        eciToEcfKm,
+        lonLatFromMercatorPixel,
+        mercatorPixelFromLonLat,
+        normalizeLongitudeDeg,
+        radialVelocityMps
+    } from './js/orbit/orbitLinkGeometry.js';
+    import {
+        computeCoverageGrid,
+        drawCoverageGrid2D,
+        pointColorHex,
+        summarizeCoverage
+    } from './js/coverage/coverageGrid.js';
+    import {
+        estimateArrayBeamwidthDeg
+    } from './js/coverage/beamFootprint.js';
 
 
     // --- Global Variables and Constants ---
@@ -297,14 +549,28 @@
     let mapScene, mapCamera, mapMesh, contourMesh;
     let earthScene, earthCamera, earthControls, earthMesh, contourGroup3D;
     let contourCanvas, contourCtx, contourTexture;
+    let targetMarker3D;
+    let satelliteMarker3D, beamLine3D, beamCone3D;
     let elementPositions = [];
     let highlightedFeedIndex = -1;
     let currentGainData = [];
+    let coverageCells = [];
+    let coverageSummary = null;
+    let coveragePoints3D = null;
+    let lastCoverageUpdate = 0;
+    let needsCoverageUpdate = true;
+    let satelliteCatalog = [];
+    let selectedSatelliteRecord = null;
+    let selectedSatrec = null;
+    let needsLinkUpdate = true;
+    let lastLinkUpdate = 0;
 
     const BEAM_RESOLUTION_THETA = 64;
     const BEAM_RESOLUTION_PHI = 128;
     const SPEED_OF_LIGHT = 299792458; // m/s
     const EARTH_RADIUS = 5;
+    const LINK_UPDATE_INTERVAL_MS = 500;
+    const COVERAGE_UPDATE_INTERVAL_MS = 3000;
 
     const params = {
         Nx: 4, Ny: 4, spacing: 0.5, isHexagonal: false,
@@ -312,6 +578,23 @@
         elementPattern: 'cosine', tapering: 'uniform', sll: -30,
         showMap: false,
         visMode: 'earth',
+        orbitClass: 'auto',
+        selectedSatelliteId: '',
+        computationMode: 'required-power',
+        targetLat: 37.7749,
+        targetLon: -122.4194,
+        txPowerDbw: 20,
+        txGainDbi: 35,
+        rxGainDbi: 32,
+        bandwidthMhz: 100,
+        systemNoiseTempK: 290,
+        additionalLossesDb: 4,
+        requiredSnrDb: 10,
+        requiredMarginDb: 3,
+        minElevationDeg: 20,
+        amplifierBackoffDb: 1,
+        showCoverageHeatmap: true,
+        coverageResolutionDeg: 10,
         feedControls: []
     };
 
@@ -364,10 +647,12 @@
         setupMapOverlay();
         setupEarthScene();
         setupUI();
+        loadSatelliteCatalog();
         updateAntennaArrayGeometry();
         animate();
 
         window.addEventListener('resize', onWindowResize, false);
+        renderer.domElement.addEventListener('click', onRendererClick);
     }
 
     // --- UI Setup and Event Handlers ---
@@ -393,6 +678,7 @@
                 params[c.param] = c.type === 'int' ? Math.round(val) : val;
                 valueDisplay.textContent = val.toFixed(c.type === 'float' ? 2 : 0);
                 needsRecalculation = true;
+                needsCoverageUpdate = true;
                 if (c.param === 'Nx' || c.param === 'Ny' || c.param === 'spacing') {
                     updateAntennaArrayGeometry();
                 }
@@ -414,6 +700,7 @@
             params.isHexagonal = e.target.checked;
             updateAntennaArrayGeometry();
             needsRecalculation = true;
+            needsCoverageUpdate = true;
         });
 
         document.getElementById('map-toggle-checkbox').addEventListener('change', e => {
@@ -437,6 +724,177 @@
             params.elementPattern = e.target.value;
             needsRecalculation = true;
         });
+
+        setupProControls();
+    }
+
+    function setupProControls() {
+        const bindSelect = (id, handler) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.addEventListener('change', () => handler(el.value));
+        };
+        const bindNumber = (id, param, options = {}) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const update = () => {
+                const raw = parseFloat(el.value);
+                if (!Number.isFinite(raw)) return;
+                const min = Number.isFinite(options.min) ? options.min : -Infinity;
+                const max = Number.isFinite(options.max) ? options.max : Infinity;
+                params[param] = Math.max(min, Math.min(max, raw));
+                if (options.normalizeLon) params[param] = normalizeLongitudeDeg(params[param]);
+                el.value = params[param];
+                needsLinkUpdate = true;
+                needsCoverageUpdate = true;
+                if (options.redrawContours) needsRecalculation = true;
+            };
+            el.addEventListener('input', update);
+            el.addEventListener('change', update);
+        };
+
+        bindSelect('orbit-class-select', value => {
+            params.orbitClass = value;
+            refreshSatelliteOptions();
+            needsLinkUpdate = true;
+            needsCoverageUpdate = true;
+        });
+        bindSelect('satellite-select', value => {
+            params.selectedSatelliteId = value;
+            setSelectedSatellite(value);
+            needsLinkUpdate = true;
+            needsCoverageUpdate = true;
+        });
+        bindSelect('computation-mode-select', value => {
+            params.computationMode = value;
+            needsLinkUpdate = true;
+            needsCoverageUpdate = true;
+            needsRecalculation = true;
+        });
+        bindSelect('coverage-resolution-select', value => {
+            params.coverageResolutionDeg = parseFloat(value) || 10;
+            needsCoverageUpdate = true;
+            needsRecalculation = true;
+        });
+
+        bindNumber('target-lat-input', 'targetLat', { min: -85, max: 85, redrawContours: true });
+        bindNumber('target-lon-input', 'targetLon', { min: -180, max: 180, normalizeLon: true, redrawContours: true });
+        bindNumber('tx-power-input', 'txPowerDbw');
+        bindNumber('tx-gain-input', 'txGainDbi');
+        bindNumber('rx-gain-input', 'rxGainDbi');
+        bindNumber('bandwidth-input', 'bandwidthMhz', { min: 0.001 });
+        bindNumber('noise-temp-input', 'systemNoiseTempK', { min: 1 });
+        bindNumber('losses-input', 'additionalLossesDb');
+        bindNumber('required-snr-input', 'requiredSnrDb');
+        bindNumber('required-margin-input', 'requiredMarginDb');
+        bindNumber('min-elevation-input', 'minElevationDeg', { min: 0, max: 90 });
+        bindNumber('backoff-input', 'amplifierBackoffDb', { min: 0 });
+
+        const coverageToggle = document.getElementById('coverage-toggle-checkbox');
+        if (coverageToggle) {
+            coverageToggle.addEventListener('change', event => {
+                params.showCoverageHeatmap = event.target.checked;
+                needsCoverageUpdate = params.showCoverageHeatmap;
+                needsRecalculation = true;
+            });
+        }
+
+        const saveBtn = document.getElementById('save-scenario-btn');
+        const loadBtn = document.getElementById('load-scenario-btn');
+        const exportBtn = document.getElementById('export-report-btn');
+        const copyBtn = document.getElementById('copy-report-btn');
+        if (saveBtn) saveBtn.addEventListener('click', saveScenario);
+        if (loadBtn) loadBtn.addEventListener('click', loadScenario);
+        if (exportBtn) exportBtn.addEventListener('click', () => writeScenarioReport());
+        if (copyBtn) copyBtn.addEventListener('click', copyScenarioReport);
+    }
+
+    async function loadSatelliteCatalog() {
+        const select = document.getElementById('satellite-select');
+        const hint = document.getElementById('satellite-count-hint');
+        try {
+            const response = await fetch('json/tle/TLE.json');
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            satelliteCatalog = Array.isArray(data) ? data.filter(isValidTleRecord) : [];
+            if (hint) hint.textContent = `${satelliteCatalog.length.toLocaleString()} satellites loaded`;
+            refreshSatelliteOptions();
+        } catch (error) {
+            if (select) select.innerHTML = '<option value="">TLE catalog failed to load</option>';
+            if (hint) hint.textContent = `Failed to load json/tle/TLE.json: ${error.message}`;
+            setLinkStatus('warn', 'TLE catalog unavailable. Link budget requires a selected satellite.');
+        }
+    }
+
+    function isValidTleRecord(record) {
+        return record &&
+            record.norad_id &&
+            record.satellite_name &&
+            record.tle_line1 &&
+            record.tle_line2;
+    }
+
+    function refreshSatelliteOptions() {
+        const select = document.getElementById('satellite-select');
+        const hint = document.getElementById('satellite-count-hint');
+        if (!select) return;
+
+        const orbitClass = params.orbitClass;
+        const filtered = satelliteCatalog.filter(record =>
+            orbitClass === 'auto' || String(record.type || '').toUpperCase() === orbitClass
+        );
+        const maxOptions = orbitClass === 'auto' ? 500 : 1000;
+        const options = filtered.slice(0, maxOptions);
+
+        select.innerHTML = '';
+        if (options.length === 0) {
+            select.innerHTML = '<option value="">No matching satellites</option>';
+            selectedSatelliteRecord = null;
+            selectedSatrec = null;
+            if (hint) hint.textContent = `0 satellites for ${orbitClass}`;
+            needsLinkUpdate = true;
+            return;
+        }
+
+        options.forEach(record => {
+            const option = document.createElement('option');
+            option.value = record.norad_id;
+            option.textContent = `${record.satellite_name} (${record.type || 'UNK'} ${record.norad_id})`;
+            select.appendChild(option);
+        });
+
+        const stillAvailable = options.some(record => record.norad_id === params.selectedSatelliteId);
+        params.selectedSatelliteId = stillAvailable ? params.selectedSatelliteId : options[0].norad_id;
+        select.value = params.selectedSatelliteId;
+        setSelectedSatellite(params.selectedSatelliteId);
+
+        if (hint) {
+            const suffix = filtered.length > options.length ? `, showing first ${options.length}` : '';
+            hint.textContent = `${filtered.length.toLocaleString()} satellites for ${orbitClass}${suffix}`;
+        }
+        needsLinkUpdate = true;
+    }
+
+    function setSelectedSatellite(noradId) {
+        selectedSatelliteRecord = satelliteCatalog.find(record => String(record.norad_id) === String(noradId)) || null;
+        selectedSatrec = null;
+
+        if (!selectedSatelliteRecord) return;
+        const satLib = getSatelliteLibrary();
+        if (!satLib) {
+            setLinkStatus('warn', 'satellite.js is not loaded yet.');
+            return;
+        }
+        try {
+            selectedSatrec = satLib.twoline2satrec(selectedSatelliteRecord.tle_line1, selectedSatelliteRecord.tle_line2);
+        } catch (error) {
+            selectedSatrec = null;
+            setLinkStatus('fail', `Could not parse TLE: ${error.message}`);
+        }
+    }
+
+    function getSatelliteLibrary() {
+        return window.satellite || null;
     }
 
     function updatePerFeedControls() {
@@ -603,6 +1061,447 @@
         return gainData;
     }
 
+    function updateLinkBudgetPanel() {
+        lastLinkUpdate = performance.now();
+        needsLinkUpdate = false;
+        updateTargetMarker3D();
+        updateOrbitComparison();
+
+        if (!selectedSatelliteRecord || !selectedSatrec) {
+            setLinkStatus('warn', 'Select a satellite to compute link budget.');
+            clearLinkMetrics();
+            clearCoverageProducts();
+            clearPhysicalBeamVisual();
+            return;
+        }
+
+        const satLib = getSatelliteLibrary();
+        if (!satLib) {
+            setLinkStatus('warn', 'satellite.js is not loaded.');
+            clearLinkMetrics();
+            clearCoverageProducts();
+            clearPhysicalBeamVisual();
+            return;
+        }
+
+        const geometry = computeSelectedSatelliteGeometry(satLib, new Date());
+        if (!geometry) {
+            setLinkStatus('fail', 'Satellite propagation failed for the selected TLE.');
+            clearLinkMetrics();
+            clearCoverageProducts();
+            clearPhysicalBeamVisual();
+            return;
+        }
+
+        if (
+            params.showCoverageHeatmap &&
+            (needsCoverageUpdate || needsRecalculation || performance.now() - lastCoverageUpdate > COVERAGE_UPDATE_INTERVAL_MS)
+        ) {
+            updateCoverageProducts(geometry.satEcfKm);
+        }
+
+        const carrierHz = params.frequency * 1e9;
+        const link = evaluateLinkBudget({
+            ...getLinkBudgetInput(),
+            rangeKm: geometry.rangeKm
+        });
+        const delayMs = propagationDelayMs(geometry.rangeKm);
+        const doppler = dopplerHz(geometry.radialVelocityMps, carrierHz);
+        const belowElevationMask = geometry.elevationDeg < params.minElevationDeg;
+        const beamwidthDeg = getArrayHalfPowerBeamwidthDeg();
+        updatePhysicalBeamVisual(geometry, beamwidthDeg, link.marginDb);
+
+        setMetric('metric-range', `${formatNumber(geometry.rangeKm, 0)} km`);
+        setMetric('metric-elevation', `${formatNumber(geometry.elevationDeg, 1)} deg`);
+        setMetric('metric-delay', `${formatNumber(delayMs, 2)} ms`);
+        setMetric('metric-doppler', `${formatNumber(doppler / 1000, 1)} kHz`);
+        setMetric('metric-fspl', `${formatNumber(link.pathLossDb, 1)} dB`);
+        setMetric('metric-required-eirp', `${formatNumber(link.requiredEirpDbw, 1)} dBW`);
+        setMetric(
+            'metric-required-power',
+            `${formatNumber(link.requiredTxPowerDbw, 1)} dBW (${formatPower(link.requiredTxPowerW)})`
+        );
+        setMetric('metric-margin', `${formatNumber(link.marginDb, 1)} dB`);
+        setMetric('metric-beamwidth', `${formatNumber(beamwidthDeg, 1)} deg`);
+        setMetric('metric-beam-loss', geometry.isLineOfSight ? '0.0 dB boresight' : '--');
+
+        if (!geometry.isLineOfSight) {
+            setLinkStatus('fail', `No line of sight to ${selectedSatelliteRecord.satellite_name}.`);
+        } else if (belowElevationMask) {
+            setLinkStatus('fail', `Below elevation mask: ${formatNumber(geometry.elevationDeg, 1)} deg < ${params.minElevationDeg} deg.`);
+        } else if (link.marginDb < 0) {
+            setLinkStatus('fail', `Link fails by ${formatNumber(Math.abs(link.marginDb), 1)} dB. Increase power, gain, or reduce bandwidth/losses.`);
+        } else {
+            setLinkStatus('pass', `Link closes with ${formatNumber(link.marginDb, 1)} dB margin.`);
+        }
+    }
+
+    function computeSelectedSatelliteGeometry(satLib, date) {
+        const current = propagateToLookGeometry(satLib, selectedSatrec, date);
+        if (!current) return null;
+
+        const later = propagateToLookGeometry(satLib, selectedSatrec, new Date(date.getTime() + 1000));
+        const radialVelocity = later
+            ? radialVelocityMps(current.rangeKm, later.rangeKm, 1)
+            : 0;
+
+        return {
+            ...current,
+            radialVelocityMps: radialVelocity
+        };
+    }
+
+    function propagateToLookGeometry(satLib, satrec, date) {
+        const pv = satLib.propagate(satrec, date);
+        if (!pv || !pv.position || Number.isNaN(pv.position.x)) return null;
+
+        const gmst = getGmst(satLib, date);
+        if (!Number.isFinite(gmst)) return null;
+
+        const satEcfKm = eciToEcfKm(pv.position, gmst);
+        return {
+            ...computeLookGeometry(satEcfKm, params.targetLat, params.targetLon),
+            satEcfKm
+        };
+    }
+
+    function getLinkBudgetInput() {
+        return {
+            frequencyGhz: params.frequency,
+            bandwidthHz: params.bandwidthMhz * 1e6,
+            systemNoiseTempK: params.systemNoiseTempK,
+            txPowerDbw: params.txPowerDbw,
+            txAntennaGainDbi: params.txGainDbi,
+            rxAntennaGainDbi: params.rxGainDbi,
+            amplifierBackoffDb: params.amplifierBackoffDb,
+            additionalLossesDb: params.additionalLossesDb,
+            requiredSnrDb: params.requiredSnrDb,
+            requiredMarginDb: params.requiredMarginDb
+        };
+    }
+
+    function getArrayHalfPowerBeamwidthDeg() {
+        return estimateArrayBeamwidthDeg(params.Nx, params.Ny, params.spacing, {
+            minBeamwidthDeg: 0.35,
+            maxBeamwidthDeg: 90
+        });
+    }
+
+    function getBeamFootprintInput() {
+        return {
+            centerLatDeg: params.targetLat,
+            centerLonDeg: params.targetLon,
+            halfPowerBeamwidthDeg: getArrayHalfPowerBeamwidthDeg(),
+            maxLossDb: 45
+        };
+    }
+
+    function updateCoverageProducts(satEcfKm) {
+        if (!satEcfKm || !params.showCoverageHeatmap) {
+            clearCoverageProducts();
+            return;
+        }
+
+        coverageCells = computeCoverageGrid({
+            satEcfKm,
+            latStepDeg: params.coverageResolutionDeg,
+            lonStepDeg: params.coverageResolutionDeg,
+            minElevationDeg: params.minElevationDeg,
+            linkBudgetInput: getLinkBudgetInput(),
+            beamFootprint: getBeamFootprintInput()
+        });
+        coverageSummary = summarizeCoverage(coverageCells);
+        lastCoverageUpdate = performance.now();
+        needsCoverageUpdate = false;
+        updateCoverageSummaryText();
+        if (contourCanvas && contourCtx && contourGroup3D) {
+            updateContour();
+        }
+    }
+
+    function clearCoverageProducts() {
+        coverageCells = [];
+        coverageSummary = null;
+        needsCoverageUpdate = false;
+        updateCoverageSummaryText();
+        if (coveragePoints3D) {
+            contourGroup3D?.remove(coveragePoints3D);
+            coveragePoints3D.geometry?.dispose?.();
+            coveragePoints3D.material?.dispose?.();
+            coveragePoints3D = null;
+        }
+    }
+
+    function updateCoverageSummaryText() {
+        const el = document.getElementById('coverage-summary');
+        if (!el) return;
+        if (!params.showCoverageHeatmap) {
+            el.textContent = 'Coverage heatmap disabled.';
+            return;
+        }
+        if (!coverageSummary || coverageSummary.total === 0) {
+            el.textContent = 'Coverage heatmap waits for satellite geometry.';
+            return;
+        }
+        const passPct = coverageSummary.total
+            ? (coverageSummary.passing / coverageSummary.total) * 100
+            : 0;
+        el.textContent = `${coverageSummary.passing}/${coverageSummary.total} cells close (${formatNumber(passPct, 1)}%), best margin ${formatNumber(coverageSummary.bestMarginDb, 1)} dB.`;
+    }
+
+    function updateOrbitComparison() {
+        const representativeRanges = {
+            LEO: 1200,
+            MEO: 22000,
+            GEO: 38000
+        };
+        const representativeRadialVelocity = {
+            LEO: 7500,
+            MEO: 1200,
+            GEO: 25
+        };
+        let best = null;
+        Object.entries(representativeRanges).forEach(([orbitClass, rangeKm]) => {
+            const link = evaluateLinkBudget({
+                ...getLinkBudgetInput(),
+                rangeKm
+            });
+            const delay = propagationDelayMs(rangeKm);
+            const doppler = dopplerHz(representativeRadialVelocity[orbitClass], params.frequency * 1e9);
+            const text = `${formatNumber(link.requiredTxPowerDbw, 1)} dBW / ${formatNumber(delay, 0)} ms / ${formatNumber(doppler / 1000, 0)} kHz`;
+            setMetric(`compare-${orbitClass.toLowerCase()}`, text);
+            if (!best || link.requiredTxPowerDbw < best.requiredTxPowerDbw) {
+                best = { orbitClass, requiredTxPowerDbw: link.requiredTxPowerDbw };
+            }
+        });
+        setMetric('compare-best', best ? best.orbitClass : '--');
+    }
+
+    function getGmst(satLib, date) {
+        if (typeof satLib.gstime === 'function') {
+            const direct = satLib.gstime(date);
+            if (Number.isFinite(direct)) return direct;
+        }
+        if (typeof satLib.jday !== 'function' || typeof satLib.gstime !== 'function') return NaN;
+        const jd = satLib.jday(
+            date.getUTCFullYear(),
+            date.getUTCMonth() + 1,
+            date.getUTCDate(),
+            date.getUTCHours(),
+            date.getUTCMinutes(),
+            date.getUTCSeconds()
+        );
+        return satLib.gstime(jd);
+    }
+
+    function setMetric(id, value) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value;
+    }
+
+    function clearLinkMetrics() {
+        [
+            'metric-range',
+            'metric-elevation',
+            'metric-delay',
+            'metric-doppler',
+            'metric-fspl',
+            'metric-required-eirp',
+            'metric-required-power',
+            'metric-margin',
+            'metric-beamwidth',
+            'metric-beam-loss'
+        ].forEach(id => setMetric(id, '--'));
+    }
+
+    function setLinkStatus(kind, text) {
+        const el = document.getElementById('link-status');
+        if (!el) return;
+        el.className = `link-status ${kind}`;
+        el.textContent = text;
+    }
+
+    function formatNumber(value, digits = 1) {
+        if (!Number.isFinite(value)) return '--';
+        return value.toLocaleString(undefined, {
+            minimumFractionDigits: digits,
+            maximumFractionDigits: digits
+        });
+    }
+
+    function formatPower(watts) {
+        if (!Number.isFinite(watts) || watts < 0) return '-- W';
+        if (watts >= 1e6) return `${formatNumber(watts / 1e6, 2)} MW`;
+        if (watts >= 1e3) return `${formatNumber(watts / 1e3, 2)} kW`;
+        return `${formatNumber(watts, 2)} W`;
+    }
+
+    function getScenarioSnapshot() {
+        return {
+            savedAt: new Date().toISOString(),
+            satellite: selectedSatelliteRecord ? {
+                noradId: selectedSatelliteRecord.norad_id,
+                name: selectedSatelliteRecord.satellite_name,
+                orbitClass: selectedSatelliteRecord.type,
+                operator: selectedSatelliteRecord.company
+            } : null,
+            params: {
+                Nx: params.Nx,
+                Ny: params.Ny,
+                spacing: params.spacing,
+                isHexagonal: params.isHexagonal,
+                azimuth: params.azimuth,
+                elevation: params.elevation,
+                elementPattern: params.elementPattern,
+                tapering: params.tapering,
+                sll: params.sll,
+                orbitClass: params.orbitClass,
+                selectedSatelliteId: params.selectedSatelliteId,
+                targetLat: params.targetLat,
+                targetLon: params.targetLon,
+                frequency: params.frequency,
+                frequencyGhz: params.frequency,
+                computationMode: params.computationMode,
+                txPowerDbw: params.txPowerDbw,
+                txGainDbi: params.txGainDbi,
+                rxGainDbi: params.rxGainDbi,
+                bandwidthMhz: params.bandwidthMhz,
+                systemNoiseTempK: params.systemNoiseTempK,
+                additionalLossesDb: params.additionalLossesDb,
+                requiredSnrDb: params.requiredSnrDb,
+                requiredMarginDb: params.requiredMarginDb,
+                minElevationDeg: params.minElevationDeg,
+                amplifierBackoffDb: params.amplifierBackoffDb,
+                showCoverageHeatmap: params.showCoverageHeatmap,
+                coverageResolutionDeg: params.coverageResolutionDeg
+            },
+            coverage: coverageSummary,
+            linkStatus: document.getElementById('link-status')?.textContent || ''
+        };
+    }
+
+    function saveScenario() {
+        const name = window.prompt('Scenario name', `scenario-${new Date().toISOString().slice(0, 19)}`);
+        if (!name) return;
+        const scenarios = readSavedScenarios();
+        scenarios[name] = getScenarioSnapshot();
+        localStorage.setItem('beamformingProScenarios', JSON.stringify(scenarios));
+        writeScenarioReport(`Saved scenario "${name}".`);
+    }
+
+    function loadScenario() {
+        const scenarios = readSavedScenarios();
+        const names = Object.keys(scenarios);
+        if (!names.length) {
+            writeScenarioReport('No saved scenarios found.');
+            return;
+        }
+        const name = window.prompt(`Scenario to load:\n${names.join('\n')}`, names[0]);
+        if (!name || !scenarios[name]) return;
+        applyScenarioSnapshot(scenarios[name]);
+        writeScenarioReport(`Loaded scenario "${name}".`);
+    }
+
+    function readSavedScenarios() {
+        try {
+            return JSON.parse(localStorage.getItem('beamformingProScenarios') || '{}');
+        } catch {
+            return {};
+        }
+    }
+
+    function applyScenarioSnapshot(snapshot) {
+        if (!snapshot?.params) return;
+        Object.entries(snapshot.params).forEach(([key, value]) => {
+            if (key === 'frequencyGhz') {
+                params.frequency = value;
+                return;
+            }
+            if (key in params) params[key] = value;
+        });
+
+        setControlValue('orbit-class-select', params.orbitClass);
+        setControlValue('satellite-select', params.selectedSatelliteId);
+        setControlValue('computation-mode-select', params.computationMode);
+        setControlValue('nx-slider', params.Nx);
+        setControlValue('ny-slider', params.Ny);
+        setControlValue('spacing-slider', params.spacing);
+        setControlValue('azimuth-slider', params.azimuth);
+        setControlValue('elevation-slider', params.elevation);
+        setControlValue('element-pattern-select', params.elementPattern);
+        setControlValue('tapering-select', params.tapering);
+        setControlValue('sll-slider', params.sll);
+        setControlValue('target-lat-input', params.targetLat);
+        setControlValue('target-lon-input', params.targetLon);
+        setControlValue('frequency-slider', params.frequency);
+        setControlValue('tx-power-input', params.txPowerDbw);
+        setControlValue('tx-gain-input', params.txGainDbi);
+        setControlValue('rx-gain-input', params.rxGainDbi);
+        setControlValue('bandwidth-input', params.bandwidthMhz);
+        setControlValue('noise-temp-input', params.systemNoiseTempK);
+        setControlValue('losses-input', params.additionalLossesDb);
+        setControlValue('required-snr-input', params.requiredSnrDb);
+        setControlValue('required-margin-input', params.requiredMarginDb);
+        setControlValue('min-elevation-input', params.minElevationDeg);
+        setControlValue('backoff-input', params.amplifierBackoffDb);
+        setControlValue('coverage-resolution-select', params.coverageResolutionDeg);
+        const hexGridToggle = document.getElementById('hex-grid-checkbox');
+        if (hexGridToggle) hexGridToggle.checked = !!params.isHexagonal;
+        const coverageToggle = document.getElementById('coverage-toggle-checkbox');
+        if (coverageToggle) coverageToggle.checked = !!params.showCoverageHeatmap;
+
+        updateValueDisplay('nx-value', params.Nx, 0);
+        updateValueDisplay('ny-value', params.Ny, 0);
+        updateValueDisplay('spacing-value', params.spacing, 2);
+        updateValueDisplay('frequency-value', params.frequency, 1);
+        updateValueDisplay('azimuth-value', params.azimuth, 0);
+        updateValueDisplay('elevation-value', params.elevation, 0);
+        updateValueDisplay('sll-value', params.sll, 0);
+        const sllControl = document.getElementById('sll-control');
+        if (sllControl) {
+            sllControl.style.display =
+                (params.tapering === 'chebyshev' || params.tapering === 'taylor') ? 'block' : 'none';
+        }
+        refreshSatelliteOptions();
+        setSelectedSatellite(params.selectedSatelliteId);
+        updateAntennaArrayGeometry();
+        updateTargetMarker3D();
+        needsLinkUpdate = true;
+        needsCoverageUpdate = true;
+        needsRecalculation = true;
+    }
+
+    function setControlValue(id, value) {
+        const el = document.getElementById(id);
+        if (el) el.value = value;
+    }
+
+    function updateValueDisplay(id, value, digits) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = Number(value).toFixed(digits);
+    }
+
+    function writeScenarioReport(prefix = '') {
+        const report = {
+            note: prefix || undefined,
+            ...getScenarioSnapshot()
+        };
+        const text = JSON.stringify(report, null, 2);
+        const el = document.getElementById('scenario-report');
+        if (el) el.value = text;
+        return text;
+    }
+
+    async function copyScenarioReport() {
+        const text = writeScenarioReport();
+        try {
+            await navigator.clipboard.writeText(text);
+            setLinkStatus('pass', 'Scenario report copied to clipboard.');
+        } catch {
+            setLinkStatus('warn', 'Clipboard copy failed; report is available in the text box.');
+        }
+    }
+
     // --- Visualization Update Functions ---
     function updateAntennaArrayGeometry() {
         while (antennaGroup.children.length > 1) { // Keep beamMesh
@@ -632,6 +1531,7 @@
         });
 
         updatePerFeedControls();
+        needsCoverageUpdate = true;
         needsRecalculation = true;
     }
 
@@ -685,6 +1585,52 @@
 
         contourGroup3D = new THREE.Group();
         earthMesh.add(contourGroup3D);
+
+        targetMarker3D = new THREE.Mesh(
+            new THREE.SphereGeometry(EARTH_RADIUS * 0.025, 16, 8),
+            new THREE.MeshBasicMaterial({ color: 0xff3366, depthTest: false })
+        );
+        targetMarker3D.renderOrder = 3;
+        earthMesh.add(targetMarker3D);
+
+        satelliteMarker3D = new THREE.Mesh(
+            new THREE.SphereGeometry(EARTH_RADIUS * 0.045, 20, 10),
+            new THREE.MeshBasicMaterial({ color: 0x00e5ff, depthTest: false })
+        );
+        satelliteMarker3D.renderOrder = 5;
+        satelliteMarker3D.visible = false;
+        satelliteMarker3D.frustumCulled = false;
+        earthScene.add(satelliteMarker3D);
+
+        const beamLineGeometry = new THREE.BufferGeometry();
+        beamLineGeometry.setAttribute(
+            'position',
+            new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3)
+        );
+        beamLine3D = new THREE.Line(
+            beamLineGeometry,
+            new THREE.LineBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.95, depthTest: false })
+        );
+        beamLine3D.renderOrder = 4;
+        beamLine3D.visible = false;
+        beamLine3D.frustumCulled = false;
+        earthScene.add(beamLine3D);
+
+        beamCone3D = new THREE.Mesh(
+            new THREE.ConeGeometry(EARTH_RADIUS * 0.1, EARTH_RADIUS, 48, 1, true),
+            new THREE.MeshBasicMaterial({
+                color: 0x00b4ff,
+                transparent: true,
+                opacity: 0.16,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            })
+        );
+        beamCone3D.renderOrder = 2;
+        beamCone3D.visible = false;
+        beamCone3D.frustumCulled = false;
+        earthScene.add(beamCone3D);
+        updateTargetMarker3D();
     }
 
     function setupMapOverlay() {
@@ -745,15 +1691,28 @@
     }
 
     function updateContour() {
-        if (!currentGainData || currentGainData.length === 0) return;
+        if (!currentGainData || currentGainData.length === 0) {
+            contourCtx.clearRect(0, 0, contourCanvas.width, contourCanvas.height);
+            while(contourGroup3D.children.length > 0) contourGroup3D.remove(contourGroup3D.children[0]);
+            coveragePoints3D = null;
+            drawCoverageLayer2D();
+            drawCoverageLayer3D();
+            drawTargetMarker2D();
+            contourTexture.needsUpdate = true;
+            return;
+        }
 
         let maxGain = 0;
         currentGainData.forEach(row => row.forEach(val => { if (val > maxGain) maxGain = val; }));
 
         contourCtx.clearRect(0, 0, contourCanvas.width, contourCanvas.height);
         while(contourGroup3D.children.length > 0) contourGroup3D.remove(contourGroup3D.children[0]);
+        coveragePoints3D = null;
+        drawCoverageLayer2D();
+        drawCoverageLayer3D();
 
         if (maxGain === 0) {
+            drawTargetMarker2D();
             contourTexture.needsUpdate = true;
             return;
         }
@@ -791,7 +1750,7 @@
 
                 if(Math.abs(lon) > 180) return;
 
-                points2D.push({ x: (lon + 180) / 360 * contourCanvas.width, y: (90 - lat) / 180 * contourCanvas.height });
+                points2D.push(mercatorPixelFromLonLat(lon, lat, contourCanvas.width, contourCanvas.height));
 
                 const pos3D = new THREE.Vector3().setFromSphericalCoords(EARTH_RADIUS, (90 - lat) * Math.PI / 180, lon * Math.PI / 180);
                 points3D.push(pos3D);
@@ -820,7 +1779,191 @@
             }
         });
 
+        drawTargetMarker2D();
         contourTexture.needsUpdate = true;
+    }
+
+    function drawCoverageLayer2D() {
+        if (!params.showCoverageHeatmap || !coverageCells.length) return;
+        drawCoverageGrid2D(contourCtx, coverageCells, contourCanvas.width, contourCanvas.height);
+    }
+
+    function drawCoverageLayer3D() {
+        if (!params.showCoverageHeatmap || !coverageCells.length || !contourGroup3D) return;
+        const positions = [];
+        const colors = [];
+        const color = new THREE.Color();
+        coverageCells.forEach(cell => {
+            const phi = (90 - cell.latDeg) * Math.PI / 180;
+            const theta = cell.lonDeg * Math.PI / 180;
+            const pos = new THREE.Vector3().setFromSphericalCoords(EARTH_RADIUS * 1.01, phi, theta);
+            positions.push(pos.x, pos.y, pos.z);
+            color.setHex(pointColorHex(cell.marginDb, cell.visible));
+            colors.push(color.r, color.g, color.b);
+        });
+
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+        const material = new THREE.PointsMaterial({
+            size: 0.07,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.72,
+            depthWrite: false
+        });
+        coveragePoints3D = new THREE.Points(geometry, material);
+        coveragePoints3D.renderOrder = 2;
+        contourGroup3D.add(coveragePoints3D);
+    }
+
+    function updateTargetMarker3D() {
+        if (!targetMarker3D) return;
+        const phi = (90 - params.targetLat) * Math.PI / 180;
+        const theta = params.targetLon * Math.PI / 180;
+        targetMarker3D.position.setFromSphericalCoords(EARTH_RADIUS * 1.025, phi, theta);
+    }
+
+    function updatePhysicalBeamVisual(geometry, halfPowerBeamwidthDeg, linkMarginDb) {
+        if (!geometry?.satEcfKm || !geometry?.targetEcfKm || !satelliteMarker3D || !beamLine3D || !beamCone3D) {
+            clearPhysicalBeamVisual();
+            return;
+        }
+
+        const satellitePosition = ecfKmToEarthSceneVector(geometry.satEcfKm);
+        const targetPosition = ecfKmToEarthSceneVector(geometry.targetEcfKm)
+            .normalize()
+            .multiplyScalar(EARTH_RADIUS * 1.025);
+        const satelliteToTarget = targetPosition.clone().sub(satellitePosition);
+        const beamLength = satelliteToTarget.length();
+
+        if (!Number.isFinite(beamLength) || beamLength <= 0) {
+            clearPhysicalBeamVisual();
+            return;
+        }
+
+        satelliteMarker3D.position.copy(satellitePosition);
+        satelliteMarker3D.visible = true;
+
+        const linePositions = beamLine3D.geometry.getAttribute('position');
+        linePositions.setXYZ(0, satellitePosition.x, satellitePosition.y, satellitePosition.z);
+        linePositions.setXYZ(1, targetPosition.x, targetPosition.y, targetPosition.z);
+        linePositions.needsUpdate = true;
+        beamLine3D.visible = true;
+
+        const coneAngleDeg = Math.max(0.1, Math.min(70, halfPowerBeamwidthDeg));
+        const coneRadius = Math.max(
+            EARTH_RADIUS * 0.03,
+            Math.min(beamLength * 0.65, Math.tan(THREE.MathUtils.degToRad(coneAngleDeg)) * beamLength)
+        );
+        beamCone3D.geometry.dispose();
+        beamCone3D.geometry = new THREE.ConeGeometry(coneRadius, beamLength, 48, 1, true);
+        beamCone3D.position.copy(satellitePosition).add(targetPosition).multiplyScalar(0.5);
+        beamCone3D.quaternion.setFromUnitVectors(
+            new THREE.Vector3(0, 1, 0),
+            satellitePosition.clone().sub(targetPosition).normalize()
+        );
+        beamCone3D.material.color.setHex(linkMarginDb < 0 ? 0xff3040 : 0x00b4ff);
+        beamCone3D.visible = true;
+    }
+
+    function clearPhysicalBeamVisual() {
+        if (satelliteMarker3D) satelliteMarker3D.visible = false;
+        if (beamLine3D) beamLine3D.visible = false;
+        if (beamCone3D) beamCone3D.visible = false;
+    }
+
+    function ecfKmToEarthSceneVector(ecfKm) {
+        const scale = EARTH_RADIUS / EARTH_RADIUS_KM;
+        return new THREE.Vector3(ecfKm.y * scale, ecfKm.z * scale, ecfKm.x * scale);
+    }
+
+    function drawTargetMarker2D() {
+        if (!contourCtx || !contourCanvas) return;
+        const p = mercatorPixelFromLonLat(params.targetLon, params.targetLat, contourCanvas.width, contourCanvas.height);
+        contourCtx.save();
+        contourCtx.strokeStyle = '#ff3366';
+        contourCtx.fillStyle = '#ff3366';
+        contourCtx.lineWidth = 2;
+        contourCtx.beginPath();
+        contourCtx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+        contourCtx.stroke();
+        contourCtx.beginPath();
+        contourCtx.moveTo(p.x - 8, p.y);
+        contourCtx.lineTo(p.x + 8, p.y);
+        contourCtx.moveTo(p.x, p.y - 8);
+        contourCtx.lineTo(p.x, p.y + 8);
+        contourCtx.stroke();
+        contourCtx.font = '12px Arial';
+        contourCtx.fillText('Target', p.x + 8, p.y - 8);
+        contourCtx.restore();
+    }
+
+    function getOverlayViewport() {
+        const width = Math.min(window.innerWidth * 0.5, 600);
+        return {
+            x: 10,
+            y: 10,
+            width,
+            height: width / 2
+        };
+    }
+
+    function onRendererClick(event) {
+        if (!params.showMap || !renderer) return;
+
+        const rect = renderer.domElement.getBoundingClientRect();
+        const viewport = getOverlayViewport();
+        const overlayTop = rect.height - viewport.y - viewport.height;
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+
+        if (
+            x < viewport.x ||
+            x > viewport.x + viewport.width ||
+            y < overlayTop ||
+            y > overlayTop + viewport.height
+        ) {
+            return;
+        }
+
+        const localX = x - viewport.x;
+        const localY = y - overlayTop;
+
+        if (params.visMode === 'map') {
+            const target = lonLatFromMercatorPixel(localX, localY, viewport.width, viewport.height);
+            updateTargetPoint(target.latDeg, target.lonDeg);
+            return;
+        }
+
+        const ndc = new THREE.Vector2(
+            (localX / viewport.width) * 2 - 1,
+            -(localY / viewport.height) * 2 + 1
+        );
+        const raycaster = new THREE.Raycaster();
+        raycaster.setFromCamera(ndc, earthCamera);
+        const intersections = raycaster.intersectObject(earthMesh, false);
+        if (!intersections.length) return;
+
+        const local = earthMesh.worldToLocal(intersections[0].point.clone()).normalize();
+        const latDeg = Math.asin(local.y) * 180 / Math.PI;
+        const lonDeg = normalizeLongitudeDeg(Math.atan2(local.x, local.z) * 180 / Math.PI);
+        updateTargetPoint(latDeg, lonDeg);
+    }
+
+    function updateTargetPoint(latDeg, lonDeg) {
+        params.targetLat = Math.max(-85, Math.min(85, latDeg));
+        params.targetLon = normalizeLongitudeDeg(lonDeg);
+
+        const latInput = document.getElementById('target-lat-input');
+        const lonInput = document.getElementById('target-lon-input');
+        if (latInput) latInput.value = params.targetLat.toFixed(4);
+        if (lonInput) lonInput.value = params.targetLon.toFixed(4);
+
+        updateTargetMarker3D();
+        needsRecalculation = true;
+        needsCoverageUpdate = true;
+        needsLinkUpdate = true;
     }
 
     function updateFeedHighlights() {
@@ -843,6 +1986,9 @@
         orbitControls.update(clock.getDelta());
         updateFeedHighlights();
         const statusMessage = document.getElementById('status-message');
+        if (needsLinkUpdate || performance.now() - lastLinkUpdate > LINK_UPDATE_INTERVAL_MS) {
+            updateLinkBudgetPanel();
+        }
 
         if (needsRecalculation) {
             const totalElements = elementPositions.length;
@@ -869,14 +2015,13 @@
 
         if (params.showMap) {
             renderer.clearDepth();
-            const mapRenderWidth = Math.min(window.innerWidth * 0.5, 600);
-            const mapRenderHeight = mapRenderWidth / 2;
+            const overlayViewport = getOverlayViewport();
 
             const isEarthMode = params.visMode === 'earth';
 
             renderer.setScissorTest(true);
-            renderer.setScissor(10, 10, mapRenderWidth, mapRenderHeight);
-            renderer.setViewport(10, 10, mapRenderWidth, mapRenderHeight);
+            renderer.setScissor(overlayViewport.x, overlayViewport.y, overlayViewport.width, overlayViewport.height);
+            renderer.setViewport(overlayViewport.x, overlayViewport.y, overlayViewport.width, overlayViewport.height);
 
             if (isEarthMode) {
                 // Temporarily disable main controls to give priority to the earth controls
@@ -899,7 +2044,8 @@
     function onWindowResize() {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
-        earthCamera.aspect = (window.innerWidth * 0.5) / (window.innerWidth * 0.25);
+        const overlayViewport = getOverlayViewport();
+        earthCamera.aspect = overlayViewport.width / overlayViewport.height;
         earthCamera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
     }

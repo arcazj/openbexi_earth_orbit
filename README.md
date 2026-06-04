@@ -9,13 +9,13 @@ OpenBEXI Earth Orbit is a browser-based satellite visualization app built with p
 ## Features
 
 - 3D Earth globe with satellite markers propagated from TLE data.
-- 3D orbit paths with explicit Earth depth occlusion and Mercator ground tracks that reject invalid, non-finite, decayed, or below-Earth propagation samples before drawing.
+- 3D orbit paths with explicit camera-aware Earth occlusion and Mercator ground tracks that reject invalid, non-finite, decayed, or below-Earth propagation samples before drawing.
 - 2D Mercator map with satellite labels, selected-satellite highlighting, selected ground tracks, and day/night overlay.
 - Multi-select orbit filters for `ALL`, `GEO`, `MEO`, `LEO`, `HEO`, and `Other`.
 - Multi-select tag/operator filters such as `Starlink`, `One Web`, `SES`, `Intelsat`, `Weather`, and `Iridium`.
 - Debris filtering modes: show all, hide debris, or debris only.
 - Accordion-style menu sections for Filters, Satellite Selection, View, Timelines, Other Selections, and Settings, preserving the legacy colored section accents.
-- Searchable satellite selector with typeahead support for satellite name, NORAD ID, orbit type, and company/tag.
+- Searchable satellite selector with typeahead support for satellite name, NORAD ID, orbit type, and company/tag; selected results close cleanly after mouse, keyboard, Escape, Tab, or outside-click interactions.
 - Filter reset, active-filter summary, and zero-result empty states.
 - Selected-satellite details, orbit path display, footprint display, LVLH orbit frame, and yaw/pitch/roll controls.
 - Local detailed model loading for selected satellites using OBJ/MTL and GLB assets under `obj/`.
@@ -33,7 +33,7 @@ OpenBEXI Earth Orbit is a browser-based satellite visualization app built with p
 
 The app uses `satellite.js@6.0.2` for TLE propagation. Some TLEs can return invalid propagated samples, especially for decayed or unstable objects. Orbit and Mercator rendering reject non-finite positions and below-Earth samples before drawing. When invalid samples occur in the middle of a path, the app splits the line instead of connecting through Earth or across an invalid Mercator segment.
 
-The 3D orbit line uses normal depth testing and render order so Earth can occlude portions of the orbit that are behind the globe. GEO orbit fixes should not change the physical propagated orbit radius unless tests prove the propagation radius is wrong.
+The 3D selected-orbit line uses normal depth testing plus camera-aware Earth occlusion splitting so Earth hides portions of the orbit that are behind the globe. GEO orbit fixes should not change the physical propagated orbit radius unless tests prove the propagation radius is wrong.
 
 GEO Mercator ground tracks can be nearly stationary. When the generated GEO ground track collapses below visible inset size, the Mercator renderer draws a short visible fallback segment around the sub-satellite point so `Show Orbit` does not appear blank.
 
@@ -157,7 +157,7 @@ The left menu is organized into compact colored accordion sections. Multiple sec
 - `Other Selections`: Earth/Moon context selection.
 - `Settings`: simulation and diagnostic notes.
 
-The satellite selector is searchable. Type part of a satellite name, NORAD ID, orbit type, or tag, then use the mouse or keyboard arrow keys plus Enter to select a result. Timeline controls are checkboxes: checked means the timeline is visible; unchecked means it is hidden. Only one timeline can be visible at a time. If Yaw-Pitch-Roll is enabled, selecting or switching satellites keeps the YPR sliders visible and preserves the current yaw, pitch, and roll values.
+The satellite selector is searchable. Type part of a satellite name, NORAD ID, orbit type, or tag, then use the mouse or keyboard arrow keys plus Enter to select a result. Selecting a result closes the dropdown immediately; Escape, Tab, or clicking outside the selector also closes the dropdown so it cannot block `Show Orbit`, `Show Footprint`, or other controls below it. Timeline controls are checkboxes: checked means the timeline is visible; unchecked means it is hidden. Only one timeline can be visible at a time. If Yaw-Pitch-Roll is enabled, selecting or switching satellites keeps the YPR sliders visible and preserves the current yaw, pitch, and roll values.
 
 ## Project Structure
 
@@ -179,6 +179,7 @@ The satellite selector is searchable. Type part of a satellite name, NORAD ID, o
 - `README.md`: Project overview, setup, features, testing commands, and documentation index.
 - `PROMPT.md`: General execution prompt only; release-specific content belongs in prompt history.
 - `PROMPT_History.md`: Release-specific prompts and implementation requirements by date and version.
+- `PROMPT4beamFormingSimulator3DWithMercatorMap_V2.MD`: Expert RF/beamforming prompt and roadmap for the separate `beamFormingSimulator3DWithMercatorMap_V2.html` simulator.
 - `Test_and_Integration.md`: Authoritative automated, browser, manual, domain, visual, and regression acceptance checklist.
 
 ## Development Notes

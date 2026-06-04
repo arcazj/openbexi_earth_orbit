@@ -81,7 +81,7 @@
         eciToSceneVector,
         ecfToSceneVector
     } from './js/sceneFrame.js';
-    import { satellites, updateOrbitTrajectory, setupTLESatellites, removeAllGeometry } from './js/satelliteTLELoader.js';
+    import { satellites, updateOrbitTrajectory, refreshSelectedOrbitOcclusion, setupTLESatellites, removeAllGeometry } from './js/satelliteTLELoader.js';
 
     import {
         createYPRFrame,
@@ -118,7 +118,7 @@
     });
     startupPerf.mark('module-loaded');
 
-    const versionNumber = "1.5.5";
+    const versionNumber = "1.5.6";
     const versionRepoUrl = "https://github.com/arcazj/openbexi_earth_orbit";
     const versionText = `version ${versionNumber} - hosted at`;
     document.getElementById('ob_menu').innerHTML = satelliteMenuLoader();
@@ -279,6 +279,7 @@
     let filterStatusSummary, filterEmptyState, resetFiltersButton, resetFiltersEmptyButton, selectedSatelliteSummary;
     let currentSearchResults = [];
     let activeSearchResultIndex = -1;
+    let isSatelliteDropdownOpen = false;
     let launchTimelineHandle = null;
     let reentryTimelineHandle = null;
     let animationLoopStarted = false;
@@ -700,6 +701,7 @@
     }
 
     function closeSatelliteSearchResults() {
+        isSatelliteDropdownOpen = false;
         if (satelliteSearchResults) satelliteSearchResults.hidden = true;
         if (satelliteSearchInput) {
             satelliteSearchInput.setAttribute('aria-expanded', 'false');
@@ -710,6 +712,7 @@
 
     function renderSatelliteSearchResults(filteredTLEs = buildFilteredSatellitesBySelection(), forceOpen = false) {
         if (!satelliteSearchInput || !satelliteSearchResults) return;
+        if (forceOpen) isSatelliteDropdownOpen = true;
 
         const query = satelliteSearchInput.value.trim().toLowerCase();
         const matches = query
@@ -741,7 +744,7 @@
         });
 
         const hasResults = currentSearchResults.length > 0;
-        const shouldOpen = forceOpen || query.length > 0;
+        const shouldOpen = hasResults && isSatelliteDropdownOpen;
         satelliteSearchResults.hidden = !hasResults || !shouldOpen;
         satelliteSearchInput.setAttribute('aria-expanded', !satelliteSearchResults.hidden ? 'true' : 'false');
         if (activeSearchResultIndex >= 0 && !satelliteSearchResults.hidden) {
@@ -1176,6 +1179,14 @@
                         selectSatelliteFromSearch(activeSearchResultIndex);
                     }
                 } else if (event.key === 'Escape') {
+                    closeSatelliteSearchResults();
+                } else if (event.key === 'Tab') {
+                    closeSatelliteSearchResults();
+                }
+            });
+            document.addEventListener('pointerdown', (event) => {
+                const combobox = satelliteSearchInput.closest('.satellite-combobox');
+                if (!combobox || !combobox.contains(event.target)) {
                     closeSatelliteSearchResults();
                 }
             });
@@ -2019,6 +2030,9 @@
         const show3D = simParams.view3D;
         if (renderer) renderer.domElement.style.display = show3D ? 'block' : 'none';
         if (show3D) {
+            if (simParams.showOrbit) {
+                refreshSelectedOrbitOcclusion(camera, { earthRadiusScene: EARTH_SCENE_RADIUS });
+            }
             renderer.render(scene, camera);
             startupPerf.markOnce('first-visible-globe-render');
             update3DLabelsPosition(camera, simParams, rotY);

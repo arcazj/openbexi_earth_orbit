@@ -60,7 +60,10 @@ function run() {
   assert(indexHtml.includes("new Set(['ACTIVE'])"), 'Active is excluded from generated company/tag chips');
   assert(html.includes('id="satelliteSearchInput"'), 'satellite search input is present');
   assert(html.includes('role="combobox"'), 'satellite search uses combobox semantics');
+  assert(html.includes('aria-expanded="false"'), 'satellite search exposes collapsed aria-expanded state');
+  assert(html.includes('aria-controls="satelliteSearchResults"'), 'satellite search controls the result list');
   assert(html.includes('id="satelliteSearchResults"'), 'satellite search results list is present');
+  assert(html.includes('role="listbox"'), 'satellite search results use listbox semantics');
   assert(html.includes('id="satelliteSearchClear"'), 'satellite search clear action is present');
   assert(html.includes('id="resetFiltersButton"'), 'reset filters action is present');
   assert(html.includes('id="filterStatusSummary"'), 'active filter summary is present');
@@ -97,6 +100,9 @@ function run() {
   assert(css.includes('.menu-accordion-section .collapsible-content:not(.collapsed)'), 'long active accordion panels have scroll constraints');
   assert(css.includes('overflow-y: auto'), 'narrowed menu keeps scrollable overflow');
   assert(css.includes('max-height: min(220px, calc(100vh - 260px))'), 'satellite search results stay bounded after narrowing');
+  assert(css.includes('.satellite-search-results[hidden]'), 'hidden satellite results have an explicit CSS state');
+  assert(css.includes('display: none !important;'), 'hidden satellite results are removed from layout');
+  assert(css.includes('pointer-events: none !important;'), 'hidden satellite results cannot block controls');
   assert(css.includes('max-height: min(260px, calc(100vh - 330px))'), 'satellite metadata stays bounded after narrowing');
   assert(css.includes('#timeWarpBox'), 'time slider has responsive layout CSS');
   assert(css.includes('top: 50px !important'), 'narrow viewport time slider is moved away from top controls');
@@ -117,6 +123,10 @@ function run() {
   assert(!/rollSlider\.value\s*=\s*0/.test(indexHtml), 'satellite selection does not reset roll slider value');
   assert(indexHtml.includes('satelliteSearchText'), 'index implements satellite search matching');
   assert(indexHtml.includes('resetFiltersToDefaults'), 'index implements filter reset');
+  assert(indexHtml.includes('isSatelliteDropdownOpen'), 'satellite search uses explicit dropdown open state');
+  assert(indexHtml.includes('document.addEventListener(\'pointerdown\''), 'outside clicks close satellite search results');
+  assert(indexHtml.includes("event.key === 'Tab'"), 'Tab closes satellite search results without trapping focus');
+  assert(indexHtml.includes('if (forceOpen) isSatelliteDropdownOpen = true'), 'only explicit user actions open satellite search results');
   assert(indexHtml.includes('aria-activedescendant'), 'satellite search supports active descendant keyboard state');
   assert(indexHtml.includes('syncExclusiveTimelineSelection'), 'index enforces mutually exclusive timeline checkboxes');
   assert(indexHtml.includes("hideTimelineById('reentryTimelineToggle')"), 'launch selection hides re-entry timeline');

@@ -693,6 +693,7 @@ canvas {
     background: rgba(8, 13, 22, 0.98);
     box-shadow: 0 8px 18px rgba(0, 0, 0, 0.48);
     list-style: none;
+    pointer-events: auto;
 }
 
 #satelliteInfo {
@@ -701,6 +702,7 @@ canvas {
 
 .satellite-search-results[hidden] {
     display: none !important;
+    pointer-events: none !important;
 }
 
 .satellite-search-option {

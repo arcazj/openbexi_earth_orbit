@@ -28,6 +28,8 @@ Version 1.5.4 fixes expanded accordion header readability. Expanded headers such
 
 Version 1.5.5 makes the `Filters - Satellites Found` count red and bold, and narrows the accordion menu again while preserving internal scrolling, time-slider readability, accordion behavior, and existing app controls.
 
+Version 1.5.6 fixes two blocking regressions: the satellite search/autocomplete dropdown must close after selection, `Escape`, `Tab`, or outside click without blocking controls behind it; and the selected-satellite 3D orbit must be explicitly occluded by Earth so behind-globe trajectory segments are not visible through the planet.
+
 ## Test Environment
 
 - Run from the repository root.
@@ -90,6 +92,11 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test all-invalid propagated samples create no orbit geometry.
 - Test split orbit paths create separate `THREE.Line` children rather than one connected line.
 - Test orbit line materials keep `depthTest` enabled, use normal render order, and do not force overlay rendering through Earth.
+- Test selected orbit visibility is split against Earth occlusion from the active camera viewpoint.
+- Test behind-Earth orbit points are removed from visible selected-orbit segments.
+- Test front-side and side-of-silhouette orbit points remain visible.
+- Test selected-orbit occlusion refreshes from camera state before rendering.
+- Test Earth material continues to use `depthWrite = true`.
 - Test GEO orbit radius remains plausible and unchanged while rendering fixes are applied.
 - Test orbit generation does not use frame-specific exceptions that make GEO and non-GEO paths incompatible with live satellite positions.
 - Test switching selected satellites removes or replaces previous orbit geometry.
@@ -173,6 +180,12 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test Yaw/Pitch/Roll sliders are hidden by default, shown when enabled, and hidden again when disabled.
 - Test Yaw/Pitch/Roll slider visibility is restored after satellite selection when the YPR toggle is enabled.
 - Test satellite selection does not reset yaw, pitch, or roll slider values unless the user resets them.
+- Test satellite search uses explicit dropdown open state so programmatic rerenders cannot reopen a closed result list.
+- Test selecting a satellite from search closes the dropdown and preserves the selected-satellite summary.
+- Test keyboard `Enter` selection closes the dropdown.
+- Test `Escape`, `Tab`, and outside click close the dropdown.
+- Test hidden satellite search results use `display: none` and `pointer-events: none` so they cannot block `Show Orbit`, `Show Footprint`, or other controls below the selector.
+- Test satellite search keeps combobox/listbox accessibility hooks: `aria-expanded`, `aria-controls`, `role="listbox"`, `role="option"`, and active-descendant state.
 - Test launch and re-entry timeline checkbox logic is mutually exclusive and exposes HUD visibility state.
 - Test `getFullGitHubUrl()` handles `null`, `undefined`, non-string values, absolute URLs, and relative paths without throwing.
 
@@ -218,6 +231,32 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm the time slider label is readable as `Time x` and is not obscured by the narrowed menu.
 - Confirm headings, accordion labels, helper text, toggle icons, time slider labels, and menu buttons render without visible mojibake.
 - Confirm the left menu is thinner than Version 1.5.1 but still usable on desktop and narrow viewports.
+- Confirm the `Filters - Satellites Found` numeric count is red and bold in both expanded and collapsed filter states.
+- Confirm `Filters` and `Satellite Selection` start expanded on every `index.html` load.
+- Confirm multiple accordion sections can stay open at the same time.
+- Confirm selecting filters, tags, debris modes, timelines, and view toggles does not collapse unrelated accordion sections.
+
+## Version 1.5.6 Manual Regression
+
+- Load `http://127.0.0.1:8000/index.html`.
+- Open the `Satellite Selection` accordion section.
+- Search for `INTELSAT`.
+- Select `INTELSAT 902 (IS-902)`.
+- Confirm the autocomplete dropdown closes immediately after selection.
+- Confirm the selected satellite remains visible in the search field and selected-satellite summary.
+- Click `Show Orbit` and confirm it toggles without obstruction from the closed dropdown.
+- Click `Show Footprint` and confirm it toggles without obstruction from the closed dropdown.
+- Search again, press `Escape`, and confirm the dropdown closes without changing the selected satellite.
+- Search again, press `Tab`, and confirm focus moves normally and the dropdown closes.
+- Search again, click outside the selector, and confirm the dropdown closes.
+- Click `Clear` and confirm search/filter behavior still works.
+- Enable `Show Orbit` for the selected satellite.
+- Rotate the 3D camera until part of the selected red orbit should pass behind Earth.
+- Confirm the behind-Earth orbit arc is hidden by Earth.
+- Confirm the front-side selected orbit arc remains visible.
+- Confirm no red orbit segment appears across Earth unless it is physically in front of the globe from the current camera viewpoint.
+- Repeat the orbit-occlusion check with at least one LEO satellite, one MEO satellite, and one GEO satellite.
+- Confirm beam, footprint, satellite marker, Earth rendering, filters, timelines, YPR controls, and view controls still work.
 - Confirm dense panels, satellite metadata, and search results scroll internally after menu narrowing.
 - Confirm the vertical tab rail is gone.
 - Confirm the left menu shows stacked accordion sections for Filters, Satellite Selection, View, Timelines, Other Selections, and Settings.
