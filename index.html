@@ -145,7 +145,7 @@
     });
     startupPerf.mark('module-loaded');
 
-    const versionNumber = "1.5.14";
+    const versionNumber = "1.5.15";
     if (versionNumber !== APP_VERSION) {
         console.warn(`Version mismatch: index ${versionNumber}, server module ${APP_VERSION}`);
     }
@@ -179,8 +179,8 @@
     const SATELLITE_SETUP_CHUNK_SIZE = 300;
     const DECAY_ESTIMATE_CHUNK_SIZE = 2;
     const MENU_COLLAPSE_STORAGE_KEY = 'openbexi.menu.collapsedSections';
-    const DEFAULT_EXPANDED_ACCORDION_SECTIONS = new Set(['filtersContent', 'satelliteSelectionContent']);
-    const DEFAULT_COLLAPSED_ACCORDION_SECTIONS = new Set(['viewContent', 'timelineContent', 'otherSelectionsContent', 'settingsContent', 'shareContent', 'helpContent']);
+    const DEFAULT_EXPANDED_ACCORDION_SECTIONS = new Set(['viewContent', 'filtersContent', 'satelliteSelectionContent']);
+    const DEFAULT_COLLAPSED_ACCORDION_SECTIONS = new Set(['timelineContent', 'otherSelectionsContent', 'settingsContent', 'shareContent', 'helpContent']);
     const SATELLITE_SEARCH_LIMIT = 40;
     const EXCLUDED_COMPANY_FILTER_OPTIONS = new Set(['ACTIVE']);
     const serverApiBaseUrl = resolveApiBaseUrl();
@@ -333,6 +333,8 @@
     let serverReconnectButton, serverOfflineNotice, swaggerDocsLink, openApiSchemaLink, apiDocsStatus;
     let copyShareLinkButton, nativeShareButton, shareLinkOutput, shareFeedback, shareStateSummaryElement;
     let previewShareImageButton, downloadShareImageButton, copyShareImageButton, shareImagePreview, shareImagePlaceholder;
+    let readmeMarkdownLink, releasesHistoryMarkdownLink, helpMarkdownPanel, helpMarkdownTitle, helpMarkdownStatus;
+    let helpMarkdownContent, helpMarkdownDirectLink;
     let latestShareImageBlob = null;
     let latestShareImageUrl = null;
     let serverConnectionState = {
@@ -948,6 +950,191 @@
         serverStatusButton.setAttribute('aria-expanded', visible ? 'true' : 'false');
     }
 
+    function escapeHtml(value = '') {
+        return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function safeMarkdownHref(rawHref = '') {
+        const href = String(rawHref).trim();
+        if (!href || /^javascript:/i.test(href)) return '';
+        try {
+            const url = new URL(href, window.location.href);
+            if (!['http:', 'https:', 'mailto:'].includes(url.protocol)) return '';
+            return url.href;
+        } catch (err) {
+            return '';
+        }
+    }
+
+    function renderMarkdownInline(text = '') {
+        let html = escapeHtml(text);
+        html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (match, alt, href) => {
+            const safeHref = safeMarkdownHref(href.replace(/&amp;/g, '&'));
+            if (!safeHref) return escapeHtml(alt);
+            return `<img src="${escapeHtml(safeHref)}" alt="${alt}">`;
+        });
+        html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, label, href) => {
+            const safeHref = safeMarkdownHref(href.replace(/&amp;/g, '&'));
+            if (!safeHref) return label;
+            return `<a href="${escapeHtml(safeHref)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+        });
+        html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+        html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+        return html;
+    }
+
+    function renderMarkdown(markdown = '') {
+        const lines = String(markdown).replace(/\r\n/g, '\n').split('\n');
+        const html = [];
+        const paragraph = [];
+        let listTag = '';
+        let codeBuffer = [];
+        let inCodeBlock = false;
+
+        const closeList = () => {
+            if (listTag) html.push(`</${listTag}>`);
+            listTag = '';
+        };
+        const flushParagraph = () => {
+            if (!paragraph.length) return;
+            html.push(`<p>${renderMarkdownInline(paragraph.join(' '))}</p>`);
+            paragraph.length = 0;
+        };
+        const flushCodeBlock = () => {
+            html.push(`<pre><code>${escapeHtml(codeBuffer.join('\n'))}</code></pre>`);
+            codeBuffer = [];
+        };
+
+        lines.forEach(line => {
+            if (/^\s*```/.test(line)) {
+                flushParagraph();
+                closeList();
+                if (inCodeBlock) {
+                    flushCodeBlock();
+                    inCodeBlock = false;
+                } else {
+                    inCodeBlock = true;
+                    codeBuffer = [];
+                }
+                return;
+            }
+
+            if (inCodeBlock) {
+                codeBuffer.push(line);
+                return;
+            }
+
+            const trimmed = line.trim();
+            if (!trimmed) {
+                flushParagraph();
+                closeList();
+                return;
+            }
+
+            if (/^---+$/.test(trimmed)) {
+                flushParagraph();
+                closeList();
+                html.push('<hr>');
+                return;
+            }
+
+            const heading = trimmed.match(/^(#{1,6})\s+(.+)$/);
+            if (heading) {
+                flushParagraph();
+                closeList();
+                const level = Math.min(heading[1].length, 6);
+                html.push(`<h${level}>${renderMarkdownInline(heading[2])}</h${level}>`);
+                return;
+            }
+
+            const quote = trimmed.match(/^>\s+(.+)$/);
+            if (quote) {
+                flushParagraph();
+                closeList();
+                html.push(`<blockquote>${renderMarkdownInline(quote[1])}</blockquote>`);
+                return;
+            }
+
+            const unordered = line.match(/^\s*[-*]\s+(.+)$/);
+            const ordered = line.match(/^\s*\d+\.\s+(.+)$/);
+            if (unordered || ordered) {
+                flushParagraph();
+                const nextListTag = unordered ? 'ul' : 'ol';
+                if (listTag && listTag !== nextListTag) closeList();
+                if (!listTag) {
+                    html.push(`<${nextListTag}>`);
+                    listTag = nextListTag;
+                }
+                html.push(`<li>${renderMarkdownInline((unordered || ordered)[1])}</li>`);
+                return;
+            }
+
+            closeList();
+            paragraph.push(trimmed);
+        });
+
+        if (inCodeBlock) flushCodeBlock();
+        flushParagraph();
+        closeList();
+        return html.join('');
+    }
+
+    function showHelpMarkdownFallback(source, message) {
+        if (!helpMarkdownContent) return;
+        helpMarkdownContent.textContent = '';
+        const paragraph = document.createElement('p');
+        paragraph.textContent = `${message} `;
+        const link = document.createElement('a');
+        link.href = source;
+        link.textContent = `Open ${source} directly`;
+        paragraph.appendChild(link);
+        helpMarkdownContent.appendChild(paragraph);
+    }
+
+    async function loadHelpMarkdown(source, title) {
+        if (!helpMarkdownPanel || !helpMarkdownContent || !source) return;
+        helpMarkdownPanel.hidden = false;
+        if (helpMarkdownTitle) helpMarkdownTitle.textContent = title || source;
+        if (helpMarkdownDirectLink) {
+            helpMarkdownDirectLink.href = source;
+            helpMarkdownDirectLink.textContent = `Open ${source}`;
+        }
+        if (helpMarkdownStatus) helpMarkdownStatus.textContent = `Loading ${source}...`;
+        helpMarkdownContent.textContent = '';
+
+        if (typeof fetch !== 'function') {
+            if (helpMarkdownStatus) helpMarkdownStatus.textContent = 'Markdown preview unavailable in this browser.';
+            showHelpMarkdownFallback(source, 'Markdown rendering requires browser fetch support.');
+            return;
+        }
+
+        try {
+            const response = await fetch(source, { cache: 'no-store' });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const markdown = await response.text();
+            helpMarkdownContent.innerHTML = renderMarkdown(markdown);
+            if (helpMarkdownStatus) helpMarkdownStatus.textContent = `Rendered Markdown from ${source}.`;
+        } catch (err) {
+            if (helpMarkdownStatus) helpMarkdownStatus.textContent = 'Markdown preview unavailable from this launch mode.';
+            showHelpMarkdownFallback(source, 'Use an HTTP server to render Markdown in the Help panel.');
+        }
+    }
+
+    function setupHelpMarkdownLink(link) {
+        link?.addEventListener('click', (event) => {
+            event.preventDefault();
+            const source = link.dataset.markdownSource || link.getAttribute('href');
+            const title = link.dataset.markdownTitle || link.textContent.trim();
+            loadHelpMarkdown(source, title);
+        });
+    }
+
     function updateApiDocsState() {
         const connected = serverConnectionState.state === 'connected';
         const docsUrl = `${serverConnectionState.baseUrl}/docs`;
@@ -1342,7 +1529,7 @@
     }
 
     function expandCollapsibleSection(targetId) {
-        const collapsedSections = new Set(readSetting(MENU_COLLAPSE_STORAGE_KEY, []));
+        const collapsedSections = new Set(DEFAULT_COLLAPSED_ACCORDION_SECTIONS);
         setAccordionSectionCollapsed(targetId, false, collapsedSections);
         debounceMenuStateWrite(MENU_COLLAPSE_STORAGE_KEY, Array.from(collapsedSections));
     }
@@ -1529,6 +1716,13 @@
         copyShareImageButton = document.getElementById('copyShareImageButton');
         shareImagePreview = document.getElementById('shareImagePreview');
         shareImagePlaceholder = document.getElementById('shareImagePlaceholder');
+        readmeMarkdownLink = document.getElementById('readmeMarkdownLink');
+        releasesHistoryMarkdownLink = document.getElementById('releasesHistoryMarkdownLink');
+        helpMarkdownPanel = document.getElementById('helpMarkdownPanel');
+        helpMarkdownTitle = document.getElementById('helpMarkdownTitle');
+        helpMarkdownStatus = document.getElementById('helpMarkdownStatus');
+        helpMarkdownContent = document.getElementById('helpMarkdownContent');
+        helpMarkdownDirectLink = document.getElementById('helpMarkdownDirectLink');
         updateServerStatusUI();
         refreshShareControls();
 
@@ -1568,6 +1762,8 @@
         previewShareImageButton?.addEventListener('click', previewCurrentShareImage);
         downloadShareImageButton?.addEventListener('click', downloadCurrentShareImage);
         copyShareImageButton?.addEventListener('click', copyCurrentShareImage);
+        setupHelpMarkdownLink(readmeMarkdownLink);
+        setupHelpMarkdownLink(releasesHistoryMarkdownLink);
 
         orbitTypeFilterSelect = document.getElementById('orbitTypeFilter');
         companyFilterSelect = document.getElementById('companyFilter');
@@ -1870,12 +2066,8 @@
         updateYPRLabels();
 
         // Independent accordion sections. Multiple sections may remain open.
-        const storedCollapsedSections = readSetting(MENU_COLLAPSE_STORAGE_KEY, null);
-        const collapsedSections = new Set(
-            Array.isArray(storedCollapsedSections)
-                ? storedCollapsedSections
-                : Array.from(DEFAULT_COLLAPSED_ACCORDION_SECTIONS)
-        );
+        // Launch state is deterministic: persisted state cannot reopen non-default sections.
+        const collapsedSections = new Set(DEFAULT_COLLAPSED_ACCORDION_SECTIONS);
         DEFAULT_EXPANDED_ACCORDION_SECTIONS.forEach(id => collapsedSections.delete(id));
         const persistCollapsedSections = () => debounceMenuStateWrite(MENU_COLLAPSE_STORAGE_KEY, Array.from(collapsedSections));
         document.querySelectorAll('#controlsContainer h3[data-collapsible-target]').forEach(header => {
@@ -1887,7 +2079,7 @@
                 header.tabIndex = 0;
                 header.setAttribute('role', 'button');
                 header.setAttribute('aria-controls', targetId);
-                const isCollapsed = !DEFAULT_EXPANDED_ACCORDION_SECTIONS.has(targetId) && collapsedSections.has(targetId);
+                const isCollapsed = collapsedSections.has(targetId);
                 setAccordionSectionCollapsed(targetId, isCollapsed, collapsedSections);
 
                 const toggleSection = () => {

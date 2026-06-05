@@ -1,5 +1,68 @@
 # Prompt History
 
+## Release Date: 2026-06-04  Version 1.5.15
+
+Implement the Version 1.5.15 menu launch, Help Markdown, and header alignment updates.
+
+This release builds on Version 1.5.14. Preserve the optional Python server data path, offline fallback behavior, Share image capture, Swagger contrast improvements, server status icons, and existing satellite visualization behavior.
+
+Requirements:
+
+1. Change the initial accordion launch state.
+   - When `index.html` launches, only these menu sections must start expanded:
+     - `View`
+     - `Filters`
+     - `Satellite Selection`
+   - `Timelines`, `Other Selections`, `Settings`, `Share`, and `Help` must start collapsed.
+   - Persisted accordion state must not reopen non-default sections on page launch.
+   - Multiple accordion sections must still be allowed to remain open after user interaction.
+
+2. Render Help Markdown content.
+   - In the Help section, `README.md` and `PROMPT_History.md` must be displayed as rendered Markdown, not as raw plain text.
+   - Keep Markdown rendering local to the app and safe: do not inject untrusted raw HTML from Markdown.
+   - Provide a clear fallback message or direct file link if Markdown content cannot be loaded, such as when opened through `file://`.
+   - Keep the Help section styling consistent with the current menu CSS.
+
+3. Rename the Prompt History Help action.
+   - Rename the visible Help action text from `Prompt History` to `Releases History`.
+   - The action must still load or reference `PROMPT_History.md`.
+
+4. Fix the top menu header alignment.
+   - Use the attached screenshot as evidence that `Close`, `Version 1.5.14 - hosted at GitHub Repo`, and server connection status are currently misaligned.
+   - For Version 1.5.15, align `Close`, `Version 1.5.15 - hosted at GitHub Repo`, and the server status icon/text on the same row on desktop.
+   - Make spacing, vertical centering, icon size, and button height consistent.
+   - On narrow screens, allow wrapping only if required, but preserve the order: `Close`, version, server status.
+   - Avoid layout shifts when server status changes between checking, connected, disconnected, and error.
+
+5. Version and documentation updates.
+   - Update visible version text, frontend constants, server constants, and tests to Version `1.5.15`.
+   - Update `README.md` with the new launch defaults, Help Markdown viewer, `Releases History` label, and header alignment behavior.
+   - Update `Test_and_Integration.md` with automated and manual checks for this release.
+   - Ensure `README.md` still references every repository Markdown file with a short explanation.
+
+6. Tests and verification.
+   - Add or update tests confirming Version `1.5.15` is the latest release.
+   - Add or update tests confirming only `View`, `Filters`, and `Satellite Selection` are default-expanded on launch.
+   - Add or update tests confirming non-default sections start collapsed even if persisted accordion state exists.
+   - Add or update tests confirming Help contains rendered Markdown controls for `README.md` and `PROMPT_History.md`.
+   - Add or update tests confirming the visible Prompt History action is renamed to `Releases History`.
+   - Add or update tests confirming header alignment CSS hooks exist for the Close/version/server row.
+   - Keep existing server, Share, Swagger, satellite selection, shortcut, orbit, timeline, and model tests passing.
+
+Acceptance Criteria:
+
+- Latest release is `Release Date: 2026-06-04  Version 1.5.15`.
+- `index.html` displays `Version 1.5.15 - hosted at GitHub Repo`.
+- On page launch, only `View`, `Filters`, and `Satellite Selection` are expanded.
+- `Timelines`, `Other Selections`, `Settings`, `Share`, and `Help` launch collapsed.
+- The Help section displays `README.md` and `PROMPT_History.md` as rendered Markdown through in-app controls.
+- The visible Help action for `PROMPT_History.md` is `Releases History`.
+- `Close`, version text, and server connection status are horizontally aligned and vertically centered on desktop.
+- Server status icons from `./icons` still represent connected, disconnected, checking, and error states.
+- Offline behavior, local-data fallback, Share, Swagger/API docs, and existing visualization behavior remain unchanged.
+- `README.md` and `Test_and_Integration.md` are updated.
+- Automated tests and syntax checks pass, or any limitation is documented.
+
 ## Release Date: 2026-06-04  Version 1.5.14
 
 Improve the Version 1.5.14 server UI, Share UX, menu consistency, and Swagger/API documentation readability.

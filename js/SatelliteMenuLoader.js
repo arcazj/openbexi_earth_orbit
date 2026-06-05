@@ -17,7 +17,7 @@ export function satelliteMenuLoader() {
           <div><span>Server URL</span><strong id="serverStatusUrl">http://127.0.0.1:8000</strong></div>
           <div><span>Connection</span><strong id="serverStatusState">Checking</strong></div>
           <div><span>Data source</span><strong id="serverDataSource">Local files</strong></div>
-          <div><span>App version</span><strong id="serverAppVersion">1.5.14</strong></div>
+          <div><span>App version</span><strong id="serverAppVersion">1.5.15</strong></div>
           <div><span>API version</span><strong id="serverApiVersion">Unavailable</strong></div>
           <div><span>Last data load</span><strong id="serverLastSync">Never</strong></div>
           <button id="serverReconnectButton" type="button" class="menu-secondary-action server-reconnect-button">Reconnect / Refresh</button>
@@ -28,7 +28,7 @@ export function satelliteMenuLoader() {
 
     <div class="menu-accordion" aria-label="OpenBEXI menu sections">
       <section id="viewAccordionSection" class="menu-accordion-section menu-section-view">
-        <h3 id="viewAccordionHeader" role="button" tabindex="0" aria-controls="viewContent" aria-expanded="false" data-collapsible-target="viewContent" class="section-heading menu-accordion-heading menu-accordion-heading-view" data-default-collapsed="true">
+        <h3 id="viewAccordionHeader" role="button" tabindex="0" aria-controls="viewContent" aria-expanded="true" data-collapsible-target="viewContent" class="section-heading menu-accordion-heading menu-accordion-heading-view" data-default-expanded="true">
           <span>View</span>
           <span class="toggle-icon">v</span>
         </h3>
@@ -157,7 +157,7 @@ export function satelliteMenuLoader() {
           <span>Timelines</span>
           <span class="toggle-icon">v</span>
         </h3>
-        <div id="timelineContent" class="collapsible-content timeline-control-panel" aria-labelledby="timelinesAccordionHeader">
+        <div id="timelineContent" class="collapsible-content timeline-control-panel collapsed" aria-labelledby="timelinesAccordionHeader">
           <div class="menu-helper">Timeline data loads after the first globe render. Disabled controls are still preparing.</div>
           <label class="checkbox-row timeline-checkbox-control">
             <input type="checkbox" id="launchTimelineToggle" aria-describedby="launchTimelineHelp">
@@ -177,7 +177,7 @@ export function satelliteMenuLoader() {
           <span>Other Selections</span>
           <span class="toggle-icon">v</span>
         </h3>
-        <div id="otherSelectionsContent" class="collapsible-content other-selections-panel" aria-labelledby="otherAccordionHeader">
+        <div id="otherSelectionsContent" class="collapsible-content other-selections-panel collapsed" aria-labelledby="otherAccordionHeader">
           <label for="otherSelection" class="section-subtitle">Other Selections:</label>
           <div class="menu-helper">Switch the observer context between Earth and Moon without changing the app mode.</div>
           <select id="otherSelection">
@@ -192,7 +192,7 @@ export function satelliteMenuLoader() {
           <span>Settings</span>
           <span class="toggle-icon">v</span>
         </h3>
-        <div id="settingsContent" class="collapsible-content settings-panel" aria-labelledby="settingsAccordionHeader">
+        <div id="settingsContent" class="collapsible-content settings-panel collapsed" aria-labelledby="settingsAccordionHeader">
           <div class="menu-helper">Use the time slider at the top of the screen to control simulation speed.</div>
           <div class="menu-helper">Startup timing diagnostics are available with <code>?perf=1</code>.</div>
         </div>
@@ -203,7 +203,7 @@ export function satelliteMenuLoader() {
           <span>Share</span>
           <span class="toggle-icon">v</span>
         </h3>
-        <div id="shareContent" class="collapsible-content share-panel" aria-labelledby="shareAccordionHeader">
+        <div id="shareContent" class="collapsible-content share-panel collapsed" aria-labelledby="shareAccordionHeader">
           <div class="menu-helper">Create a safe link for the current view, filters, selected satellite, simulation time, and display settings.</div>
           <div id="shareStateSummary" class="share-state-summary">Current app state is ready to share.</div>
           <div class="share-action-row">
@@ -231,12 +231,20 @@ export function satelliteMenuLoader() {
           <span>Help</span>
           <span class="toggle-icon">v</span>
         </h3>
-        <div id="helpContent" class="collapsible-content help-panel" aria-labelledby="helpAccordionHeader">
+        <div id="helpContent" class="collapsible-content help-panel collapsed" aria-labelledby="helpAccordionHeader">
           <div class="help-link-list" aria-label="Project help links">
             <a href="https://github.com/arcazj/openbexi_earth_orbit" title="https://github.com/arcazj/openbexi_earth_orbit" target="_blank" rel="noopener noreferrer">GitHub</a>
-            <a href="README.md" title="README.md">README</a>
-            <a href="PROMPT_History.md" title="PROMPT_History.md">Prompt History</a>
+            <a id="readmeMarkdownLink" class="help-markdown-link" href="README.md" title="README.md" data-markdown-source="README.md" data-markdown-title="README">README</a>
+            <a id="releasesHistoryMarkdownLink" class="help-markdown-link" href="PROMPT_History.md" title="PROMPT_History.md" data-markdown-source="PROMPT_History.md" data-markdown-title="Releases History">Releases History</a>
             <a href="LICENSE" title="LICENSE">License</a>
+          </div>
+          <div id="helpMarkdownPanel" class="help-markdown-panel" aria-live="polite" hidden>
+            <div class="help-markdown-header">
+              <strong id="helpMarkdownTitle">Markdown Preview</strong>
+              <a id="helpMarkdownDirectLink" href="README.md">Open file</a>
+            </div>
+            <div id="helpMarkdownStatus" class="menu-helper">Select README or Releases History to render Markdown here.</div>
+            <div id="helpMarkdownContent" class="help-markdown-content"></div>
           </div>
           <div class="api-docs-panel" aria-label="Swagger API documentation">
             <strong>Swagger / API Documentation</strong>

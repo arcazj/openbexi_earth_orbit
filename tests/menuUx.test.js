@@ -29,9 +29,9 @@ function run() {
   assert(html.includes('role="button"'), 'accordion headers expose button semantics');
   assert(html.includes('aria-controls="filtersContent"'), 'Filters header controls its content');
   assert(html.includes('aria-controls="satelliteSelectionContent"'), 'Satellite header controls its content');
+  assert(html.includes('aria-expanded="true" data-collapsible-target="viewContent"'), 'View starts expanded in markup');
   assert(html.includes('aria-expanded="true" data-collapsible-target="filtersContent"'), 'Filters starts expanded in markup');
   assert(html.includes('aria-expanded="true" data-collapsible-target="satelliteSelectionContent"'), 'Satellite Selection starts expanded in markup');
-  assert(html.includes('aria-expanded="false" data-collapsible-target="viewContent"'), 'View starts collapsed in markup');
   assert(html.includes('data-default-expanded="true"'), 'default-expanded accordion state is declared');
   assert(html.includes('data-default-collapsed="true"'), 'default-collapsed accordion state is declared');
 
@@ -72,8 +72,10 @@ function run() {
   assert(html.includes('Starlink unavailable'), 'Starlink shortcut has required unavailable fallback text');
   assert(html.includes('ISS unavailable'), 'ISS shortcut has required unavailable fallback text');
 
-  assert(indexHtml.includes("DEFAULT_EXPANDED_ACCORDION_SECTIONS = new Set(['filtersContent', 'satelliteSelectionContent'])"), 'Filters and Satellite Selection are forced open on page load');
+  assert(indexHtml.includes("DEFAULT_EXPANDED_ACCORDION_SECTIONS = new Set(['viewContent', 'filtersContent', 'satelliteSelectionContent'])"), 'View, Filters, and Satellite Selection are forced open on page load');
   assert(indexHtml.includes('DEFAULT_COLLAPSED_ACCORDION_SECTIONS'), 'other accordion defaults are explicit');
+  assert(indexHtml.includes("DEFAULT_COLLAPSED_ACCORDION_SECTIONS = new Set(['timelineContent', 'otherSelectionsContent', 'settingsContent', 'shareContent', 'helpContent'])"), 'non-default sections start collapsed on launch');
+  assert(indexHtml.includes('persisted state cannot reopen non-default sections'), 'persisted accordion state cannot reopen non-default sections on launch');
   assert(indexHtml.includes('DEFAULT_EXPANDED_ACCORDION_SECTIONS.forEach(id => collapsedSections.delete(id))'), 'persisted collapsed state cannot close default-expanded sections on load');
   assert(indexHtml.includes('setAccordionSectionCollapsed(targetId, nextCollapsed, collapsedSections)'), 'accordion toggles only the targeted section');
   assert(indexHtml.includes('Multiple sections may remain open'), 'implementation documents multi-open accordion behavior');
@@ -132,8 +134,14 @@ function run() {
   assert(html.includes('id="copyShareImageButton"'), 'Share section includes Copy Image action');
   assert(html.includes('href="https://github.com/arcazj/openbexi_earth_orbit"'), 'Help includes GitHub project link');
   assert(html.includes('target="_blank" rel="noopener noreferrer"'), 'GitHub Help link opens safely in a new tab');
-  assert(html.includes('href="README.md"'), 'Help includes README link');
-  assert(html.includes('href="PROMPT_History.md"'), 'Help includes Prompt History link');
+  assert(html.includes('id="readmeMarkdownLink"'), 'Help includes README Markdown action');
+  assert(html.includes('data-markdown-source="README.md"'), 'README Markdown action targets README.md');
+  assert(html.includes('id="releasesHistoryMarkdownLink"'), 'Help includes Releases History Markdown action');
+  assert(html.includes('data-markdown-source="PROMPT_History.md"'), 'Releases History action targets PROMPT_History.md');
+  assert(html.includes('>Releases History</a>'), 'Prompt History action is renamed to Releases History');
+  assert(!html.includes('>Prompt History</a>'), 'Prompt History is not the visible Help action text');
+  assert(html.includes('id="helpMarkdownPanel"'), 'Help includes a rendered Markdown panel');
+  assert(html.includes('id="helpMarkdownContent"'), 'Help includes rendered Markdown content target');
   assert(html.includes('href="LICENSE"'), 'Help includes License link');
   assert(html.includes('Swagger / API Documentation'), 'Help includes Swagger/API documentation section');
   assert(html.includes('id="swaggerDocsLink"'), 'Help includes Swagger UI link hook');
@@ -174,6 +182,9 @@ function run() {
   assert(css.includes('.menu-accordion-heading-help { border-left-color: #a98cff; }'), 'Help keeps a dedicated legacy-style accent');
   assert(css.includes('.server-status-button'), 'server status has dedicated CSS');
   assert(css.includes('.menu-header-row'), 'menu top row has dedicated CSS');
+  assert(css.includes('--menu-header-control-height: 30px;'), 'menu header controls share a fixed alignment height');
+  assert(css.includes('height: var(--menu-header-control-height);'), 'Close and server controls share the header control height');
+  assert(css.includes('margin: 0 0 10px 54px;'), 'menu header row reserves aligned space for the external Close button');
   assert(css.includes('.server-status-icon'), 'server status icon has dedicated CSS');
   assert(css.includes('.server-state-connected .server-status-icon'), 'server connected icon state has CSS');
   assert(css.includes('.server-state-disconnected .server-status-icon'), 'server disconnected icon state has CSS');
@@ -186,6 +197,8 @@ function run() {
   assert(css.includes('.api-docs-link.is-disabled'), 'API docs disabled state has CSS');
   assert(css.includes('.help-panel'), 'Help panel has dedicated CSS');
   assert(css.includes('.help-link-list'), 'Help links have dedicated CSS');
+  assert(css.includes('.help-markdown-panel'), 'Help Markdown preview has dedicated CSS');
+  assert(css.includes('.help-markdown-content'), 'Help rendered Markdown content has dedicated CSS');
   assert(css.includes('.help-disclaimer'), 'Help disclaimer has dedicated CSS');
   assert(css.includes('.filter-chip input[type="checkbox"]:checked + span'), 'selected tag chips have a distinct active style');
   assert(css.includes(':focus-visible'), 'menu controls have visible focus styling');
@@ -196,6 +209,12 @@ function run() {
   assert(css.includes('.view-shortcut-button'), 'View shortcut buttons have dedicated CSS');
 
   assert(indexHtml.includes('MENU_COLLAPSE_STORAGE_KEY'), 'index persists collapsed accordion sections');
+  assert(indexHtml.includes('renderMarkdown(markdown'), 'index renders Help Markdown locally');
+  assert(indexHtml.includes('escapeHtml(value'), 'Markdown rendering escapes raw HTML');
+  assert(indexHtml.includes('safeMarkdownHref'), 'Markdown links are sanitized before rendering');
+  assert(indexHtml.includes('loadHelpMarkdown(source, title)'), 'index loads README and Releases History Markdown in Help');
+  assert(indexHtml.includes('setupHelpMarkdownLink(readmeMarkdownLink)'), 'README Help action is wired to Markdown renderer');
+  assert(indexHtml.includes('setupHelpMarkdownLink(releasesHistoryMarkdownLink)'), 'Releases History Help action is wired to Markdown renderer');
   assert(indexHtml.includes("'shareContent'"), 'Share starts collapsed with other non-default accordion sections');
   assert(indexHtml.includes("'helpContent'"), 'Help starts collapsed with other non-default accordion sections');
   assert(indexHtml.includes('checkAndLoadServerTleData'), 'index implements server connection and TLE fallback flow');

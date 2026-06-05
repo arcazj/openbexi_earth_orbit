@@ -1,4 +1,4 @@
-export const APP_VERSION = '1.5.14';
+export const APP_VERSION = '1.5.15';
 export const RELEASE_DATE = '2026-06-04';
 export const DEFAULT_SERVER_TIMEOUT_MS = 800;
 export const API_BASE_STORAGE_KEY = 'openbexi.apiBaseUrl';

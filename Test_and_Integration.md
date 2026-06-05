@@ -44,6 +44,10 @@ Version 1.5.12 adds a Help section and improves shortcut/orientation clarity. Th
 
 Version 1.5.13 adds an optional Python server, server status UI, Share menu, and Swagger/API documentation links. The app must load server-provided TLE and satellite metadata when connected, but must fall back to the current local files without behavioral regressions when the server is disconnected, slow, invalid, or unavailable.
 
+Version 1.5.14 improves the Python server UI path and Share UX. Swagger/API docs must use high-contrast readable endpoint rows, server status must use `icons/server_*.svg`, Other Selections must keep the same header text style as other accordion sections, and Share must support current-canvas preview, download, copy, and native image sharing when supported.
+
+Version 1.5.15 makes launch accordion state deterministic and improves Help documentation. View, Filters, and Satellite Selection must start expanded; Timelines, Other Selections, Settings, Share, and Help must start collapsed even if previous local accordion state exists. Help must render README and Releases History Markdown in the app, and the Close, version, and server status controls must align on one compact row.
+
 ## Test Environment
 
 - Run from the repository root.
@@ -213,7 +217,8 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test accordion section order is View, Filters, Satellite Selection, Timelines, Other Selections, Settings.
 - Test multiple accordion sections can be open simultaneously.
 - Test expanding one accordion section does not collapse another section.
-- Test `Filters` and `Satellite Selection` are expanded on initial page load even if persisted state exists.
+- Test `View`, `Filters`, and `Satellite Selection` are expanded on initial page load.
+- Test `Timelines`, `Other Selections`, `Settings`, `Share`, and `Help` are collapsed on initial page load even if persisted accordion state exists.
 - Test expanded accordion headers use dark high-contrast text and do not inherit the light global heading color.
 - Test the satellite count in the Filters header is red and bold.
 - Test the accordion menu width is thinner than the previous `420px` release width.
@@ -246,17 +251,20 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test the Share section includes `Copy Link`, native share fallback behavior, generated link output, and copied/error feedback.
 - Test Share links serialize selected satellite, view mode, filters, simulation time, and display settings without local paths, credentials, or server configuration.
 - Test shared links restore supported app state only after satellite data loads and fail safely if the referenced satellite is unavailable.
-- Test the Help section contains GitHub, README, Prompt History, and License links.
+- Test the Help section contains GitHub, README Markdown, Releases History Markdown, and License actions.
+- Test README and Releases History render safe Markdown in the Help panel, with raw HTML escaped.
+- Test the Releases History action targets `PROMPT_History.md` and no Help action displays the old `Prompt History` text.
 - Test the Help section contains Swagger/API docs links that are enabled when connected and disabled with an offline explanation when disconnected.
 - Test the GitHub Help link uses `target="_blank"` and `rel="noopener noreferrer"`.
 - Test the Help section contains the legal disclaimer and mentions `satellite.js`.
+- Test Close, version text, and server status align horizontally and vertically on desktop and wrap only as needed on narrow screens.
 - Test ISS selected-model orientation maps local `+X` to velocity, local `+Y` to the right-handed cross-track/starboard axis, and local `+Z` to nadir.
 - Test ISS orientation diagnostics include `orientationMode`, `modelAxisMapping`, `calibrationYawDeg`, `calibrationPitchDeg`, and `calibrationRollDeg`.
 
 ### Server Data Path
 
 - Test `/api/health` returns status `ok` and version metadata.
-- Test `/api/version` returns app/API version `1.5.13` and release date `2026-06-04`.
+- Test `/api/version` returns app/API version `1.5.15` and release date `2026-06-04`.
 - Test `/api/tle` and `/api/satellites` return valid TLE records with `norad_id`, `tle_line1`, and `tle_line2`.
 - Test `/api/satellite-metadata` lists known metadata files.
 - Test `/api/satellite-metadata/starlink_V1.json` returns one known metadata payload.
@@ -311,7 +319,8 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm headings, accordion labels, helper text, toggle icons, time slider labels, and menu buttons render without visible mojibake.
 - Confirm the left menu is thinner than Version 1.5.1 but still usable on desktop and narrow viewports.
 - Confirm the `Filters - Satellites Found` numeric count is red and bold in both expanded and collapsed filter states.
-- Confirm `Filters` and `Satellite Selection` start expanded on every `index.html` load.
+- Confirm `View`, `Filters`, and `Satellite Selection` start expanded on every `index.html` load.
+- Confirm `Timelines`, `Other Selections`, `Settings`, `Share`, and `Help` start collapsed on every `index.html` load, even after previously expanding them.
 - Confirm multiple accordion sections can stay open at the same time.
 - Confirm selecting filters, tags, debris modes, timelines, and view toggles does not collapse unrelated accordion sections.
 - Confirm the `View` section keeps `Globe` and `Mercator` on one row.
@@ -328,11 +337,15 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm the ISS shortcut shows `ISS unavailable` if no ISS target can be resolved.
 - Confirm a `Help` accordion section appears after `Settings`.
 - Confirm a `Share` accordion section appears immediately before `Help`.
+- Confirm `Close`, `Version 1.5.15 - hosted at GitHub Repo`, and the server status icon/text are aligned on one compact row on desktop.
 - Confirm the server status indicator appears above the accordion menu and does not shift layout when changing between checking, offline, connected, and error states.
 - Confirm the status panel shows server URL, connection state, data source, version values, last load time, and reconnect/refresh.
 - Confirm `Copy Link` produces a URL that restores supported state after data loads.
 - Confirm native share is enabled only when the browser supports it.
-- Open Help and confirm the `GitHub`, `README`, `Prompt History`, and `License` links are readable and clickable.
+- Open Help and confirm the `GitHub`, `README`, `Releases History`, and `License` actions are readable and clickable.
+- Click `README` and confirm the README content renders as Markdown inside Help, not as raw plain text.
+- Click `Releases History` and confirm `PROMPT_History.md` content renders as Markdown inside Help, not as raw plain text.
+- Confirm no visible Help action uses the old `Prompt History` label.
 - Open Help while the Python server is disconnected and confirm Swagger/API docs are visible but disabled with the offline explanation.
 - Open Help while the Python server is connected and confirm Swagger UI and OpenAPI schema links are enabled.
 - Confirm the GitHub Help link opens in a new tab and the Markdown/license links use relative repository paths.
@@ -580,7 +593,8 @@ py -m http.server 8000 --bind 127.0.0.1
   - Confirm the selected Starlink diagnostics report `observerPlacement: "starlink-oblique-orbital-frame"` and orientation mode `starlink-velocity-nadir-frame`.
   - Confirm the Starlink shortcut label includes the resolved NORAD ID.
   - Select ISS from the shortcut and confirm the selected ISS diagnostics report `orientationMode: "iss-velocity-nadir-frame"` and the ISS model visually follows the reference velocity/nadir/starboard orientation.
-  - Open Help and confirm GitHub, README, Prompt History, License, and the disclaimer are present.
+  - Open Help and confirm GitHub, README, Releases History, License, and the disclaimer are present.
+  - Click README and Releases History and confirm each document renders as Markdown in the Help panel.
   - Open Share and confirm Copy Link creates a safe share URL.
   - Open Help and confirm Swagger/API docs are disabled when the Python server is not running.
   - Confirm mouse orbit shows different faces of the selected model and zoom changes observer distance without losing centering.
@@ -1020,6 +1034,45 @@ Checks to perform for this release:
 - Run Python syntax checks.
 - Run browser/static HTTP smoke checks.
 
+## Release 1.5.14 Verification Log
+
+Checks to perform for this release:
+
+- Confirm `PROMPT_History.md` contains `Release Date: 2026-06-04 Version 1.5.14`.
+- Confirm `index.html`, `js/serverConnection.js`, and `server.py` use version `1.5.14`.
+- Confirm Swagger/API docs have high-contrast GET labels, route text, descriptions, response text, and expanded endpoint details.
+- Confirm server status uses `icons/server_connected.svg`, `icons/server_offline.svg`, `icons/server_checking.svg`, and `icons/server_error.svg`.
+- Confirm Other Selections uses the same accordion header text style as other sections.
+- Confirm Share can preview the current canvas, download it, copy it with ClipboardItem when supported, and include it in native Web Share only when `navigator.canShare({ files })` confirms support.
+- Run `npm test`.
+- Run JavaScript syntax checks.
+- Run Python syntax checks.
+- Run Python server smoke checks for API, Swagger docs, and static app routes.
+
+## Release 1.5.15 Verification Log
+
+Checks performed on 2026-06-04:
+
+- `PROMPT_History.md` contains the latest `Release Date: 2026-06-04 Version 1.5.15` entry at the top.
+- `index.html`, `js/serverConnection.js`, `js/SatelliteMenuLoader.js`, and `server.py` use version `1.5.15`.
+- Static tests confirm `index.html` displays `Version 1.5.15 - hosted at GitHub Repo`.
+- Static tests confirm View, Filters, and Satellite Selection start expanded on page launch.
+- Static tests confirm Timelines, Other Selections, Settings, Share, and Help start collapsed on page launch and persisted state cannot reopen non-default sections.
+- Static tests confirm Help shows `README` and `Releases History` actions.
+- Static tests confirm `Releases History` targets `PROMPT_History.md` and the old visible `Prompt History` label is not used.
+- Static tests confirm README and Releases History use the in-app Markdown renderer, raw HTML escaping, and sanitized Markdown links.
+- Static tests confirm Close, version text, and server status share the header alignment height and server status icon sizing hooks.
+- `npm test`: passed.
+- `Get-ChildItem -File .\js -Filter *.js | ForEach-Object { node --check $_.FullName }`: passed.
+- `Get-ChildItem -File .\tests -Filter *.js | ForEach-Object { node --check $_.FullName }`: passed.
+- `py -m py_compile server.py`: passed.
+- Python in-process server smoke check passed for `/api/health`, `/api/version`, `/api/tle`, `/api/satellites`, `/api/satellite-metadata`, `/api/decayed`, `/docs`, `/openapi.json`, and `/index.html`.
+- `git diff --check`: passed with only LF-to-CRLF normalization warnings for edited files.
+
+Checks not fully performed in this terminal:
+
+- Full visible-browser confirmation of the Close/version/server-status row alignment and rendered Help Markdown remains manual unless browser automation is available.
+
 ## Acceptance Criteria
 
 - The app loads over HTTP without runtime errors.
@@ -1033,7 +1086,8 @@ Checks to perform for this release:
 - The satellite count in the Filters header is red and bold.
 - The accordion menu is thinner than the previous release while staying usable.
 - Multiple accordion sections can stay open at the same time.
-- `Filters` and `Satellite Selection` start expanded on page load.
+- `View`, `Filters`, and `Satellite Selection` start expanded on page load.
+- `Timelines`, `Other Selections`, `Settings`, `Share`, and `Help` start collapsed on page load.
 - The accordion order starts with View, Filters, Satellite Selection, Timelines, Other Selections, and Settings.
 - The accordion order is View, Filters, Satellite Selection, Timelines, Other Selections, Settings, Share, Help.
 - The optional Python server exposes `/api/health`, `/api/version`, `/api/tle`, `/api/satellites`, `/api/satellite-metadata`, `/api/decayed`, `/docs`, and `/openapi.json`.
@@ -1041,9 +1095,12 @@ Checks to perform for this release:
 - Disconnected, invalid, slow, or unavailable server states fall back to local file loading without breaking existing behavior.
 - The status icon exposes checking, connected, disconnected/offline, and error states with tooltip text and accessible labels.
 - The status panel shows server URL, connection state, data source, app/API version, last load time, and reconnect/refresh.
+- Close, version text, and server status are horizontally aligned and vertically centered on desktop.
 - The Share accordion appears immediately before Help and its UI matches the existing accordion/menu styling.
 - Share links copy and restore supported state without including local filesystem paths, tokens, or private server configuration.
+- Share can preview, download, copy, and natively share the current canvas image when the browser supports those APIs.
 - Help includes Swagger/API documentation links that are enabled when connected and disabled with an offline explanation when disconnected.
+- Help renders README and Releases History Markdown inside the app and keeps `PROMPT_History.md` available through the `Releases History` action.
 - The View menu keeps Globe/Mercator, High Def./ECEF Axes/Day-Night, and First Starlink/ISS on three compact rows.
 - Selecting any satellite automatically checks `Show only selected satellite` and hides all non-selected satellites.
 - The selected satellite remains visible in show-only mode even when current filters would otherwise hide it.
@@ -1053,7 +1110,7 @@ Checks to perform for this release:
 - The ISS shortcut displays `ISS` when resolved and `ISS unavailable` when unresolved.
 - ISS selected-model orientation maps `+X` to velocity, `+Y` to starboard/right-handed cross-track, and `+Z` to nadir.
 - ISS orientation diagnostics include `iss-velocity-nadir-frame` and yaw/pitch/roll calibration values.
-- The Help accordion appears after Settings and contains GitHub, README, Prompt History, License, and disclaimer content.
+- The Help accordion appears after Settings and contains GitHub, README, Releases History, License, and disclaimer content.
 - The satellite search field clears the prior selected label on the next search interaction without clearing the active selected satellite.
 - Selected-satellite camera metadata confirms Earth remains visible behind the selected satellite.
 - The generated tag/company filter never exposes an `Active` chip.
