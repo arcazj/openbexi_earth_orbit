@@ -1,4 +1,4 @@
-﻿// js/satelliteMenu.js
+// js/satelliteMenu.js
 // -------------------------------------------------------------------
 // Returns HTML markup for the satellite-control sidebar.
 // -------------------------------------------------------------------
@@ -17,7 +17,7 @@ export function satelliteMenuLoader() {
           <div><span>Server URL</span><strong id="serverStatusUrl">http://127.0.0.1:8000</strong></div>
           <div><span>Connection</span><strong id="serverStatusState">Checking</strong></div>
           <div><span>Data source</span><strong id="serverDataSource">Local files</strong></div>
-          <div><span>App version</span><strong id="serverAppVersion">1.5.15</strong></div>
+          <div><span>App version</span><strong id="serverAppVersion">1.5.16</strong></div>
           <div><span>API version</span><strong id="serverApiVersion">Unavailable</strong></div>
           <div><span>Last data load</span><strong id="serverLastSync">Never</strong></div>
           <button id="serverReconnectButton" type="button" class="menu-secondary-action server-reconnect-button">Reconnect / Refresh</button>
@@ -28,12 +28,13 @@ export function satelliteMenuLoader() {
 
     <div class="menu-accordion" aria-label="OpenBEXI menu sections">
       <section id="viewAccordionSection" class="menu-accordion-section menu-section-view">
-        <h3 id="viewAccordionHeader" role="button" tabindex="0" aria-controls="viewContent" aria-expanded="true" data-collapsible-target="viewContent" class="section-heading menu-accordion-heading menu-accordion-heading-view" data-default-expanded="true">
-          <span>View</span>
+        <h3 id="viewAccordionHeader" role="button" tabindex="0" aria-controls="viewContent" aria-expanded="false" data-collapsible-target="viewContent" class="section-heading menu-accordion-heading menu-accordion-heading-view" data-default-collapsed="true">
+          <span>Views &amp; Time</span>
           <span class="toggle-icon">v</span>
         </h3>
 
-        <div id="viewContent" class="collapsible-content view-option-grid" aria-labelledby="viewAccordionHeader">
+        <div id="viewContent" class="collapsible-content view-option-grid collapsed" aria-labelledby="viewAccordionHeader">
+          <div class="menu-helper view-time-helper">Use the time slider at the top of the screen to control simulation speed.</div>
           <div class="view-control-row view-control-row-two">
             <label><input type="checkbox" id="view3DToggle" checked>Globe</label>
             <label><input type="checkbox" id="viewMercatorToggle">Mercator</label>
@@ -51,12 +52,12 @@ export function satelliteMenuLoader() {
       </section>
 
       <section id="filtersAccordionSection" class="menu-accordion-section menu-section-filters">
-        <h3 id="filtersAccordionHeader" role="button" tabindex="0" aria-controls="filtersContent" aria-expanded="true" data-collapsible-target="filtersContent" class="section-heading menu-accordion-heading menu-accordion-heading-filters" data-default-expanded="true">
+        <h3 id="filtersAccordionHeader" role="button" tabindex="0" aria-controls="filtersContent" aria-expanded="false" data-collapsible-target="filtersContent" class="section-heading menu-accordion-heading menu-accordion-heading-filters" data-default-collapsed="true">
           <span>Filters - Satellites Found: <span id="satelliteCountDisplay">0</span></span>
           <span class="toggle-icon">v</span>
         </h3>
 
-        <div id="filtersContent" class="collapsible-content filters-panel" aria-labelledby="filtersAccordionHeader">
+        <div id="filtersContent" class="collapsible-content filters-panel collapsed" aria-labelledby="filtersAccordionHeader">
           <div class="filter-toolbar">
             <div id="filterStatusSummary" class="filter-status-summary" aria-live="polite">MEO + All tags + Debris shown | 0 satellites</div>
             <button id="resetFiltersButton" type="button" class="menu-secondary-action">Reset Filters</button>
@@ -103,12 +104,12 @@ export function satelliteMenuLoader() {
       </section>
 
       <section id="satelliteAccordionSection" class="menu-accordion-section menu-section-satellite">
-        <h3 id="satelliteAccordionHeader" role="button" tabindex="0" aria-controls="satelliteSelectionContent" aria-expanded="true" data-collapsible-target="satelliteSelectionContent" class="section-heading menu-accordion-heading menu-accordion-heading-satellite" data-default-expanded="true">
+        <h3 id="satelliteAccordionHeader" role="button" tabindex="0" aria-controls="satelliteSelectionContent" aria-expanded="false" data-collapsible-target="satelliteSelectionContent" class="section-heading menu-accordion-heading menu-accordion-heading-satellite" data-default-collapsed="true">
           <span>Satellite Selection</span>
           <span class="toggle-icon">v</span>
         </h3>
 
-        <div id="satelliteSelectionContent" class="collapsible-content" aria-labelledby="satelliteAccordionHeader">
+        <div id="satelliteSelectionContent" class="collapsible-content collapsed" aria-labelledby="satelliteAccordionHeader">
           <div class="satellite-combobox-block">
             <label for="satelliteSearchInput" class="section-heading">Select Satellite:</label>
             <div class="menu-helper">Search by name, NORAD ID, orbit type, or tag.</div>
@@ -122,12 +123,12 @@ export function satelliteMenuLoader() {
             <div id="satelliteSearchEmpty" class="empty-state" hidden>No satellites match this search.</div>
           </div>
 
-          <div class="satellite-option-grid">
+          <div id="selectedSatelliteControls" class="satellite-option-grid" aria-label="Selected satellite options" aria-hidden="true" hidden>
             <label><input type="checkbox" id="showYPRToggle"> Yaw-Pitch-Roll</label>
             <label class="checkbox-row"><input type="checkbox" id="showFootprintCheckbox"><span>Show Footprint</span></label>
-            <label class="checkbox-row"><input type="checkbox" id="showOnlySelectedSatellite"><span>Show only selected satellite</span></label>
+            <label class="checkbox-row"><input type="checkbox" id="showOnlySelectedSatellite" checked><span>Show only selected satellite</span></label>
             <label><input type="checkbox" id="showOrbitFrameToggle"> Orbit Frame (LVLH)</label>
-            <label><input type="checkbox" id="showOrbitToggle" checked> Show Orbit</label>
+            <label><input type="checkbox" id="showOrbitToggle"> Show Orbit</label>
           </div>
 
           <div id="yprSlidersRow" class="ypr-slider-grid">
@@ -147,8 +148,23 @@ export function satelliteMenuLoader() {
             </label>
           </div>
 
-          <div id="selectedSatelliteSummary" class="selected-satellite-summary">No satellite selected</div>
-          <div id="satelliteInfo"><div style="font-weight:bold;">No satellite selected</div></div>
+          <div id="selectedSatelliteSummary" class="selected-satellite-summary" hidden></div>
+          <div id="satelliteInfo" hidden></div>
+        </div>
+      </section>
+
+      <section id="otherAccordionSection" class="menu-accordion-section menu-section-other">
+        <h3 id="otherAccordionHeader" role="button" tabindex="0" aria-controls="otherSelectionsContent" aria-expanded="false" data-collapsible-target="otherSelectionsContent" class="section-heading menu-accordion-heading menu-accordion-heading-other" data-default-collapsed="true">
+          <span>Other Selections</span>
+          <span class="toggle-icon">v</span>
+        </h3>
+        <div id="otherSelectionsContent" class="collapsible-content other-selections-panel collapsed" aria-labelledby="otherAccordionHeader">
+          <label for="otherSelection" class="section-subtitle">Other Selections:</label>
+          <div class="menu-helper">Switch the observer context between Earth and Moon without changing the app mode.</div>
+          <select id="otherSelection">
+            <option value="Earth">Earth</option>
+            <option value="Moon">Moon</option>
+          </select>
         </div>
       </section>
 
@@ -169,32 +185,6 @@ export function satelliteMenuLoader() {
             <span>Show Re-entry Timeline</span>
           </label>
           <div id="reentryTimelineHelp" class="menu-helper">Shows confirmed and predicted re-entry information when ready.</div>
-        </div>
-      </section>
-
-      <section id="otherAccordionSection" class="menu-accordion-section menu-section-other">
-        <h3 id="otherAccordionHeader" role="button" tabindex="0" aria-controls="otherSelectionsContent" aria-expanded="false" data-collapsible-target="otherSelectionsContent" class="section-heading menu-accordion-heading menu-accordion-heading-other" data-default-collapsed="true">
-          <span>Other Selections</span>
-          <span class="toggle-icon">v</span>
-        </h3>
-        <div id="otherSelectionsContent" class="collapsible-content other-selections-panel collapsed" aria-labelledby="otherAccordionHeader">
-          <label for="otherSelection" class="section-subtitle">Other Selections:</label>
-          <div class="menu-helper">Switch the observer context between Earth and Moon without changing the app mode.</div>
-          <select id="otherSelection">
-            <option value="Earth">Earth</option>
-            <option value="Moon">Moon</option>
-          </select>
-        </div>
-      </section>
-
-      <section id="settingsAccordionSection" class="menu-accordion-section menu-section-settings">
-        <h3 id="settingsAccordionHeader" role="button" tabindex="0" aria-controls="settingsContent" aria-expanded="false" data-collapsible-target="settingsContent" class="section-heading menu-accordion-heading menu-accordion-heading-settings" data-default-collapsed="true">
-          <span>Settings</span>
-          <span class="toggle-icon">v</span>
-        </h3>
-        <div id="settingsContent" class="collapsible-content settings-panel collapsed" aria-labelledby="settingsAccordionHeader">
-          <div class="menu-helper">Use the time slider at the top of the screen to control simulation speed.</div>
-          <div class="menu-helper">Startup timing diagnostics are available with <code>?perf=1</code>.</div>
         </div>
       </section>
 
@@ -232,11 +222,23 @@ export function satelliteMenuLoader() {
           <span class="toggle-icon">v</span>
         </h3>
         <div id="helpContent" class="collapsible-content help-panel collapsed" aria-labelledby="helpAccordionHeader">
-          <div class="help-link-list" aria-label="Project help links">
-            <a href="https://github.com/arcazj/openbexi_earth_orbit" title="https://github.com/arcazj/openbexi_earth_orbit" target="_blank" rel="noopener noreferrer">GitHub</a>
-            <a id="readmeMarkdownLink" class="help-markdown-link" href="README.md" title="README.md" data-markdown-source="README.md" data-markdown-title="README">README</a>
-            <a id="releasesHistoryMarkdownLink" class="help-markdown-link" href="PROMPT_History.md" title="PROMPT_History.md" data-markdown-source="PROMPT_History.md" data-markdown-title="Releases History">Releases History</a>
-            <a href="LICENSE" title="LICENSE">License</a>
+          <div class="help-smart-grid" aria-label="Project help links">
+            <a class="help-doc-card" href="https://github.com/arcazj/openbexi_earth_orbit" title="https://github.com/arcazj/openbexi_earth_orbit" target="_blank" rel="noopener noreferrer">
+              <strong>GitHub</strong>
+              <span>Repository and source files</span>
+            </a>
+            <a id="readmeMarkdownLink" class="help-doc-card help-markdown-link" href="README.md" title="README.md" data-markdown-source="README.md" data-markdown-title="README">
+              <strong>README</strong>
+              <span>Render project guide as Markdown</span>
+            </a>
+            <a id="releasesHistoryMarkdownLink" class="help-doc-card help-markdown-link" href="PROMPT_History.md" title="PROMPT_History.md" data-markdown-source="PROMPT_History.md" data-markdown-title="Releases History">
+              <strong>Releases History</strong>
+              <span>Render release prompts as Markdown</span>
+            </a>
+            <a id="licenseMarkdownLink" class="help-doc-card" href="LICENSE.md" title="LICENSE.md" target="_blank" rel="noopener noreferrer">
+              <strong>Licenses</strong>
+              <span>Open license Markdown page</span>
+            </a>
           </div>
           <div id="helpMarkdownPanel" class="help-markdown-panel" aria-live="polite" hidden>
             <div class="help-markdown-header">
@@ -246,12 +248,12 @@ export function satelliteMenuLoader() {
             <div id="helpMarkdownStatus" class="menu-helper">Select README or Releases History to render Markdown here.</div>
             <div id="helpMarkdownContent" class="help-markdown-content"></div>
           </div>
-          <div class="api-docs-panel" aria-label="Swagger API documentation">
-            <strong>Swagger / API Documentation</strong>
-            <div id="apiDocsStatus" class="menu-helper">API documentation is available when the Python server is running.</div>
+          <div class="api-docs-panel" aria-label="Developer documentation links">
+            <strong>Developer Docs</strong>
+            <div id="apiDocsStatus" class="menu-helper">Swagger and API links open in a separate page. If the Python server is offline, start it and retry the opened page.</div>
             <div class="api-docs-link-list">
-              <a id="swaggerDocsLink" class="api-docs-link is-disabled" aria-disabled="true" tabindex="-1" title="Swagger UI is available when connected">Swagger UI</a>
-              <a id="openApiSchemaLink" class="api-docs-link is-disabled" aria-disabled="true" tabindex="-1" title="OpenAPI schema is available when connected">OpenAPI Schema</a>
+              <a id="swaggerDocsLink" class="api-docs-link" href="http://127.0.0.1:8000/docs" target="_blank" rel="noopener noreferrer" title="Open Swagger UI in a separate page">Swagger</a>
+              <a id="openApiSchemaLink" class="api-docs-link" href="http://127.0.0.1:8000/openapi.json" target="_blank" rel="noopener noreferrer" title="Open OpenAPI schema in a separate page">API</a>
             </div>
           </div>
           <div class="help-disclaimer" role="note" aria-label="Disclaimer">
@@ -271,9 +273,11 @@ export function updateSatelliteInfo(infoDiv, sat) {
     if (!infoDiv) return;
 
     if (!sat) {
-        infoDiv.innerHTML = '<div style="font-weight:bold;">No satellite selected</div>';
+        infoDiv.hidden = true;
+        infoDiv.innerHTML = '';
         return;
     }
+    infoDiv.hidden = false;
 
     const m = sat.meta ?? {};
     const tle1 = sat.tle_line1 ?? 'N/A';

@@ -1,5 +1,118 @@
 # Prompt History
 
+## Release Date: 2026-06-04  Version 1.5.16
+
+Implement the Version 1.5.16 menu UX revision, selected-satellite control gating, Help documentation redesign, and header alignment updates.
+
+This release builds on Version 1.5.15. Preserve the optional Python server data path, offline/local fallback behavior, Share image capture, Swagger contrast improvements, selected-satellite camera/model workflow, filters, timelines, Mercator view, orbit, footprint, Yaw-Pitch-Roll orientation, and existing satellite visualization behavior unless explicitly changed below.
+
+Requirements:
+
+1. Follow the repository execution flow.
+   - Treat this `PROMPT_History.md` entry as the latest authoritative release entry.
+   - Keep the release date and version exactly `Release Date: 2026-06-04  Version 1.5.16`.
+   - Before code changes, inspect `git status` and do not mix unrelated existing work, generated files, or untracked assets into the implementation.
+   - Update `Test_and_Integration.md` for every new behavior, regression risk, and verification step.
+   - Update `README.md` when setup, usage, controls, Help, or documentation references change.
+   - Ensure `README.md` references every repository Markdown file with a short explanation.
+
+2. Fix the top menu header layout.
+   - The `Version 1.5.16 - hosted at GitHub Repo` text/link must be visually centered in the menu header.
+   - The external `Close` menu button, version/GitHub text, and server status control must align on one compact row on desktop.
+   - Online and offline server states must use these icon assets from `./icons/`:
+     - Online/connected: `power_green.png`
+     - Offline/disconnected/error: `power_red.png`
+   - The server status icon/control must align with the `Close` button at the same visual height.
+   - Keep spacing stable when server status changes between checking, connected, disconnected, and error.
+   - On narrow screens, allow wrapping only when needed while keeping the header controls readable.
+
+3. Change the default accordion launch state.
+   - `Views & Time`, `Filters`, and `Satellite Selection` must be collapsed by default on every page load.
+   - `Other Selections`, `Timelines`, `Share`, and `Help` must also start collapsed.
+   - Persisted accordion state must not reopen sections on launch or refresh.
+   - Multiple accordion sections must still be allowed to remain open after user interaction.
+   - Accordion toggles must remain keyboard accessible with clear focus states.
+
+4. Update menu section naming and order.
+   - Rename `View` to `Views & Time`.
+   - Remove the `Settings` accordion section from markup, CSS hooks, tests, README, and integration docs.
+   - Add this instruction under `Views & Time`: `Use the time slider at the top of the screen to control simulation speed.`
+   - The menu order must be:
+     - `Views & Time`
+     - `Filters`
+     - `Satellite Selection`
+     - `Other Selections`
+     - `Timelines`
+     - `Share`
+     - `Help`
+   - `Other Selections` must appear immediately after `Satellite Selection`.
+   - `Share` must appear immediately after `Timelines`.
+
+5. Gate selected-satellite options.
+   - The following controls must be visible only when a satellite is selected:
+     - `Yaw-Pitch-Roll`
+     - `Show Footprint`
+     - `Show only selected satellite`
+     - `Orbit Frame (LVLH)`
+     - `Show Orbit`
+   - Default states:
+     - `Show Footprint`: unchecked by default.
+     - `Show only selected satellite`: checked by default whenever a satellite becomes selected.
+     - `Orbit Frame (LVLH)`: unchecked by default.
+     - `Show Orbit`: unchecked by default.
+     - `Yaw-Pitch-Roll`: preserve existing default and persistence behavior unless no satellite is selected.
+   - Define satellite selection consistently across dropdown/search selection, shortcut selection, timeline selection, map/globe selection, and shared/restored URL selection.
+   - Hidden controls must be removed from layout and from the accessible tree using `hidden`, `aria-hidden`, or equivalent semantics; do not only make them transparent.
+   - Remove the visible `No satellite selected` text below the checkbox area and do not leave empty placeholder space.
+   - Yaw, pitch, and roll sliders must still only appear when `Yaw-Pitch-Roll` is enabled and a satellite is selected.
+
+6. Redesign accordion visual backgrounds.
+   - Each expanded accordion content area must visually reflect the color of its header accent.
+   - `Views & Time` must use a light metallic yellow gradient that softly fades toward the bottom.
+   - `Filters` must use a light metallic blue gradient that softly fades toward the bottom.
+   - `Satellite Selection`, `Other Selections`, `Timelines`, `Share`, and `Help` must each use subtle metallic gradients matching their existing accent colors.
+   - Keep text, controls, hover states, active states, and selected states readable with strong contrast.
+   - Preserve the established OpenBEXI compact dark/metallic visual identity; do not replace it with generic browser accordion styling.
+   - Verify desktop and mobile widths.
+
+7. Redesign Help with document-style actions.
+   - Redesign Help as a cleaner smart/document view while preserving the existing OpenBEXI visual language.
+   - Keep the `Disclaimer` block at the bottom of Help.
+   - Keep the `README` and `Releases History` actions; `Releases History` must still target `PROMPT_History.md`.
+   - Add or preserve a Markdown license target so Licenses can open as a Markdown page.
+   - `Swagger`, `API`, and `Licenses` actions must open a separate page or view.
+   - Do not add or display this text: `Swagger / API DocumentationSwagger and OpenAPI documentation are available from the connected Python server.`
+   - Do not disable Swagger/API actions solely because the Python server is offline; instead, open the best-known documentation URL/page and let the user start the server if the new page cannot connect.
+   - Keep Markdown rendering safe: escape raw HTML and sanitize links before injecting rendered Markdown.
+
+8. Documentation and tests.
+   - Update automated tests for the new accordion defaults, section order, removed Settings section, Help link behavior, power icon filenames, selected-satellite option visibility, and default checkbox states.
+   - Update `Test_and_Integration.md` with manual checks for desktop, mobile, Help document actions, server online/offline icons, and selected-satellite option visibility.
+   - Update `README.md` with the revised launch defaults, menu order, selected-satellite controls, Help document actions, and Markdown-file reference index.
+   - Keep existing server, Share, Swagger/API docs, satellite selection, shortcut, orbit, footprint, timeline, Mercator, model, and orientation tests passing.
+
+Acceptance Criteria:
+
+- Latest release is `Release Date: 2026-06-04  Version 1.5.16`.
+- `index.html` displays `Version 1.5.16 - hosted at GitHub Repo`.
+- The GitHub/version text is centered in the menu header and aligned with the `Close` and server status controls.
+- Connected server status uses `./icons/power_green.png`; disconnected/error status uses `./icons/power_red.png`.
+- All accordion sections launch collapsed by default, including `Views & Time`, `Filters`, and `Satellite Selection`.
+- Persisted accordion state cannot reopen sections on page refresh.
+- The menu order is `Views & Time`, `Filters`, `Satellite Selection`, `Other Selections`, `Timelines`, `Share`, `Help`.
+- `Settings` no longer appears as a menu section.
+- The time-slider instruction appears under `Views & Time`.
+- Selected-satellite checkboxes are hidden until a satellite is selected.
+- `Show only selected satellite` is checked when a satellite is selected.
+- `Show Footprint`, `Orbit Frame (LVLH)`, and `Show Orbit` start unchecked.
+- The visible `No satellite selected` placeholder below the checkboxes no longer appears and leaves no spacing gap.
+- Expanded accordion content backgrounds match their section accent colors with subtle metallic fading gradients.
+- Help uses document-style actions, keeps the disclaimer at the bottom, opens Swagger/API/Licenses in a separate page or view, and does not display the prohibited Swagger/API sentence.
+- `README.md`, `Test_and_Integration.md`, and automated tests are updated.
+- Automated tests and syntax checks pass, or any limitation is explicitly documented.
+
+---
+
 ## Release Date: 2026-06-04  Version 1.5.15
 
 Implement the Version 1.5.15 menu launch, Help Markdown, and header alignment updates.
@@ -63,6 +176,7 @@ Acceptance Criteria:
 - `README.md` and `Test_and_Integration.md` are updated.
 - Automated tests and syntax checks pass, or any limitation is documented.
 
+---
 ## Release Date: 2026-06-04  Version 1.5.14
 
 Improve the Version 1.5.14 server UI, Share UX, menu consistency, and Swagger/API documentation readability.

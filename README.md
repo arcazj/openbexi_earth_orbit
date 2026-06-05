@@ -14,11 +14,11 @@ OpenBEXI Earth Orbit is a browser-based satellite visualization app built with p
 - Multi-select orbit filters for `ALL`, `GEO`, `MEO`, `LEO`, `HEO`, and `Other`.
 - Multi-select tag/operator filters such as `Starlink`, `One Web`, `SES`, `Intelsat`, `Weather`, and `Iridium`.
 - Debris filtering modes: show all, hide debris, or debris only.
-- Accordion-style menu sections for View, Filters, Satellite Selection, Timelines, Other Selections, Settings, Share, and Help, preserving the legacy colored section accents.
-- Deterministic launch defaults: View, Filters, and Satellite Selection start expanded; Timelines, Other Selections, Settings, Share, and Help start collapsed.
+- Accordion-style menu sections for Views & Time, Filters, Satellite Selection, Other Selections, Timelines, Share, and Help, preserving the legacy colored section accents with section-matched metallic expanded backgrounds.
+- Deterministic launch defaults: every accordion section starts collapsed, including Views & Time, Filters, and Satellite Selection.
 - Optional Python server integration for live local API-backed TLE/satellite metadata loading, with automatic local-file fallback when the server is unavailable.
 - Aligned top menu header with Close, version/GitHub link, and server connection status in one compact desktop row.
-- Server status indicator with connected, checking, offline, and error icon states; the status panel shows server URL, data source, version, last load time, and reconnect/refresh.
+- Server status indicator with connected, checking, offline, and error states; connected uses `icons/power_green.png`, offline/error uses `icons/power_red.png`, and the status panel shows server URL, data source, version, last load time, and reconnect/refresh.
 - Share menu section for copying or natively sharing a safe link for the selected satellite, view mode, filters, simulation time, display settings, and a captured canvas image when supported.
 - Searchable satellite selector with typeahead support for satellite name, NORAD ID, orbit type, and company/tag; selected results close cleanly after mouse, keyboard, Escape, Tab, or outside-click interactions.
 - After selecting a satellite, the selector search field clears the previous selected label on the next search interaction without clearing the active selection.
@@ -37,7 +37,7 @@ OpenBEXI Earth Orbit is a browser-based satellite visualization app built with p
 - High-definition Earth texture toggle, ECEF axes, Moon view, launch timeline, and re-entry timeline.
 - Selecting non-MEO/GEO satellites automatically enables the high-definition Earth texture while MEO/GEO selections never force it off.
 - View shortcuts can select the first loaded Starlink satellite or ISS/ZARYA through the same camera/model path as the normal satellite selector. The Starlink shortcut displays the resolved NORAD ID as `Starlink (<NORAD ID>)`.
-- Help menu actions provide quick access to the GitHub project, rendered README Markdown, rendered Releases History Markdown, license, Swagger/OpenAPI documentation when the Python server is connected, and a concise visualization/legal disclaimer.
+- Help menu actions provide quick access to the GitHub project, rendered README Markdown, rendered Releases History Markdown, a Markdown license page, and Swagger/API pages that open separately even if the Python server still needs to be started.
 - Timeline checkboxes are mutually exclusive: enabling the launch timeline hides the re-entry timeline, and enabling the re-entry timeline hides the launch timeline.
 - Faster initial startup path: the globe and core controls render before the full TLE sprite pass, while timelines and decay estimates are prepared as deferred work.
 - Optional startup timing diagnostics through `?perf=1` or `localStorage.openbexiStartupPerf = "1"`.
@@ -66,7 +66,9 @@ Version 1.5.13 adds an optional Python server data path. When the server is conn
 
 Version 1.5.14 improves the server status UI, adds status icons from `icons/`, improves Swagger/OpenAPI documentation contrast, keeps `Other Selections` visually consistent with other accordion headers, and adds Share image preview, download, copy, and native image sharing when the browser supports it.
 
-Version 1.5.15 makes the menu launch state deterministic: only View, Filters, and Satellite Selection start expanded. It also renders README and Releases History Markdown inside Help, renames the Prompt History action to `Releases History`, and aligns Close, version, and server status on one compact row.
+Version 1.5.15 makes the menu launch state deterministic, renders README and Releases History Markdown inside Help, renames the Prompt History action to `Releases History`, and aligns Close, version, and server status on one compact row.
+
+Version 1.5.16 revises the menu UX. All accordion sections start collapsed by default, `View` is renamed to `Views & Time`, Settings is removed, selected-satellite controls stay hidden until a satellite is selected, Help uses document-style actions, and the centered GitHub/version header aligns with the Close and server status controls.
 
 The selected satellite model axis convention is:
 
@@ -198,22 +200,21 @@ The timing summary includes lifecycle and app-specific marks such as `dom-conten
 
 ## Menu Usage
 
-The left menu is organized into compact colored accordion sections. Multiple sections can stay open at the same time; expanding one section does not collapse any other section. `View`, `Filters`, and `Satellite Selection` always start expanded when `index.html` loads. `Timelines`, `Other Selections`, `Settings`, `Share`, and `Help` start collapsed even if older local accordion state exists. Expanded headers use dark high-contrast text on the light metallic background for readability, and the live satellite count in the Filters header is red and bold.
+The left menu is organized into compact colored accordion sections. Multiple sections can stay open at the same time; expanding one section does not collapse any other section. Every section starts collapsed when `index.html` loads, including `Views & Time`, `Filters`, and `Satellite Selection`; older local accordion state cannot reopen sections on refresh. Expanded panels use section-matched metallic gradients, and the live satellite count in the Filters header is red and bold.
 
-- `View`: globe/Mercator controls on one row, high-definition texture/ECEF axes/day-night controls on the next row, and `Starlink (<NORAD ID>)` plus `ISS` shortcut buttons on the third row.
+- `Views & Time`: globe/Mercator controls on one row, high-definition texture/ECEF axes/day-night controls on the next row, `Starlink (<NORAD ID>)` plus `ISS` shortcut buttons on the third row, and the note to use the top time slider for simulation speed.
 - `Filters`: orbit, tag, debris filters, active summary, and reset action.
-- `Satellite Selection`: searchable satellite selector, selected-satellite status, orbit/footprint/YPR controls, and satellite metadata.
-- `Timelines`: checkbox toggles for launch and re-entry timelines.
+- `Satellite Selection`: searchable satellite selector, selected-satellite status, metadata, and satellite-specific Yaw-Pitch-Roll, footprint, show-only, LVLH frame, and orbit controls that appear only after a satellite is selected.
 - `Other Selections`: Earth/Moon context selection.
-- `Settings`: simulation and diagnostic notes.
+- `Timelines`: checkbox toggles for launch and re-entry timelines.
 - `Share`: copy or natively share a safe URL that restores supported app state after satellite data loads, plus preview, download, or copy an image of the current canvas when the browser supports it.
-- `Help`: GitHub, rendered README, rendered Releases History, License, Swagger/API docs when connected to the Python server, and the app disclaimer.
+- `Help`: GitHub, rendered README, rendered Releases History, Markdown Licenses, Swagger, API, and the app disclaimer.
 
 The satellite selector is searchable. Type part of a satellite name, NORAD ID, orbit type, or tag, then use the mouse or keyboard arrow keys plus Enter to select a result. Selecting a result closes the dropdown immediately; Escape, Tab, or clicking outside the selector also closes the dropdown so it cannot block `Show Orbit`, `Show Footprint`, or other controls below it. After a satellite is selected, focusing, clicking, typing, pasting, or pressing `Clear` in the search field removes only the old selected label so a new search can start while the selected satellite remains active. Timeline controls are checkboxes: checked means the timeline is visible; unchecked means it is hidden. Only one timeline can be visible at a time. If Yaw-Pitch-Roll is enabled, selecting or switching satellites keeps the YPR sliders visible and preserves the current yaw, pitch, and roll values.
 
 The Help section disclaimer is part of the application UI: OpenBEXI Earth Orbit is for visualization, educational, and experimental purposes only. It is not an authoritative source for navigation, safety, mission planning, collision avoidance, or operational satellite decisions.
 
-When the Python server is connected, the Help section enables Swagger UI and OpenAPI schema links. When disconnected, those links remain visible but disabled with an offline explanation. The README and Releases History actions fetch `README.md` and `PROMPT_History.md`, render safe Markdown inside the Help panel, and provide direct file links if Markdown cannot be loaded from the current launch mode.
+The Help section opens Swagger and API documentation in separate pages using the best-known local server URLs. If the Python server is offline, start it and refresh the opened page. The README and Releases History actions fetch `README.md` and `PROMPT_History.md`, render safe Markdown inside the Help panel, and provide direct file links if Markdown cannot be loaded from the current launch mode. The Licenses action opens `LICENSE.md` as a Markdown page.
 
 ## Project Structure
 
@@ -234,6 +235,7 @@ When the Python server is connected, the Help section enables Swagger UI and Ope
 ## Markdown Files
 
 - `README.md`: Project overview, setup, features, testing commands, and documentation index.
+- `LICENSE.md`: Markdown copy of the MIT license used by the Help Licenses action.
 - `PROMPT.md`: General execution prompt only; release-specific content belongs in prompt history.
 - `PROMPT_History.md`: Release-specific prompts and implementation requirements by date and version; shown in Help as `Releases History`.
 - `Test_and_Integration.md`: Authoritative automated, browser, manual, domain, visual, and regression acceptance checklist.
@@ -250,4 +252,4 @@ When the Python server is connected, the Help section enables Swagger UI and Ope
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is licensed under the [MIT License](LICENSE.md). The plain-text `LICENSE` file remains for standard repository tooling.

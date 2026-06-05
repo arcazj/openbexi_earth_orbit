@@ -29,10 +29,10 @@ function run() {
   assert(html.includes('role="button"'), 'accordion headers expose button semantics');
   assert(html.includes('aria-controls="filtersContent"'), 'Filters header controls its content');
   assert(html.includes('aria-controls="satelliteSelectionContent"'), 'Satellite header controls its content');
-  assert(html.includes('aria-expanded="true" data-collapsible-target="viewContent"'), 'View starts expanded in markup');
-  assert(html.includes('aria-expanded="true" data-collapsible-target="filtersContent"'), 'Filters starts expanded in markup');
-  assert(html.includes('aria-expanded="true" data-collapsible-target="satelliteSelectionContent"'), 'Satellite Selection starts expanded in markup');
-  assert(html.includes('data-default-expanded="true"'), 'default-expanded accordion state is declared');
+  assert(html.includes('aria-expanded="false" data-collapsible-target="viewContent"'), 'Views & Time starts collapsed in markup');
+  assert(html.includes('aria-expanded="false" data-collapsible-target="filtersContent"'), 'Filters starts collapsed in markup');
+  assert(html.includes('aria-expanded="false" data-collapsible-target="satelliteSelectionContent"'), 'Satellite Selection starts collapsed in markup');
+  assert(!html.includes('data-default-expanded="true"'), 'default-expanded accordion state is not declared');
   assert(html.includes('data-default-collapsed="true"'), 'default-collapsed accordion state is declared');
 
   const filtersSection = indexOfOrFail(html, 'id="filtersAccordionSection"', 'filters accordion exists');
@@ -40,14 +40,16 @@ function run() {
   const viewSection = indexOfOrFail(html, 'id="viewAccordionSection"', 'view accordion exists');
   const timelinesSection = indexOfOrFail(html, 'id="timelinesAccordionSection"', 'timelines accordion exists');
   const otherSection = indexOfOrFail(html, 'id="otherAccordionSection"', 'other accordion exists');
-  const settingsSection = indexOfOrFail(html, 'id="settingsAccordionSection"', 'settings accordion exists');
   const shareSection = indexOfOrFail(html, 'id="shareAccordionSection"', 'share accordion exists');
   const helpSection = indexOfOrFail(html, 'id="helpAccordionSection"', 'help accordion exists');
+  assert(!html.includes('id="settingsAccordionSection"'), 'Settings accordion section is removed');
+  assert(!html.includes('data-collapsible-target="settingsContent"'), 'Settings content target is removed');
   assert(
     viewSection < filtersSection && filtersSection < satelliteSection && satelliteSection < timelinesSection &&
-      timelinesSection < otherSection && otherSection < settingsSection && settingsSection < shareSection && shareSection < helpSection,
-    'accordion section order is View, Filters, Satellite Selection, Timelines, Other, Settings, Share, Help'
+      satelliteSection < otherSection && otherSection < timelinesSection && timelinesSection < shareSection && shareSection < helpSection,
+    'accordion section order is Views & Time, Filters, Satellite Selection, Other, Timelines, Share, Help'
   );
+  assert(html.includes('Views &amp; Time'), 'View section is renamed to Views & Time');
 
   const viewContent = indexOfOrFail(html, 'id="viewContent"', 'View content exists');
   const globeToggle = indexOfOrFail(html, 'id="view3DToggle"', 'Globe toggle exists');
@@ -62,8 +64,9 @@ function run() {
       mercatorToggle < highDefToggle && highDefToggle < axesToggle &&
       axesToggle < dayNightToggle && dayNightToggle < starlinkShortcut &&
       starlinkShortcut < issShortcut,
-    'View menu order is Globe/Mercator, High Def/ECEF/Day-Night, then First Starlink/ISS shortcuts'
+    'Views & Time menu order is Globe/Mercator, High Def/ECEF/Day-Night, then First Starlink/ISS shortcuts'
   );
+  assert(html.includes('Use the time slider at the top of the screen to control simulation speed.'), 'Views & Time contains time slider guidance');
   assert(html.includes('view-control-row view-control-row-two'), 'View menu has a two-item first row');
   assert(html.includes('view-control-row view-control-row-three'), 'View menu has a three-item second row');
   assert(html.includes('view-control-row view-shortcut-row'), 'View menu has a shortcut button row');
@@ -72,11 +75,13 @@ function run() {
   assert(html.includes('Starlink unavailable'), 'Starlink shortcut has required unavailable fallback text');
   assert(html.includes('ISS unavailable'), 'ISS shortcut has required unavailable fallback text');
 
-  assert(indexHtml.includes("DEFAULT_EXPANDED_ACCORDION_SECTIONS = new Set(['viewContent', 'filtersContent', 'satelliteSelectionContent'])"), 'View, Filters, and Satellite Selection are forced open on page load');
+  assert(indexHtml.includes('DEFAULT_EXPANDED_ACCORDION_SECTIONS = new Set()'), 'no accordion section is forced open on page load');
   assert(indexHtml.includes('DEFAULT_COLLAPSED_ACCORDION_SECTIONS'), 'other accordion defaults are explicit');
-  assert(indexHtml.includes("DEFAULT_COLLAPSED_ACCORDION_SECTIONS = new Set(['timelineContent', 'otherSelectionsContent', 'settingsContent', 'shareContent', 'helpContent'])"), 'non-default sections start collapsed on launch');
-  assert(indexHtml.includes('persisted state cannot reopen non-default sections'), 'persisted accordion state cannot reopen non-default sections on launch');
-  assert(indexHtml.includes('DEFAULT_EXPANDED_ACCORDION_SECTIONS.forEach(id => collapsedSections.delete(id))'), 'persisted collapsed state cannot close default-expanded sections on load');
+  ['viewContent', 'filtersContent', 'satelliteSelectionContent', 'otherSelectionsContent', 'timelineContent', 'shareContent', 'helpContent'].forEach(id => {
+    assert(indexHtml.includes(`'${id}'`), `${id} starts collapsed on launch`);
+  });
+  assert(!indexHtml.includes("'settingsContent'"), 'settings content is not part of accordion defaults');
+  assert(indexHtml.includes('persisted state cannot reopen'), 'persisted accordion state cannot reopen sections on launch');
   assert(indexHtml.includes('setAccordionSectionCollapsed(targetId, nextCollapsed, collapsedSections)'), 'accordion toggles only the targeted section');
   assert(indexHtml.includes('Multiple sections may remain open'), 'implementation documents multi-open accordion behavior');
   assert(indexHtml.includes("expandCollapsibleSection('satelliteSelectionContent')"), 'YPR-enabled selection opens Satellite Selection');
@@ -98,18 +103,24 @@ function run() {
 
   const satelliteSelection = indexOfOrFail(html, 'Satellite Selection', 'satellite selection section exists');
   const searchInput = indexOfOrFail(html, 'id="satelliteSearchInput"', 'search input exists');
+  const selectedControls = indexOfOrFail(html, 'id="selectedSatelliteControls"', 'selected satellite controls exist');
   const firstSatelliteCheckbox = indexOfOrFail(html, 'id="showYPRToggle"', 'satellite-specific checkboxes exist');
   assert(
-    satelliteSelection < searchInput && searchInput < firstSatelliteCheckbox,
+    satelliteSelection < searchInput && searchInput < selectedControls && selectedControls < firstSatelliteCheckbox,
     'search/select satellite combo appears between the Satellite Selection header and checkboxes'
   );
+  assert(html.includes('id="selectedSatelliteControls" class="satellite-option-grid" aria-label="Selected satellite options" aria-hidden="true" hidden'), 'satellite-specific controls are hidden until selection');
+  assert(html.includes('id="showFootprintCheckbox"><span>Show Footprint</span>'), 'Show Footprint checkbox exists and is unchecked by default');
+  assert(html.includes('id="showOnlySelectedSatellite" checked'), 'Show only selected satellite checkbox is checked by default when shown');
+  assert(html.includes('id="showOrbitFrameToggle"> Orbit Frame (LVLH)'), 'Orbit Frame checkbox exists and is unchecked by default');
+  assert(html.includes('id="showOrbitToggle"> Show Orbit'), 'Show Orbit checkbox exists and is unchecked by default');
+  assert(!html.includes('No satellite selected'), 'visible no-selection placeholder text is removed from generated menu');
 
   const timelinePanel = indexOfOrFail(html, 'id="timelineContent"', 'timeline content exists');
   const otherPanel = indexOfOrFail(html, 'id="otherSelectionsContent"', 'other content exists');
-  const settingsPanel = indexOfOrFail(html, 'id="settingsContent"', 'settings content exists');
   const sharePanel = indexOfOrFail(html, 'id="shareContent"', 'share content exists');
   const helpPanel = indexOfOrFail(html, 'id="helpContent"', 'help content exists');
-  assert(timelinePanel < otherPanel && otherPanel < settingsPanel && settingsPanel < sharePanel && sharePanel < helpPanel, 'Share section appears after Settings and before Help');
+  assert(otherPanel < timelinePanel && timelinePanel < sharePanel && sharePanel < helpPanel, 'Other follows Satellite Selection and Share appears after Timelines before Help');
   assert(html.includes('type="checkbox" id="launchTimelineToggle"'), 'launch timeline toggle is a checkbox');
   assert(html.includes('type="checkbox" id="reentryTimelineToggle"'), 're-entry timeline toggle is a checkbox');
   assert(!html.includes('other-selections-heading'), 'Other Selections header does not use a special text-style class');
@@ -138,20 +149,28 @@ function run() {
   assert(html.includes('data-markdown-source="README.md"'), 'README Markdown action targets README.md');
   assert(html.includes('id="releasesHistoryMarkdownLink"'), 'Help includes Releases History Markdown action');
   assert(html.includes('data-markdown-source="PROMPT_History.md"'), 'Releases History action targets PROMPT_History.md');
-  assert(html.includes('>Releases History</a>'), 'Prompt History action is renamed to Releases History');
+  assert(html.includes('>Releases History</strong>'), 'Prompt History action is renamed to Releases History');
   assert(!html.includes('>Prompt History</a>'), 'Prompt History is not the visible Help action text');
   assert(html.includes('id="helpMarkdownPanel"'), 'Help includes a rendered Markdown panel');
   assert(html.includes('id="helpMarkdownContent"'), 'Help includes rendered Markdown content target');
-  assert(html.includes('href="LICENSE"'), 'Help includes License link');
-  assert(html.includes('Swagger / API Documentation'), 'Help includes Swagger/API documentation section');
+  assert(html.includes('class="help-smart-grid"'), 'Help uses a smart document grid');
+  assert(html.includes('id="licenseMarkdownLink"'), 'Help includes Licenses link hook');
+  assert(html.includes('href="LICENSE.md"'), 'Help includes Markdown license link');
+  assert(html.includes('>Licenses</strong>'), 'Help labels the license action as Licenses');
+  assert(!html.includes('Swagger / API Documentation'), 'old Swagger/API heading is removed');
+  assert(html.includes('Developer Docs'), 'Help includes developer documentation section');
   assert(html.includes('id="swaggerDocsLink"'), 'Help includes Swagger UI link hook');
   assert(html.includes('id="openApiSchemaLink"'), 'Help includes OpenAPI schema link hook');
-  assert(html.includes('API documentation is available when the Python server is running.'), 'Help explains API docs offline state');
+  assert(html.includes('href="http://127.0.0.1:8000/docs"'), 'Swagger link opens the default docs page');
+  assert(html.includes('href="http://127.0.0.1:8000/openapi.json"'), 'API link opens the default OpenAPI page');
+  assert(!html.includes('Swagger and OpenAPI documentation are available from the connected Python server.'), 'prohibited Swagger/API sentence is absent from Help markup');
   assert(html.includes('for visualization, educational, and experimental purposes only'), 'Help includes legal disclaimer');
   assert(html.includes('satellite.js'), 'Help disclaimer mentions satellite.js limitations');
 
   assert(css.includes('.menu-accordion-heading'), 'CSS defines accordion headers');
-  assert(css.includes('--menu-metal'), 'CSS preserves the metallic blue expanded style');
+  assert(css.includes('--menu-metal-yellow'), 'CSS defines a metallic yellow view style');
+  assert(css.includes('--menu-metal-blue'), 'CSS defines a metallic blue filters style');
+  assert(css.includes('--section-panel-bg'), 'CSS defines section-specific panel backgrounds');
   assert(css.includes('#controlsContainer h3.menu-accordion-heading[aria-expanded="true"]'), 'expanded accordion header contrast rule overrides global h3 color');
   assert(css.includes('color: #06182c !important;'), 'expanded accordion headers use dark high-contrast text');
   assert(css.includes('#controlsContainer h3.menu-accordion-heading[aria-expanded="true"] .toggle-icon'), 'expanded accordion chevron has an explicit readable color');
@@ -177,7 +196,7 @@ function run() {
   assert(css.includes('.menu-accordion-heading-other { border-left-color: #53a7ff; }'), 'Other keeps the legacy blue accent');
   assert(!css.includes('.menu-accordion-heading-other:not([aria-expanded="true"])'), 'Other does not override collapsed header text style');
   assert(!css.includes('.other-selections-heading'), 'Other header special text styling is removed');
-  assert(css.includes('.menu-accordion-heading-settings { border-left-color: #77859c; }'), 'Settings keeps the legacy gray-blue accent');
+  assert(!css.includes('.menu-accordion-heading-settings'), 'Settings accordion accent CSS is removed');
   assert(css.includes('.menu-accordion-heading-share { border-left-color: #6fd08c; }'), 'Share keeps a dedicated legacy-style accent');
   assert(css.includes('.menu-accordion-heading-help { border-left-color: #a98cff; }'), 'Help keeps a dedicated legacy-style accent');
   assert(css.includes('.server-status-button'), 'server status has dedicated CSS');
@@ -196,7 +215,8 @@ function run() {
   assert(css.includes('.api-docs-panel'), 'API docs panel has dedicated CSS');
   assert(css.includes('.api-docs-link.is-disabled'), 'API docs disabled state has CSS');
   assert(css.includes('.help-panel'), 'Help panel has dedicated CSS');
-  assert(css.includes('.help-link-list'), 'Help links have dedicated CSS');
+  assert(css.includes('.help-smart-grid'), 'Help document grid has dedicated CSS');
+  assert(css.includes('.help-doc-card'), 'Help document cards have dedicated CSS');
   assert(css.includes('.help-markdown-panel'), 'Help Markdown preview has dedicated CSS');
   assert(css.includes('.help-markdown-content'), 'Help rendered Markdown content has dedicated CSS');
   assert(css.includes('.help-disclaimer'), 'Help disclaimer has dedicated CSS');
@@ -215,6 +235,7 @@ function run() {
   assert(indexHtml.includes('loadHelpMarkdown(source, title)'), 'index loads README and Releases History Markdown in Help');
   assert(indexHtml.includes('setupHelpMarkdownLink(readmeMarkdownLink)'), 'README Help action is wired to Markdown renderer');
   assert(indexHtml.includes('setupHelpMarkdownLink(releasesHistoryMarkdownLink)'), 'Releases History Help action is wired to Markdown renderer');
+  assert(indexHtml.includes('updateSelectedSatelliteControlsVisibility'), 'index gates selected-satellite controls by selection state');
   assert(indexHtml.includes("'shareContent'"), 'Share starts collapsed with other non-default accordion sections');
   assert(indexHtml.includes("'helpContent'"), 'Help starts collapsed with other non-default accordion sections');
   assert(indexHtml.includes('checkAndLoadServerTleData'), 'index implements server connection and TLE fallback flow');
@@ -226,7 +247,9 @@ function run() {
   assert(indexHtml.includes('Canvas image capture is unavailable'), 'Share image capture has a fallback message');
   assert(indexHtml.includes('navigator.canShare({ files: [imageFile] })'), 'Native Share includes image only when canShare supports it');
   assert(indexHtml.includes('applyPendingShareStateAfterSatelliteLoad'), 'index restores share state after satellite data loads');
-  assert(indexHtml.includes('updateApiDocsState'), 'index updates Swagger/API docs connected and offline states');
+  assert(indexHtml.includes('updateApiDocsState'), 'index updates Swagger/API docs links');
+  assert(indexHtml.includes('Swagger and API links still open in a separate page'), 'offline API docs remain clickable with separate-page guidance');
+  assert(!indexHtml.includes('Swagger and OpenAPI documentation are available from the connected Python server.'), 'prohibited Swagger/API status sentence is not emitted');
   assert(indexHtml.includes('ensureYPRControlsVisibleForSelection'), 'index preserves YPR controls after satellite selection');
   assert(!/yawSlider\.value\s*=\s*0/.test(indexHtml), 'satellite selection does not reset yaw slider value');
   assert(!/pitchSlider\.value\s*=\s*0/.test(indexHtml), 'satellite selection does not reset pitch slider value');

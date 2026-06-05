@@ -145,7 +145,7 @@
     });
     startupPerf.mark('module-loaded');
 
-    const versionNumber = "1.5.15";
+    const versionNumber = "1.5.16";
     if (versionNumber !== APP_VERSION) {
         console.warn(`Version mismatch: index ${versionNumber}, server module ${APP_VERSION}`);
     }
@@ -179,8 +179,16 @@
     const SATELLITE_SETUP_CHUNK_SIZE = 300;
     const DECAY_ESTIMATE_CHUNK_SIZE = 2;
     const MENU_COLLAPSE_STORAGE_KEY = 'openbexi.menu.collapsedSections';
-    const DEFAULT_EXPANDED_ACCORDION_SECTIONS = new Set(['viewContent', 'filtersContent', 'satelliteSelectionContent']);
-    const DEFAULT_COLLAPSED_ACCORDION_SECTIONS = new Set(['timelineContent', 'otherSelectionsContent', 'settingsContent', 'shareContent', 'helpContent']);
+    const DEFAULT_EXPANDED_ACCORDION_SECTIONS = new Set();
+    const DEFAULT_COLLAPSED_ACCORDION_SECTIONS = new Set([
+        'viewContent',
+        'filtersContent',
+        'satelliteSelectionContent',
+        'otherSelectionsContent',
+        'timelineContent',
+        'shareContent',
+        'helpContent'
+    ]);
     const SATELLITE_SEARCH_LIMIT = 40;
     const EXCLUDED_COMPANY_FILTER_OPTIONS = new Set(['ACTIVE']);
     const serverApiBaseUrl = resolveApiBaseUrl();
@@ -319,7 +327,7 @@
     let highDefToggleElement, showECEFAxesToggleElement, showOrbitFrameToggleElement;
     let satelliteSelectDropdown, satelliteInfoDiv;
     let satelliteSearchInput, satelliteSearchResults, satelliteSearchClearButton, satelliteSearchEmpty;
-    let selectFirstStarlinkButton, selectIssButton, showOnlySelectedSatelliteCheckbox;
+    let selectFirstStarlinkButton, selectIssButton, showOnlySelectedSatelliteCheckbox, selectedSatelliteControls;
     let filterStatusSummary, filterEmptyState, resetFiltersButton, resetFiltersEmptyButton, selectedSatelliteSummary;
     let currentSearchResults = [];
     let activeSearchResultIndex = -1;
@@ -729,10 +737,34 @@
         }
     }
 
+    function updateSelectedSatelliteControlsVisibility(satData = currentSelectedSatellite) {
+        const hasSelection = !!satData;
+        if (selectedSatelliteControls) {
+            selectedSatelliteControls.hidden = !hasSelection;
+            selectedSatelliteControls.setAttribute('aria-hidden', hasSelection ? 'false' : 'true');
+        }
+        if (selectedSatelliteSummary) {
+            selectedSatelliteSummary.hidden = !hasSelection;
+        }
+        if (satelliteInfoDiv && !hasSelection) {
+            satelliteInfoDiv.hidden = true;
+            satelliteInfoDiv.innerHTML = '';
+        }
+
+        const yprSlidersRow = document.getElementById('yprSlidersRow');
+        if (yprSlidersRow) {
+            const showSliders = hasSelection && !!simParams.showYPR;
+            yprSlidersRow.hidden = !showSliders;
+            yprSlidersRow.style.display = showSliders ? 'grid' : 'none';
+        }
+        setYPRVisibility(yprFrame, hasSelection && !!simParams.showYPR);
+    }
+
     function updateSelectedSatelliteSummary(satData = currentSelectedSatellite) {
+        updateSelectedSatelliteControlsVisibility(satData);
         if (!selectedSatelliteSummary) return;
         if (!satData) {
-            selectedSatelliteSummary.textContent = 'No satellite selected';
+            selectedSatelliteSummary.textContent = '';
             return;
         }
         selectedSatelliteSummary.textContent =
@@ -1141,28 +1173,21 @@
         const openApiUrl = `${serverConnectionState.baseUrl}/openapi.json`;
         if (apiDocsStatus) {
             apiDocsStatus.textContent = connected
-                ? 'Swagger and OpenAPI documentation are available from the connected Python server.'
-                : 'API documentation is available when the Python server is running.';
+                ? 'Swagger and API links open in a separate page from the connected Python server.'
+                : 'Swagger and API links still open in a separate page; start the Python server if the page cannot connect.';
         }
         [
-            [swaggerDocsLink, docsUrl, 'Swagger UI'],
-            [openApiSchemaLink, openApiUrl, 'OpenAPI Schema']
+            [swaggerDocsLink, docsUrl, 'Swagger'],
+            [openApiSchemaLink, openApiUrl, 'API']
         ].forEach(([link, href, label]) => {
             if (!link) return;
-            link.classList.toggle('is-disabled', !connected);
-            link.setAttribute('aria-disabled', connected ? 'false' : 'true');
-            link.title = connected ? href : `${label} is available when connected to the Python server`;
-            if (connected) {
-                link.href = href;
-                link.target = '_blank';
-                link.rel = 'noopener noreferrer';
-                link.tabIndex = 0;
-            } else {
-                link.removeAttribute('href');
-                link.removeAttribute('target');
-                link.removeAttribute('rel');
-                link.tabIndex = -1;
-            }
+            link.classList.remove('is-disabled');
+            link.setAttribute('aria-disabled', 'false');
+            link.href = href;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.tabIndex = 0;
+            link.title = connected ? href : `${label} opens ${href}; start the Python server if it is offline`;
         });
     }
 
@@ -1537,11 +1562,17 @@
     function ensureYPRControlsVisibleForSelection() {
         const showYPRToggle = document.getElementById('showYPRToggle');
         const yprSlidersRow = document.getElementById('yprSlidersRow');
+        const hasSelection = !!currentSelectedSatellite;
         if (showYPRToggle) showYPRToggle.checked = !!simParams.showYPR;
-        if (yprSlidersRow) yprSlidersRow.style.display = simParams.showYPR ? 'grid' : 'none';
-        setYPRVisibility(yprFrame, !!simParams.showYPR);
+        if (yprSlidersRow) {
+            const showSliders = hasSelection && !!simParams.showYPR;
+            yprSlidersRow.hidden = !showSliders;
+            yprSlidersRow.style.display = showSliders ? 'grid' : 'none';
+        }
+        setYPRVisibility(yprFrame, hasSelection && !!simParams.showYPR);
+        updateSelectedSatelliteControlsVisibility(currentSelectedSatellite);
 
-        if (simParams.showYPR) {
+        if (hasSelection && simParams.showYPR) {
             expandCollapsibleSection('satelliteSelectionContent');
         }
     }
@@ -1790,6 +1821,7 @@
         resetFiltersButton = document.getElementById('resetFiltersButton');
         resetFiltersEmptyButton = document.getElementById('resetFiltersEmptyButton');
         selectedSatelliteSummary = document.getElementById('selectedSatelliteSummary');
+        selectedSatelliteControls = document.getElementById('selectedSatelliteControls');
 
         // Labels
         labelXecrDiv = document.getElementById('labelXecr');
@@ -1851,6 +1883,7 @@
                 updateSatelliteList();
             });
         }
+        updateSelectedSatelliteControlsVisibility();
 
         orbitTypeFilterSelect.addEventListener('click', (event) => {
             const button = event.target.closest('button[data-orbit-filter]');
@@ -1959,7 +1992,7 @@
                 simParams.showOrbit = true;
                 updateOrbitTrajectory(scene, simParams, currentSelectedSatellite);
             } else {
-                // No satellite selected, so the orbit cannot be shown.
+                // Orbit display requires an active satellite selection.
                 simParams.showOrbit = false;
                 e.target.checked = false;
                 // (optional: display a small warning to select a satellite)
@@ -2033,8 +2066,12 @@
 
         const showYPRToggle = document.getElementById('showYPRToggle');
         const updateYPRControlsVisibility = (visible) => {
-            if (yprSlidersRow) yprSlidersRow.style.display = visible ? 'grid' : 'none';
-            setYPRVisibility(yprFrame, visible);
+            const showSliders = !!visible && !!currentSelectedSatellite;
+            if (yprSlidersRow) {
+                yprSlidersRow.hidden = !showSliders;
+                yprSlidersRow.style.display = showSliders ? 'grid' : 'none';
+            }
+            setYPRVisibility(yprFrame, showSliders);
         };
         if (showYPRToggle) {
             showYPRToggle.checked = !!simParams.showYPR;

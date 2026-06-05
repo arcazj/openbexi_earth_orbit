@@ -21,7 +21,7 @@ function run() {
 
   assert(serverPy.includes('Access-Control-Allow-Origin'), 'server.py sends CORS headers');
   assert(serverPy.includes('ThreadingHTTPServer'), 'server.py uses a local threaded HTTP server');
-  assert(serverPy.includes('APP_VERSION = "1.5.15"'), 'server.py version matches latest release');
+  assert(serverPy.includes('APP_VERSION = "1.5.16"'), 'server.py version matches latest release');
   assert(serverPy.includes('SwaggerUIBundle'), 'server docs page initializes Swagger UI when CDN is available');
   assert(serverPy.includes('.swagger-ui .opblock .opblock-summary-path'), 'server docs override Swagger route text contrast');
   assert(serverPy.includes('color: #ffffff !important'), 'server docs include high-contrast route/method text');
@@ -35,12 +35,20 @@ function run() {
     assert(fs.existsSync(iconPath), `${iconPath} exists`);
     assert(fs.readFileSync(iconPath, 'utf8').includes('<svg'), `${iconPath} is an SVG icon`);
   });
+  [
+    'icons/power_green.png',
+    'icons/power_red.png'
+  ].forEach(iconPath => {
+    assert(fs.existsSync(iconPath), `${iconPath} exists`);
+  });
   assert(readme.includes('py server.py --host 127.0.0.1 --port 8000'), 'README documents Python server startup');
-  assert(readme.includes('Version 1.5.15 makes the menu launch state deterministic'), 'README documents Version 1.5.15 launch defaults');
+  assert(readme.includes('Version 1.5.16 revises the menu UX'), 'README documents revised Version 1.5.16 menu UX');
+  assert(readme.includes('every accordion section starts collapsed'), 'README documents Version 1.5.16 launch defaults');
   assert(readme.includes('Releases History'), 'README documents the Releases History Help action');
+  assert(readme.includes('LICENSE.md'), 'README documents the Markdown license file');
   assert(integration.includes('/api/health'), 'integration plan includes API health checks');
   assert(integration.includes('Swagger/API docs'), 'integration plan includes Swagger/API docs checks');
-  assert(integration.includes('View, Filters, and Satellite Selection start expanded'), 'integration plan covers Version 1.5.15 launch defaults');
+  assert(integration.includes('All accordion sections must start collapsed by default'), 'integration plan covers Version 1.5.16 launch defaults');
   assert(integration.includes('README and Releases History render safe Markdown'), 'integration plan covers Help Markdown rendering');
 
   console.log('serverApiStructure tests passed');

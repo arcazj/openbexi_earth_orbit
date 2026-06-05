@@ -1,4 +1,4 @@
-﻿import assert from 'assert';
+import assert from 'assert';
 import fs from 'fs';
 
 function read(path) {
@@ -33,7 +33,7 @@ function run() {
   assert(!/^## General Execution Prompt/m.test(prompt), 'PROMPT.md has one top-level general prompt section');
 
   const latestVersion = latestReleaseVersion(promptHistory);
-  assert.strictEqual(latestVersion, '1.5.15', 'latest release is Version 1.5.15');
+  assert.strictEqual(latestVersion, '1.5.16', 'latest release is Version 1.5.16');
 
   const versionMatch = indexHtml.match(/const\s+versionNumber\s*=\s*"([^"]+)"/);
   assert(versionMatch, 'index.html defines a visible version number');
