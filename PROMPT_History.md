@@ -1,5 +1,80 @@
 # Prompt History
 
+## Release Date: 2026-06-06  Version 1.5.21
+
+Implement Version 1.5.21 selected-satellite detail expanded/collapsible behavior and record the ADCS/attitude visualization correction requirements.
+
+This release builds on Version 1.5.20. Preserve the optional Python server data path, silent offline/local fallback, server status icon and panel, Help Markdown viewer pages, Licenses action, metallic accordion styling, Version 1.5.20 menu order and launch defaults, synchronized `Time x` sliders, selected-satellite control gating, search dropdown portal behavior, filters, timelines, bottom-right Globe + Mercator overlay, Sun/Earth-reflection selected-model lighting, orbit, footprint, Yaw-Pitch-Roll orientation, Share behavior, selected-satellite right-side detail panel, SSL 1300 restriction behavior, selected-satellite observer tracking, model loading, and existing satellite visualization behavior unless explicitly changed below.
+
+Requirements:
+
+1. Keep the release date and version exactly `Release Date: 2026-06-06  Version 1.5.21`.
+2. Update the visible application, JavaScript, and Python server version to `1.5.21`.
+3. In the right-side selected-satellite detail panel, make satellite data and TLE details independently collapsible/expandable.
+4. By default, when a satellite is selected, both satellite data and TLE details must be expanded by using `<details open>`.
+5. Provide clear section headers/toggle controls for `Satellite data` and `TLE details`.
+6. After `TLE details`, add a `Source detail` section only for selected satellites that use a known Starlink or ISS external model source.
+7. The `Source detail` section must be expanded by default using `<details open>`.
+8. For Starlink models, display bold red text: `Model downloaded from https://sketchfab.com/malacodart, license: CC Attribution / Creative Commons Attribution.`
+9. For ISS models, display bold red text: `Model downloaded from https://github.com/nasa/NASA-3D-Resources, courtesy: NASA (National Aeronautics and Space Administration).`
+10. Do not show the `Source detail` section for other satellite models unless a source attribution is explicitly defined.
+11. For ISS selected-model orientation only, swap the yaw and pitch control mapping: the ISS `Yaw` slider must drive the behavior previously driven by pitch, and the ISS `Pitch` slider must drive the behavior previously driven by yaw.
+12. The ISS pitch axis, local `+Y`, must point to Earth/nadir and keep pointing to Earth as the ISS position updates over time.
+13. Keep ISS local `+X` aligned with velocity and keep local `+Z` as the right-handed negative cross-track complement.
+14. Keep ISS `Roll` unchanged.
+15. Do not change Starlink or other satellite yaw/pitch/roll behavior.
+16. Preserve the transparent right-side panel styling, UTC-clock width matching, and existing selected-satellite metadata/TLE content without duplication.
+17. Preserve TLE line 1 and TLE line 2 display exactly once when the TLE section is expanded.
+18. Capture the ADCS/attitude screenshot correction requirements: fix any clipped title/header, prevent the Attitude table from hiding the satellite model or attitude axes, center the satellite model with enough margin, keep yaw/pitch/roll labels readable and attached to the correct axes, keep dashed reference lines from interfering with the table, align table headers and numeric columns, use `(deg)`, `(deg/s)`, and `(N m)` units consistently, add or preserve a small blue-axis legend, and keep the layout responsive.
+19. If the ADCS/attitude visualization source file is not present in the repository, document that limitation in `README.md` and `Test_and_Integration.md` rather than guessing at an unrelated page.
+20. Update automated tests, `README.md`, and `Test_and_Integration.md` for Version `1.5.21`.
+
+Acceptance Criteria:
+
+- Latest release is `Release Date: 2026-06-06  Version 1.5.21`.
+- `index.html` displays `Version 1.5.21 - hosted at GitHub Repo`.
+- The selected-satellite detail panel shows `Satellite data` and `TLE details` expanded by default after each satellite selection, using `<details open>`.
+- Expanding `Satellite data` reveals the existing metadata rows.
+- Expanding `TLE details` reveals TLE line 1 and TLE line 2 exactly once.
+- Selecting a Starlink model shows an expanded `Source detail` section after `TLE details` with bold red Sketchfab/Creative Commons Attribution text.
+- Selecting an ISS model shows an expanded `Source detail` section after `TLE details` with bold red NASA 3D Resources courtesy text.
+- Other models do not show `Source detail` unless source attribution is explicitly defined.
+- ISS selected-model orientation swaps yaw and pitch control inputs while keeping roll unchanged.
+- ISS local `+Y`/pitch axis points to Earth/nadir and keeps tracking Earth as the satellite propagates.
+- Starlink and other selected models keep the standard yaw/pitch/roll mapping.
+- The right-side panel keeps transparent styling and matches the UTC clock width.
+- ADCS/attitude source availability is explicitly documented if the source file is missing.
+- Automated tests and syntax checks pass, or any limitation is explicitly documented.
+
+## Release Date: 2026-06-06  Version 1.5.20
+
+Implement Version 1.5.20 Mercator overlay placement and selected-model Sun/Earth-reflection lighting update.
+
+This release builds on Version 1.5.19. Preserve the optional Python server data path, silent offline/local fallback, server status icon and panel, Help Markdown viewer pages, Licenses action, metallic accordion styling, Version 1.5.19 menu order and launch defaults, synchronized `Time x` sliders, selected-satellite control gating, search dropdown portal behavior, filters, timelines, Mercator view, orbit, footprint, Yaw-Pitch-Roll orientation, Share behavior, selected-satellite right-side detail panel, SSL 1300 restriction behavior, selected-satellite observer tracking, model loading, and existing satellite visualization behavior unless explicitly changed below.
+
+Requirements:
+
+1. Keep the release date and version exactly `Release Date: 2026-06-06  Version 1.5.20`.
+2. Update the visible application, JavaScript, and Python server version to `1.5.20`.
+3. When `Globe` and `Mercator` are both selected, place the Mercator map overlay on the bottom-right of the canvas so it is not hidden by the left menu.
+4. Keep Mercator-only mode fullscreen and Globe-only mode unchanged.
+5. Make the Sun the dominant light source for selected detailed satellite models, including Starlink solar panels.
+6. Update Sun lighting before the 3D render so satellite model lighting is not one frame stale when time changes.
+7. Keep any camera-attached fill light minimal so it cannot wash out solar panels or become the primary light source.
+8. Add subtle Earth-reflected albedo light for selected detailed models when possible, so solar panels can show visible Earth reflection without overexposure.
+9. Preserve selected-satellite tracking, zoom, and orbit controls while `Time x` changes.
+10. Include all updates since Version 1.5.19 in `README.md`, `Test_and_Integration.md`, and automated tests.
+
+Acceptance Criteria:
+
+- Latest release is `Release Date: 2026-06-06  Version 1.5.20`.
+- `index.html` displays `Version 1.5.20 - hosted at GitHub Repo`.
+- Combined Globe + Mercator mode shows the Mercator overlay at the bottom-right of the canvas.
+- Mercator-only mode remains fullscreen.
+- Selected detailed satellite lighting is Sun-driven, with Earth albedo available as a subtle secondary reflection when possible.
+- Starlink solar panels should not be washed out by camera fill light.
+- Automated tests and syntax checks pass, or any limitation is explicitly documented.
+
 ## Release Date: 2026-06-06  Version 1.5.19
 
 Implement Version 1.5.19 selected-satellite detail cleanup and SSL 1300 model restriction update.

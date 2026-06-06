@@ -42,7 +42,7 @@
         drawSelectedGroundTrack
     } from './js/mercatorMapLoader.js';
 
-    import { drawDayNight3D } from './js/drawDayNight.js';
+    import { drawDayNight3D, sunSceneVectorFromJD } from './js/drawDayNight.js';
 
     import {
         satelliteConfig,
@@ -146,7 +146,7 @@
     });
     startupPerf.mark('module-loaded');
 
-    const versionNumber = "1.5.19";
+    const versionNumber = "1.5.21";
     if (versionNumber !== APP_VERSION) {
         console.warn(`Version mismatch: index ${versionNumber}, server module ${APP_VERSION}`);
     }
@@ -170,10 +170,19 @@
     const SELECTED_MODEL_CAMERA_NEAR_METERS = 1;
     const SELECTED_MODEL_CAMERA_NEAR_SCENE_UNITS = metersToSceneUnits(SELECTED_MODEL_CAMERA_NEAR_METERS);
     const SELECTED_MODEL_OBSERVER_DISTANCE_SCENE_UNITS = metersToSceneUnits(SELECTED_SATELLITE_TARGET_METERS);
+    const SUN_LIGHT_INTENSITY = 1.25;
+    const SELECTED_MODEL_FILL_LIGHT_INTENSITY = 0.05;
+    const SELECTED_MODEL_FILL_LIGHT_DECAY = 0;
+    const SELECTED_MODEL_EARTH_ALBEDO_INTENSITY = 0.22;
+    const SELECTED_MODEL_EARTH_ALBEDO_MIN_FACTOR = 0.12;
+    const SCENE_TONE_MAPPING_EXPOSURE = 0.9;
     const STARLINK_MODEL_ASSET_ID = 'starlink_V1';
     const STARLINK_MODEL_CALIBRATION_YAW_DEG = 0;
     const ISS_NORAD_ID = '25544';
     const ISS_MODEL_ASSET_ID = 'ISS.glb';
+    const ISS_MODEL_AXIS_MAPPING = 'x-velocity-y-nadir-z-negative-crosstrack';
+    const ISS_MODEL_EARTH_FACING_AXIS = { x: 0, y: 1, z: 0 };
+    const ISS_MODEL_AXIS_NOTE = 'local +Y = Earth-facing / pitch-nadir axis';
     const ISS_MODEL_CALIBRATION_YAW_DEG = 0;
     const ISS_MODEL_CALIBRATION_PITCH_DEG = 0;
     const ISS_MODEL_CALIBRATION_ROLL_DEG = 0;
@@ -261,6 +270,8 @@
     let detailedSatelliteModel = null;
     let satelliteModelLoadToken = 0;
     let selectedModelFillLight = null;
+    let selectedModelEarthAlbedoLight = null;
+    let selectedModelEarthAlbedoTarget = null;
     let selectedModelTracking = null;
     let yprFrame;
 
@@ -1043,6 +1054,15 @@
         return SELECTED_DETAIL_DUPLICATE_KEYS.has(String(key || '').toLowerCase());
     }
 
+    function selectedSatelliteOrientationBias(isIssModel = false) {
+        return {
+            yawDeg: isIssModel ? simParams.pitchDeg : simParams.yawDeg,
+            pitchDeg: isIssModel ? simParams.yawDeg : simParams.pitchDeg,
+            rollDeg: simParams.rollDeg,
+            controlMapping: isIssModel ? 'iss-yaw-pitch-swapped' : 'standard-yaw-pitch-roll'
+        };
+    }
+
     function satelliteDetailRows(satData) {
         if (!satData) return [];
         const meta = satData.meta ?? {};
@@ -1072,6 +1092,28 @@
         return rows.filter(([, value]) => formatSatelliteDetailValue(value));
     }
 
+    function selectedSatelliteModelSourceDetail(satData) {
+        if (!satData) return null;
+        const modelResolution = resolveSatelliteModel(satData);
+        const assetId = String(modelResolution?.assetId || '').toLowerCase();
+        const metadataId = String(modelResolution?.metadataId || '').toLowerCase();
+        if (modelResolution?.found && (
+            assetId.includes('starlink') ||
+            metadataId.includes('starlink') ||
+            isStarlinkSatelliteData(satData)
+        )) {
+            return 'Model downloaded from https://sketchfab.com/malacodart, license: CC Attribution / Creative Commons Attribution.';
+        }
+        if (modelResolution?.found && (
+            assetId === ISS_MODEL_ASSET_ID.toLowerCase() ||
+            metadataId === 'iss' ||
+            isIssSatelliteData(satData)
+        )) {
+            return 'Model downloaded from https://github.com/nasa/NASA-3D-Resources, courtesy: NASA (National Aeronautics and Space Administration).';
+        }
+        return null;
+    }
+
     function syncSelectedSatelliteDetailPanelWidth() {
         if (!selectedSatelliteDetailPanel) return;
         const clockEl = document.getElementById("utcClockDisplay");
@@ -1094,21 +1136,45 @@
             .join('');
         const tleLine1 = formatSatelliteDetailValue(satData.tle_line1);
         const tleLine2 = formatSatelliteDetailValue(satData.tle_line2);
+        const sourceDetail = selectedSatelliteModelSourceDetail(satData);
+        const sourceSection = sourceDetail
+            ? `
+            <details class="selected-satellite-detail-section selected-satellite-source-section" open>
+              <summary>
+                <span>Source detail</span>
+                <small>Collapse source</small>
+              </summary>
+              <p class="selected-satellite-source-detail">${escapeHtml(sourceDetail)}</p>
+            </details>`
+            : '';
         selectedSatelliteDetailPanel.innerHTML = `
           <div class="selected-satellite-detail-header">
             <span>Selected Satellite</span>
             <strong>${escapeHtml(satData.satellite_name || satData.name || 'Satellite')}</strong>
           </div>
           <div class="selected-satellite-detail-scroll">
-            <table class="selected-satellite-detail-table">
-              <tbody>${rows}</tbody>
-            </table>
-            <div class="selected-satellite-tle-block" aria-label="TLE details">
-              <strong>TLE line 1</strong>
-              <code>${escapeHtml(tleLine1)}</code>
-              <strong>TLE line 2</strong>
-              <code>${escapeHtml(tleLine2)}</code>
-            </div>
+            <details class="selected-satellite-detail-section selected-satellite-data-section" open>
+              <summary>
+                <span>Satellite data</span>
+                <small>${rows ? 'Collapse details' : 'No extra data'}</small>
+              </summary>
+              <table class="selected-satellite-detail-table">
+                <tbody>${rows}</tbody>
+              </table>
+            </details>
+            <details class="selected-satellite-detail-section selected-satellite-tle-section" open>
+              <summary>
+                <span>TLE details</span>
+                <small>Collapse TLE</small>
+              </summary>
+              <div class="selected-satellite-tle-block" aria-label="TLE details">
+                <strong>TLE line 1</strong>
+                <code>${escapeHtml(tleLine1)}</code>
+                <strong>TLE line 2</strong>
+                <code>${escapeHtml(tleLine2)}</code>
+              </div>
+            </details>
+            ${sourceSection}
           </div>`;
         selectedSatelliteDetailPanel.hidden = false;
         syncSelectedSatelliteDetailPanelWidth();
@@ -1613,6 +1679,9 @@
         renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = SCENE_TONE_MAPPING_EXPOSURE;
         // Keep global shadows on; Sun light in drawDayNight3D has shadows disabled by default
         renderer.shadowMap.enabled = true;
         document.body.appendChild(renderer.domElement);
@@ -1626,16 +1695,33 @@
 
         const dirLight = new THREE.DirectionalLight(
             sceneConfig.directionalLight.color,
-            sceneConfig.directionalLight.intensity
+            Math.min(sceneConfig.directionalLight.intensity, 0.08)
         );
+        dirLight.name = 'legacyLowSceneFillLight';
         dirLight.position.set(...sceneConfig.directionalLight.position);
         // Keep shadows off on helper light to save perf
         dirLight.castShadow = false;
         scene.add(dirLight);
 
-        selectedModelFillLight = new THREE.PointLight(0xffffff, 2.0, 0, 1.5);
+        selectedModelFillLight = new THREE.PointLight(
+            0xffffff,
+            SELECTED_MODEL_FILL_LIGHT_INTENSITY,
+            0,
+            SELECTED_MODEL_FILL_LIGHT_DECAY
+        );
         selectedModelFillLight.visible = false;
         scene.add(selectedModelFillLight);
+
+        selectedModelEarthAlbedoTarget = new THREE.Object3D();
+        selectedModelEarthAlbedoTarget.name = 'selectedModelEarthAlbedoTarget';
+        scene.add(selectedModelEarthAlbedoTarget);
+
+        selectedModelEarthAlbedoLight = new THREE.DirectionalLight(0x9fd8ff, 0);
+        selectedModelEarthAlbedoLight.name = 'selectedModelEarthAlbedoLight';
+        selectedModelEarthAlbedoLight.castShadow = false;
+        selectedModelEarthAlbedoLight.visible = false;
+        selectedModelEarthAlbedoLight.target = selectedModelEarthAlbedoTarget;
+        scene.add(selectedModelEarthAlbedoLight);
 
         /* Earth */
         textureLoader = new THREE.TextureLoader();
@@ -2381,6 +2467,7 @@
             scene.remove(detailedSatelliteModel);
             detailedSatelliteModel = null;
             if (selectedModelFillLight) selectedModelFillLight.visible = false;
+            if (selectedModelEarthAlbedoLight) selectedModelEarthAlbedoLight.visible = false;
 
             if (oldNoradId) {
                 const tleSat = satellites.find(s => s.norad_id.toString() === oldNoradId.toString());
@@ -2406,6 +2493,7 @@
             camera.updateProjectionMatrix();
         }
         if (selectedModelFillLight) selectedModelFillLight.visible = false;
+        if (selectedModelEarthAlbedoLight) selectedModelEarthAlbedoLight.visible = false;
     }
 
     function getObjectVisualDiameter(targetObject, fallbackDiameter = 0) {
@@ -2420,17 +2508,26 @@
             : fallbackDiameter;
     }
 
+    function isStarlinkSatelliteData(satData = currentSelectedSatellite) {
+        const text = [
+            satData?.satellite_name,
+            satData?.name,
+            satData?.company,
+            satData?.operator,
+            satData?.meta?.operator,
+            satData?.meta?.manufacturer
+        ].filter(Boolean).join(' ').toLowerCase();
+        return text.includes('starlink') || text.includes('spacex');
+    }
+
     function isStarlinkDetailedModel(targetObject) {
         if (!targetObject || targetObject !== detailedSatelliteModel) return false;
         const modelResolution = targetObject.userData?.modelResolution;
         const assetId = String(modelResolution?.assetId || targetObject.userData?.updatedNoradId || '').toLowerCase();
         const metadataId = String(modelResolution?.metadataId || targetObject.userData?.metadataId || '').toLowerCase();
-        const selectedName = String(currentSelectedSatellite?.satellite_name || currentSelectedSatellite?.name || '').toLowerCase();
-        const selectedCompany = String(currentSelectedSatellite?.company || '').toLowerCase();
         return assetId === STARLINK_MODEL_ASSET_ID.toLowerCase() ||
             metadataId === STARLINK_MODEL_ASSET_ID.toLowerCase() ||
-            selectedName.includes('starlink') ||
-            selectedCompany.includes('starlink');
+            isStarlinkSatelliteData(currentSelectedSatellite);
     }
 
     function isIssSatelliteData(satData = currentSelectedSatellite) {
@@ -2469,8 +2566,8 @@
         return currentSelectedOrbitalFrame(targetPos, propagation);
     }
 
-    function selectedStarlinkCameraFrameOptions(targetPos) {
-        const orbitalFrame = currentStarlinkOrbitalFrame(targetPos);
+    function selectedStarlinkCameraFrameOptions(targetPos, propagation = null) {
+        const orbitalFrame = currentStarlinkOrbitalFrame(targetPos, propagation);
         if (!orbitalFrame) {
             console.warn('[camera] Starlink orbital-frame velocity unavailable; falling back to nadir observer view.');
             return null;
@@ -2486,6 +2583,136 @@
             observerDirection,
             cameraUp
         };
+    }
+
+    function computeSelectedModelObserverFrame(targetObject, propagation = null) {
+        if (!targetObject || !camera) return null;
+        targetObject.updateMatrixWorld(true);
+
+        const targetPos = new THREE.Vector3().setFromMatrixPosition(targetObject.matrixWorld);
+        const selectedNear = Math.max(SELECTED_MODEL_CAMERA_NEAR_SCENE_UNITS, 1e-7);
+        const storedDiameter = targetObject.userData?.selectedView?.modelDiameterSceneUnits ||
+            targetObject.userData?.selectedModelVisualFit?.afterDiameterSceneUnits || 0;
+        const modelDiameter = Number.isFinite(storedDiameter) && storedDiameter > 0
+            ? storedDiameter
+            : getObjectVisualDiameter(targetObject, 0);
+        const starlinkCameraFrame = isStarlinkDetailedModel(targetObject)
+            ? selectedStarlinkCameraFrameOptions(targetPos, propagation)
+            : null;
+        const frame = selectedSatelliteCameraFrame(targetPos, {
+            requestedMeters: SELECTED_SATELLITE_TARGET_METERS,
+            modelDiameterSceneUnits: modelDiameter,
+            cameraNearSceneUnits: selectedNear,
+            earthRadiusSceneUnits: EARTH_SCENE_RADIUS,
+            earthContextDistanceSceneUnits: 0,
+            preservePhysicalDistance: true,
+            observerDirectionScene: starlinkCameraFrame?.observerDirection || null
+        });
+        if (!frame) return null;
+
+        return {
+            frame,
+            targetPos,
+            selectedNear,
+            modelDiameter,
+            cameraPosition: new THREE.Vector3(frame.position.x, frame.position.y, frame.position.z),
+            cameraTarget: new THREE.Vector3(frame.target.x, frame.target.y, frame.target.z),
+            cameraUp: starlinkCameraFrame?.cameraUp || null,
+            observerPlacement: starlinkCameraFrame
+                ? 'starlink-oblique-orbital-frame'
+                : 'selected-model-radial'
+        };
+    }
+
+    function selectedTrackingBasis(trackingFrame) {
+        if (!trackingFrame?.frame?.observerDirection) return null;
+        const viewAxis = new THREE.Vector3(
+            trackingFrame.frame.observerDirection.x,
+            trackingFrame.frame.observerDirection.y,
+            trackingFrame.frame.observerDirection.z
+        );
+        if (viewAxis.lengthSq() < 1e-12) return null;
+        viewAxis.normalize();
+
+        let upAxis = trackingFrame.cameraUp?.clone?.() || camera?.up?.clone?.() || defaultCameraUp?.clone?.();
+        if (!upAxis || upAxis.lengthSq() < 1e-12) upAxis = new THREE.Vector3(0, 1, 0);
+        upAxis.addScaledVector(viewAxis, -upAxis.dot(viewAxis));
+        if (upAxis.lengthSq() < 1e-12) {
+            upAxis = Math.abs(viewAxis.y) < 0.95
+                ? new THREE.Vector3(0, 1, 0)
+                : new THREE.Vector3(1, 0, 0);
+            upAxis.addScaledVector(viewAxis, -upAxis.dot(viewAxis));
+        }
+        if (upAxis.lengthSq() < 1e-12) return null;
+        upAxis.normalize();
+
+        const rightAxis = new THREE.Vector3().crossVectors(upAxis, viewAxis);
+        if (rightAxis.lengthSq() < 1e-12) return null;
+        rightAxis.normalize();
+
+        return { rightAxis, upAxis, viewAxis };
+    }
+
+    function cameraOffsetToSelectedFrameLocal(cameraPosition, targetPosition, basis) {
+        if (!cameraPosition || !targetPosition || !basis) return null;
+        const offset = cameraPosition.clone().sub(targetPosition);
+        return new THREE.Vector3(
+            offset.dot(basis.rightAxis),
+            offset.dot(basis.upAxis),
+            offset.dot(basis.viewAxis)
+        );
+    }
+
+    function selectedFrameLocalToCameraOffset(localOffset, basis) {
+        if (!localOffset || !basis) return null;
+        return new THREE.Vector3()
+            .addScaledVector(basis.rightAxis, localOffset.x)
+            .addScaledVector(basis.upAxis, localOffset.y)
+            .addScaledVector(basis.viewAxis, localOffset.z);
+    }
+
+    function updateSelectedModelLighting(jDay) {
+        const hasDetailedModel = !!(detailedSatelliteModel?.visible && currentSelectedSatellite?.satrec);
+
+        if (selectedModelFillLight) {
+            selectedModelFillLight.visible = hasDetailedModel && SELECTED_MODEL_FILL_LIGHT_INTENSITY > 0;
+            selectedModelFillLight.intensity = SELECTED_MODEL_FILL_LIGHT_INTENSITY;
+            if (selectedModelFillLight.visible) {
+                selectedModelFillLight.position.copy(camera.position);
+            }
+        }
+
+        if (!selectedModelEarthAlbedoLight || !selectedModelEarthAlbedoTarget) return;
+        if (!hasDetailedModel) {
+            selectedModelEarthAlbedoLight.visible = false;
+            return;
+        }
+
+        const satPos = V_TMP1.copy(detailedSatelliteModel.position);
+        if (satPos.lengthSq() < 1e-12) {
+            selectedModelEarthAlbedoLight.visible = false;
+            return;
+        }
+
+        const earthToSatellite = V_TMP2.copy(satPos).normalize();
+        const sunDirection = V_TMP3.copy(sunSceneVectorFromJD(jDay, 1)).normalize();
+        const sunlitEarthFactor = Math.max(
+            SELECTED_MODEL_EARTH_ALBEDO_MIN_FACTOR,
+            Math.max(0, earthToSatellite.dot(sunDirection))
+        );
+        const distanceFactor = Math.min(
+            1,
+            Math.pow(EARTH_SCENE_RADIUS / Math.max(EARTH_SCENE_RADIUS, satPos.length()), 1.2)
+        );
+        const albedoIntensity = SELECTED_MODEL_EARTH_ALBEDO_INTENSITY * sunlitEarthFactor * distanceFactor;
+
+        selectedModelEarthAlbedoLight.visible = albedoIntensity > 0.001;
+        selectedModelEarthAlbedoLight.intensity = albedoIntensity;
+        selectedModelEarthAlbedoLight.position.copy(
+            V_TMP4.copy(earthToSatellite).multiplyScalar(EARTH_SCENE_RADIUS * 0.98)
+        );
+        selectedModelEarthAlbedoTarget.position.copy(satPos);
+        selectedModelEarthAlbedoLight.target.updateMatrixWorld();
     }
 
     function normalizeSelectedModelVisualFit(targetObject) {
@@ -2534,7 +2761,9 @@
         targetObject.updateMatrixWorld(true);
         selectedModelTracking = {
             targetObject,
-            lastTargetPosition: new THREE.Vector3().setFromMatrixPosition(targetObject.matrixWorld)
+            lastTargetPosition: new THREE.Vector3().setFromMatrixPosition(targetObject.matrixWorld),
+            lastFrameBasis: null,
+            localCameraOffset: null
         };
     }
 
@@ -2542,7 +2771,7 @@
         selectedModelTracking = null;
     }
 
-    function updateSelectedModelTracking() {
+    function updateSelectedModelTracking(propagation = null) {
         if (!selectedModelTracking?.targetObject || !camera || !controls || !simParams.view3D) return;
         const targetObject = selectedModelTracking.targetObject;
         if (targetObject !== detailedSatelliteModel || !targetObject.visible) {
@@ -2550,21 +2779,69 @@
             return;
         }
 
-        targetObject.updateMatrixWorld(true);
-        const targetPos = V_TMP1.setFromMatrixPosition(targetObject.matrixWorld);
-        const delta = V_TMP2.copy(targetPos).sub(selectedModelTracking.lastTargetPosition);
+        const trackingFrame = computeSelectedModelObserverFrame(targetObject, propagation);
+        if (!trackingFrame) {
+            targetObject.updateMatrixWorld(true);
+            const targetPos = V_TMP1.setFromMatrixPosition(targetObject.matrixWorld);
+            const delta = V_TMP2.copy(targetPos).sub(selectedModelTracking.lastTargetPosition);
 
-        if (delta.lengthSq() > 0) {
-            if (cameraMove) {
-                cameraMove.endCamPos.add(delta);
-                cameraMove.endTarget.add(delta);
-            } else {
-                camera.position.add(delta);
+            if (delta.lengthSq() > 0) {
+                if (cameraMove) {
+                    cameraMove.endCamPos.add(delta);
+                    cameraMove.endTarget.add(delta);
+                } else {
+                    camera.position.add(delta);
+                }
             }
+
+            controls.target.copy(targetPos);
+            selectedModelTracking.lastTargetPosition.copy(targetPos);
+            controls.update();
+            return;
         }
 
-        controls.target.copy(targetPos);
-        selectedModelTracking.lastTargetPosition.copy(targetPos);
+        if (trackingFrame.cameraUp) {
+            camera.up.copy(trackingFrame.cameraUp);
+        } else if (defaultCameraUp) {
+            camera.up.copy(defaultCameraUp);
+        }
+
+        const basis = selectedTrackingBasis(trackingFrame);
+        if (!basis) return;
+
+        if (cameraMove) {
+            cameraMove.endCamPos.copy(trackingFrame.cameraPosition);
+            cameraMove.endTarget.copy(trackingFrame.cameraTarget);
+            selectedModelTracking.localCameraOffset = cameraOffsetToSelectedFrameLocal(
+                trackingFrame.cameraPosition,
+                trackingFrame.cameraTarget,
+                basis
+            );
+            selectedModelTracking.lastFrameBasis = basis;
+        } else {
+            if (selectedModelTracking.lastFrameBasis) {
+                selectedModelTracking.localCameraOffset = cameraOffsetToSelectedFrameLocal(
+                    camera.position,
+                    controls.target,
+                    selectedModelTracking.lastFrameBasis
+                ) || selectedModelTracking.localCameraOffset;
+            }
+            if (!selectedModelTracking.localCameraOffset) {
+                selectedModelTracking.localCameraOffset = cameraOffsetToSelectedFrameLocal(
+                    trackingFrame.cameraPosition,
+                    trackingFrame.cameraTarget,
+                    basis
+                );
+            }
+            const cameraOffset = selectedFrameLocalToCameraOffset(selectedModelTracking.localCameraOffset, basis);
+            if (cameraOffset) {
+                camera.position.copy(trackingFrame.cameraTarget).add(cameraOffset);
+            }
+            controls.target.copy(trackingFrame.cameraTarget);
+            selectedModelTracking.lastFrameBasis = basis;
+        }
+
+        selectedModelTracking.lastTargetPosition.copy(trackingFrame.targetPos);
         controls.update();
     }
 
@@ -2603,23 +2880,25 @@
 
         const targetPos = V_TMP2.setFromMatrixPosition(targetObject.matrixWorld);
         const spriteDiameter = Math.max(...(satelliteConfig.scale || [0.25, 0.25, 1]));
-        const modelDiameter = isSprite
+        let modelDiameter = isSprite
             ? spriteDiameter
             : getObjectVisualDiameter(targetObject, spriteDiameter);
-        const selectedNear = isSprite
+        let selectedNear = isSprite
             ? (defaultCameraNear ?? camera.near)
             : Math.max(SELECTED_MODEL_CAMERA_NEAR_SCENE_UNITS, 1e-7);
-        const starlinkCameraFrame = !isSprite && isStarlinkDetailedModel(targetObject)
-            ? selectedStarlinkCameraFrameOptions(targetPos)
-            : null;
-        const frame = selectedSatelliteCameraFrame(targetPos, {
+        const selectedObserverFrame = isSprite ? null : computeSelectedModelObserverFrame(targetObject);
+        if (selectedObserverFrame) {
+            modelDiameter = selectedObserverFrame.modelDiameter;
+            selectedNear = selectedObserverFrame.selectedNear;
+        }
+        const frame = selectedObserverFrame?.frame || selectedSatelliteCameraFrame(targetPos, {
             requestedMeters: SELECTED_SATELLITE_TARGET_METERS,
             modelDiameterSceneUnits: modelDiameter,
             cameraNearSceneUnits: selectedNear,
             earthRadiusSceneUnits: EARTH_SCENE_RADIUS,
             earthContextDistanceSceneUnits: isSprite ? EARTH_SCENE_RADIUS * 0.035 : 0,
             preservePhysicalDistance: !isSprite,
-            observerDirectionScene: starlinkCameraFrame?.observerDirection || null
+            observerDirectionScene: null
         });
         if (!frame) return;
 
@@ -2630,18 +2909,18 @@
         controls.minDistance = Math.max(camera.near * 1.5, frame.observerDistanceSceneUnits * 0.15);
         controls.maxDistance = defaultControlsMaxDistance ?? EARTH_SCENE_RADIUS * 20;
 
-        const endCamPos = new THREE.Vector3(
+        const endCamPos = selectedObserverFrame?.cameraPosition || new THREE.Vector3(
             frame.position.x,
             frame.position.y,
             frame.position.z
         );
-        const endTarget = new THREE.Vector3(
+        const endTarget = selectedObserverFrame?.cameraTarget || new THREE.Vector3(
             frame.target.x,
             frame.target.y,
             frame.target.z
         );
-        if (starlinkCameraFrame?.cameraUp) {
-            camera.up.copy(starlinkCameraFrame.cameraUp);
+        if (selectedObserverFrame?.cameraUp) {
+            camera.up.copy(selectedObserverFrame.cameraUp);
         } else if (defaultCameraUp) {
             camera.up.copy(defaultCameraUp);
         }
@@ -2666,15 +2945,15 @@
                 earthRadiusSceneUnits: EARTH_SCENE_RADIUS,
                 cameraFovDeg: camera.fov
             }),
-            observerPlacement: starlinkCameraFrame
-                ? 'starlink-oblique-orbital-frame'
-                : (isSprite ? 'sprite-radial' : 'selected-model-radial'),
+            observerPlacement: isSprite
+                ? 'sprite-radial'
+                : (selectedObserverFrame?.observerPlacement || 'selected-model-radial'),
             observerDirection: frame.observerDirection,
-            cameraUp: starlinkCameraFrame?.cameraUp
+            cameraUp: selectedObserverFrame?.cameraUp
                 ? {
-                    x: starlinkCameraFrame.cameraUp.x,
-                    y: starlinkCameraFrame.cameraUp.y,
-                    z: starlinkCameraFrame.cameraUp.z
+                    x: selectedObserverFrame.cameraUp.x,
+                    y: selectedObserverFrame.cameraUp.y,
+                    z: selectedObserverFrame.cameraUp.z
                 }
                 : null
         };
@@ -2732,27 +3011,40 @@
                 const calibrationYawDeg = isIssModel ? ISS_MODEL_CALIBRATION_YAW_DEG : STARLINK_MODEL_CALIBRATION_YAW_DEG;
                 const calibrationPitchDeg = isIssModel ? ISS_MODEL_CALIBRATION_PITCH_DEG : 0;
                 const calibrationRollDeg = isIssModel ? ISS_MODEL_CALIBRATION_ROLL_DEG : 0;
+                const orientationBias = selectedSatelliteOrientationBias(isIssModel);
                 q = selectedSatelliteOrbitalFrameQuaternion(Q_TMP1, satPos, velocityScene, {
-                    yawDeg: simParams.yawDeg,
-                    pitchDeg: simParams.pitchDeg,
-                    rollDeg: simParams.rollDeg,
+                    yawDeg: orientationBias.yawDeg,
+                    pitchDeg: orientationBias.pitchDeg,
+                    rollDeg: orientationBias.rollDeg,
                     calibrationYawDeg,
                     calibrationPitchDeg,
-                    calibrationRollDeg
+                    calibrationRollDeg,
+                    modelAxisMapping: isIssModel ? ISS_MODEL_AXIS_MAPPING : 'x-velocity-y-crosstrack-z-nadir'
                 });
                 if (q && detailedSatelliteModel?.userData) {
                     const orbitalFrame = currentSelectedOrbitalFrame(satPos, pv);
                     if (isIssModel) {
                         detailedSatelliteModel.userData.issOrbitalFrame = orbitalFrame;
-                        detailedSatelliteModel.userData.orientationMode = 'iss-velocity-nadir-frame';
-                        detailedSatelliteModel.userData.modelAxisMapping = '+X velocity, +Y starboard right-handed cross-track, +Z nadir';
+                        detailedSatelliteModel.userData.orientationMode = 'iss-velocity-pitch-nadir-frame';
+                        detailedSatelliteModel.userData.modelAxisMapping = '+X velocity, +Y pitch/nadir toward Earth, +Z negative right-handed cross-track';
+                        detailedSatelliteModel.userData.pitchAxisEarthFacing = true;
                         detailedSatelliteModel.userData.calibrationYawDeg = calibrationYawDeg;
                         detailedSatelliteModel.userData.calibrationPitchDeg = calibrationPitchDeg;
                         detailedSatelliteModel.userData.calibrationRollDeg = calibrationRollDeg;
+                        detailedSatelliteModel.userData.controlMapping = orientationBias.controlMapping;
+                        detailedSatelliteModel.userData.controlYawDeg = simParams.yawDeg;
+                        detailedSatelliteModel.userData.controlPitchDeg = simParams.pitchDeg;
+                        detailedSatelliteModel.userData.appliedYawDeg = orientationBias.yawDeg;
+                        detailedSatelliteModel.userData.appliedPitchDeg = orientationBias.pitchDeg;
                         if (!detailedSatelliteModel.userData.issOrientationCalibrationLogged) {
                             console.info('[model] ISS orientation calibration applied.', {
                                 orientationMode: detailedSatelliteModel.userData.orientationMode,
                                 modelAxisMapping: detailedSatelliteModel.userData.modelAxisMapping,
+                                controlMapping: detailedSatelliteModel.userData.controlMapping,
+                                controlYawDeg: detailedSatelliteModel.userData.controlYawDeg,
+                                controlPitchDeg: detailedSatelliteModel.userData.controlPitchDeg,
+                                appliedYawDeg: detailedSatelliteModel.userData.appliedYawDeg,
+                                appliedPitchDeg: detailedSatelliteModel.userData.appliedPitchDeg,
                                 calibrationYawDeg,
                                 calibrationPitchDeg,
                                 calibrationRollDeg
@@ -2772,7 +3064,7 @@
         }
         if (!q) {
             q = nadirPointingQuaternion(Q_TMP1, satPos, {
-                earthFacingAxis: SELECTED_SATELLITE_EARTH_FACING_AXIS,
+                earthFacingAxis: isIssModel ? ISS_MODEL_EARTH_FACING_AXIS : SELECTED_SATELLITE_EARTH_FACING_AXIS,
                 yawDeg: simParams.yawDeg,
                 pitchDeg: simParams.pitchDeg,
                 rollDeg: simParams.rollDeg
@@ -2781,7 +3073,9 @@
         if (!q) return null;
         if (detailedSatelliteModel?.visible) {
             detailedSatelliteModel.quaternion.copy(q);
-            detailedSatelliteModel.userData.earthFacingAxis = SELECTED_SATELLITE_MODEL_AXIS_NOTE;
+            detailedSatelliteModel.userData.earthFacingAxis = isIssModel
+                ? ISS_MODEL_AXIS_NOTE
+                : SELECTED_SATELLITE_MODEL_AXIS_NOTE;
         }
         return q;
     }
@@ -3027,20 +3321,21 @@
         }
 
         /* Detailed model (selected) */
+        let selectedPropagation = null;
         if (detailedSatelliteModel?.visible && currentSelectedSatellite?.satrec) {
-            const pv = satellite.propagate(currentSelectedSatellite.satrec, SIM_DATE);
-            if (pv?.position) {
-                eciToSceneVector(detailedSatelliteModel.position, pv.position);
-                applySelectedSatelliteNadirOrientation();
+            selectedPropagation = satellite.propagate(currentSelectedSatellite.satrec, SIM_DATE);
+            if (selectedPropagation?.position) {
+                eciToSceneVector(detailedSatelliteModel.position, selectedPropagation.position);
+                applySelectedSatelliteNadirOrientation(selectedPropagation);
             }
             if (selectedModelFillLight) {
                 selectedModelFillLight.visible = true;
-                selectedModelFillLight.position.copy(camera.position);
             }
         } else if (selectedModelFillLight) {
             selectedModelFillLight.visible = false;
         }
-        updateSelectedModelTracking();
+        updateSelectedModelTracking(selectedPropagation);
+        updateSelectedModelLighting(jDay);
 
         /* LVLH orbit frame (selected) */
         if (simParams.showOrbitFrame && orbitFrame && currentSelectedSatellite?.satrec && currentSelectedSatellite.mesh?.visible) {
@@ -3092,6 +3387,15 @@
             simDate: SIM_DATE
         });
 
+        /* Sun light, Sun visuals, and Moon must update before the 3-D render */
+        drawDayNight3D(scene, earthMesh, SIM_DATE, {
+            showSun:  simParams.showDayNight && simParams.view3D,
+            showHalo: simParams.showDayNight && simParams.view3D,
+            earthRadius: EARTH_SCENE_RADIUS,
+            sunIntensity: SUN_LIGHT_INTENSITY
+        });
+        if (moon) updateMoon(moon, SIM_DATE);
+
         /* Render 3-D vs Mercator */
         const show3D = simParams.view3D;
         if (renderer) renderer.domElement.style.display = show3D ? 'block' : 'none';
@@ -3111,6 +3415,7 @@
             if (simParams.viewMercator) {
                 mercatorContainer.style.display = 'block';
                 mercatorContainer.classList.toggle('fullscreen', !show3D);
+                mercatorContainer.classList.toggle('globe-overlay', show3D);
                 if (mercatorCanvasElement && mapBackgroundDiv) {
                     const w = mapBackgroundDiv.clientWidth;
                     const h = mapBackgroundDiv.clientHeight;
@@ -3138,20 +3443,10 @@
                 }
             } else {
                 mercatorContainer.style.display = 'none';
+                mercatorContainer.classList.remove('fullscreen', 'globe-overlay');
             }
         }
 
-        /* Day / Night & Sun */
-        if (simParams.showDayNight) {
-            drawDayNight3D(scene, earthMesh, SIM_DATE, {
-                showSun:  simParams.view3D,
-                showHalo: simParams.view3D,
-                earthRadius: EARTH_SCENE_RADIUS
-            });
-        }
-
-        /* Moon */
-        if (moon) updateMoon(moon, SIM_DATE);
     }
 
     function onWindowResize() {

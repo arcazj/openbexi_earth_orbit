@@ -200,6 +200,16 @@ canvas {
     width: 400px;
     height: 200px;
     background-color: #111;
+    z-index: 850;
+}
+
+#mercatorContainer.globe-overlay {
+    top: auto;
+    bottom: 10px;
+    left: auto;
+    right: 10px;
+    width: min(400px, calc(100vw - 20px));
+    height: min(200px, calc((100vw - 20px) * 0.5));
 }
 
 #mercatorContainer.fullscreen {
@@ -541,10 +551,69 @@ canvas {
     padding: 10px 12px 12px;
 }
 
+.selected-satellite-detail-section {
+    border: 1px solid rgba(126, 186, 255, 0.18);
+    border-radius: 9px;
+    background: rgba(2, 10, 20, 0.22);
+    overflow: hidden;
+}
+
+.selected-satellite-detail-section + .selected-satellite-detail-section {
+    margin-top: 8px;
+}
+
+.selected-satellite-detail-section summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 10px;
+    color: #8ecbff;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+}
+
+.selected-satellite-detail-section summary::-webkit-details-marker {
+    display: none;
+}
+
+.selected-satellite-detail-section summary::after {
+    content: "+";
+    display: inline-grid;
+    place-items: center;
+    min-width: 18px;
+    height: 18px;
+    border: 1px solid rgba(126, 186, 255, 0.28);
+    border-radius: 50%;
+    color: #ffe58a;
+    font-weight: 800;
+}
+
+.selected-satellite-detail-section[open] summary::after {
+    content: "-";
+}
+
+.selected-satellite-detail-section summary span {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.selected-satellite-detail-section summary small {
+    margin-left: auto;
+    color: #8faecb;
+    font-size: 10px;
+    font-weight: 600;
+}
+
 .selected-satellite-detail-table {
     width: 100%;
     border-collapse: collapse;
     font-size: 11px;
+    margin: 0 10px 10px;
+    width: calc(100% - 20px);
 }
 
 .selected-satellite-detail-table th,
@@ -570,7 +639,7 @@ canvas {
 .selected-satellite-tle-block {
     display: grid;
     gap: 5px;
-    margin-top: 10px;
+    margin: 0 10px 10px;
 }
 
 .selected-satellite-tle-block strong {
@@ -592,6 +661,15 @@ canvas {
     font-family: "SF Mono", "Roboto Mono", "Fira Mono", Menlo, Consolas, monospace;
     font-size: 10px;
     line-height: 1.35;
+}
+
+.selected-satellite-source-detail {
+    margin: 0 10px 10px;
+    color: #ff3b30;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
 }
 
 #timeWarpBox {

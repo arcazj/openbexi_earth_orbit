@@ -24,8 +24,14 @@ export const SATELLITE_MODELS_BASE_URL =
 export const SATELLITE_OBJ_BASE_URL =
     appWindow.SATELLITE_OBJ_BASE_URL  || 'obj/';
 
-// Optional global renderer (for anisotropy)
-const renderer = appWindow.renderer || null;
+const SELECTED_VIEW_MAX_SPECULAR_CHANNEL = 0.18;
+const SELECTED_VIEW_MAX_SHININESS = 65;
+const SELECTED_VIEW_MAX_METALNESS = 0.55;
+const SELECTED_VIEW_MIN_ROUGHNESS = 0.5;
+
+function currentRenderer() {
+    return appWindow.renderer || globalThis.window?.renderer || null;
+}
 
 /* ───────────────────────── Utilities & helpers ──────────────────────────── */
 export function getNominalAltMeters(meta = {}) {
@@ -94,6 +100,45 @@ function ensureVisibleMaterial(material) {
     if (!material.map && material.color?.set && materialColorLooksBlack(material)) {
         material.color.set(0xcfd8ff);
     }
+    prepareSelectedMaterialResponse(material);
+    material.needsUpdate = true;
+    return material;
+}
+
+function prepareColorTexture(texture) {
+    if (!texture?.isTexture) return;
+    if (THREE.SRGBColorSpace !== undefined) {
+        texture.colorSpace = THREE.SRGBColorSpace;
+    }
+    texture.needsUpdate = true;
+}
+
+function clampPhongSpecular(material) {
+    if (!material?.specular) return;
+    ['r', 'g', 'b'].forEach(channel => {
+        const value = material.specular[channel];
+        if (Number.isFinite(value)) {
+            material.specular[channel] = Math.min(value, SELECTED_VIEW_MAX_SPECULAR_CHANNEL);
+        }
+    });
+}
+
+function prepareSelectedMaterialResponse(material) {
+    if (!material) return material;
+
+    prepareColorTexture(material.map);
+    clampPhongSpecular(material);
+
+    if (Number.isFinite(material.shininess)) {
+        material.shininess = Math.min(material.shininess, SELECTED_VIEW_MAX_SHININESS);
+    }
+    if (Number.isFinite(material.metalness)) {
+        material.metalness = Math.min(material.metalness, SELECTED_VIEW_MAX_METALNESS);
+    }
+    if (Number.isFinite(material.roughness)) {
+        material.roughness = Math.max(material.roughness, SELECTED_VIEW_MIN_ROUGHNESS);
+    }
+
     material.needsUpdate = true;
     return material;
 }
@@ -178,6 +223,7 @@ export function prepareModelForSelectedView(root) {
 }
 
 function setTextureAnisotropy(material) {
+    const renderer = currentRenderer();
     if (!renderer) return;
     const maxAniso = renderer.capabilities.getMaxAnisotropy();
     const apply = tex => {

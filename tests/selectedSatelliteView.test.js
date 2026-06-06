@@ -149,15 +149,20 @@ function run() {
     orbitalSatPos,
     orbitalVelocity,
     {
+      modelAxisMapping: 'x-velocity-y-nadir-z-negative-crosstrack',
       calibrationYawDeg: 0,
       calibrationPitchDeg: 0,
       calibrationRollDeg: 0
     }
   );
-  assert(issQ, 'ISS orbital-frame quaternion is available');
+  assert(issQ, 'ISS pitch-nadir orbital-frame quaternion is available');
   vectorClose(rotateVectorByQuaternion({ x: 1, y: 0, z: 0 }, issQ), orbitalFrame.xAxis, 1e-12);
-  vectorClose(rotateVectorByQuaternion({ x: 0, y: 1, z: 0 }, issQ), orbitalFrame.yAxis, 1e-12);
-  vectorClose(rotateVectorByQuaternion({ x: 0, y: 0, z: 1 }, issQ), orbitalFrame.zAxis, 1e-12);
+  vectorClose(rotateVectorByQuaternion({ x: 0, y: 1, z: 0 }, issQ), orbitalFrame.zAxis, 1e-12);
+  vectorClose(rotateVectorByQuaternion({ x: 0, y: 0, z: 1 }, issQ), {
+    x: -orbitalFrame.yAxis.x,
+    y: -orbitalFrame.yAxis.y,
+    z: -orbitalFrame.yAxis.z
+  }, 1e-12);
 
   const observerDirection = selectedSatelliteObliqueObserverDirection(orbitalFrame);
   assert(observerDirection, 'Starlink oblique observer direction is available');

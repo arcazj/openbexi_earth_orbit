@@ -529,6 +529,25 @@ function setQuaternionFromEulerZYX(out, rollRad, pitchRad, yawRad) {
     return normalizeQuaternion(out);
 }
 
+function orbitalFrameModelBasis(frame, modelAxisMapping = 'x-velocity-y-crosstrack-z-nadir') {
+    if (modelAxisMapping === 'x-velocity-y-nadir-z-negative-crosstrack') {
+        return {
+            xAxis: frame.xAxis,
+            yAxis: frame.zAxis,
+            zAxis: new THREE.Vector3(
+                -frame.yAxis.x,
+                -frame.yAxis.y,
+                -frame.yAxis.z
+            )
+        };
+    }
+    return {
+        xAxis: frame.xAxis,
+        yAxis: frame.yAxis,
+        zAxis: frame.zAxis
+    };
+}
+
 export function nadirDirectionScene(satellitePositionScene, earthCenterScene = { x: 0, y: 0, z: 0 }) {
     if (!isFiniteVector3Like(satellitePositionScene) || !isFiniteVector3Like(earthCenterScene)) {
         return null;
@@ -570,18 +589,20 @@ export function selectedSatelliteOrbitalFrameQuaternion(out, satellitePositionSc
     rollDeg = 0,
     calibrationYawDeg = 0,
     calibrationPitchDeg = 0,
-    calibrationRollDeg = 0
+    calibrationRollDeg = 0,
+    modelAxisMapping = 'x-velocity-y-crosstrack-z-nadir'
 } = {}) {
     const frame = selectedSatelliteOrbitalFrame(satellitePositionScene, satelliteVelocityScene, {
         earthCenterScene
     });
     if (!frame) return null;
 
+    const modelBasis = orbitalFrameModelBasis(frame, modelAxisMapping);
     const base = setQuaternionFromBasis(
         new THREE.Quaternion(),
-        frame.xAxis,
-        frame.yAxis,
-        frame.zAxis
+        modelBasis.xAxis,
+        modelBasis.yAxis,
+        modelBasis.zAxis
     );
     const calibration = setQuaternionFromEulerZYX(
         new THREE.Quaternion(),
@@ -602,5 +623,6 @@ export function selectedSatelliteOrbitalFrameQuaternion(out, satellitePositionSc
 export const __sceneFrameTestHooks = Object.freeze({
     dotVectors,
     copyQuaternion,
+    orbitalFrameModelBasis,
     setQuaternionFromBasis
 });

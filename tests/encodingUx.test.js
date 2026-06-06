@@ -12,10 +12,12 @@ const mojibakePatterns = [
 
 const filesToScan = [
   'index.html',
+  'display_satellite.html',
   'css/style.css',
   'js/SatelliteMenuLoader.js',
   'js/ganttTimelineLoader.js',
   'js/reentryTimeline.js',
+  'json/display_satellite_models.json',
   'markdown_viewer.html',
   'LICENSE.md',
   'README.md',

@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenBEXI Markdown Viewer</title>
+    <style>
+        :root {
+            --bg: #06101c;
+            --panel: rgba(9, 20, 35, 0.92);
+            --line: rgba(126, 186, 255, 0.24);
+            --text: #dcefff;
+            --muted: #91aac3;
+            --accent: #8ecbff;
+            --code: #fff1b8;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100vh;
+            margin: 0;
+            background:
+                radial-gradient(circle at 20% 0%, rgba(70, 134, 204, 0.28), transparent 36rem),
+                radial-gradient(circle at 85% 10%, rgba(53, 185, 169, 0.18), transparent 30rem),
+                linear-gradient(180deg, #071424, var(--bg));
+            color: var(--text);
+            font-family: Georgia, "Times New Roman", serif;
+            line-height: 1.55;
+        }
+
+        .viewer-shell {
+            width: min(980px, calc(100vw - 32px));
+            margin: 0 auto;
+            padding: 28px 0 54px;
+        }
+
+        .viewer-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 18px;
+            padding: 16px 18px;
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            background: rgba(6, 16, 28, 0.72);
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.24);
+            backdrop-filter: blur(10px);
+        }
+
+        .viewer-title {
+            display: grid;
+            gap: 2px;
+        }
+
+        .viewer-title span {
+            color: var(--muted);
+            font-size: 12px;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+        }
+
+        h1 {
+            margin: 0;
+            color: #ffffff;
+            font-size: clamp(26px, 5vw, 46px);
+            line-height: 1.05;
+        }
+
+        .viewer-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .viewer-actions a {
+            display: inline-flex;
+            align-items: center;
+            min-height: 36px;
+            padding: 8px 12px;
+            border: 1px solid rgba(142, 203, 255, 0.36);
+            border-radius: 999px;
+            color: var(--accent);
+            background: rgba(0, 0, 0, 0.18);
+            font: 600 12px Arial, sans-serif;
+            text-decoration: none;
+        }
+
+        .viewer-actions a:hover,
+        .viewer-actions a:focus-visible {
+            color: #ffffff;
+            border-color: rgba(142, 203, 255, 0.72);
+        }
+
+        #viewerStatus {
+            margin: 0 0 14px;
+            color: var(--muted);
+            font: 13px Arial, sans-serif;
+        }
+
+        .markdown-document {
+            padding: clamp(18px, 4vw, 34px);
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            background: var(--panel);
+            box-shadow: 0 24px 54px rgba(0, 0, 0, 0.32);
+            overflow-wrap: anywhere;
+        }
+
+        .markdown-document h1,
+        .markdown-document h2,
+        .markdown-document h3,
+        .markdown-document h4,
+        .markdown-document h5,
+        .markdown-document h6 {
+            color: #ffffff;
+            margin: 1.15em 0 0.45em;
+            line-height: 1.16;
+        }
+
+        .markdown-document h1:first-child,
+        .markdown-document h2:first-child {
+            margin-top: 0;
+        }
+
+        .markdown-document p,
+        .markdown-document ul,
+        .markdown-document ol,
+        .markdown-document blockquote,
+        .markdown-document pre {
+            margin: 0 0 1em;
+        }
+
+        .markdown-document ul,
+        .markdown-document ol {
+            padding-left: 1.5rem;
+        }
+
+        .markdown-document a {
+            color: var(--accent);
+        }
+
+        .markdown-document code {
+            color: var(--code);
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 5px;
+            padding: 0.1rem 0.32rem;
+            font-family: "SF Mono", "Roboto Mono", "Fira Mono", Menlo, Consolas, monospace;
+            font-size: 0.92em;
+        }
+
+        .markdown-document pre {
+            overflow-x: auto;
+            border: 1px solid rgba(184, 220, 255, 0.18);
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.38);
+            padding: 12px;
+        }
+
+        .markdown-document pre code {
+            display: block;
+            padding: 0;
+            background: transparent;
+        }
+
+        .markdown-document blockquote {
+            border-left: 4px solid rgba(142, 203, 255, 0.72);
+            padding-left: 12px;
+            color: #c3d8ec;
+        }
+
+        .markdown-document img {
+            max-width: 100%;
+            border-radius: 10px;
+        }
+
+        .markdown-document hr {
+            border: 0;
+            border-top: 1px solid var(--line);
+            margin: 1.4rem 0;
+        }
+
+        @media (max-width: 640px) {
+            .viewer-header {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .viewer-actions {
+                justify-content: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+<main class="viewer-shell">
+    <header class="viewer-header">
+        <div class="viewer-title">
+            <span>OpenBEXI Earth Orbit</span>
+            <h1 id="documentTitle">Markdown Viewer</h1>
+        </div>
+        <nav class="viewer-actions" aria-label="Document links">
+            <a id="rawDocumentLink" href="README.md">Open Raw Markdown</a>
+            <a href="index.html">Back to App</a>
+        </nav>
+    </header>
+    <p id="viewerStatus">Loading Markdown...</p>
+    <article id="markdownContent" class="markdown-document" aria-live="polite"></article>
+</main>
+
+<script>
+    const ALLOWED_MARKDOWN_SOURCES = new Map([
+        ['README.md', 'README'],
+        ['PROMPT_History.md', 'Releases History'],
+        ['LICENSE.md', 'Licenses']
+    ]);
+
+    const params = new URLSearchParams(window.location.search);
+    const requestedSource = params.get('source') || 'README.md';
+    const source = ALLOWED_MARKDOWN_SOURCES.has(requestedSource) ? requestedSource : 'README.md';
+    const title = params.get('title') || ALLOWED_MARKDOWN_SOURCES.get(source) || source;
+    const documentTitle = document.getElementById('documentTitle');
+    const rawDocumentLink = document.getElementById('rawDocumentLink');
+    const viewerStatus = document.getElementById('viewerStatus');
+    const markdownContent = document.getElementById('markdownContent');
+
+    document.title = `${title} - OpenBEXI Markdown Viewer`;
+    documentTitle.textContent = title;
+    rawDocumentLink.href = source;
+    rawDocumentLink.textContent = `Open ${source}`;
+
+    function escapeHtml(value = '') {
+        return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function safeMarkdownHref(rawHref = '') {
+        const href = String(rawHref).trim();
+        if (!href || /^(javascript|data|vbscript|file):/i.test(href)) return '';
+        try {
+            const url = new URL(href, window.location.href);
+            if (!['http:', 'https:', 'mailto:'].includes(url.protocol)) return '';
+            return url.href;
+        } catch (err) {
+            return '';
+        }
+    }
+
+    function renderMarkdownInline(text = '') {
+        let html = escapeHtml(text);
+        html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (match, alt, href) => {
+            const safeHref = safeMarkdownHref(href.replace(/&amp;/g, '&'));
+            if (!safeHref) return escapeHtml(alt);
+            return `<img src="${escapeHtml(safeHref)}" alt="${escapeHtml(alt)}">`;
+        });
+        html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, label, href) => {
+            const safeHref = safeMarkdownHref(href.replace(/&amp;/g, '&'));
+            if (!safeHref) return label;
+            return `<a href="${escapeHtml(safeHref)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+        });
+        html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+        html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+        return html;
+    }
+
+    function renderMarkdown(markdown = '') {
+        const lines = String(markdown).replace(/\r\n/g, '\n').split('\n');
+        const html = [];
+        const paragraph = [];
+        let listTag = '';
+        let codeBuffer = [];
+        let inCodeBlock = false;
+
+        const closeList = () => {
+            if (listTag) html.push(`</${listTag}>`);
+            listTag = '';
+        };
+        const flushParagraph = () => {
+            if (!paragraph.length) return;
+            html.push(`<p>${renderMarkdownInline(paragraph.join(' '))}</p>`);
+            paragraph.length = 0;
+        };
+        const flushCodeBlock = () => {
+            html.push(`<pre><code>${escapeHtml(codeBuffer.join('\n'))}</code></pre>`);
+            codeBuffer = [];
+        };
+
+        lines.forEach(line => {
+            if (/^\s*```/.test(line)) {
+                flushParagraph();
+                closeList();
+                if (inCodeBlock) {
+                    flushCodeBlock();
+                    inCodeBlock = false;
+                } else {
+                    inCodeBlock = true;
+                    codeBuffer = [];
+                }
+                return;
+            }
+
+            if (inCodeBlock) {
+                codeBuffer.push(line);
+                return;
+            }
+
+            const trimmed = line.trim();
+            if (!trimmed) {
+                flushParagraph();
+                closeList();
+                return;
+            }
+
+            if (/^---+$/.test(trimmed)) {
+                flushParagraph();
+                closeList();
+                html.push('<hr>');
+                return;
+            }
+
+            const heading = trimmed.match(/^(#{1,6})\s+(.+)$/);
+            if (heading) {
+                flushParagraph();
+                closeList();
+                const level = Math.min(heading[1].length, 6);
+                html.push(`<h${level}>${renderMarkdownInline(heading[2])}</h${level}>`);
+                return;
+            }
+
+            const quote = trimmed.match(/^>\s+(.+)$/);
+            if (quote) {
+                flushParagraph();
+                closeList();
+                html.push(`<blockquote>${renderMarkdownInline(quote[1])}</blockquote>`);
+                return;
+            }
+
+            const unordered = line.match(/^\s*[-*]\s+(.+)$/);
+            const ordered = line.match(/^\s*\d+\.\s+(.+)$/);
+            if (unordered || ordered) {
+                flushParagraph();
+                const nextListTag = unordered ? 'ul' : 'ol';
+                if (listTag && listTag !== nextListTag) closeList();
+                if (!listTag) {
+                    html.push(`<${nextListTag}>`);
+                    listTag = nextListTag;
+                }
+                html.push(`<li>${renderMarkdownInline((unordered || ordered)[1])}</li>`);
+                return;
+            }
+
+            closeList();
+            paragraph.push(trimmed);
+        });
+
+        if (inCodeBlock) flushCodeBlock();
+        flushParagraph();
+        closeList();
+        return html.join('');
+    }
+
+    async function loadMarkdown() {
+        if (requestedSource !== source) {
+            viewerStatus.textContent = `Unsupported source "${requestedSource}". Loading README.md instead.`;
+        }
+        try {
+            const response = await fetch(source, { cache: 'no-store' });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const markdown = await response.text();
+            markdownContent.innerHTML = renderMarkdown(markdown);
+            viewerStatus.textContent = `Rendered ${source}.`;
+        } catch (err) {
+            markdownContent.innerHTML = `<p>Unable to load <code>${escapeHtml(source)}</code>: ${escapeHtml(err.message || String(err))}.</p><p>Open the raw Markdown link above or serve the project through a local HTTP server.</p>`;
+            viewerStatus.textContent = 'Markdown could not be loaded.';
+        }
+    }
+
+    loadMarkdown();
+</script>
+</body>
+</html>

@@ -100,6 +100,7 @@ function makeHaloTexture() {
  * @param {number}  [options.earthRadius=10]     scene Earth radius (units)
  * @param {number}  [options.sunDistance]        distance of Sun (defaults to 60×earthRadius)
  * @param {number}  [options.haloSize]           halo sprite size (defaults to 2.5×earthRadius)
+ * @param {number}  [options.sunIntensity=1.0]   directional sunlight intensity
  */
 export function drawDayNight3D(scene, earthMesh, date = new Date(), options = {}) {
     if (!scene || !earthMesh) return;
@@ -109,7 +110,8 @@ export function drawDayNight3D(scene, earthMesh, date = new Date(), options = {}
         showHalo = true,
         earthRadius = 10,
         sunDistance = 60 * earthRadius,
-        haloSize = 2.5 * earthRadius
+        haloSize = 2.5 * earthRadius,
+        sunIntensity = 1.0
     } = options;
 
     // Create or reuse DirectionalLight
@@ -120,6 +122,7 @@ export function drawDayNight3D(scene, earthMesh, date = new Date(), options = {}
         scene.add(sunLight);
         sunLight.target = earthMesh;
     }
+    sunLight.intensity = sunIntensity;
 
     // Create or reuse Sun mesh (simple emissive sphere)
     if (!sunMesh) {

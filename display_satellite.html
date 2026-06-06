@@ -5,99 +5,358 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Satellite Model Viewer</title>
     <style>
-        html, body {
+        :root {
+            color-scheme: dark;
+            --ink: #edf6ff;
+            --muted: #a9bdd4;
+            --panel: rgba(7, 14, 24, 0.78);
+            --panel-strong: rgba(13, 27, 44, 0.92);
+            --line: rgba(181, 215, 255, 0.22);
+            --accent: #8fd3ff;
+            --accent-strong: #f7c96a;
+            --danger: #ff9d9d;
+            --success: #8bf0bf;
+            --warning: #ffd487;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
             margin: 0;
             width: 100%;
             height: 100%;
             overflow: hidden;
-            background: radial-gradient(circle at 50% 35%, #263a56 0%, #0a101a 55%, #020409 100%);
-            color: #e8f1ff;
-            font-family: "Segoe UI", sans-serif;
+            background:
+                radial-gradient(circle at 58% 38%, rgba(90, 139, 197, 0.34) 0%, rgba(26, 45, 72, 0.18) 34%, transparent 58%),
+                radial-gradient(circle at 26% 74%, rgba(247, 201, 106, 0.13) 0%, transparent 32%),
+                linear-gradient(145deg, #101928 0%, #060a11 62%, #02040a 100%);
+            color: var(--ink);
+            font-family: "Aptos", "Segoe UI", sans-serif;
+        }
+
+        body::before {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            content: "";
+            opacity: 0.33;
+            background-image:
+                linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+            background-size: 44px 44px;
+            mask-image: radial-gradient(circle at 50% 45%, #000 0%, transparent 74%);
         }
 
         canvas {
             display: block;
         }
 
-        #panel {
+        .shell {
             position: fixed;
-            left: 16px;
-            top: 16px;
-            width: min(560px, calc(100vw - 32px));
-            padding: 14px;
-            border: 1px solid rgba(255,255,255,0.18);
-            border-radius: 12px;
-            background: rgba(4, 10, 18, 0.76);
-            box-shadow: 0 10px 35px rgba(0,0,0,0.35);
-            backdrop-filter: blur(8px);
-            font-size: 14px;
-            line-height: 1.45;
-            box-sizing: border-box;
-        }
-
-        #panel strong {
-            color: #ffffff;
-        }
-
-        .controls {
+            inset: 18px;
+            z-index: 2;
             display: grid;
-            grid-template-columns: 1fr auto;
+            grid-template-columns: minmax(280px, 390px) minmax(280px, 360px);
+            justify-content: space-between;
+            gap: 18px;
+            pointer-events: none;
+        }
+
+        .panel {
+            pointer-events: auto;
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            background: var(--panel);
+            box-shadow: 0 22px 60px rgba(0, 0, 0, 0.42);
+            backdrop-filter: blur(16px);
+            overflow: hidden;
+        }
+
+        .panel-header {
+            padding: 18px;
+            background:
+                linear-gradient(135deg, rgba(143, 211, 255, 0.15), transparent 54%),
+                var(--panel-strong);
+            border-bottom: 1px solid var(--line);
+        }
+
+        h1,
+        h2,
+        p {
+            margin: 0;
+        }
+
+        h1 {
+            font-size: 22px;
+            letter-spacing: 0.02em;
+        }
+
+        h2 {
+            font-size: 13px;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: var(--accent);
+        }
+
+        .subtle {
+            margin-top: 7px;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.45;
+        }
+
+        .panel-body {
+            padding: 14px 16px 16px;
+        }
+
+        .toolbar,
+        .custom-row,
+        .view-controls {
+            display: grid;
             gap: 8px;
-            margin: 10px 0;
+        }
+
+        .toolbar {
+            grid-template-columns: 1fr auto;
         }
 
         .custom-row {
-            display: grid;
             grid-template-columns: 1fr auto;
-            gap: 8px;
-            margin: 8px 0 10px;
+            margin-top: 10px;
         }
 
-        select,
+        .view-controls {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            margin-top: 12px;
+        }
+
         input,
         button {
-            min-height: 34px;
-            border-radius: 8px;
-            border: 1px solid rgba(255,255,255,0.18);
-            background: rgba(255,255,255,0.08);
-            color: #eef5ff;
-            padding: 0 10px;
+            min-height: 38px;
+            border-radius: 12px;
+            border: 1px solid rgba(210, 232, 255, 0.18);
             font: inherit;
         }
 
-        select option {
-            color: #111827;
-            background: #ffffff;
+        input {
+            width: 100%;
+            padding: 0 12px;
+            background: rgba(255, 255, 255, 0.075);
+            color: var(--ink);
+            outline: none;
+        }
+
+        input:focus {
+            border-color: rgba(143, 211, 255, 0.72);
+            box-shadow: 0 0 0 3px rgba(143, 211, 255, 0.14);
         }
 
         button {
             cursor: pointer;
-            background: #8cc8ff;
-            color: #07111f;
-            border: none;
+            padding: 0 12px;
+            background: rgba(143, 211, 255, 0.18);
+            color: var(--ink);
             font-weight: 700;
+            transition: background 160ms ease, transform 160ms ease, border-color 160ms ease;
         }
 
         button:hover {
-            background: #b4dcff;
+            background: rgba(143, 211, 255, 0.28);
+            border-color: rgba(143, 211, 255, 0.48);
+            transform: translateY(-1px);
         }
 
-        code {
-            color: #b9ddff;
+        button.primary {
+            background: linear-gradient(135deg, #9ad9ff, #f9cc70);
+            color: #07111c;
+            border: none;
         }
 
-        #status {
-            margin-top: 8px;
-        }
-
-        .hint {
-            color: #b9c9dc;
+        .model-count {
+            margin: 10px 0 8px;
+            color: var(--muted);
             font-size: 12px;
         }
 
-        @media (max-width: 560px) {
-            .controls,
-            .custom-row {
+        .model-list {
+            display: grid;
+            gap: 8px;
+            max-height: min(43vh, 410px);
+            overflow: auto;
+            padding-right: 3px;
+        }
+
+        .model-card {
+            width: 100%;
+            min-height: 0;
+            padding: 10px;
+            text-align: left;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(210, 232, 255, 0.13);
+        }
+
+        .model-card.active {
+            border-color: rgba(249, 204, 112, 0.72);
+            background: rgba(249, 204, 112, 0.13);
+        }
+
+        .model-name {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            color: #ffffff;
+            font-weight: 800;
+        }
+
+        .model-meta,
+        .model-desc,
+        .hint {
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.42;
+        }
+
+        .model-meta {
+            margin-top: 4px;
+        }
+
+        .model-desc {
+            margin-top: 5px;
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            min-height: 22px;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: rgba(143, 211, 255, 0.13);
+            color: var(--accent);
+            font-size: 11px;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+
+        .hint {
+            margin-top: 8px;
+        }
+
+        code {
+            color: #cbe8ff;
+            font-family: "Cascadia Mono", "Consolas", monospace;
+        }
+
+        .diagnostics {
+            align-self: start;
+        }
+
+        .diagnostics-grid {
+            display: grid;
+            gap: 9px;
+        }
+
+        .diagnostic-item {
+            display: grid;
+            gap: 3px;
+            padding: 10px;
+            border: 1px solid rgba(210, 232, 255, 0.12);
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.055);
+        }
+
+        .diagnostic-label {
+            color: var(--muted);
+            font-size: 11px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+
+        .diagnostic-value {
+            overflow-wrap: anywhere;
+            font-size: 13px;
+        }
+
+        .status-bar {
+            position: fixed;
+            left: 50%;
+            bottom: 18px;
+            z-index: 3;
+            width: min(720px, calc(100vw - 36px));
+            transform: translateX(-50%);
+            pointer-events: auto;
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 12px;
+            align-items: center;
+            padding: 12px 14px;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            background: rgba(6, 12, 21, 0.82);
+            box-shadow: 0 14px 38px rgba(0, 0, 0, 0.38);
+            backdrop-filter: blur(14px);
+        }
+
+        .status-bar .pill {
+            background: rgba(143, 211, 255, 0.14);
+        }
+
+        .status-bar.success .pill {
+            color: var(--success);
+            background: rgba(139, 240, 191, 0.12);
+        }
+
+        .status-bar.warning .pill {
+            color: var(--warning);
+            background: rgba(255, 212, 135, 0.12);
+        }
+
+        .status-bar.error .pill {
+            color: var(--danger);
+            background: rgba(255, 157, 157, 0.12);
+        }
+
+        .status-message {
+            overflow-wrap: anywhere;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        @media (max-width: 900px) {
+            body {
+                overflow: auto;
+            }
+
+            .shell {
+                position: relative;
+                inset: auto;
+                grid-template-columns: 1fr;
+                padding: 12px;
+                pointer-events: auto;
+            }
+
+            .model-list {
+                max-height: 280px;
+            }
+
+            .status-bar {
+                position: relative;
+                left: auto;
+                bottom: auto;
+                margin: 0 12px 12px;
+                width: auto;
+                transform: none;
+                border-radius: 18px;
+            }
+        }
+
+        @media (max-width: 520px) {
+            .toolbar,
+            .custom-row,
+            .view-controls,
+            .status-bar {
                 grid-template-columns: 1fr;
             }
         }
@@ -112,20 +371,52 @@
     </script>
 </head>
 <body>
-<div id="panel">
-    <strong>Satellite model viewer</strong>
-    <div class="controls">
-        <select id="modelSelect" aria-label="Satellite model"></select>
-        <button id="reloadBtn" type="button">Reload</button>
-    </div>
-    <div class="custom-row">
-        <input id="customModelInput" type="text" placeholder="Custom: starlink_V1, oneweb.obj, ISS.glb">
-        <button id="loadCustomBtn" type="button">Load Custom</button>
-    </div>
-    <div class="hint">
-        Loads local models from <code>./obj</code>. OBJ entries try the matching MTL first; GLB entries use GLTFLoader.
-    </div>
-    <div id="status">Loading default <code>obj/starlink_V1.obj</code>...</div>
+<main class="shell" aria-label="Satellite model viewer">
+    <section class="panel">
+        <header class="panel-header">
+            <h1>Satellite Model Viewer</h1>
+            <p class="subtle">Manifest-backed loader for every tracked OBJ/MTL and GLB model under <code>./obj</code>.</p>
+        </header>
+        <div class="panel-body">
+            <div class="toolbar">
+                <input id="modelSearchInput" type="search" autocomplete="off" placeholder="Search models, type, or tag">
+                <button id="reloadBtn" type="button">Reload</button>
+            </div>
+            <div id="modelCount" class="model-count">Loading manifest...</div>
+            <div id="modelList" class="model-list" aria-label="Available satellite models"></div>
+
+            <div class="custom-row">
+                <input id="customModelInput" type="text" placeholder="Custom: ISS.glb or generic.obj, generic.mtl">
+                <button id="loadCustomBtn" type="button" class="primary">Load Custom</button>
+            </div>
+            <p class="hint">Custom models load from <code>./obj</code>. Use comma or pipe to specify a custom MTL for OBJ files.</p>
+
+            <div class="view-controls" aria-label="View controls">
+                <button id="resetViewBtn" type="button">Reset View</button>
+                <button id="autoFitBtn" type="button">Auto Fit</button>
+                <button id="toggleAxesBtn" type="button">Axes On</button>
+                <button id="toggleGridBtn" type="button">Grid On</button>
+                <button id="toggleWireframeBtn" type="button">Wireframe Off</button>
+                <button id="toggleBackgroundBtn" type="button">Bright Background</button>
+            </div>
+        </div>
+    </section>
+
+    <aside class="panel diagnostics">
+        <header class="panel-header">
+            <h2>Model Diagnostics</h2>
+            <p class="subtle">Files, textures, bounds, mesh counts, and load warnings for the selected asset.</p>
+        </header>
+        <div class="panel-body">
+            <div id="diagnosticsGrid" class="diagnostics-grid"></div>
+            <button id="copyDiagnosticsBtn" type="button" style="width:100%; margin-top:12px;">Copy Diagnostics</button>
+        </div>
+    </aside>
+</main>
+
+<div id="statusBar" class="status-bar">
+    <span id="statusPill" class="pill">Idle</span>
+    <span id="statusMessage" class="status-message">Preparing viewer...</span>
 </div>
 
 <script type="module">
@@ -135,72 +426,203 @@
     import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
     import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 
-    const OBJ_BASE = 'obj/';
+    const DISPLAY_MODEL_MANIFEST_URL = 'json/display_satellite_models.json';
     const DEFAULT_MODEL_ID = 'starlink_V1';
-    const MODEL_CATALOG = Object.freeze([
-        { id: 'starlink_V1', label: 'Starlink V1 (OBJ/MTL)', kind: 'obj-mtl', obj: 'starlink_V1.obj', mtl: 'starlink_V1.mtl' },
-        { id: 'starlink_spacex_satellite.glb', label: 'Starlink SpaceX Satellite (GLB)', kind: 'glb', file: 'starlink_spacex_satellite.glb' },
-        { id: 'oneweb', label: 'OneWeb (OBJ/MTL)', kind: 'obj-mtl', obj: 'oneweb.obj', mtl: 'oneweb.mtl' },
-        { id: 'o3b', label: 'O3b (OBJ/MTL)', kind: 'obj-mtl', obj: 'o3b.obj', mtl: 'o3b.mtl' },
-        { id: 'o3b.glb', label: 'O3b (GLB)', kind: 'glb', file: 'o3b.glb' },
-        { id: 'ISS.glb', label: 'ISS (GLB)', kind: 'glb', file: 'ISS.glb' },
-        { id: 'international_space_station_iss.glb', label: 'International Space Station ISS (GLB)', kind: 'glb', file: 'international_space_station_iss.glb' },
-        { id: 'SSL_1300.glb', label: 'SSL 1300 (GLB)', kind: 'glb', file: 'SSL_1300.glb' },
-        { id: 'Aqua.glb', label: 'Aqua (GLB)', kind: 'glb', file: 'Aqua.glb' },
-        { id: 'Aura.glb', label: 'Aura (GLB)', kind: 'glb', file: 'Aura.glb' },
-        { id: 'Landsat8.glb', label: 'Landsat 8 (GLB)', kind: 'glb', file: 'Landsat8.glb' },
-        { id: 'Landsat4and5.glb', label: 'Landsat 4/5 (GLB)', kind: 'glb', file: 'Landsat4and5.glb' },
-        {
-            id: 'Cloud-Aerosol Lidar and Infrared Pathfinder Satellite (CALIPSO).glb',
-            label: 'CALIPSO (GLB)',
-            kind: 'glb',
-            file: 'Cloud-Aerosol Lidar and Infrared Pathfinder Satellite (CALIPSO).glb'
-        }
-    ]);
+    const FALLBACK_MODEL_MANIFEST = Object.freeze({
+        schemaVersion: 1,
+        basePath: 'obj/',
+        models: [
+            {
+                id: 'starlink_V1',
+                displayName: 'Starlink V1',
+                type: 'obj-mtl',
+                description: 'OBJ/MTL Starlink satellite model.',
+                tags: ['Starlink', 'OBJ', 'MTL', 'LEO'],
+                files: { obj: 'starlink_V1.obj', mtl: 'starlink_V1.mtl' },
+                textures: [
+                    { path: 'Textures/starlink_BaseColor.png', required: true },
+                    { path: 'Textures/starlink_Checker_Roughness.png', required: true },
+                    { path: 'Textures/starlink_Metallic.png', required: true },
+                    { path: 'Textures/starlink_Normal.png', required: false }
+                ]
+            },
+            {
+                id: 'generic',
+                displayName: 'Generic Satellite',
+                type: 'obj-mtl',
+                description: 'OBJ/MTL generic satellite model.',
+                tags: ['Generic', 'OBJ', 'MTL'],
+                files: { obj: 'generic.obj', mtl: 'generic.mtl' },
+                textures: [
+                    { path: 'Textures/generic.jpg', required: true }
+                ]
+            },
+            {
+                id: 'o3b',
+                displayName: 'O3b',
+                type: 'obj-mtl',
+                description: 'OBJ/MTL O3b MEO satellite model.',
+                tags: ['O3b', 'OBJ', 'MTL', 'MEO'],
+                files: { obj: 'o3b.obj', mtl: 'o3b.mtl' },
+                textures: []
+            },
+            {
+                id: 'o3b_mpower_hd',
+                displayName: 'Satellite O3b mPOWER HD',
+                type: 'obj-mtl',
+                description: 'Stylized high-detail O3b mPOWER satellite OBJ rebuilt from the expanded reference set with scale-tuned long solar arrays and side-cylinder detail.',
+                tags: ['O3b', 'OB3', 'mPOWER', 'OBJ', 'MTL', 'High detail', 'Scale tuned', 'MEO'],
+                files: { obj: 'o3b_mpower_hd.obj', mtl: 'o3b_mpower_hd.mtl' },
+                textures: []
+            },
+            {
+                id: 'ISS.glb',
+                displayName: 'International Space Station',
+                type: 'glb',
+                description: 'GLB International Space Station model.',
+                tags: ['ISS', 'GLB', 'Station', 'LEO'],
+                files: { glb: 'ISS.glb' },
+                textures: []
+            },
+            {
+                id: 'International Space Station (ISS) (A).glb',
+                displayName: 'International Space Station (A)',
+                type: 'glb',
+                description: 'Additional top-level ISS GLB model discovered in obj/.',
+                tags: ['ISS', 'GLB', 'Station', 'LEO', 'New'],
+                files: { glb: 'International Space Station (ISS) (A).glb' },
+                textures: []
+            },
+            {
+                id: 'ISS_High_definition',
+                displayName: 'ISS High Definition Components',
+                type: 'glb-group',
+                description: 'Converted GLB components from the ISS high-definition source folder.',
+                tags: ['ISS', 'High definition', 'GLB', 'Components'],
+                files: {
+                    glbs: [
+                        'ISS_High_definition/Objects/Modules/fgb/fgb-ext.glb',
+                        'ISS_High_definition/Objects/Modules/fgb/fgb-ext_closed.glb',
+                        'ISS_High_definition/Objects/Modules/fgb/fgb-ext_layers.glb',
+                        'ISS_High_definition/Objects/Modules/express ELC/ELC1.glb',
+                        'ISS_High_definition/Objects/Modules/express ELC/ELC2.glb',
+                        'ISS_High_definition/Objects/Modules/express ELC/ELC3.glb',
+                        'ISS_High_definition/Objects/Modules/express ELC/ELC4.glb',
+                        'ISS_High_definition/Objects/Modules/esp3/ESP3.glb',
+                        'ISS_High_definition/Objects/Modules/esp2/esp2_lo.glb',
+                        'ISS_High_definition/Objects/Modules/esp1/ESP1.glb',
+                        'ISS_High_definition/Objects/Modules/cupola/cupola_open.glb',
+                        'ISS_High_definition/Objects/Modules/atv/ATV_temp.glb',
+                        'ISS_High_definition/Objects/Modules/ams/AMS2.glb',
+                        'ISS_High_definition/Objects/Modules/al/al-ext.glb',
+                        'ISS_High_definition/Objects/Modules/htv/HTV_temp.glb',
+                        'ISS_High_definition/Objects/Modules/columbus/columbus.glb'
+                    ]
+                },
+                textures: []
+            },
+            {
+                id: 'SSL_1300.glb',
+                displayName: 'SSL 1300',
+                type: 'glb',
+                description: 'GLB SSL 1300 satellite bus model.',
+                tags: ['SSL', 'GLB', 'GEO'],
+                files: { glb: 'SSL_1300.glb' },
+                textures: []
+            },
+            {
+                id: 'Hubble Space Telescope (A).glb',
+                displayName: 'Hubble Space Telescope (A)',
+                type: 'glb',
+                description: 'Top-level Hubble Space Telescope GLB model discovered in obj/.',
+                tags: ['Hubble', 'Space Telescope', 'GLB', 'New'],
+                files: { glb: 'Hubble Space Telescope (A).glb' },
+                textures: []
+            },
+            {
+                id: 'Hubble Space Telescope (B).glb',
+                displayName: 'Hubble Space Telescope (B)',
+                type: 'glb',
+                description: 'Top-level Hubble Space Telescope GLB model discovered in obj/.',
+                tags: ['Hubble', 'Space Telescope', 'GLB', 'New'],
+                files: { glb: 'Hubble Space Telescope (B).glb' },
+                textures: []
+            }
+        ]
+    });
 
-    const status = document.getElementById('status');
-    const modelSelect = document.getElementById('modelSelect');
-    const reloadBtn = document.getElementById('reloadBtn');
-    const customModelInput = document.getElementById('customModelInput');
-    const loadCustomBtn = document.getElementById('loadCustomBtn');
+    const dom = {
+        modelSearchInput: document.getElementById('modelSearchInput'),
+        modelList: document.getElementById('modelList'),
+        modelCount: document.getElementById('modelCount'),
+        customModelInput: document.getElementById('customModelInput'),
+        loadCustomBtn: document.getElementById('loadCustomBtn'),
+        reloadBtn: document.getElementById('reloadBtn'),
+        resetViewBtn: document.getElementById('resetViewBtn'),
+        autoFitBtn: document.getElementById('autoFitBtn'),
+        toggleAxesBtn: document.getElementById('toggleAxesBtn'),
+        toggleGridBtn: document.getElementById('toggleGridBtn'),
+        toggleWireframeBtn: document.getElementById('toggleWireframeBtn'),
+        toggleBackgroundBtn: document.getElementById('toggleBackgroundBtn'),
+        copyDiagnosticsBtn: document.getElementById('copyDiagnosticsBtn'),
+        diagnosticsGrid: document.getElementById('diagnosticsGrid'),
+        statusBar: document.getElementById('statusBar'),
+        statusPill: document.getElementById('statusPill'),
+        statusMessage: document.getElementById('statusMessage')
+    };
+
+    const state = {
+        manifest: FALLBACK_MODEL_MANIFEST,
+        models: [],
+        selectedEntry: null,
+        currentModel: null,
+        lastDiagnostics: null,
+        lastWarnings: [],
+        lastScaleInfo: null,
+        wireframe: false,
+        darkBackground: true
+    };
+
     const scene = new THREE.Scene();
-    let currentModel = null;
+    scene.background = new THREE.Color(0x050914);
 
-    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.001, 1000);
-    camera.position.set(0, 1.2, 5);
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.001, 100000);
+    camera.position.set(0, 1.2, 6);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.18;
     document.body.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-
-    scene.add(new THREE.HemisphereLight(0xddeaff, 0x1c2636, 1.8));
-    const keyLight = new THREE.DirectionalLight(0xffffff, 2.8);
-    keyLight.position.set(4, 5, 6);
-    scene.add(keyLight);
-    const fillLight = new THREE.DirectionalLight(0x9ec8ff, 1.5);
-    fillLight.position.set(-4, 2, -3);
-    scene.add(fillLight);
+    controls.dampingFactor = 0.06;
 
     const axesHelper = new THREE.AxesHelper(1);
-    axesHelper.visible = true;
+    const gridHelper = new THREE.GridHelper(8, 16, 0x7cbde8, 0x29425d);
+    gridHelper.position.y = -1;
     scene.add(axesHelper);
+    scene.add(gridHelper);
+    scene.add(new THREE.HemisphereLight(0xe8f5ff, 0x142033, 1.8));
 
-    function setStatus(message) {
-        status.innerHTML = message;
-    }
+    const keyLight = new THREE.DirectionalLight(0xffffff, 3.1);
+    keyLight.position.set(4, 6, 8);
+    scene.add(keyLight);
+
+    const rimLight = new THREE.DirectionalLight(0x8fd3ff, 1.8);
+    rimLight.position.set(-5, 2, -4);
+    scene.add(rimLight);
 
     function escapeHtml(value) {
-        return String(value)
-            .replaceAll('&', '&amp;')
-            .replaceAll('<', '&lt;')
-            .replaceAll('>', '&gt;')
-            .replaceAll('"', '&quot;')
-            .replaceAll("'", '&#039;');
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
     }
 
     function stripObjPrefix(value) {
@@ -211,66 +633,183 @@
         return String(value || '').replace(/\.[^.]+$/, '');
     }
 
-    function catalogEntryFromCustom(value) {
-        const cleaned = stripObjPrefix(value);
-        if (!cleaned) return null;
+    function formatNumber(value, digits = 3) {
+        return Number.isFinite(value) ? value.toFixed(digits) : 'n/a';
+    }
 
-        if (/\.glb$/i.test(cleaned)) {
-            return {
-                id: cleaned,
-                label: `${cleaned} (custom GLB)`,
-                kind: 'glb',
-                file: cleaned,
-                custom: true
-            };
-        }
+    function setStatus(kind, label, message) {
+        dom.statusBar.className = `status-bar ${kind || ''}`.trim();
+        dom.statusPill.textContent = label || 'Idle';
+        dom.statusMessage.innerHTML = message || '';
+    }
 
-        const objName = /\.obj$/i.test(cleaned) ? cleaned : `${stripExtension(cleaned)}.obj`;
-        const base = stripExtension(objName);
+    function normalizeManifestEntry(entry) {
+        const files = entry.files || {};
+        const supportedTypes = new Set(['glb', 'glb-group', 'obj-mtl']);
+        const type = supportedTypes.has(entry.type) ? entry.type : 'obj-mtl';
+        const id = entry.id || files.glb || files.obj || files.glbs?.[0] || entry.displayName;
         return {
-            id: base,
-            label: `${objName} (custom OBJ/MTL)`,
-            kind: 'obj-mtl',
-            obj: objName,
-            mtl: `${base}.mtl`,
-            custom: true
+            id,
+            displayName: entry.displayName || id,
+            type,
+            description: entry.description || '',
+            tags: Array.isArray(entry.tags) ? entry.tags : [],
+            files,
+            textures: Array.isArray(entry.textures) ? entry.textures : [],
+            custom: Boolean(entry.custom)
         };
     }
 
-    function modelUrl(entry) {
-        if (entry.kind === 'glb') return `${OBJ_BASE}${entry.file}`;
-        return `${OBJ_BASE}${entry.obj}`;
+    function modelAssetPath(entry) {
+        const basePath = state.manifest.basePath || 'obj/';
+        if (entry.type === 'glb') return `${basePath}${entry.files.glb}`;
+        if (entry.type === 'glb-group') return `${basePath}${entry.id} (${entry.files.glbs?.length || 0} GLB components)`;
+        return `${basePath}${entry.files.obj}`;
     }
 
-    function populateModelSelect() {
-        modelSelect.innerHTML = '';
-        MODEL_CATALOG.forEach(entry => {
-            const option = document.createElement('option');
-            option.value = entry.id;
-            option.textContent = entry.label;
-            modelSelect.appendChild(option);
+    function modelRequiredFiles(entry) {
+        const basePath = state.manifest.basePath || 'obj/';
+        const files = [];
+        Object.values(entry.files || {}).forEach(fileOrFiles => {
+            const fileList = Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles];
+            fileList.forEach(file => {
+                if (file) files.push(`${basePath}${file}`);
+            });
+        });
+        (entry.textures || []).forEach(texture => {
+            if (texture?.required !== false && texture.path) {
+                files.push(`${basePath}${texture.path}`);
+            }
+        });
+        return files;
+    }
+
+    function modelSearchText(entry) {
+        return [
+            entry.id,
+            entry.displayName,
+            entry.type,
+            entry.description,
+            ...(entry.tags || []),
+            ...Object.values(entry.files || {})
+        ].join(' ').toLowerCase();
+    }
+
+    async function loadModelManifest() {
+        try {
+            const response = await fetch(DISPLAY_MODEL_MANIFEST_URL, { cache: 'no-store' });
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            const manifest = await response.json();
+            state.manifest = {
+                ...manifest,
+                basePath: manifest.basePath || 'obj/'
+            };
+            setStatus('success', 'Manifest', `Loaded <code>${escapeHtml(DISPLAY_MODEL_MANIFEST_URL)}</code>.`);
+        } catch (error) {
+            state.manifest = FALLBACK_MODEL_MANIFEST;
+            setStatus('warning', 'Manifest', `Using embedded fallback manifest. <code>${escapeHtml(error.message)}</code>`);
+        }
+        state.models = (state.manifest.models || []).map(normalizeManifestEntry);
+        renderModelList();
+    }
+
+    function renderModelList() {
+        const query = dom.modelSearchInput.value.trim().toLowerCase();
+        const filtered = state.models.filter(entry => !query || modelSearchText(entry).includes(query));
+        dom.modelCount.textContent = `${filtered.length} of ${state.models.length} models`;
+        dom.modelList.innerHTML = filtered.map(entry => {
+            const activeClass = state.selectedEntry?.id === entry.id ? ' active' : '';
+            const files = modelRequiredFiles(entry).map(file => `<code>${escapeHtml(file)}</code>`).join(', ');
+            const tags = [entry.type.toUpperCase(), ...(entry.tags || []).slice(0, 3)].join(' / ');
+            return `
+                <button type="button" class="model-card${activeClass}" data-model-id="${escapeHtml(entry.id)}">
+                    <span class="model-name">
+                        <span>${escapeHtml(entry.displayName)}</span>
+                        <span class="pill">${escapeHtml(entry.type.toUpperCase())}</span>
+                    </span>
+                    <span class="model-meta">${escapeHtml(tags)}</span>
+                    <span class="model-desc">${escapeHtml(entry.description || 'No description available.')}</span>
+                    <span class="model-meta">${files}</span>
+                </button>
+            `;
+        }).join('');
+        if (!filtered.length) {
+            dom.modelList.innerHTML = '<div class="model-desc">No model matches the current search.</div>';
+        }
+    }
+
+    function catalogEntryFromCustom(value) {
+        const parts = String(value || '')
+            .split(/[|,]/)
+            .map(part => stripObjPrefix(part))
+            .filter(Boolean);
+        const modelFile = parts[0];
+        const mtlFile = parts[1];
+        if (!modelFile) return null;
+
+        if (/\.glb$/i.test(modelFile)) {
+            return normalizeManifestEntry({
+                id: modelFile,
+                displayName: `${modelFile} (custom)`,
+                type: 'glb',
+                description: 'Custom GLB loaded from ./obj.',
+                tags: ['Custom', 'GLB'],
+                files: { glb: modelFile },
+                custom: true
+            });
+        }
+
+        const objName = /\.obj$/i.test(modelFile) ? modelFile : `${stripExtension(modelFile)}.obj`;
+        const base = stripExtension(objName);
+        return normalizeManifestEntry({
+            id: base,
+            displayName: `${objName} (custom)`,
+            type: 'obj-mtl',
+            description: 'Custom OBJ/MTL loaded from ./obj.',
+            tags: ['Custom', 'OBJ', 'MTL'],
+            files: { obj: objName, mtl: mtlFile || `${base}.mtl` },
+            custom: true
         });
     }
 
-    function findCatalogEntry(id) {
-        return MODEL_CATALOG.find(entry => entry.id === id) || MODEL_CATALOG[0];
+    function createLoadingManager(entry) {
+        const warnings = [];
+        const manager = new THREE.LoadingManager();
+        manager.onStart = url => {
+            setStatus('loading', 'Loading', `Loading <code>${escapeHtml(url)}</code>...`);
+        };
+        manager.onError = url => {
+            warnings.push(`Failed dependency: ${url}`);
+        };
+        manager.onLoad = () => {
+            if (warnings.length) {
+                setStatus('warning', 'Loaded', `Loaded with ${warnings.length} warning(s): ${escapeHtml(warnings.join('; '))}`);
+            }
+        };
+        manager.onProgress = (url, loaded, total) => {
+            const suffix = total ? ` (${loaded}/${total})` : '';
+            setStatus('loading', 'Loading', `Loading <code>${escapeHtml(url)}</code>${suffix}...`);
+        };
+        return { manager, warnings, entry };
     }
 
     function materialColorLooksBlack(material) {
         const color = material?.color;
-        if (!color) return false;
-        if ([color.r, color.g, color.b].every(value => Number.isFinite(value))) {
-            return color.r <= 0.02 && color.g <= 0.02 && color.b <= 0.02;
-        }
-        return false;
+        return Boolean(color)
+            && [color.r, color.g, color.b].every(value => Number.isFinite(value))
+            && color.r <= 0.02
+            && color.g <= 0.02
+            && color.b <= 0.02;
     }
 
     function makeMaterialVisible(material) {
         if (!material) {
             return new THREE.MeshStandardMaterial({
                 color: 0xcfd8ff,
-                metalness: 0.2,
-                roughness: 0.5,
+                metalness: 0.22,
+                roughness: 0.52,
                 side: THREE.DoubleSide
             });
         }
@@ -288,12 +827,10 @@
     }
 
     function prepareObject(root) {
-        let meshCount = 0;
         root.visible = true;
         root.frustumCulled = false;
         root.traverse(child => {
             if (!child.isMesh) return;
-            meshCount += 1;
             child.visible = true;
             child.frustumCulled = false;
             child.castShadow = true;
@@ -302,7 +839,79 @@
                 ? child.material.map(makeMaterialVisible)
                 : makeMaterialVisible(child.material);
         });
-        return meshCount;
+    }
+
+    function measureObject(root) {
+        root.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(root);
+        const size = new THREE.Vector3();
+        const center = new THREE.Vector3();
+        box.getSize(size);
+        box.getCenter(center);
+        const diameter = Math.max(size.x || 0, size.y || 0, size.z || 0);
+        return { box, size, center, diameter };
+    }
+
+    function normalizeModelForDisplay(root, targetDiameter = 4) {
+        const measured = measureObject(root);
+        const originalDiameter = measured.diameter;
+        const shouldNormalize = Number.isFinite(originalDiameter)
+            && originalDiameter > 0
+            && (originalDiameter < 1 || originalDiameter > 60);
+        const displayScale = shouldNormalize ? targetDiameter / originalDiameter : 1;
+        if (shouldNormalize) {
+            root.scale.multiplyScalar(displayScale);
+            root.updateMatrixWorld(true);
+        }
+        return {
+            normalized: shouldNormalize,
+            originalDiameter,
+            displayScale
+        };
+    }
+
+    function collectObjectDiagnostics(root, entry, warnings = [], scaleInfo = null) {
+        const measured = measureObject(root);
+        const size = measured.size;
+        const materials = new Set();
+        const textures = new Set();
+        let meshCount = 0;
+        let triangleCount = 0;
+
+        root.traverse(child => {
+            if (!child.isMesh) return;
+            meshCount += 1;
+            const geometry = child.geometry;
+            const positionCount = geometry?.attributes?.position?.count || 0;
+            triangleCount += geometry?.index ? geometry.index.count / 3 : positionCount / 3;
+            const materialList = Array.isArray(child.material) ? child.material : [child.material];
+            materialList.filter(Boolean).forEach(material => {
+                materials.add(material);
+                Object.keys(material).forEach(key => {
+                    const value = material[key];
+                    if (value?.isTexture) textures.add(value);
+                });
+            });
+        });
+
+        const diameter = Math.max(size.x || 0, size.y || 0, size.z || 0);
+        return {
+            model: entry.displayName,
+            id: entry.id,
+            type: entry.type,
+            asset: modelAssetPath(entry),
+            requiredFiles: modelRequiredFiles(entry),
+            meshCount,
+            materialCount: materials.size,
+            textureCount: textures.size,
+            triangleCount: Math.round(triangleCount),
+            size: [size.x, size.y, size.z],
+            diameter: measured.diameter,
+            originalDiameter: scaleInfo?.originalDiameter ?? measured.diameter,
+            displayScale: scaleInfo?.displayScale ?? 1,
+            normalizedForDisplay: Boolean(scaleInfo?.normalized),
+            warnings
+        };
     }
 
     function disposeMaterial(material) {
@@ -316,7 +925,7 @@
 
     function disposeObject(root) {
         root?.traverse(child => {
-            if (child.geometry) child.geometry.dispose?.();
+            child.geometry?.dispose?.();
             if (Array.isArray(child.material)) {
                 child.material.forEach(disposeMaterial);
             } else {
@@ -326,83 +935,160 @@
     }
 
     function clearCurrentModel() {
-        if (!currentModel) return;
-        scene.remove(currentModel);
-        disposeObject(currentModel);
-        currentModel = null;
+        if (!state.currentModel) return;
+        scene.remove(state.currentModel);
+        disposeObject(state.currentModel);
+        state.currentModel = null;
     }
 
     function fitCameraToObject(root) {
-        const box = new THREE.Box3().setFromObject(root);
-        const size = new THREE.Vector3();
-        const center = new THREE.Vector3();
-        box.getSize(size);
-        box.getCenter(center);
+        const measured = measureObject(root);
+        const size = measured.size;
+        const center = measured.center;
 
         root.position.sub(center);
-        const diameter = Math.max(size.x || 0, size.y || 0, size.z || 0);
-        const safeDiameter = Number.isFinite(diameter) && diameter > 0 ? diameter : 1;
-        const distance = Math.max(safeDiameter * 1.7, 2);
+        root.updateMatrixWorld(true);
+        const safeDiameter = Number.isFinite(measured.diameter) && measured.diameter > 0 ? measured.diameter : 1;
+        const distance = Math.max(safeDiameter * 1.85, 0.65);
 
-        axesHelper.scale.setScalar(Math.max(safeDiameter * 0.25, 0.5));
+        axesHelper.scale.setScalar(Math.max(safeDiameter * 0.24, 0.5));
+        gridHelper.scale.setScalar(Math.max(safeDiameter * 0.35, 1));
+        gridHelper.position.y = -Math.max(safeDiameter * 0.48, 0.75);
         camera.near = Math.max(distance / 10000, 0.0001);
         camera.far = distance * 100;
         camera.updateProjectionMatrix();
-        camera.position.set(0, safeDiameter * 0.25, distance);
+        camera.position.set(0, safeDiameter * 0.24, distance);
         controls.target.set(0, 0, 0);
         controls.update();
-
-        return { diameter: safeDiameter, size };
+        return safeDiameter;
     }
 
-    async function loadObjMtl(entry) {
-        const mtlLoader = new MTLLoader();
-        mtlLoader.setPath(OBJ_BASE);
-        mtlLoader.setResourcePath(OBJ_BASE);
+    function setWireframeMode(enabled) {
+        state.wireframe = enabled;
+        dom.toggleWireframeBtn.textContent = `Wireframe ${enabled ? 'On' : 'Off'}`;
+        state.currentModel?.traverse(child => {
+            if (!child.isMesh) return;
+            const materials = Array.isArray(child.material) ? child.material : [child.material];
+            materials.filter(Boolean).forEach(material => {
+                material.wireframe = enabled;
+                material.needsUpdate = true;
+            });
+        });
+    }
+
+    function setBackgroundMode(dark) {
+        state.darkBackground = dark;
+        scene.background = new THREE.Color(dark ? 0x050914 : 0xdde8f5);
+        dom.toggleBackgroundBtn.textContent = dark ? 'Bright Background' : 'Dark Background';
+    }
+
+    function updateDiagnostics(diagnostics) {
+        state.lastDiagnostics = diagnostics;
+        const warningHtml = diagnostics.warnings.length
+            ? diagnostics.warnings.map(item => `<code>${escapeHtml(item)}</code>`).join('<br>')
+            : 'None';
+        const requiredHtml = diagnostics.requiredFiles.length
+            ? diagnostics.requiredFiles.map(file => `<code>${escapeHtml(file)}</code>`).join('<br>')
+            : 'None';
+        const items = [
+            ['Model', escapeHtml(diagnostics.model)],
+            ['Asset', `<code>${escapeHtml(diagnostics.asset)}</code>`],
+            ['Type', escapeHtml(diagnostics.type.toUpperCase())],
+            ['Required files', requiredHtml],
+            ['Meshes', escapeHtml(diagnostics.meshCount)],
+            ['Materials', escapeHtml(diagnostics.materialCount)],
+            ['Textures loaded', escapeHtml(diagnostics.textureCount)],
+            ['Triangles', escapeHtml(diagnostics.triangleCount.toLocaleString())],
+            ['Bounds', escapeHtml(`${formatNumber(diagnostics.size[0])} x ${formatNumber(diagnostics.size[1])} x ${formatNumber(diagnostics.size[2])}`)],
+            ['Diameter', escapeHtml(formatNumber(diagnostics.diameter))],
+            ['Original diameter', escapeHtml(formatNumber(diagnostics.originalDiameter))],
+            ['Display scale', escapeHtml(`${formatNumber(diagnostics.displayScale, 2)}x${diagnostics.normalizedForDisplay ? ' normalized' : ''}`)],
+            ['Warnings', warningHtml]
+        ];
+        dom.diagnosticsGrid.innerHTML = items.map(([label, value]) => `
+            <div class="diagnostic-item">
+                <span class="diagnostic-label">${escapeHtml(label)}</span>
+                <span class="diagnostic-value">${value}</span>
+            </div>
+        `).join('');
+    }
+
+    async function loadObjMtl(entry, manager) {
+        const basePath = state.manifest.basePath || 'obj/';
+        const mtlLoader = new MTLLoader(manager);
+        mtlLoader.setPath(basePath);
+        mtlLoader.setResourcePath(basePath);
 
         let materials = null;
         try {
-            materials = await mtlLoader.loadAsync(entry.mtl);
+            materials = await mtlLoader.loadAsync(entry.files.mtl);
             materials.preload();
         } catch (error) {
-            console.warn(`MTL load failed for ${OBJ_BASE}${entry.mtl}; loading OBJ with fallback material.`, error);
+            state.lastWarnings.push(`MTL not loaded: ${basePath}${entry.files.mtl}`);
+            console.warn(`MTL load failed for ${basePath}${entry.files.mtl}; loading OBJ with fallback material.`, error);
         }
 
-        const objLoader = new OBJLoader();
-        objLoader.setPath(OBJ_BASE);
+        const objLoader = new OBJLoader(manager);
+        objLoader.setPath(basePath);
         if (materials) objLoader.setMaterials(materials);
-        return objLoader.loadAsync(entry.obj);
+        return objLoader.loadAsync(entry.files.obj);
     }
 
-    async function loadGlb(entry) {
-        const loader = new GLTFLoader();
-        loader.setPath(OBJ_BASE);
-        const gltf = await loader.loadAsync(entry.file);
+    async function loadGlb(entry, manager) {
+        const loader = new GLTFLoader(manager);
+        loader.setPath(state.manifest.basePath || 'obj/');
+        const gltf = await loader.loadAsync(entry.files.glb);
         return gltf.scene || gltf.scenes?.[0] || new THREE.Group();
     }
 
+    async function loadGlbGroup(entry, manager) {
+        const loader = new GLTFLoader(manager);
+        loader.setPath(state.manifest.basePath || 'obj/');
+        const group = new THREE.Group();
+        group.name = entry.displayName || entry.id;
+        const glbFiles = Array.isArray(entry.files.glbs) ? entry.files.glbs : [];
+        const scenes = await Promise.all(glbFiles.map(async file => {
+            const gltf = await loader.loadAsync(file);
+            const sceneRoot = gltf.scene || gltf.scenes?.[0] || new THREE.Group();
+            sceneRoot.name = file.split('/').pop() || file;
+            return sceneRoot;
+        }));
+        scenes.forEach(sceneRoot => group.add(sceneRoot));
+        return group;
+    }
+
     async function loadModel(entry) {
+        if (!entry) return;
         clearCurrentModel();
-        const url = modelUrl(entry);
-        setStatus(`Loading <code>${escapeHtml(url)}</code>...`);
+        state.selectedEntry = entry;
+        state.lastWarnings = [];
+        renderModelList();
+        setStatus('loading', 'Loading', `Loading <code>${escapeHtml(modelAssetPath(entry))}</code>...`);
 
-        const root = entry.kind === 'glb'
-            ? await loadGlb(entry)
-            : await loadObjMtl(entry);
+        const { manager, warnings } = createLoadingManager(entry);
+        let root;
+        if (entry.type === 'glb') {
+            root = await loadGlb(entry, manager);
+        } else if (entry.type === 'glb-group') {
+            root = await loadGlbGroup(entry, manager);
+        } else {
+            root = await loadObjMtl(entry, manager);
+        }
 
-        const meshCount = prepareObject(root);
-        currentModel = root;
-        scene.add(currentModel);
-        const metrics = fitCameraToObject(currentModel);
+        prepareObject(root);
+        state.currentModel = root;
+        setWireframeMode(state.wireframe);
+        scene.add(root);
+        state.lastScaleInfo = normalizeModelForDisplay(root);
+        fitCameraToObject(root);
 
-        const materialNote = entry.kind === 'obj-mtl'
-            ? `<br>MTL attempted: <code>${escapeHtml(`${OBJ_BASE}${entry.mtl}`)}</code>`
-            : '';
+        const allWarnings = [...new Set([...state.lastWarnings, ...warnings])];
+        const diagnostics = collectObjectDiagnostics(root, entry, allWarnings, state.lastScaleInfo);
+        updateDiagnostics(diagnostics);
         setStatus(
-            `Loaded <code>${escapeHtml(url)}</code>.${materialNote}<br>`
-            + `Meshes: <code>${meshCount}</code>. `
-            + `Bounding diameter: <code>${metrics.diameter.toFixed(3)}</code> model units.<br>`
-            + `Use mouse orbit/zoom/pan to inspect the model.`
+            allWarnings.length ? 'warning' : 'success',
+            allWarnings.length ? 'Loaded' : 'Ready',
+            `Loaded <code>${escapeHtml(modelAssetPath(entry))}</code>. Meshes: <code>${diagnostics.meshCount}</code>, triangles: <code>${diagnostics.triangleCount.toLocaleString()}</code>.`
         );
 
         const params = new URLSearchParams(window.location.search);
@@ -410,56 +1096,113 @@
         history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
     }
 
-    function loadSelectedModel() {
-        const entry = findCatalogEntry(modelSelect.value);
+    function loadSelectedModel(id) {
+        const entry = state.models.find(model => model.id === id) || state.selectedEntry || state.models[0];
         loadModel(entry).catch(error => {
             console.error(error);
-            setStatus(
-                `Failed to load <code>${escapeHtml(modelUrl(entry))}</code>. `
-                + `Check the file exists under <code>./obj</code> and serve over HTTP.<br>`
-                + `<code>${escapeHtml(error.message)}</code>`
-            );
+            setStatus('error', 'Error', `Failed to load <code>${escapeHtml(modelAssetPath(entry))}</code>: <code>${escapeHtml(error.message)}</code>`);
+            updateDiagnostics({
+                model: entry?.displayName || 'Unknown',
+                id: entry?.id || 'unknown',
+                type: entry?.type || 'unknown',
+                asset: entry ? modelAssetPath(entry) : 'n/a',
+                requiredFiles: entry ? modelRequiredFiles(entry) : [],
+                meshCount: 0,
+                materialCount: 0,
+                textureCount: 0,
+                triangleCount: 0,
+                size: [0, 0, 0],
+                diameter: 0,
+                warnings: [error.message]
+            });
         });
     }
 
     function loadCustomModel() {
-        const entry = catalogEntryFromCustom(customModelInput.value);
+        const entry = catalogEntryFromCustom(dom.customModelInput.value);
         if (!entry) {
-            setStatus('Enter a custom model name such as <code>ISS.glb</code>, <code>oneweb.obj</code>, or <code>starlink_V1</code>.');
+            setStatus('warning', 'Input', 'Enter a model such as <code>ISS.glb</code>, <code>generic.obj</code>, or <code>generic.obj, generic.mtl</code>.');
             return;
         }
         loadModel(entry).catch(error => {
             console.error(error);
-            setStatus(
-                `Failed to load custom <code>${escapeHtml(modelUrl(entry))}</code>. `
-                + `Check the file exists under <code>./obj</code> and serve over HTTP.<br>`
-                + `<code>${escapeHtml(error.message)}</code>`
-            );
+            setStatus('error', 'Error', `Failed to load custom <code>${escapeHtml(modelAssetPath(entry))}</code>: <code>${escapeHtml(error.message)}</code>`);
         });
     }
 
-    populateModelSelect();
-    const requestedModel = new URLSearchParams(window.location.search).get('model') || DEFAULT_MODEL_ID;
-    const initialEntry = MODEL_CATALOG.find(entry => entry.id === requestedModel)
-        || catalogEntryFromCustom(requestedModel)
-        || findCatalogEntry(DEFAULT_MODEL_ID);
-    if (MODEL_CATALOG.some(entry => entry.id === initialEntry.id)) {
-        modelSelect.value = initialEntry.id;
-    } else {
-        customModelInput.value = initialEntry.id;
+    async function copyDiagnostics() {
+        if (!state.lastDiagnostics) return;
+        const payload = JSON.stringify(state.lastDiagnostics, null, 2);
+        try {
+            await navigator.clipboard.writeText(payload);
+            setStatus('success', 'Copied', 'Diagnostics copied to the clipboard.');
+        } catch {
+            setStatus('warning', 'Copy', `<code>${escapeHtml(payload)}</code>`);
+        }
     }
 
-    reloadBtn.addEventListener('click', loadSelectedModel);
-    modelSelect.addEventListener('change', loadSelectedModel);
-    loadCustomBtn.addEventListener('click', loadCustomModel);
-    customModelInput.addEventListener('keydown', event => {
+    function resetView() {
+        camera.position.set(0, 1.2, 6);
+        controls.target.set(0, 0, 0);
+        controls.update();
+    }
+
+    function selectInitialModel() {
+        const requestedModel = new URLSearchParams(window.location.search).get('model') || DEFAULT_MODEL_ID;
+        return state.models.find(entry => entry.id === requestedModel)
+            || catalogEntryFromCustom(requestedModel)
+            || state.models.find(entry => entry.id === DEFAULT_MODEL_ID)
+            || state.models[0];
+    }
+
+    async function init() {
+        updateDiagnostics({
+            model: 'None',
+            id: 'none',
+            type: 'n/a',
+            asset: 'n/a',
+            requiredFiles: [],
+            meshCount: 0,
+            materialCount: 0,
+            textureCount: 0,
+            triangleCount: 0,
+            size: [0, 0, 0],
+            diameter: 0,
+            warnings: []
+        });
+        await loadModelManifest();
+        const initialEntry = selectInitialModel();
+        if (initialEntry) {
+            await loadModel(initialEntry);
+        }
+    }
+
+    dom.modelList.addEventListener('click', event => {
+        const button = event.target.closest('[data-model-id]');
+        if (!button) return;
+        loadSelectedModel(button.dataset.modelId);
+    });
+    dom.modelSearchInput.addEventListener('input', renderModelList);
+    dom.reloadBtn.addEventListener('click', () => loadSelectedModel(state.selectedEntry?.id));
+    dom.loadCustomBtn.addEventListener('click', loadCustomModel);
+    dom.customModelInput.addEventListener('keydown', event => {
         if (event.key === 'Enter') loadCustomModel();
     });
-
-    loadModel(initialEntry).catch(error => {
-        console.error(error);
-        setStatus(`Failed to load default model. Check console and local HTTP server.<br><code>${escapeHtml(error.message)}</code>`);
+    dom.resetViewBtn.addEventListener('click', resetView);
+    dom.autoFitBtn.addEventListener('click', () => {
+        if (state.currentModel) fitCameraToObject(state.currentModel);
     });
+    dom.toggleAxesBtn.addEventListener('click', () => {
+        axesHelper.visible = !axesHelper.visible;
+        dom.toggleAxesBtn.textContent = `Axes ${axesHelper.visible ? 'On' : 'Off'}`;
+    });
+    dom.toggleGridBtn.addEventListener('click', () => {
+        gridHelper.visible = !gridHelper.visible;
+        dom.toggleGridBtn.textContent = `Grid ${gridHelper.visible ? 'On' : 'Off'}`;
+    });
+    dom.toggleWireframeBtn.addEventListener('click', () => setWireframeMode(!state.wireframe));
+    dom.toggleBackgroundBtn.addEventListener('click', () => setBackgroundMode(!state.darkBackground));
+    dom.copyDiagnosticsBtn.addEventListener('click', copyDiagnostics);
 
     window.addEventListener('resize', () => {
         camera.aspect = window.innerWidth / window.innerHeight;
@@ -472,6 +1215,11 @@
         controls.update();
         renderer.render(scene, camera);
     }
+
+    init().catch(error => {
+        console.error(error);
+        setStatus('error', 'Error', `Viewer initialization failed: <code>${escapeHtml(error.message)}</code>`);
+    });
     animate();
 </script>
 </body>

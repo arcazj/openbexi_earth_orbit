@@ -11,6 +11,7 @@ OpenBEXI Earth Orbit is a browser-based satellite visualization app built with p
 - 3D Earth globe with satellite markers propagated from TLE data.
 - 3D orbit paths with explicit camera-aware Earth occlusion and Mercator ground tracks that reject invalid, non-finite, decayed, or below-Earth propagation samples before drawing.
 - 2D Mercator map with satellite labels, selected-satellite highlighting, selected ground tracks, and day/night overlay.
+- When Globe and Mercator are both enabled, the Mercator map appears as a bottom-right canvas overlay instead of being hidden by the left menu.
 - Multi-select orbit filters for `ALL`, `GEO`, `MEO`, `LEO`, `HEO`, and `Other`.
 - Multi-select tag/operator filters such as `Starlink`, `One Web`, `SES`, `Intelsat`, `Weather`, and `Iridium`.
 - Debris filtering modes: show all, hide debris, or debris only.
@@ -24,12 +25,13 @@ OpenBEXI Earth Orbit is a browser-based satellite visualization app built with p
 - After selecting a satellite, the selector search field clears the previous selected label on the next search interaction without clearing the active selection.
 - Selecting any satellite automatically enables `Show only selected satellite`, synchronizes the checkbox, and keeps the selected satellite visible even when current filters would otherwise hide it.
 - Filter reset, active-filter summary, and zero-result empty states.
-- Selected-satellite menu controls plus a transparent right-side data/TLE detail panel under the UTC clock.
+- Selected-satellite menu controls plus a transparent right-side data/TLE detail panel under the UTC clock; satellite data and TLE details are independently expandable and expanded by default on each selection. Starlink and ISS selections add an expanded red bold `Source detail` attribution section.
 - Local detailed model loading for selected satellites using OBJ/MTL and GLB assets under `obj/`.
 - Selected-satellite observer framing in 3D: selecting a satellite smoothly moves the camera to a close observer view with Earth centered behind the satellite.
 - Selected detailed models place the camera/observer eye exactly 100 real-world meters from the selected satellite target by default, with FOV-aware model visual scaling so the model remains inspectable without moving the observer farther away.
 - Starlink selected-model orientation uses the live orbital frame: local `+X` follows velocity, local `+Z` points nadir toward Earth, and local `+Y` completes the right-handed frame.
-- ISS selected-model orientation also uses the live orbital frame: local `+X` follows velocity, local `+Y` points starboard/right-handed cross-track, and local `+Z` points nadir toward Earth. ISS orientation diagnostics are stored on the selected model for debugging.
+- Selected detailed satellite models use Sun-driven lighting with subtle Earth-reflected albedo when possible, so solar panels can show direct sunlight and low blue Earth reflection without camera-fill washout.
+- ISS selected-model orientation also uses the live orbital frame: local `+X` follows velocity, local `+Y` is the pitch axis and points nadir toward Earth, and local `+Z` is the right-handed negative cross-track complement. ISS orientation diagnostics are stored on the selected model for debugging.
 - Starlink selected-model framing uses an oblique reference-style observer view at the same 100 m distance, so Earth/horizon sits behind and below the satellite instead of centered directly behind it.
 - Nadir-oriented detailed satellite models: the selected model treats local `+Z` as the Earth-facing axis and points it toward Earth's center before applying yaw/pitch/roll bias.
 - 2D/Mercator selected-satellite UX: selection is highlighted with a clear marker ring instead of applying 3D-only camera-distance behavior.
@@ -76,6 +78,10 @@ Version 1.5.18 removes the launch offline banner while keeping silent local-data
 
 Version 1.5.19 removes the detailed metadata/TLE table from Satellite Selection so the full selected-satellite details appear only in the right-side canvas panel. The right-side panel matches the UTC clock width, shows TLE line 1 and TLE line 2 only once, and restricts `SSL_1300.glb` to INTELSAT 20 (IS-20) and INTELSAT 18 (IS-18).
 
+Version 1.5.20 moves the combined Globe + Mercator overlay to the bottom-right of the canvas so the menu does not hide it. It also makes the Sun the dominant selected-model light source, keeps Sun lighting updated before render, adds subtle Earth-reflected albedo for solar-panel visibility when possible, and preserves the selected-satellite camera tracking and zoom/orbit controls.
+
+Version 1.5.21 makes the right-side selected-satellite data and TLE sections collapsible and expanded by default after each satellite selection using `<details open>`. Starlink and ISS selections also add an expanded `Source detail` section after TLE details with bold red attribution text: Starlink cites `https://sketchfab.com/malacodart` with CC Attribution / Creative Commons Attribution, and ISS cites `https://github.com/nasa/NASA-3D-Resources` courtesy of NASA (National Aeronautics and Space Administration). ISS selected-model orientation swaps yaw and pitch control inputs so ISS `Yaw` applies the previous pitch behavior and ISS `Pitch` applies the previous yaw behavior, while roll remains unchanged; ISS local `+Y` is the pitch axis and stays pointed toward Earth/nadir as ISS propagates. Starlink and other models keep the standard mapping. The release also records the ADCS/attitude visualization correction requirements from the attached screenshot, but no repository HTML/JS source file currently contains the ADCS `Attitude`, `Commanded`, or `CMG Torque` UI text, so that page-specific layout correction remains blocked until the source file is added or identified.
+
 The selected satellite model axis convention is:
 
 ```text
@@ -83,6 +89,8 @@ local +Z = Earth-facing / nadir axis
 ```
 
 Yaw, pitch, and roll are applied as a bias on top of that nadir-facing orientation.
+
+For ISS selected models only, the yaw and pitch control inputs are swapped to match the corrected ISS visual orientation: the `Yaw` slider drives the previous pitch behavior, the `Pitch` slider drives the previous yaw behavior, and `Roll` is unchanged. The ISS pitch axis is local `+Y`; it points to Earth/nadir and keeps tracking Earth as time changes.
 
 ## 3D Model Asset Matching
 
@@ -108,7 +116,9 @@ Use `display_satellite.html` to verify local satellite model assets independentl
 http://127.0.0.1:8000/display_satellite.html
 ```
 
-The viewer defaults to `obj/starlink_V1.obj` and `obj/starlink_V1.mtl`, but it can select current OBJ/MTL and GLB assets under `obj/`. It also supports a custom entry such as `ISS.glb`, `oneweb.obj`, or `starlink_V1` for newly added local assets. The viewer centers the model, adds inspection lighting, and fits the camera to the model bounds. If a model is visible in `display_satellite.html` but not after selecting a matching satellite in `index.html`, the issue is in the selected-satellite scene integration rather than the local model asset.
+The viewer reads `json/display_satellite_models.json` and lists the configured standalone viewer models under `obj/`, including Starlink, Generic, O3b, scale-tuned O3b mPOWER HD, ISS, the extra ISS GLB, ISS High Definition components, SSL 1300, and the Hubble Space Telescope GLBs. It provides search, reload, reset, auto-fit, axes/grid, wireframe, background, and copyable diagnostics controls. The diagnostics panel reports the active asset path, required files, loaded textures, mesh/material counts, triangles, bounds, and loader warnings.
+
+Custom entries still support newly added local assets without code changes. Use examples such as `ISS.glb`, `starlink_V1`, or `generic.obj, generic.mtl` to load from `obj/`. The viewer centers the model, adds inspection lighting, repairs weak/invisible materials where possible, normalizes extremely small or large assets such as `SSL_1300.glb` to an inspectable display size, and fits the camera to the model bounds. If a model is visible in `display_satellite.html` but not after selecting a matching satellite in `index.html`, the issue is in the selected-satellite scene integration rather than the local model asset.
 
 ## Requirements
 
@@ -218,7 +228,7 @@ The left menu is organized into compact colored accordion sections. Multiple sec
 
 The satellite selector is searchable. Type part of a satellite name, NORAD ID, orbit type, or tag, then use the mouse or keyboard arrow keys plus Enter to select a result. Selecting a result closes the dropdown immediately; Escape, Tab, or clicking outside the selector also closes the dropdown so it cannot block `Show Orbit`, `Show Footprint`, or other controls below it. The result list renders above the accordion panels so it stays visible while searching in the Satellite Selection section. After a satellite is selected, focusing, clicking, typing, pasting, or pressing `Clear` in the search field removes only the old selected label so a new search can start while the selected satellite remains active. Timeline controls are checkboxes: checked means the timeline is visible; unchecked means it is hidden. Only one timeline can be visible at a time. If Yaw-Pitch-Roll is enabled, selecting or switching satellites keeps the YPR sliders visible and preserves the current yaw, pitch, and roll values.
 
-After a satellite is selected, the right side of the canvas shows a translucent selected-satellite detail panel below the UTC clock with the same width as the clock. It includes name, NORAD ID, orbit type, tag/company, launch date, scalar metadata fields, and TLE line 1 plus TLE line 2 exactly once. Clearing the selection hides the panel.
+After a satellite is selected, the right side of the canvas shows a translucent selected-satellite detail panel below the UTC clock with the same width as the clock. It includes name, NORAD ID, orbit type, tag/company, launch date, scalar metadata fields, and TLE line 1 plus TLE line 2 exactly once. Satellite data and TLE details are expanded by default. Starlink and ISS selections add an expanded `Source detail` section with bold red model-source attribution text. Clearing the selection hides the panel.
 
 The Help section disclaimer is part of the application UI: OpenBEXI Earth Orbit is for visualization, educational, and experimental purposes only. It is not an authoritative source for navigation, safety, mission planning, collision avoidance, or operational satellite decisions.
 
@@ -227,7 +237,7 @@ The Help section opens Swagger and API documentation in separate pages using the
 ## Project Structure
 
 - `index.html`: Main browser app and integration point for rendering, controls, selection, and animation.
-- `display_satellite.html`: Isolated local OBJ/MTL and GLB viewer for direct satellite model visibility checks.
+- `display_satellite.html`: Manifest-backed isolated local OBJ/MTL and GLB viewer for direct satellite model visibility checks.
 - `markdown_viewer.html`: Static rendered Markdown viewer used by Help for README and Releases History.
 - `css/`: Styling for the app, menu, filters, labels, and map layout.
 - `js/`: Browser modules for coordinates, satellite loading, models, menu, footprints, frames, day/night, Moon, timelines, and map rendering.
@@ -235,6 +245,7 @@ The Help section opens Swagger and API documentation in separate pages using the
 - `js/startupPerformance.js`: Startup timing, deferred scheduling, and chunked-work helpers used to keep the first render responsive.
 - `json/tle/`: TLE source data.
 - `json/satellites/`: Satellite metadata and model configuration.
+- `json/display_satellite_models.json`: Model manifest used by `display_satellite.html`.
 - `textures/`: Earth, Moon, satellite, and material textures.
 - `icons/`: Satellite and UI icon assets.
 - `obj/`: OBJ, MTL, and GLB satellite model assets.

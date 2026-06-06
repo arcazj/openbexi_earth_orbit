@@ -56,6 +56,10 @@ Version 1.5.18 removes the launch offline banner while preserving silent local-d
 
 Version 1.5.19 removes the detailed metadata/TLE table from Satellite Selection and keeps full selected-satellite details only in the right-side canvas panel. The right-side panel must match the UTC clock width and show TLE line 1 and TLE line 2 only once. `SSL_1300.glb` is restricted to `INTELSAT 20 (IS-20)` and `INTELSAT 18 (IS-18)` only.
 
+Version 1.5.20 moves the combined Globe + Mercator overlay to the bottom-right of the canvas so it is not hidden by the left menu. Selected detailed satellite models must use the Sun as the dominant light source, update Sun lighting before each 3D render, preserve a minimal non-washing camera fill only as fallback, and add subtle Earth-reflected albedo toward solar panels when possible.
+
+Version 1.5.21 makes the right-side selected-satellite data and TLE details independently collapsible and expanded by default whenever a satellite is selected, using `<details open>`. Starlink and ISS selections add an expanded `Source detail` section after TLE details with bold red attribution text for the model source and license/courtesy. ISS selected-model orientation swaps yaw and pitch control inputs so ISS `Yaw` applies the previous pitch behavior and ISS `Pitch` applies the previous yaw behavior, while roll remains unchanged. ISS local `+Y` is the pitch axis and stays pointed toward Earth/nadir as ISS propagates. It also captures the ADCS/attitude visualization layout correction requirements from the screenshot: unclipped title, non-overlapping Attitude table, centered satellite model, readable yaw/pitch/roll labels, aligned headers and units, and responsive layout. The ADCS page-specific correction is blocked in this workspace because no HTML/JS file contains the screenshot's `ADCS`, `Attitude`, `Commanded`, or `CMG Torque` UI text.
+
 ## Test Environment
 
 - Run from the repository root.
@@ -275,13 +279,13 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test the GitHub Help link uses `target="_blank"` and `rel="noopener noreferrer"`.
 - Test the Help section contains the legal disclaimer and mentions `satellite.js`.
 - Test Close, version text, and server status align horizontally and vertically on desktop and wrap only as needed on narrow screens.
-- Test ISS selected-model orientation maps local `+X` to velocity, local `+Y` to the right-handed cross-track/starboard axis, and local `+Z` to nadir.
+- Test ISS selected-model orientation maps local `+X` to velocity, local `+Y`/pitch to nadir/Earth, and local `+Z` to the right-handed negative cross-track complement.
 - Test ISS orientation diagnostics include `orientationMode`, `modelAxisMapping`, `calibrationYawDeg`, `calibrationPitchDeg`, and `calibrationRollDeg`.
 
 ### Server Data Path
 
 - Test `/api/health` returns status `ok` and version metadata.
-- Test `/api/version` returns app/API version `1.5.19` and release date `2026-06-06`.
+- Test `/api/version` returns app/API version `1.5.21` and release date `2026-06-06`.
 - Test `/api/tle` and `/api/satellites` return valid TLE records with `norad_id`, `tle_line1`, and `tle_line2`.
 - Test `/api/satellite-metadata` lists known metadata files.
 - Test `/api/satellite-metadata/starlink_V1.json` returns one known metadata payload.
@@ -363,14 +367,20 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - After selecting a satellite, type or paste into the already-focused search field and confirm the previous selected label clears before the new query is entered.
 - Confirm the satellite search result dropdown remains visible above the rest of the menu while open and does not get clipped by the accordion panel.
 - Confirm Satellite Selection does not show the detailed selected-satellite metadata/TLE table after selection.
-- Confirm the right-side selected-satellite detail panel appears under the UTC clock after selection, has a transparent background, matches the UTC clock width, shows metadata plus TLE line 1 and line 2 exactly once, and hides again when the selection is cleared.
+- Confirm the right-side selected-satellite detail panel appears under the UTC clock after selection, has a transparent background, matches the UTC clock width, shows independently expandable Satellite data and TLE details sections expanded by default using `<details open>`, shows metadata plus TLE line 1 and line 2 exactly once, and hides again when the selection is cleared.
+- Select a Starlink model and confirm an expanded `Source detail` section appears after `TLE details` with bold red text: `Model downloaded from https://sketchfab.com/malacodart, license: CC Attribution / Creative Commons Attribution.`
+- Select an ISS model and confirm an expanded `Source detail` section appears after `TLE details` with bold red text: `Model downloaded from https://github.com/nasa/NASA-3D-Resources, courtesy: NASA (National Aeronautics and Space Administration).`
+- Select another model without explicit attribution and confirm no `Source detail` section is shown.
+- Select ISS, enable `Yaw-Pitch-Roll`, move the `Yaw` slider, and confirm it drives the orientation behavior previously associated with ISS pitch.
+- Select ISS, move the `Pitch` slider, and confirm it drives the orientation behavior previously associated with ISS yaw.
+- Confirm ISS `Roll` behavior is unchanged and Starlink/other selected models still use the normal yaw/pitch/roll mapping.
 - Confirm `SSL_1300.glb` loads for `INTELSAT 20 (IS-20)` and `INTELSAT 18 (IS-18)` only, not for other Intelsat, SSL, GEO, GOES, SES, manufacturer, bus, or alias matches.
 - Confirm the Starlink shortcut label updates to `Starlink (<NORAD ID>)` after TLE data loads.
 - Confirm the Starlink shortcut shows `Starlink unavailable` if no Starlink target can be resolved.
 - Confirm the ISS shortcut shows `ISS unavailable` if no ISS target can be resolved.
 - Confirm `Other Selections` appears immediately after `Filters - Satellites Found`.
 - Confirm `Share` appears immediately after `Timelines` and immediately before `Help`.
-- Confirm `Close`, `Version 1.5.19 - hosted at GitHub Repo`, and the server status icon/text are aligned on one compact row on desktop.
+- Confirm `Close`, `Version 1.5.21 - hosted at GitHub Repo`, and the server status icon/text are aligned on one compact row on desktop.
 - Confirm the version/GitHub text is centered in the menu header.
 - Confirm the server status indicator appears above the accordion menu and does not shift layout when changing between checking, offline, connected, and error states.
 - Confirm connected status uses `power_green.png` and offline/error status uses `power_red.png`.
@@ -541,8 +551,8 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
   - A `OneWeb` satellite loads the OneWeb OBJ/MTL model from `obj/`.
   - An `O3b` satellite loads the O3b OBJ/MTL model from `obj/`.
   - `ISS` loads the ISS GLB model from `obj/` when available in the filtered selection.
-  - `ISS` visually uses the reference orbital orientation: `+X` velocity, `+Y` starboard/right-handed cross-track, and `+Z` nadir.
-  - ISS selected-model diagnostics report `orientationMode: "iss-velocity-nadir-frame"` plus yaw, pitch, and roll calibration values.
+  - `ISS` visually uses the corrected orbital orientation: `+X` velocity, `+Y` pitch axis nadir toward Earth, and `+Z` right-handed negative cross-track.
+  - ISS selected-model diagnostics report `orientationMode: "iss-velocity-pitch-nadir-frame"` plus yaw, pitch, roll, and pitch-axis Earth-facing calibration values.
   - From at least two camera angles, ISS remains inspectable and Earth remains visible in the initial selected view.
   - A GOES/Intelsat/SES-style GEO satellite loads the SSL 1300 fallback model when applicable.
 - Confirm selecting a satellite with a detailed model lowers near-plane clipping enough that the model is not clipped when the camera is close.
@@ -629,7 +639,7 @@ py -m http.server 8000 --bind 127.0.0.1
   - Confirm the selected-model camera/observer eye is using the 100 m default distance in the console `selectedView` diagnostics.
   - Confirm the selected Starlink diagnostics report `observerPlacement: "starlink-oblique-orbital-frame"` and orientation mode `starlink-velocity-nadir-frame`.
   - Confirm the Starlink shortcut label includes the resolved NORAD ID.
-  - Select ISS from the shortcut and confirm the selected ISS diagnostics report `orientationMode: "iss-velocity-nadir-frame"` and the ISS model visually follows the reference velocity/nadir/starboard orientation.
+  - Select ISS from the shortcut and confirm the selected ISS diagnostics report `orientationMode: "iss-velocity-pitch-nadir-frame"` and the ISS model keeps local `+Y`/pitch pointed to Earth while local `+X` follows velocity.
   - Open Help and confirm GitHub, README, Releases History, Licenses, Swagger, API, and the disclaimer are present.
   - Click README and Releases History and confirm each document renders as Markdown in the Help panel.
   - Open Share and confirm Copy Link creates a safe share URL.
@@ -688,10 +698,13 @@ py -m http.server 8000 --bind 127.0.0.1
 http://127.0.0.1:8000/display_satellite.html
 ```
 
+- Confirm the manifest-backed list loads from `json/display_satellite_models.json` and includes the configured standalone viewer models under `obj/`: Starlink, Generic, O3b, scale-tuned O3b mPOWER HD, ISS, the extra ISS GLB, ISS High Definition components, SSL 1300, and the Hubble Space Telescope GLBs.
 - Confirm the default `obj/starlink_V1.obj` loads with either its MTL material or fallback material.
-- Use the model selector to load at least one OBJ/MTL model and one GLB model from `obj/`.
-- Use the custom model field with examples such as `ISS.glb`, `oneweb.obj`, or `starlink_V1` and confirm local assets can be loaded without changing code.
-- Confirm each loaded model is centered, lit, nonblank, and orbit/zoom controls work.
+- Use search to filter the model list, then load at least one OBJ/MTL model and one GLB model from `obj/`.
+- Confirm diagnostics update with asset path, required files, texture count, mesh/material count, triangle count, bounds, diameter, and load warnings.
+- Confirm `SSL_1300.glb` is visible after selection and diagnostics show the original diameter plus display scale normalization.
+- Use the custom model field with examples such as `ISS.glb`, `starlink_V1`, or `generic.obj, generic.mtl` and confirm local assets can be loaded without changing code.
+- Confirm each loaded model is centered, lit, nonblank, and orbit/zoom plus reset/auto-fit/wireframe/grid/axes controls work.
 - Compare this isolated view with selecting the matching satellite in `index.html`; both should show a visible model.
 
 ## Completion Checklist
@@ -704,7 +717,7 @@ Before reporting completion, go through this file and record which checks were p
 - Deep automated tests cover the coordinate-frame, orbit, Sun, Moon, scaling, selected-satellite model resolution, selected-satellite framing/orientation, footprint, menu, and URL-helper requirements above.
 - Automated tests cover Starlink OBJ visual bounds, selected camera distance behavior for exact 100 m target framing, deterministic satellite-visibility projection checks, Starlink velocity/nadir orientation, and oblique non-radial observer placement.
 - Browser smoke test over HTTP passes.
-- Isolated `display_satellite.html` local model viewer checks pass for Starlink default, another OBJ/MTL model, a GLB model, and a custom entry.
+- Isolated `display_satellite.html` local model viewer checks pass for manifest coverage, Starlink default, another OBJ/MTL model, a GLB model, diagnostics, and a custom entry.
 - Filter UI regression passes.
 - Existing feature regression passes.
 - Domain regression passes or any intentional approximation is documented.
@@ -1040,7 +1053,7 @@ Checks performed on 2026-06-04:
 - Starlink shortcut dynamic state returns `Starlink (<NORAD ID>)` and `Starlink unavailable`.
 - ISS shortcut dynamic state returns `ISS` and `ISS unavailable`.
 - Help accordion section appears after Settings and includes GitHub, README, Prompt History, License, and disclaimer content.
-- ISS selected-model orientation uses `iss-velocity-nadir-frame` diagnostics with yaw/pitch/roll calibration values.
+- ISS selected-model orientation uses `iss-velocity-pitch-nadir-frame` diagnostics with yaw/pitch/roll calibration values and pitch-axis Earth-facing metadata.
 - `npm test`: passed, including `encodingUx.test.js`, `menuUx.test.js`, `modelResolver.test.js`, `modelVisualFraming.test.js`, `releaseStructure.test.js`, `satelliteOrbitOcclusion.test.js`, `selectedSatelliteView.test.js`, `shortcutLabels.test.js`, `startupPerformance.test.js`, and `startupStructure.test.js`.
 - `Get-ChildItem -File .\js -Filter *.js | ForEach-Object { node --check $_.FullName }`: passed.
 - `Get-ChildItem -File .\tests -Filter *.js | ForEach-Object { node --check $_.FullName }`: passed.
@@ -1085,6 +1098,46 @@ Checks to perform for this release:
 - Run JavaScript syntax checks.
 - Run Python syntax checks.
 - Run Python server smoke checks for API, Swagger docs, and static app routes.
+
+## Release 1.5.21 Verification Log
+
+Checks performed for this Version 1.5.21 implementation session:
+
+- `PROMPT_History.md` contains the latest `Release Date: 2026-06-06 Version 1.5.21` entry at the top.
+- `index.html`, `js/serverConnection.js`, `js/SatelliteMenuLoader.js`, and `server.py` use version `1.5.21`.
+- Static tests confirm the right-side selected-satellite detail panel has independent collapsible `Satellite data` and `TLE details` sections.
+- Static tests confirm both selected-satellite detail sections are expanded by default using `<details open>` and preserve the existing transparent panel styling and UTC-clock width sync.
+- Static tests confirm Starlink and ISS add an expanded `Source detail` section with red bold attribution text and defined source/license/courtesy strings.
+- Static tests confirm ISS selected-model yaw and pitch control inputs are swapped while roll remains unchanged and non-ISS models keep the standard mapping.
+- Static repository search found no HTML/JS source containing the ADCS screenshot text (`ADCS`, `Attitude`, `Commanded`, or `CMG Torque`), so ADCS page-specific layout edits could not be applied in this workspace.
+- `npm test`: passed.
+- Recursive `node --check` over `js/` and `tests/`: passed.
+- `py -m py_compile server.py`: passed.
+- `git diff --check`: passed after removing one extra trailing blank line from `PROMPT_History.md`; remaining output was only LF-to-CRLF normalization warnings for edited files.
+
+Checks not fully performed in this terminal:
+
+- Full browser confirmation that expanding/collapsing the selected-satellite panel remains usable on desktop and narrow screens remains manual.
+- ADCS/attitude screenshot-specific browser correction remains blocked until the source page/file is available in the repository.
+
+## Release 1.5.20 Verification Log
+
+Checks performed for this Version 1.5.20 implementation session:
+
+- `PROMPT_History.md` contains the latest `Release Date: 2026-06-06 Version 1.5.20` entry at the top.
+- `index.html`, `js/serverConnection.js`, `js/SatelliteMenuLoader.js`, and `server.py` use version `1.5.20`.
+- Static tests confirm combined Globe + Mercator mode applies the `globe-overlay` class and anchors the Mercator overlay to the bottom-right of the canvas.
+- Static tests confirm selected-model lighting uses configured Sun intensity, updates Sun light before rendering, keeps camera fill minimal, and creates a named directional Earth-albedo light.
+- Static tests confirm model material loading still decodes diffuse textures as sRGB and clamps high MTL specular/shininess response to avoid white solar-panel washout.
+- `npm test`: passed.
+- Recursive `node --check` over `js/` and `tests/`: passed.
+- `py -m py_compile server.py`: passed.
+- `git diff --check`: passed after removing one extra trailing blank line from `PROMPT_History.md`; remaining output was only LF-to-CRLF normalization warnings for edited files.
+- Python server smoke checks are not run unless requested; static API/version tests cover the release constants.
+
+Checks not fully performed in this terminal:
+
+- Full browser confirmation that Globe + Mercator places the Mercator overlay in the visible bottom-right canvas corner, and that Starlink solar panels show Sun and subtle Earth-reflection lighting, remains manual.
 
 ## Release 1.5.19 Verification Log
 
@@ -1222,8 +1275,8 @@ Checks not fully performed in this terminal:
 - First Starlink and ISS shortcuts use the normal satellite selection path and move the observer to the selected satellite.
 - The Starlink shortcut displays `Starlink (<NORAD ID>)` after TLE data loads and `Starlink unavailable` when unresolved.
 - The ISS shortcut displays `ISS` when resolved and `ISS unavailable` when unresolved.
-- ISS selected-model orientation maps `+X` to velocity, `+Y` to starboard/right-handed cross-track, and `+Z` to nadir.
-- ISS orientation diagnostics include `iss-velocity-nadir-frame` and yaw/pitch/roll calibration values.
+- ISS selected-model orientation maps `+X` to velocity, `+Y`/pitch to nadir/Earth, and `+Z` to the right-handed negative cross-track complement.
+- ISS orientation diagnostics include `iss-velocity-pitch-nadir-frame`, pitch-axis Earth-facing metadata, and yaw/pitch/roll calibration values.
 - The Help accordion appears after Share and contains GitHub, README, Releases History, Licenses, Swagger, API, and disclaimer content.
 - The satellite search field clears the prior selected label on the next search interaction without clearing the active selected satellite.
 - Selected-satellite camera metadata confirms Earth remains visible behind the selected satellite.
