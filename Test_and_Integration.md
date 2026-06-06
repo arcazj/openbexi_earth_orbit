@@ -50,6 +50,8 @@ Version 1.5.15 makes launch accordion state deterministic and improves Help docu
 
 Version 1.5.16 revises the menu UX. All accordion sections must start collapsed by default, `View` is renamed to `Views & Time`, Settings is removed, selected-satellite controls stay hidden until a satellite is selected, Help uses document-style actions, Swagger/API/Licenses open separate pages, and the centered GitHub/version header aligns with the Close and server status controls. Connected status uses `icons/power_green.png`; disconnected/error status uses `icons/power_red.png`.
 
+Version 1.5.17 revises the menu order and launch defaults. `Satellite Selection` appears directly under `Views & Time`, `Filters - Satellites Found` appears directly under `Satellite Selection`, and those three sections start expanded on every launch or refresh while the remaining sections start collapsed. `Views & Time` includes a menu `Time x` slider synchronized with the canvas-top `Time x` slider. The obsolete visible orbit-filter and satellite-search helper text is removed without removing controls or accessible names.
+
 ## Test Environment
 
 - Run from the repository root.
@@ -213,15 +215,20 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test the Orbit filter includes `ALL`, `GEO`, `MEO`, `LEO`, `HEO`, and `Other`.
 - Test the filter menu does not contain an `Active` button/control.
 - Test generated company/tag chips exclude `Active`, not only the static markup.
-- Test the `Views & Time` section has one collapsible container containing Globe, Mercator, High Def., ECEF Axes, Day/Night controls, shortcuts, and the time-slider instruction.
+- Test the `Views & Time` section has one collapsible container containing the menu `Time x` slider, Globe, Mercator, High Def., ECEF Axes, Day/Night controls, and shortcuts.
+- Test the menu `Time x` slider and canvas-top `Time x` slider stay synchronized in both directions and update one shared simulation-speed state.
 - Test menu CSS keeps the narrowed menu width, legacy colored accordion headers, and scrollable long panels.
 - Test the vertical tab rail is removed and the menu uses stacked accordion sections.
-- Test accordion section order is `Views & Time`, `Filters`, `Satellite Selection`, `Other Selections`, `Timelines`, `Share`, `Help`.
+- Test accordion section order is `Views & Time`, `Satellite Selection`, `Filters - Satellites Found`, `Other Selections`, `Timelines`, `Share`, `Help`.
 - Test the Settings accordion section is absent.
 - Test multiple accordion sections can be open simultaneously.
 - Test expanding one accordion section does not collapse another section.
-- Test all accordion sections are collapsed on initial page load, including `Views & Time`, `Filters`, and `Satellite Selection`.
-- Test persisted accordion state cannot reopen sections on initial page load.
+- Test `Views & Time`, `Satellite Selection`, and `Filters - Satellites Found` are expanded on initial page load.
+- Test `Other Selections`, `Timelines`, `Share`, and `Help` are collapsed on initial page load.
+- Test persisted accordion state cannot override the required launch defaults on initial page load.
+- Test the visible text `Use the time slider at the top of the screen to control simulation speed.` is absent.
+- Test the visible text `Orbit filter (multi-select): Choose one or more orbit families. ALL enables every orbit category.` is absent while orbit filter controls remain usable.
+- Test the visible text `Select Satellite: Search by name, NORAD ID, orbit type, or tag.` is absent while satellite search remains usable and accessible.
 - Test expanded accordion headers use dark high-contrast text and do not inherit the light global heading color.
 - Test the satellite count in the Filters header is red and bold.
 - Test the accordion menu width is thinner than the previous `420px` release width.
@@ -270,7 +277,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 ### Server Data Path
 
 - Test `/api/health` returns status `ok` and version metadata.
-- Test `/api/version` returns app/API version `1.5.16` and release date `2026-06-04`.
+- Test `/api/version` returns app/API version `1.5.17` and release date `2026-06-06`.
 - Test `/api/tle` and `/api/satellites` return valid TLE records with `norad_id`, `tle_line1`, and `tle_line2`.
 - Test `/api/satellite-metadata` lists known metadata files.
 - Test `/api/satellite-metadata/starlink_V1.json` returns one known metadata payload.
@@ -325,14 +332,23 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm headings, accordion labels, helper text, toggle icons, time slider labels, and menu buttons render without visible mojibake.
 - Confirm the left menu is thinner than Version 1.5.1 but still usable on desktop and narrow viewports.
 - Confirm the `Filters - Satellites Found` numeric count is red and bold in both expanded and collapsed filter states.
-- Confirm every accordion section starts collapsed on every `index.html` load, including `Views & Time`, `Filters`, and `Satellite Selection`, even after previously expanding them.
+- Confirm `Views & Time`, `Satellite Selection`, and `Filters - Satellites Found` start expanded on every `index.html` load, even after previously changing accordion states.
+- Confirm `Other Selections`, `Timelines`, `Share`, and `Help` start collapsed on every `index.html` load.
 - Confirm the Settings accordion section is not present.
 - Confirm multiple accordion sections can stay open at the same time.
 - Confirm selecting filters, tags, debris modes, timelines, and view toggles does not collapse unrelated accordion sections.
+- Confirm the accordion order is `Views & Time`, `Satellite Selection`, `Filters - Satellites Found`, `Other Selections`, `Timelines`, `Share`, `Help`.
+- Confirm `Satellite Selection` appears immediately under `Views & Time`.
+- Confirm `Filters - Satellites Found` appears immediately under `Satellite Selection`.
+- Confirm the visible orbit-filter helper text `Orbit filter (multi-select): Choose one or more orbit families. ALL enables every orbit category.` is gone.
+- Confirm the visible satellite-search helper text `Select Satellite: Search by name, NORAD ID, orbit type, or tag.` is gone.
 - Confirm the `Views & Time` section keeps `Globe` and `Mercator` on one row.
 - Confirm the `Views & Time` section keeps `High Def.`, `ECEF Axes`, and `Day/Night` on one row.
 - Confirm the `Views & Time` section keeps `First Starlink` and `ISS` shortcut buttons on one row.
-- Confirm the `Views & Time` section includes the time-slider instruction.
+- Confirm the `Views & Time` section includes a real menu `Time x` slider at the top.
+- Confirm the existing canvas-top `Time x` slider remains visible.
+- Move the menu `Time x` slider and confirm the canvas-top slider, displayed value, and simulation speed update.
+- Move the canvas-top `Time x` slider and confirm the menu slider, displayed value, and simulation speed update.
 - Confirm the satellite-specific checkbox block is hidden before selecting a satellite.
 - Click `First Starlink` and confirm the first loaded Starlink is selected, `Show only selected satellite` becomes checked, only that satellite remains visible, `High Def.` becomes checked, and the selected-satellite camera/model path matches normal satellite selection.
 - Click `ISS` and confirm ISS/ZARYA NORAD `25544` is selected through the normal selection path, `Show only selected satellite` becomes checked, only ISS remains visible, and `High Def.` becomes checked because ISS is not MEO/GEO.
@@ -343,9 +359,9 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm the Starlink shortcut label updates to `Starlink (<NORAD ID>)` after TLE data loads.
 - Confirm the Starlink shortcut shows `Starlink unavailable` if no Starlink target can be resolved.
 - Confirm the ISS shortcut shows `ISS unavailable` if no ISS target can be resolved.
-- Confirm `Other Selections` appears immediately after `Satellite Selection`.
+- Confirm `Other Selections` appears immediately after `Filters - Satellites Found`.
 - Confirm `Share` appears immediately after `Timelines` and immediately before `Help`.
-- Confirm `Close`, `Version 1.5.16 - hosted at GitHub Repo`, and the server status icon/text are aligned on one compact row on desktop.
+- Confirm `Close`, `Version 1.5.17 - hosted at GitHub Repo`, and the server status icon/text are aligned on one compact row on desktop.
 - Confirm the version/GitHub text is centered in the menu header.
 - Confirm the server status indicator appears above the accordion menu and does not shift layout when changing between checking, offline, connected, and error states.
 - Confirm connected status uses `power_green.png` and offline/error status uses `power_red.png`.
@@ -1061,6 +1077,31 @@ Checks to perform for this release:
 - Run Python syntax checks.
 - Run Python server smoke checks for API, Swagger docs, and static app routes.
 
+## Release 1.5.17 Verification Log
+
+Checks performed for this Version 1.5.17 implementation session:
+
+- `PROMPT_History.md` contains the latest `Release Date: 2026-06-06 Version 1.5.17` entry at the top.
+- `index.html`, `js/serverConnection.js`, `js/SatelliteMenuLoader.js`, and `server.py` use version `1.5.17`.
+- Static tests confirm `index.html` displays `Version 1.5.17 - hosted at GitHub Repo`.
+- Static tests confirm the order is Views & Time, Satellite Selection, Filters - Satellites Found, Other Selections, Timelines, Share, Help.
+- Static tests confirm Views & Time, Satellite Selection, and Filters - Satellites Found start expanded, while Other Selections, Timelines, Share, and Help start collapsed.
+- Static tests confirm persisted accordion state cannot override the required launch defaults.
+- Static tests confirm the menu `Time x` slider and canvas-top `Time x` slider are wired to shared synchronization helpers.
+- Static tests confirm the obsolete visible helper text for Views & Time, the orbit filter, and Satellite Selection is absent.
+- Static tests confirm orbit filter controls and satellite search controls remain present with accessible names.
+- `npm test`: passed.
+- `Get-ChildItem -File .\js -Filter *.js | ForEach-Object { node --check $_.FullName }`: passed.
+- `Get-ChildItem -File .\tests -Filter *.js | ForEach-Object { node --check $_.FullName }`: passed.
+- `py -m py_compile server.py`: passed.
+- Python server smoke check with `curl.exe` on `127.0.0.1:8765`: `/api/version` returned `1.5.17` and `2026-06-06`; `/docs` returned HTTP 200; `/index.html` returned HTTP 200.
+- `git diff --check`: passed with only LF-to-CRLF normalization warnings for edited files.
+
+Checks not fully performed in this terminal:
+
+- Full visible-browser confirmation of bidirectional slider interaction, desktop/mobile layout, keyboard navigation, and the visual absence of removed helper-text gaps remains manual unless browser automation is available.
+- PowerShell `Invoke-WebRequest` hit a local client `NullReferenceException` while reading `/docs`; the same `/docs` route passed with `curl.exe` HTTP 200.
+
 ## Release 1.5.16 Verification Log
 
 Checks performed for this Version 1.5.16 implementation session:
@@ -1102,8 +1143,9 @@ Checks not fully performed in this terminal:
 - The satellite count in the Filters header is red and bold.
 - The accordion menu is thinner than the previous release while staying usable.
 - Multiple accordion sections can stay open at the same time.
-- Every accordion section starts collapsed on page load.
-- The accordion order is Views & Time, Filters, Satellite Selection, Other Selections, Timelines, Share, Help.
+- Views & Time, Satellite Selection, and Filters - Satellites Found start expanded on page load.
+- Other Selections, Timelines, Share, and Help start collapsed on page load.
+- The accordion order is Views & Time, Satellite Selection, Filters - Satellites Found, Other Selections, Timelines, Share, Help.
 - Settings is not present as an accordion section.
 - The optional Python server exposes `/api/health`, `/api/version`, `/api/tle`, `/api/satellites`, `/api/satellite-metadata`, `/api/decayed`, `/docs`, and `/openapi.json`.
 - Connected mode loads TLE data from the Python server and labels the active data source as server-backed.
@@ -1116,7 +1158,9 @@ Checks not fully performed in this terminal:
 - Share can preview, download, copy, and natively share the current canvas image when the browser supports those APIs.
 - Help includes Swagger/API documentation links that open separate pages and remain clickable while offline.
 - Help renders README and Releases History Markdown inside the app and keeps `PROMPT_History.md` available through the `Releases History` action.
-- The Views & Time menu keeps Globe/Mercator, High Def./ECEF Axes/Day-Night, First Starlink/ISS on three compact rows, and includes the time-slider instruction.
+- The Views & Time menu keeps a synchronized menu Time x slider, Globe/Mercator, High Def./ECEF Axes/Day-Night, and First Starlink/ISS controls.
+- The canvas-top Time x slider remains visible, and both Time x sliders control one shared simulation-speed state.
+- The obsolete visible helper text for Views & Time, the orbit filter, and Satellite Selection is removed without leaving empty layout gaps.
 - Selecting any satellite automatically checks `Show only selected satellite` and hides all non-selected satellites.
 - The selected satellite remains visible in show-only mode even when current filters would otherwise hide it.
 - Selecting a non-MEO/GEO satellite automatically enables `High Def.` Earth, and MEO/GEO selections never force High Def. off.

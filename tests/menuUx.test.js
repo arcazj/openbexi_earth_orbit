@@ -29,11 +29,11 @@ function run() {
   assert(html.includes('role="button"'), 'accordion headers expose button semantics');
   assert(html.includes('aria-controls="filtersContent"'), 'Filters header controls its content');
   assert(html.includes('aria-controls="satelliteSelectionContent"'), 'Satellite header controls its content');
-  assert(html.includes('aria-expanded="false" data-collapsible-target="viewContent"'), 'Views & Time starts collapsed in markup');
-  assert(html.includes('aria-expanded="false" data-collapsible-target="filtersContent"'), 'Filters starts collapsed in markup');
-  assert(html.includes('aria-expanded="false" data-collapsible-target="satelliteSelectionContent"'), 'Satellite Selection starts collapsed in markup');
-  assert(!html.includes('data-default-expanded="true"'), 'default-expanded accordion state is not declared');
-  assert(html.includes('data-default-collapsed="true"'), 'default-collapsed accordion state is declared');
+  assert(html.includes('aria-expanded="true" data-collapsible-target="viewContent"'), 'Views & Time starts expanded in markup');
+  assert(html.includes('aria-expanded="true" data-collapsible-target="satelliteSelectionContent"'), 'Satellite Selection starts expanded in markup');
+  assert(html.includes('aria-expanded="true" data-collapsible-target="filtersContent"'), 'Filters starts expanded in markup');
+  assert(html.includes('data-default-expanded="true"'), 'default-expanded accordion state is declared');
+  assert(html.includes('data-default-collapsed="true"'), 'default-collapsed accordion state is declared for non-default sections');
 
   const filtersSection = indexOfOrFail(html, 'id="filtersAccordionSection"', 'filters accordion exists');
   const satelliteSection = indexOfOrFail(html, 'id="satelliteAccordionSection"', 'satellite accordion exists');
@@ -45,13 +45,14 @@ function run() {
   assert(!html.includes('id="settingsAccordionSection"'), 'Settings accordion section is removed');
   assert(!html.includes('data-collapsible-target="settingsContent"'), 'Settings content target is removed');
   assert(
-    viewSection < filtersSection && filtersSection < satelliteSection && satelliteSection < timelinesSection &&
-      satelliteSection < otherSection && otherSection < timelinesSection && timelinesSection < shareSection && shareSection < helpSection,
-    'accordion section order is Views & Time, Filters, Satellite Selection, Other, Timelines, Share, Help'
+    viewSection < satelliteSection && satelliteSection < filtersSection && filtersSection < otherSection &&
+      otherSection < timelinesSection && timelinesSection < shareSection && shareSection < helpSection,
+    'accordion section order is Views & Time, Satellite Selection, Filters, Other, Timelines, Share, Help'
   );
   assert(html.includes('Views &amp; Time'), 'View section is renamed to Views & Time');
 
   const viewContent = indexOfOrFail(html, 'id="viewContent"', 'View content exists');
+  const menuTimeWarpSlider = indexOfOrFail(html, 'id="menuTimeWarpSlider"', 'menu Time x slider exists');
   const globeToggle = indexOfOrFail(html, 'id="view3DToggle"', 'Globe toggle exists');
   const mercatorToggle = indexOfOrFail(html, 'id="viewMercatorToggle"', 'Mercator toggle exists');
   const highDefToggle = indexOfOrFail(html, 'id="highDefToggle"', 'High Def toggle exists');
@@ -60,13 +61,16 @@ function run() {
   const starlinkShortcut = indexOfOrFail(html, 'id="selectFirstStarlinkButton"', 'First Starlink shortcut exists');
   const issShortcut = indexOfOrFail(html, 'id="selectIssButton"', 'ISS shortcut exists');
   assert(
-    viewContent < globeToggle && globeToggle < mercatorToggle &&
+    viewContent < menuTimeWarpSlider && menuTimeWarpSlider < globeToggle && globeToggle < mercatorToggle &&
       mercatorToggle < highDefToggle && highDefToggle < axesToggle &&
       axesToggle < dayNightToggle && dayNightToggle < starlinkShortcut &&
       starlinkShortcut < issShortcut,
-    'Views & Time menu order is Globe/Mercator, High Def/ECEF/Day-Night, then First Starlink/ISS shortcuts'
+    'Views & Time menu order is menu Time x slider, Globe/Mercator, High Def/ECEF/Day-Night, then First Starlink/ISS shortcuts'
   );
-  assert(html.includes('Use the time slider at the top of the screen to control simulation speed.'), 'Views & Time contains time slider guidance');
+  assert(!html.includes('Use the time slider at the top of the screen to control simulation speed.'), 'old Views & Time slider guidance is removed');
+  assert(html.includes('class="menu-time-warp-control"'), 'Views & Time contains a compact menu time slider control');
+  assert(html.includes('for="menuTimeWarpSlider">Time x</label>'), 'menu time slider uses the Time x label');
+  assert(html.includes('id="menuTimeWarpVal"'), 'menu time slider has a synchronized value display');
   assert(html.includes('view-control-row view-control-row-two'), 'View menu has a two-item first row');
   assert(html.includes('view-control-row view-control-row-three'), 'View menu has a three-item second row');
   assert(html.includes('view-control-row view-shortcut-row'), 'View menu has a shortcut button row');
@@ -75,13 +79,16 @@ function run() {
   assert(html.includes('Starlink unavailable'), 'Starlink shortcut has required unavailable fallback text');
   assert(html.includes('ISS unavailable'), 'ISS shortcut has required unavailable fallback text');
 
-  assert(indexHtml.includes('DEFAULT_EXPANDED_ACCORDION_SECTIONS = new Set()'), 'no accordion section is forced open on page load');
+  assert(indexHtml.includes('DEFAULT_EXPANDED_ACCORDION_SECTIONS = new Set(['), 'required accordion sections are forced open on page load');
   assert(indexHtml.includes('DEFAULT_COLLAPSED_ACCORDION_SECTIONS'), 'other accordion defaults are explicit');
-  ['viewContent', 'filtersContent', 'satelliteSelectionContent', 'otherSelectionsContent', 'timelineContent', 'shareContent', 'helpContent'].forEach(id => {
+  ['viewContent', 'satelliteSelectionContent', 'filtersContent'].forEach(id => {
+    assert(indexHtml.includes(`'${id}'`), `${id} starts expanded on launch`);
+  });
+  ['otherSelectionsContent', 'timelineContent', 'shareContent', 'helpContent'].forEach(id => {
     assert(indexHtml.includes(`'${id}'`), `${id} starts collapsed on launch`);
   });
   assert(!indexHtml.includes("'settingsContent'"), 'settings content is not part of accordion defaults');
-  assert(indexHtml.includes('persisted state cannot reopen'), 'persisted accordion state cannot reopen sections on launch');
+  assert(indexHtml.includes('persisted state cannot reopen') || indexHtml.includes('persisted state cannot override'), 'persisted accordion state cannot override launch defaults');
   assert(indexHtml.includes('setAccordionSectionCollapsed(targetId, nextCollapsed, collapsedSections)'), 'accordion toggles only the targeted section');
   assert(indexHtml.includes('Multiple sections may remain open'), 'implementation documents multi-open accordion behavior');
   assert(indexHtml.includes("expandCollapsibleSection('satelliteSelectionContent')"), 'YPR-enabled selection opens Satellite Selection');
@@ -91,6 +98,9 @@ function run() {
   assert(indexHtml.includes('EXCLUDED_COMPANY_FILTER_OPTIONS'), 'index defines generated company/tag exclusions');
   assert(indexHtml.includes("new Set(['ACTIVE'])"), 'Active is excluded from generated company/tag chips');
   assert(html.includes('id="satelliteSearchInput"'), 'satellite search input is present');
+  assert(!html.includes('Select Satellite:'), 'old Select Satellite visible label is removed');
+  assert(!html.includes('Search by name, NORAD ID, orbit type, or tag.'), 'old satellite selection helper text is removed');
+  assert(html.includes('aria-label="Search satellite by name, NORAD ID, orbit type, or tag"'), 'satellite search keeps an accessible name after visible label removal');
   assert(html.includes('role="combobox"'), 'satellite search uses combobox semantics');
   assert(html.includes('aria-expanded="false"'), 'satellite search exposes collapsed aria-expanded state');
   assert(html.includes('aria-controls="satelliteSearchResults"'), 'satellite search controls the result list');
@@ -100,6 +110,10 @@ function run() {
   assert(html.includes('id="resetFiltersButton"'), 'reset filters action is present');
   assert(html.includes('id="filterStatusSummary"'), 'active filter summary is present');
   assert(html.includes('id="filterEmptyState"'), 'filter empty state is present');
+  assert(!html.includes('Orbit filter (multi-select):'), 'old orbit filter visible label is removed');
+  assert(!html.includes('Choose one or more orbit families. ALL enables every orbit category.'), 'old orbit filter helper text is removed');
+  assert(html.includes('id="orbitTypeFilter"'), 'orbit filter controls remain present');
+  assert(html.includes('aria-label="Orbit filter"'), 'orbit filter keeps an accessible name');
 
   const satelliteSelection = indexOfOrFail(html, 'Satellite Selection', 'satellite selection section exists');
   const searchInput = indexOfOrFail(html, 'id="satelliteSearchInput"', 'search input exists');
@@ -120,7 +134,7 @@ function run() {
   const otherPanel = indexOfOrFail(html, 'id="otherSelectionsContent"', 'other content exists');
   const sharePanel = indexOfOrFail(html, 'id="shareContent"', 'share content exists');
   const helpPanel = indexOfOrFail(html, 'id="helpContent"', 'help content exists');
-  assert(otherPanel < timelinePanel && timelinePanel < sharePanel && sharePanel < helpPanel, 'Other follows Satellite Selection and Share appears after Timelines before Help');
+  assert(filtersSection < otherPanel && otherPanel < timelinePanel && timelinePanel < sharePanel && sharePanel < helpPanel, 'Filters follows Satellite Selection and Other/Timelines/Share/Help retain order');
   assert(html.includes('type="checkbox" id="launchTimelineToggle"'), 'launch timeline toggle is a checkbox');
   assert(html.includes('type="checkbox" id="reentryTimelineToggle"'), 're-entry timeline toggle is a checkbox');
   assert(!html.includes('other-selections-heading'), 'Other Selections header does not use a special text-style class');
@@ -188,6 +202,8 @@ function run() {
   assert(css.includes('pointer-events: none !important;'), 'hidden satellite results cannot block controls');
   assert(css.includes('max-height: min(260px, calc(100vh - 330px))'), 'satellite metadata stays bounded after narrowing');
   assert(css.includes('#timeWarpBox'), 'time slider has responsive layout CSS');
+  assert(css.includes('.menu-time-warp-control'), 'menu Time x slider has dedicated CSS');
+  assert(css.includes('#menuTimeWarpSlider'), 'menu Time x slider has dedicated slider CSS');
   assert(css.includes('top: 50px !important'), 'narrow viewport time slider is moved away from top controls');
   assert(css.includes('top: 88px'), 'narrow viewport menu starts below the time slider');
   assert(css.includes('.menu-accordion-heading-satellite { border-left-color: #35b9a9; }'), 'Satellite keeps the legacy teal accent');
@@ -229,6 +245,11 @@ function run() {
   assert(css.includes('.view-shortcut-button'), 'View shortcut buttons have dedicated CSS');
 
   assert(indexHtml.includes('MENU_COLLAPSE_STORAGE_KEY'), 'index persists collapsed accordion sections');
+  assert(indexHtml.includes('menuTimeWarpSlider'), 'index reads the menu Time x slider');
+  assert(indexHtml.includes('menuTimeWarpVal'), 'index reads the menu Time x value');
+  assert(indexHtml.includes('sliderValueToTimeWarp'), 'index converts slider values through a shared helper');
+  assert(indexHtml.includes('updateTimeWarpControls'), 'index synchronizes both Time x sliders');
+  assert(indexHtml.includes('[timeWarpSlider, menuTimeWarpSlider]'), 'canvas and menu Time x sliders share input wiring');
   assert(indexHtml.includes('renderMarkdown(markdown'), 'index renders Help Markdown locally');
   assert(indexHtml.includes('escapeHtml(value'), 'Markdown rendering escapes raw HTML');
   assert(indexHtml.includes('safeMarkdownHref'), 'Markdown links are sanitized before rendering');

@@ -145,7 +145,7 @@
     });
     startupPerf.mark('module-loaded');
 
-    const versionNumber = "1.5.16";
+    const versionNumber = "1.5.17";
     if (versionNumber !== APP_VERSION) {
         console.warn(`Version mismatch: index ${versionNumber}, server module ${APP_VERSION}`);
     }
@@ -179,11 +179,12 @@
     const SATELLITE_SETUP_CHUNK_SIZE = 300;
     const DECAY_ESTIMATE_CHUNK_SIZE = 2;
     const MENU_COLLAPSE_STORAGE_KEY = 'openbexi.menu.collapsedSections';
-    const DEFAULT_EXPANDED_ACCORDION_SECTIONS = new Set();
-    const DEFAULT_COLLAPSED_ACCORDION_SECTIONS = new Set([
+    const DEFAULT_EXPANDED_ACCORDION_SECTIONS = new Set([
         'viewContent',
-        'filtersContent',
         'satelliteSelectionContent',
+        'filtersContent'
+    ]);
+    const DEFAULT_COLLAPSED_ACCORDION_SECTIONS = new Set([
         'otherSelectionsContent',
         'timelineContent',
         'shareContent',
@@ -1549,7 +1550,6 @@
         if (collapsedSections) {
             if (collapsed) collapsedSections.add(targetId);
             else collapsedSections.delete(targetId);
-            DEFAULT_EXPANDED_ACCORDION_SECTIONS.forEach(id => collapsedSections.delete(id));
         }
     }
 
@@ -1593,6 +1593,35 @@
     document.body.insertAdjacentHTML('beforeend', twHTML);
     const timeWarpSlider = document.getElementById('timeWarpSlider');
     const timeWarpVal = document.getElementById('timeWarpVal');
+    const menuTimeWarpSlider = document.getElementById('menuTimeWarpSlider');
+    const menuTimeWarpVal = document.getElementById('menuTimeWarpVal');
+
+    function sliderValueToTimeWarp(value) {
+        const parsed = parseInt(value, 10);
+        return Number.isFinite(parsed) && parsed >= 1 ? parsed : 1 / 60;
+    }
+
+    function timeWarpToSliderValue(value) {
+        return value < 1 ? '0' : `${Math.round(value)}`;
+    }
+
+    function formatTimeWarpLabel(value) {
+        return value < 1 ? '0' : `${Math.round(value)}`;
+    }
+
+    function updateTimeWarpControls() {
+        const sliderValue = timeWarpToSliderValue(simParams.timeWarp);
+        const labelValue = formatTimeWarpLabel(simParams.timeWarp);
+        if (timeWarpSlider) timeWarpSlider.value = sliderValue;
+        if (menuTimeWarpSlider) menuTimeWarpSlider.value = sliderValue;
+        if (timeWarpVal) timeWarpVal.textContent = labelValue;
+        if (menuTimeWarpVal) menuTimeWarpVal.textContent = labelValue;
+    }
+
+    function setTimeWarpFromSliderValue(value) {
+        simParams.timeWarp = sliderValueToTimeWarp(value);
+        updateTimeWarpControls();
+    }
 
     function updateEarthTexture() {
         if (!earthMesh || !textureLoader || !earthConfig) return;
@@ -1859,16 +1888,13 @@
             if (reentryTimelineToggle.checked) syncExclusiveTimelineSelection('reentryTimelineToggle');
         });
 
-        // Time-warp slider
-        timeWarpSlider.addEventListener('input', e => {
-            simParams.timeWarp = parseInt(e.target.value, 10);
-            if (simParams.timeWarp < 1) {
-                timeWarpVal.textContent = `0`;
-                simParams.timeWarp = 1 / 60;
-            } else {
-                timeWarpVal.textContent = `${simParams.timeWarp}`;
-            }
+        // Time-warp sliders: the canvas control and menu control mirror one shared speed state.
+        [timeWarpSlider, menuTimeWarpSlider].forEach(slider => {
+            slider?.addEventListener('input', e => {
+                setTimeWarpFromSliderValue(e.target.value);
+            });
         });
+        updateTimeWarpControls();
 
         const showFootprintChk = document.getElementById('showFootprintCheckbox');
         showFootprintChk.addEventListener('change', () => {
@@ -2103,7 +2129,7 @@
         updateYPRLabels();
 
         // Independent accordion sections. Multiple sections may remain open.
-        // Launch state is deterministic: persisted state cannot reopen non-default sections.
+        // Launch state is deterministic: persisted state cannot override required release defaults.
         const collapsedSections = new Set(DEFAULT_COLLAPSED_ACCORDION_SECTIONS);
         DEFAULT_EXPANDED_ACCORDION_SECTIONS.forEach(id => collapsedSections.delete(id));
         const persistCollapsedSections = () => debounceMenuStateWrite(MENU_COLLAPSE_STORAGE_KEY, Array.from(collapsedSections));
@@ -3052,9 +3078,7 @@
             const clockEl = document.getElementById("utcClockDisplay");
             if (clockEl) clockEl.textContent = formatUTCString(SIM_DATE);
         }
-        if (timeWarpVal) {
-            timeWarpVal.textContent = simParams.timeWarp < 1 ? '0' : `${simParams.timeWarp}`;
-        }
+        updateTimeWarpControls();
 
         /* Earth rotation */
         if (earthMesh) earthMesh.rotation.y = rotY;

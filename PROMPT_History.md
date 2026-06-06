@@ -1,5 +1,108 @@
 # Prompt History
 
+## Release Date: 2026-06-06  Version 1.5.17
+
+Implement the Version 1.5.17 menu ordering, launch defaults, time-speed control placement, and menu text cleanup.
+
+This release builds on Version 1.5.16. Preserve the optional Python server data path, offline/local fallback behavior, Share image capture, Swagger/API documentation behavior, Help document actions, metallic accordion styling, selected-satellite control gating, filters, timelines, Mercator view, orbit, footprint, Yaw-Pitch-Roll orientation, and existing satellite visualization behavior unless explicitly changed below.
+
+Interpret the requested launch state wording `elapsed` as expanded/open on page load.
+
+Requirements:
+
+1. Follow the repository execution flow.
+   - Treat this `PROMPT_History.md` entry as the latest authoritative release entry.
+   - Keep the release date and version exactly `Release Date: 2026-06-06  Version 1.5.17`.
+   - Update the application version display to `Version 1.5.17 - hosted at GitHub Repo`.
+   - Before code changes, inspect `git status` and do not mix unrelated existing work, generated files, or untracked assets into the implementation.
+   - Update `Test_and_Integration.md` for every new behavior, regression risk, and verification step.
+   - Update `README.md` when usage, controls, menu behavior, testing, or documentation references change.
+   - Ensure `README.md` references every repository Markdown file with a short explanation.
+
+2. Move `Satellite Selection` directly under `Views & Time`.
+   - In the menu accordion order, place `Satellite Selection` immediately after `Views & Time`.
+   - Place `Filters - Satellites Found` immediately after `Satellite Selection`.
+   - The required menu order is:
+     - `Views & Time`
+     - `Satellite Selection`
+     - `Filters - Satellites Found`
+     - `Other Selections`
+     - `Timelines`
+     - `Share`
+     - `Help`
+   - If the Filters section header dynamically includes the number of satellites found, preserve that dynamic count while keeping the section in the required position.
+   - Do not move satellite-search controls into another section unless needed to preserve the `Satellite Selection` accordion section directly below `Views & Time`.
+   - Preserve keyboard accessibility, focus states, accordion semantics, and the ability for multiple sections to remain open after user interaction.
+
+3. Change the default accordion launch state.
+   - When `index.html` launches or refreshes, these sections must start expanded/open:
+     - `Views & Time`
+     - `Satellite Selection`
+     - `Filters - Satellites Found`
+   - `Other Selections`, `Timelines`, `Share`, and `Help` must start collapsed.
+   - Persisted accordion state must not override these launch defaults on page load or refresh.
+   - After launch, user accordion interactions may still open or close any section without forcing only one section open.
+
+4. Add a synchronized `Time x` slider inside `Views & Time`.
+   - Remove the visible instructional text from `Views & Time`:
+     `Use the time slider at the top of the screen to control simulation speed.`
+   - Replace that text with a real `Time x` slider at the top of the `Views & Time` section.
+   - Keep the existing `Time x` slider at the top of the canvas unchanged.
+   - Both `Time x` sliders must control the same simulation-speed state.
+   - Changing either slider must immediately update the other slider, its label/value display, and the simulation speed.
+   - Keep both sliders consistent in range, step size, default value, keyboard behavior, accessible label, tooltip/title, formatting, and persistence behavior.
+   - Do not create duplicate simulation timers, duplicate animation loops, or conflicting speed state.
+   - Keep the added menu slider visually consistent with the compact metallic `Views & Time` section styling.
+
+5. Remove obsolete visible helper text without removing required controls.
+   - In `Filters - Satellites Found`, remove this visible text:
+     `Orbit filter (multi-select):`
+     `Choose one or more orbit families. ALL enables every orbit category.`
+   - Keep the orbit filter controls and existing multi-select behavior unless another requirement explicitly changes them.
+   - If a visible label is removed, preserve an accessible name using `aria-label`, `aria-labelledby`, or equivalent markup.
+   - In `Satellite Selection`, remove this visible text:
+     `Select Satellite:`
+     `Search by name, NORAD ID, orbit type, or tag.`
+   - Keep satellite search, dropdown selection, shortcut selection, timeline selection, selected-satellite restoration, and selected-satellite gating behavior working.
+   - Do not leave empty placeholder gaps where the removed text used to appear.
+
+6. Documentation and tests.
+   - Add or update automated tests confirming the latest release entry is Version 1.5.17.
+   - Add tests confirming the menu order is `Views & Time`, `Satellite Selection`, `Filters - Satellites Found`, `Other Selections`, `Timelines`, `Share`, `Help`.
+   - Add tests confirming `Views & Time`, `Satellite Selection`, and `Filters - Satellites Found` launch expanded/open, while the remaining sections launch collapsed.
+   - Add tests confirming persisted accordion state does not override the required launch defaults.
+   - Add tests confirming the menu `Time x` slider and canvas `Time x` slider stay synchronized in both directions.
+   - Add tests confirming the removed visible helper text no longer appears.
+   - Add tests confirming orbit filter controls and satellite search/selection still work after the text cleanup.
+   - Add accessibility tests or checks for labels/names on the remaining filter and satellite-selection controls.
+   - Update `Test_and_Integration.md` with manual checks for the new menu order, launch defaults, duplicated synchronized `Time x` sliders, removed text, desktop layout, mobile layout, keyboard navigation, and regression behavior.
+   - Update `README.md` with the revised menu order, launch defaults, `Time x` slider placement, and Markdown-file reference index.
+   - Keep existing server, Share, Swagger/API docs, Help actions, selected-satellite options, shortcut, orbit, footprint, timeline, Mercator, model, and orientation tests passing.
+
+Acceptance Criteria:
+
+- Latest release is `Release Date: 2026-06-06  Version 1.5.17`.
+- `index.html` displays `Version 1.5.17 - hosted at GitHub Repo`.
+- `Satellite Selection` appears immediately under `Views & Time`.
+- `Filters - Satellites Found` appears immediately under `Satellite Selection`.
+- On every launch or refresh, `Views & Time`, `Satellite Selection`, and `Filters - Satellites Found` start expanded/open.
+- On every launch or refresh, `Other Selections`, `Timelines`, `Share`, and `Help` start collapsed.
+- Persisted accordion state does not override the required launch defaults.
+- The visible text `Use the time slider at the top of the screen to control simulation speed.` no longer appears in `Views & Time`.
+- A real `Time x` slider appears at the top of `Views & Time`.
+- The existing canvas-top `Time x` slider remains in place.
+- The menu `Time x` slider and canvas-top `Time x` slider stay synchronized in both directions and drive one shared simulation-speed state.
+- The visible text `Orbit filter (multi-select): Choose one or more orbit families. ALL enables every orbit category.` no longer appears.
+- Orbit filter controls and multi-select behavior still work.
+- The visible text `Select Satellite: Search by name, NORAD ID, orbit type, or tag.` no longer appears.
+- Satellite search, dropdown selection, shortcut selection, timeline selection, and restored shared-link selection still work.
+- Removed text does not leave empty layout gaps.
+- Remaining controls keep accessible names and keyboard support.
+- `README.md`, `Test_and_Integration.md`, and automated tests are updated.
+- Automated tests and syntax checks pass, or any limitation is explicitly documented.
+
+---
+
 ## Release Date: 2026-06-04  Version 1.5.16
 
 Implement the Version 1.5.16 menu UX revision, selected-satellite control gating, Help documentation redesign, and header alignment updates.
@@ -179,7 +282,7 @@ Acceptance Criteria:
 ---
 ## Release Date: 2026-06-04  Version 1.5.14
 
-Improve the Version 1.5.14 server UI, Share UX, menu consistency, and Swagger/API documentation readability.
+Improve the Version 1.5.14 server UI, Share UX, menu consistency, light metallic menu section coloring, and Swagger/API documentation readability.
 
 Use the attached screenshot as evidence that the Swagger page currently has poor contrast. The `GET` endpoint labels and API route text are difficult to read.
 
@@ -220,6 +323,10 @@ Requirements:
    - Keep the layout responsive on narrow screens.
    - Keep `Other Selections` text styled consistently with the other accordion section headers.
    - Remove or adjust any special CSS that makes `Other Selections` visually different from other accordion headers unless it is only the accent color.
+   - Give each menu accordion section a subtle light metallic color treatment so adjacent sections are visually distinct without breaking the current dark/blue OpenBEXI theme.
+   - Match each section's expanded content, border accent, hover state, and active tab/onglet styling to that section's header accent color.
+   - Keep the metallic colors light, readable, and restrained; avoid saturated neon colors, flat unrelated colors, or contrast that makes labels hard to read.
+   - Use CSS variables or shared section color tokens so the menu color system is maintainable and consistent across desktop and narrow layouts.
 
 6. Add canvas image sharing.
    - In the `Share` section, include an image preview or captured image of what is currently visible in the main canvas.
@@ -240,6 +347,8 @@ Requirements:
    - Add tests for icon filenames and status states.
    - Add tests for top-row menu layout.
    - Add tests for `Other Selections` header style consistency.
+   - Add tests for section-specific menu accent classes or CSS variables.
+   - Add tests confirming each accordion tab/onglet uses the same accent color family as its matching expanded section.
    - Add tests for Share canvas capture fallback states.
    - Update `README.md`.
    - Update `Test_and_Integration.md`.
@@ -258,6 +367,9 @@ Acceptance criteria:
 - Server status still has tooltip and accessible text.
 - Connected, disconnected, checking, and error states are visually distinct and accessible.
 - `Other Selections` text uses the same CSS style treatment as the other menu section headers.
+- Each menu section has a subtle light metallic accent color that differentiates it from adjacent sections.
+- Each accordion tab/onglet, border accent, hover state, and expanded section panel uses a matching color family.
+- The metallic menu colors remain readable, accessible, and consistent with the current dark/blue OpenBEXI visual theme.
 - The Share section can generate an image capture of the current canvas view.
 - Users can preview, download, and copy the canvas image when browser support/security rules allow it.
 - If canvas image capture is blocked, the app shows a clear fallback message and link sharing still works.

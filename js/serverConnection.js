@@ -1,5 +1,5 @@
-export const APP_VERSION = '1.5.16';
-export const RELEASE_DATE = '2026-06-04';
+export const APP_VERSION = '1.5.17';
+export const RELEASE_DATE = '2026-06-06';
 export const DEFAULT_SERVER_TIMEOUT_MS = 800;
 export const API_BASE_STORAGE_KEY = 'openbexi.apiBaseUrl';
 export const SERVER_STATUS_ICONS = {

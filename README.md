@@ -14,8 +14,8 @@ OpenBEXI Earth Orbit is a browser-based satellite visualization app built with p
 - Multi-select orbit filters for `ALL`, `GEO`, `MEO`, `LEO`, `HEO`, and `Other`.
 - Multi-select tag/operator filters such as `Starlink`, `One Web`, `SES`, `Intelsat`, `Weather`, and `Iridium`.
 - Debris filtering modes: show all, hide debris, or debris only.
-- Accordion-style menu sections for Views & Time, Filters, Satellite Selection, Other Selections, Timelines, Share, and Help, preserving the legacy colored section accents with section-matched metallic expanded backgrounds.
-- Deterministic launch defaults: every accordion section starts collapsed, including Views & Time, Filters, and Satellite Selection.
+- Accordion-style menu sections ordered as Views & Time, Satellite Selection, Filters - Satellites Found, Other Selections, Timelines, Share, and Help, preserving the legacy colored section accents with section-matched metallic expanded backgrounds.
+- Deterministic launch defaults: Views & Time, Satellite Selection, and Filters - Satellites Found start expanded, while Other Selections, Timelines, Share, and Help start collapsed.
 - Optional Python server integration for live local API-backed TLE/satellite metadata loading, with automatic local-file fallback when the server is unavailable.
 - Aligned top menu header with Close, version/GitHub link, and server connection status in one compact desktop row.
 - Server status indicator with connected, checking, offline, and error states; connected uses `icons/power_green.png`, offline/error uses `icons/power_red.png`, and the status panel shows server URL, data source, version, last load time, and reconnect/refresh.
@@ -69,6 +69,8 @@ Version 1.5.14 improves the server status UI, adds status icons from `icons/`, i
 Version 1.5.15 makes the menu launch state deterministic, renders README and Releases History Markdown inside Help, renames the Prompt History action to `Releases History`, and aligns Close, version, and server status on one compact row.
 
 Version 1.5.16 revises the menu UX. All accordion sections start collapsed by default, `View` is renamed to `Views & Time`, Settings is removed, selected-satellite controls stay hidden until a satellite is selected, Help uses document-style actions, and the centered GitHub/version header aligns with the Close and server status controls.
+
+Version 1.5.17 moves Satellite Selection directly under Views & Time, places Filters - Satellites Found immediately below Satellite Selection, restores deterministic launch defaults with those three sections expanded, adds a synchronized `Time x` slider at the top of Views & Time while keeping the existing canvas-top slider, and removes obsolete visible helper text from the orbit filter and satellite search areas.
 
 The selected satellite model axis convention is:
 
@@ -200,11 +202,11 @@ The timing summary includes lifecycle and app-specific marks such as `dom-conten
 
 ## Menu Usage
 
-The left menu is organized into compact colored accordion sections. Multiple sections can stay open at the same time; expanding one section does not collapse any other section. Every section starts collapsed when `index.html` loads, including `Views & Time`, `Filters`, and `Satellite Selection`; older local accordion state cannot reopen sections on refresh. Expanded panels use section-matched metallic gradients, and the live satellite count in the Filters header is red and bold.
+The left menu is organized into compact colored accordion sections. Multiple sections can stay open at the same time; expanding one section does not collapse any other section. `Views & Time`, `Satellite Selection`, and `Filters - Satellites Found` start expanded when `index.html` loads; `Other Selections`, `Timelines`, `Share`, and `Help` start collapsed. Older local accordion state cannot override those launch defaults on refresh. Expanded panels use section-matched metallic gradients, and the live satellite count in the Filters header is red and bold.
 
-- `Views & Time`: globe/Mercator controls on one row, high-definition texture/ECEF axes/day-night controls on the next row, `Starlink (<NORAD ID>)` plus `ISS` shortcut buttons on the third row, and the note to use the top time slider for simulation speed.
-- `Filters`: orbit, tag, debris filters, active summary, and reset action.
+- `Views & Time`: a menu `Time x` slider synchronized with the existing canvas-top `Time x` slider, globe/Mercator controls on one row, high-definition texture/ECEF axes/day-night controls on the next row, and `Starlink (<NORAD ID>)` plus `ISS` shortcut buttons on the third row.
 - `Satellite Selection`: searchable satellite selector, selected-satellite status, metadata, and satellite-specific Yaw-Pitch-Roll, footprint, show-only, LVLH frame, and orbit controls that appear only after a satellite is selected.
+- `Filters - Satellites Found`: orbit, tag, debris filters, active summary, dynamic found count, and reset action.
 - `Other Selections`: Earth/Moon context selection.
 - `Timelines`: checkbox toggles for launch and re-entry timelines.
 - `Share`: copy or natively share a safe URL that restores supported app state after satellite data loads, plus preview, download, or copy an image of the current canvas when the browser supports it.

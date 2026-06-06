@@ -532,6 +532,40 @@ canvas {
     max-width: min(200px, calc(100vw - 300px));
 }
 
+.menu-time-warp-control {
+    display: grid;
+    grid-template-columns: auto minmax(120px, 1fr) auto auto;
+    align-items: center;
+    gap: 7px;
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid rgba(240, 180, 41, 0.38);
+    border-radius: 8px;
+    background: linear-gradient(135deg, rgba(255, 248, 201, 0.18), rgba(240, 180, 41, 0.08));
+    color: #ffffff;
+    box-sizing: border-box;
+}
+
+.menu-time-warp-control label {
+    white-space: nowrap;
+    font-size: 12px;
+    font-weight: 800;
+    color: #fff3a8;
+    text-shadow: 0 1px 2px #000;
+}
+
+#menuTimeWarpSlider {
+    width: 100%;
+    min-width: 0;
+}
+
+#menuTimeWarpVal {
+    min-width: 2ch;
+    text-align: right;
+    font-weight: 800;
+    color: #ffffff;
+}
+
 /* Release 1.5.3 accordion menu and readability */
 :root {
     --menu-bg: rgba(24, 28, 34, 0.94);
