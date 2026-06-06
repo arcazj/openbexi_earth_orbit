@@ -36,11 +36,13 @@ export const LOCAL_MODEL_CATALOG = Object.freeze([
         assetId: 'SSL_1300.glb',
         metadataId: 'SSL_1300',
         kind: 'glb',
-        aliases: [
-            'ssl 1300', 'ssl_1300', 'ssl-1300',
-            'goes', 'g 16', 'g16', 'g 17', 'g17', 'g 18', 'g18', 'g 19', 'g19', 'g 28', 'g28',
-            'is 14', 'is14', 'is 20', 'is20', 'is 34', 'is34', 'is 36', 'is36',
-            'intelsat', 'ses'
+        exactNames: [
+            'INTELSAT 20',
+            'INTELSAT 20 (IS-20)',
+            'IS-20',
+            'INTELSAT 18',
+            'INTELSAT 18 (IS-18)',
+            'IS-18'
         ]
     },
     {
@@ -102,6 +104,32 @@ function textFieldsForSatellite(sat = {}) {
     ].filter(value => value !== undefined && value !== null);
 }
 
+function nameFieldsForSatellite(sat = {}) {
+    return [
+        sat.satellite_name,
+        sat.name,
+        sat.object_name,
+        sat.meta?.name,
+        sat.meta?.scid
+    ].filter(value => value !== undefined && value !== null);
+}
+
+function satelliteIdentifierFields(sat = {}) {
+    // App satellite identifiers are separate from NORAD IDs and can be used by restricted entries.
+    return [
+        sat.satellite_id,
+        sat.satelliteId,
+        sat.id,
+        sat.app_satellite_id,
+        sat.appSatelliteId,
+        sat.meta?.satellite_id,
+        sat.meta?.satelliteId,
+        sat.meta?.id,
+        sat.meta?.app_satellite_id,
+        sat.meta?.appSatelliteId
+    ].filter(value => value !== undefined && value !== null);
+}
+
 function catalogKeys(entry) {
     return [
         entry.assetId,
@@ -127,6 +155,8 @@ export function resolveSatelliteModel(sat = {}, {
     objBase = 'obj/'
 } = {}) {
     const normalizedNorad = normalizeModelKey(sat.norad_id);
+    const normalizedSatelliteIds = satelliteIdentifierFields(sat).map(normalizeModelKey).filter(Boolean);
+    const normalizedNameFields = nameFieldsForSatellite(sat).map(normalizeModelKey).filter(Boolean);
     const normalizedFields = textFieldsForSatellite(sat).map(normalizeModelKey).filter(Boolean);
     const normalizedText = normalizedFields.join(' ');
 
@@ -134,12 +164,26 @@ export function resolveSatelliteModel(sat = {}, {
     for (const entry of catalog) {
         const keys = catalogKeys(entry);
         const exactNorad = (entry.noradIds || []).map(normalizeModelKey).includes(normalizedNorad);
+        const exactSatelliteId = (entry.satelliteIds || []).map(normalizeModelKey)
+            .some(id => normalizedSatelliteIds.includes(id));
+        const exactRestrictedName = (entry.exactNames || []).map(normalizeModelKey)
+            .some(name => normalizedNameFields.includes(name));
+        if (((entry.satelliteIds || []).length > 0 || (entry.exactNames || []).length > 0) &&
+            !exactSatelliteId && !exactRestrictedName) {
+            continue;
+        }
         const exactField = normalizedFields.some(field => keys.includes(field));
         const alias = keys.find(key => key && normalizedText.includes(key));
 
         let score = 0;
         let reason = '';
-        if (exactNorad) {
+        if (exactRestrictedName) {
+            score = 115;
+            reason = 'exact restricted satellite name matched model catalog';
+        } else if (exactSatelliteId) {
+            score = 110;
+            reason = `app satellite identifier ${normalizedSatelliteIds.join(', ')} matched model catalog id`;
+        } else if (exactNorad) {
             score = 100;
             reason = `NORAD ${sat.norad_id} matched metadata mapping`;
         } else if (exactField) {

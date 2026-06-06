@@ -24,6 +24,7 @@
     </div>
 </div>
 <div id="utcClockDisplay"></div>
+<aside id="selectedSatelliteDetailPanel" class="selected-satellite-detail-panel" aria-live="polite" hidden></aside>
 
 <script type="module">
     import * as THREE from 'three';
@@ -51,7 +52,7 @@
         checkFileExists
     } from './js/SatelliteConfigurationLoader.js';
 
-    import { updateSatelliteInfo, satelliteMenuLoader } from './js/SatelliteMenuLoader.js';
+    import { satelliteMenuLoader } from './js/SatelliteMenuLoader.js';
 
     import {
         showSatellite,
@@ -145,7 +146,7 @@
     });
     startupPerf.mark('module-loaded');
 
-    const versionNumber = "1.5.17";
+    const versionNumber = "1.5.19";
     if (versionNumber !== APP_VERSION) {
         console.warn(`Version mismatch: index ${versionNumber}, server module ${APP_VERSION}`);
     }
@@ -326,10 +327,10 @@
     let orbitTypeFilterSelect, companyFilterSelect, debrisFilterSelect, satelliteCountDisplay;
     let view3DToggle, viewMercatorToggle, showOrbitToggle, showOrbitFrameToggle;
     let highDefToggleElement, showECEFAxesToggleElement, showOrbitFrameToggleElement;
-    let satelliteSelectDropdown, satelliteInfoDiv;
+    let satelliteSelectDropdown;
     let satelliteSearchInput, satelliteSearchResults, satelliteSearchClearButton, satelliteSearchEmpty;
     let selectFirstStarlinkButton, selectIssButton, showOnlySelectedSatelliteCheckbox, selectedSatelliteControls;
-    let filterStatusSummary, filterEmptyState, resetFiltersButton, resetFiltersEmptyButton, selectedSatelliteSummary;
+    let filterStatusSummary, filterEmptyState, resetFiltersButton, resetFiltersEmptyButton, selectedSatelliteSummary, selectedSatelliteDetailPanel;
     let currentSearchResults = [];
     let activeSearchResultIndex = -1;
     let isSatelliteDropdownOpen = false;
@@ -339,11 +340,9 @@
     let reentryTimelineHandle = null;
     let serverStatusButton, serverStatusIcon, serverStatusText, serverStatusPanel, serverStatusUrl;
     let serverStatusStateElement, serverDataSourceElement, serverAppVersionElement, serverApiVersionElement, serverLastSyncElement;
-    let serverReconnectButton, serverOfflineNotice, swaggerDocsLink, openApiSchemaLink, apiDocsStatus;
+    let serverReconnectButton, swaggerDocsLink, openApiSchemaLink, apiDocsStatus;
     let copyShareLinkButton, nativeShareButton, shareLinkOutput, shareFeedback, shareStateSummaryElement;
     let previewShareImageButton, downloadShareImageButton, copyShareImageButton, shareImagePreview, shareImagePlaceholder;
-    let readmeMarkdownLink, releasesHistoryMarkdownLink, helpMarkdownPanel, helpMarkdownTitle, helpMarkdownStatus;
-    let helpMarkdownContent, helpMarkdownDirectLink;
     let latestShareImageBlob = null;
     let latestShareImageUrl = null;
     let serverConnectionState = {
@@ -355,7 +354,6 @@
         lastSync: null,
         error: null
     };
-    let offlineNoticeShown = false;
     let animationLoopStarted = false;
     let deferredStartupWorkScheduled = false;
     let launchTimelineInitialized = false;
@@ -747,11 +745,6 @@
         if (selectedSatelliteSummary) {
             selectedSatelliteSummary.hidden = !hasSelection;
         }
-        if (satelliteInfoDiv && !hasSelection) {
-            satelliteInfoDiv.hidden = true;
-            satelliteInfoDiv.innerHTML = '';
-        }
-
         const yprSlidersRow = document.getElementById('yprSlidersRow');
         if (yprSlidersRow) {
             const showSliders = hasSelection && !!simParams.showYPR;
@@ -763,6 +756,7 @@
 
     function updateSelectedSatelliteSummary(satData = currentSelectedSatellite) {
         updateSelectedSatelliteControlsVisibility(satData);
+        updateSelectedSatelliteDetailPanel(satData);
         if (!selectedSatelliteSummary) return;
         if (!satData) {
             selectedSatelliteSummary.textContent = '';
@@ -837,6 +831,31 @@
         activeSearchResultIndex = -1;
     }
 
+    function positionSatelliteSearchResults() {
+        if (!satelliteSearchInput || !satelliteSearchResults || satelliteSearchResults.hidden) return;
+        const rect = satelliteSearchInput.getBoundingClientRect();
+        const viewportPadding = 10;
+        const availableBelow = window.innerHeight - rect.bottom - viewportPadding;
+        const availableAbove = rect.top - viewportPadding;
+        const openAbove = availableBelow < 150 && availableAbove > availableBelow;
+        const availableHeight = Math.max(120, Math.min(260, openAbove ? availableAbove : availableBelow));
+        const width = Math.min(rect.width, window.innerWidth - viewportPadding * 2);
+        const left = Math.min(
+            Math.max(rect.left, viewportPadding),
+            Math.max(viewportPadding, window.innerWidth - width - viewportPadding)
+        );
+        const top = openAbove
+            ? Math.max(viewportPadding, rect.top - availableHeight - 4)
+            : Math.min(rect.bottom + 4, window.innerHeight - viewportPadding - 44);
+
+        satelliteSearchResults.style.position = 'fixed';
+        satelliteSearchResults.style.left = `${left}px`;
+        satelliteSearchResults.style.top = `${top}px`;
+        satelliteSearchResults.style.width = `${width}px`;
+        satelliteSearchResults.style.maxHeight = `${availableHeight}px`;
+        satelliteSearchResults.dataset.placement = openAbove ? 'above' : 'below';
+    }
+
     function renderSatelliteSearchResults(filteredTLEs = buildFilteredSatellitesBySelection(), forceOpen = false) {
         if (!satelliteSearchInput || !satelliteSearchResults) return;
         if (forceOpen) isSatelliteDropdownOpen = true;
@@ -873,6 +892,7 @@
         const hasResults = currentSearchResults.length > 0;
         const shouldOpen = hasResults && isSatelliteDropdownOpen;
         satelliteSearchResults.hidden = !hasResults || !shouldOpen;
+        if (!satelliteSearchResults.hidden) positionSatelliteSearchResults();
         satelliteSearchInput.setAttribute('aria-expanded', !satelliteSearchResults.hidden ? 'true' : 'false');
         if (activeSearchResultIndex >= 0 && !satelliteSearchResults.hidden) {
             satelliteSearchInput.setAttribute('aria-activedescendant', `satelliteSearchOption-${activeSearchResultIndex}`);
@@ -992,180 +1012,106 @@
             .replace(/'/g, '&#39;');
     }
 
-    function safeMarkdownHref(rawHref = '') {
-        const href = String(rawHref).trim();
-        if (!href || /^javascript:/i.test(href)) return '';
-        try {
-            const url = new URL(href, window.location.href);
-            if (!['http:', 'https:', 'mailto:'].includes(url.protocol)) return '';
-            return url.href;
-        } catch (err) {
-            return '';
+    function formatSatelliteDetailValue(value) {
+        if (value === undefined || value === null || value === '') return 'N/A';
+        if (Array.isArray(value)) return value.map(formatSatelliteDetailValue).join(', ');
+        if (typeof value === 'object') return '';
+        return String(value);
+    }
+
+    const SELECTED_DETAIL_DUPLICATE_KEYS = new Set([
+        'satellite_name',
+        'name',
+        'norad_id',
+        'orbittype',
+        'type',
+        'company',
+        'operator',
+        'manufacturer',
+        'launch_date',
+        'object_type',
+        'satellite_id',
+        'satelliteid',
+        'id',
+        'app_satellite_id',
+        'appsatelliteid',
+        'tle_line1',
+        'tle_line2'
+    ]);
+
+    function isDuplicateSelectedDetailKey(key) {
+        return SELECTED_DETAIL_DUPLICATE_KEYS.has(String(key || '').toLowerCase());
+    }
+
+    function satelliteDetailRows(satData) {
+        if (!satData) return [];
+        const meta = satData.meta ?? {};
+        const rows = [
+            ['Name', satData.satellite_name ?? satData.name],
+            ['NORAD ID', satData.norad_id ?? meta.norad_id],
+            ['Orbit type', satData.orbitType ?? satData.type ?? meta.orbital_slot?.nominal],
+            ['Tag / company', satData.company ?? satData.operator ?? meta.operator ?? meta.manufacturer],
+            ['Launch date', satData.launch_date ?? meta.launch_date],
+            ['Object type', satData.object_type ?? satData.type ?? meta.object_type],
+            ['App satellite id', satData.satellite_id ?? satData.satelliteId ?? satData.id ?? meta.satellite_id ?? meta.satelliteId ?? meta.id]
+        ];
+        const seen = new Set(rows.map(([label]) => label.toLowerCase()));
+        const addScalarRows = (source, prefix = '') => {
+            Object.entries(source || {}).forEach(([key, value]) => {
+                if (value === undefined || value === null || value === '' || typeof value === 'object') return;
+                if (isDuplicateSelectedDetailKey(key)) return;
+                const label = prefix ? `${prefix}.${key}` : key;
+                const normalized = label.toLowerCase();
+                if (seen.has(normalized)) return;
+                seen.add(normalized);
+                rows.push([label, value]);
+            });
+        };
+        addScalarRows(satData);
+        addScalarRows(meta, 'meta');
+        return rows.filter(([, value]) => formatSatelliteDetailValue(value));
+    }
+
+    function syncSelectedSatelliteDetailPanelWidth() {
+        if (!selectedSatelliteDetailPanel) return;
+        const clockEl = document.getElementById("utcClockDisplay");
+        const clockWidth = Math.ceil(clockEl?.getBoundingClientRect?.().width || 0);
+        if (clockWidth > 0) {
+            selectedSatelliteDetailPanel.style.width = `${clockWidth}px`;
         }
     }
 
-    function renderMarkdownInline(text = '') {
-        let html = escapeHtml(text);
-        html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (match, alt, href) => {
-            const safeHref = safeMarkdownHref(href.replace(/&amp;/g, '&'));
-            if (!safeHref) return escapeHtml(alt);
-            return `<img src="${escapeHtml(safeHref)}" alt="${alt}">`;
-        });
-        html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, label, href) => {
-            const safeHref = safeMarkdownHref(href.replace(/&amp;/g, '&'));
-            if (!safeHref) return label;
-            return `<a href="${escapeHtml(safeHref)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
-        });
-        html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-        html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-        html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-        return html;
-    }
-
-    function renderMarkdown(markdown = '') {
-        const lines = String(markdown).replace(/\r\n/g, '\n').split('\n');
-        const html = [];
-        const paragraph = [];
-        let listTag = '';
-        let codeBuffer = [];
-        let inCodeBlock = false;
-
-        const closeList = () => {
-            if (listTag) html.push(`</${listTag}>`);
-            listTag = '';
-        };
-        const flushParagraph = () => {
-            if (!paragraph.length) return;
-            html.push(`<p>${renderMarkdownInline(paragraph.join(' '))}</p>`);
-            paragraph.length = 0;
-        };
-        const flushCodeBlock = () => {
-            html.push(`<pre><code>${escapeHtml(codeBuffer.join('\n'))}</code></pre>`);
-            codeBuffer = [];
-        };
-
-        lines.forEach(line => {
-            if (/^\s*```/.test(line)) {
-                flushParagraph();
-                closeList();
-                if (inCodeBlock) {
-                    flushCodeBlock();
-                    inCodeBlock = false;
-                } else {
-                    inCodeBlock = true;
-                    codeBuffer = [];
-                }
-                return;
-            }
-
-            if (inCodeBlock) {
-                codeBuffer.push(line);
-                return;
-            }
-
-            const trimmed = line.trim();
-            if (!trimmed) {
-                flushParagraph();
-                closeList();
-                return;
-            }
-
-            if (/^---+$/.test(trimmed)) {
-                flushParagraph();
-                closeList();
-                html.push('<hr>');
-                return;
-            }
-
-            const heading = trimmed.match(/^(#{1,6})\s+(.+)$/);
-            if (heading) {
-                flushParagraph();
-                closeList();
-                const level = Math.min(heading[1].length, 6);
-                html.push(`<h${level}>${renderMarkdownInline(heading[2])}</h${level}>`);
-                return;
-            }
-
-            const quote = trimmed.match(/^>\s+(.+)$/);
-            if (quote) {
-                flushParagraph();
-                closeList();
-                html.push(`<blockquote>${renderMarkdownInline(quote[1])}</blockquote>`);
-                return;
-            }
-
-            const unordered = line.match(/^\s*[-*]\s+(.+)$/);
-            const ordered = line.match(/^\s*\d+\.\s+(.+)$/);
-            if (unordered || ordered) {
-                flushParagraph();
-                const nextListTag = unordered ? 'ul' : 'ol';
-                if (listTag && listTag !== nextListTag) closeList();
-                if (!listTag) {
-                    html.push(`<${nextListTag}>`);
-                    listTag = nextListTag;
-                }
-                html.push(`<li>${renderMarkdownInline((unordered || ordered)[1])}</li>`);
-                return;
-            }
-
-            closeList();
-            paragraph.push(trimmed);
-        });
-
-        if (inCodeBlock) flushCodeBlock();
-        flushParagraph();
-        closeList();
-        return html.join('');
-    }
-
-    function showHelpMarkdownFallback(source, message) {
-        if (!helpMarkdownContent) return;
-        helpMarkdownContent.textContent = '';
-        const paragraph = document.createElement('p');
-        paragraph.textContent = `${message} `;
-        const link = document.createElement('a');
-        link.href = source;
-        link.textContent = `Open ${source} directly`;
-        paragraph.appendChild(link);
-        helpMarkdownContent.appendChild(paragraph);
-    }
-
-    async function loadHelpMarkdown(source, title) {
-        if (!helpMarkdownPanel || !helpMarkdownContent || !source) return;
-        helpMarkdownPanel.hidden = false;
-        if (helpMarkdownTitle) helpMarkdownTitle.textContent = title || source;
-        if (helpMarkdownDirectLink) {
-            helpMarkdownDirectLink.href = source;
-            helpMarkdownDirectLink.textContent = `Open ${source}`;
-        }
-        if (helpMarkdownStatus) helpMarkdownStatus.textContent = `Loading ${source}...`;
-        helpMarkdownContent.textContent = '';
-
-        if (typeof fetch !== 'function') {
-            if (helpMarkdownStatus) helpMarkdownStatus.textContent = 'Markdown preview unavailable in this browser.';
-            showHelpMarkdownFallback(source, 'Markdown rendering requires browser fetch support.');
+    function updateSelectedSatelliteDetailPanel(satData = currentSelectedSatellite) {
+        if (!selectedSatelliteDetailPanel) return;
+        if (!satData) {
+            selectedSatelliteDetailPanel.hidden = true;
+            selectedSatelliteDetailPanel.innerHTML = '';
             return;
         }
 
-        try {
-            const response = await fetch(source, { cache: 'no-store' });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const markdown = await response.text();
-            helpMarkdownContent.innerHTML = renderMarkdown(markdown);
-            if (helpMarkdownStatus) helpMarkdownStatus.textContent = `Rendered Markdown from ${source}.`;
-        } catch (err) {
-            if (helpMarkdownStatus) helpMarkdownStatus.textContent = 'Markdown preview unavailable from this launch mode.';
-            showHelpMarkdownFallback(source, 'Use an HTTP server to render Markdown in the Help panel.');
-        }
-    }
-
-    function setupHelpMarkdownLink(link) {
-        link?.addEventListener('click', (event) => {
-            event.preventDefault();
-            const source = link.dataset.markdownSource || link.getAttribute('href');
-            const title = link.dataset.markdownTitle || link.textContent.trim();
-            loadHelpMarkdown(source, title);
-        });
+        const rows = satelliteDetailRows(satData)
+            .map(([label, value]) => `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(formatSatelliteDetailValue(value))}</td></tr>`)
+            .join('');
+        const tleLine1 = formatSatelliteDetailValue(satData.tle_line1);
+        const tleLine2 = formatSatelliteDetailValue(satData.tle_line2);
+        selectedSatelliteDetailPanel.innerHTML = `
+          <div class="selected-satellite-detail-header">
+            <span>Selected Satellite</span>
+            <strong>${escapeHtml(satData.satellite_name || satData.name || 'Satellite')}</strong>
+          </div>
+          <div class="selected-satellite-detail-scroll">
+            <table class="selected-satellite-detail-table">
+              <tbody>${rows}</tbody>
+            </table>
+            <div class="selected-satellite-tle-block" aria-label="TLE details">
+              <strong>TLE line 1</strong>
+              <code>${escapeHtml(tleLine1)}</code>
+              <strong>TLE line 2</strong>
+              <code>${escapeHtml(tleLine2)}</code>
+            </div>
+          </div>`;
+        selectedSatelliteDetailPanel.hidden = false;
+        syncSelectedSatelliteDetailPanelWidth();
     }
 
     function updateApiDocsState() {
@@ -1224,9 +1170,6 @@
                 ? serverConnectionState.lastSync.toLocaleString()
                 : 'Never';
         }
-        if (serverOfflineNotice) {
-            serverOfflineNotice.hidden = !(offlineNoticeShown && serverConnectionState.state !== 'connected');
-        }
         updateApiDocsState();
     }
 
@@ -1246,7 +1189,6 @@
 
         const connection = await checkServerConnection({ baseUrl: serverConnectionState.baseUrl });
         if (!connection.connected) {
-            offlineNoticeShown = true;
             console.info('[server] Python server unavailable. Using local satellite data.', connection.error);
             setServerConnectionState({
                 ...connection,
@@ -1274,7 +1216,6 @@
             });
             return tleData;
         } catch (err) {
-            offlineNoticeShown = true;
             console.warn('[server] Server TLE data failed validation or loading. Falling back to local data.', err);
             setServerConnectionState({
                 state: 'error',
@@ -1761,7 +1702,6 @@
         serverApiVersionElement = document.getElementById('serverApiVersion');
         serverLastSyncElement = document.getElementById('serverLastSync');
         serverReconnectButton = document.getElementById('serverReconnectButton');
-        serverOfflineNotice = document.getElementById('serverOfflineNotice');
         swaggerDocsLink = document.getElementById('swaggerDocsLink');
         openApiSchemaLink = document.getElementById('openApiSchemaLink');
         apiDocsStatus = document.getElementById('apiDocsStatus');
@@ -1776,13 +1716,6 @@
         copyShareImageButton = document.getElementById('copyShareImageButton');
         shareImagePreview = document.getElementById('shareImagePreview');
         shareImagePlaceholder = document.getElementById('shareImagePlaceholder');
-        readmeMarkdownLink = document.getElementById('readmeMarkdownLink');
-        releasesHistoryMarkdownLink = document.getElementById('releasesHistoryMarkdownLink');
-        helpMarkdownPanel = document.getElementById('helpMarkdownPanel');
-        helpMarkdownTitle = document.getElementById('helpMarkdownTitle');
-        helpMarkdownStatus = document.getElementById('helpMarkdownStatus');
-        helpMarkdownContent = document.getElementById('helpMarkdownContent');
-        helpMarkdownDirectLink = document.getElementById('helpMarkdownDirectLink');
         updateServerStatusUI();
         refreshShareControls();
 
@@ -1822,8 +1755,6 @@
         previewShareImageButton?.addEventListener('click', previewCurrentShareImage);
         downloadShareImageButton?.addEventListener('click', downloadCurrentShareImage);
         copyShareImageButton?.addEventListener('click', copyCurrentShareImage);
-        setupHelpMarkdownLink(readmeMarkdownLink);
-        setupHelpMarkdownLink(releasesHistoryMarkdownLink);
 
         orbitTypeFilterSelect = document.getElementById('orbitTypeFilter');
         companyFilterSelect = document.getElementById('companyFilter');
@@ -1840,16 +1771,19 @@
         selectIssButton = document.getElementById('selectIssButton');
 
         satelliteSelectDropdown = document.getElementById('satelliteSelect');
-        satelliteInfoDiv = document.getElementById('satelliteInfo');
         satelliteSearchInput = document.getElementById('satelliteSearchInput');
         satelliteSearchResults = document.getElementById('satelliteSearchResults');
         satelliteSearchClearButton = document.getElementById('satelliteSearchClear');
         satelliteSearchEmpty = document.getElementById('satelliteSearchEmpty');
+        if (satelliteSearchResults && satelliteSearchResults.parentElement !== document.body) {
+            document.body.appendChild(satelliteSearchResults);
+        }
         filterStatusSummary = document.getElementById('filterStatusSummary');
         filterEmptyState = document.getElementById('filterEmptyState');
         resetFiltersButton = document.getElementById('resetFiltersButton');
         resetFiltersEmptyButton = document.getElementById('resetFiltersEmptyButton');
         selectedSatelliteSummary = document.getElementById('selectedSatelliteSummary');
+        selectedSatelliteDetailPanel = document.getElementById('selectedSatelliteDetailPanel');
         selectedSatelliteControls = document.getElementById('selectedSatelliteControls');
 
         // Labels
@@ -2073,10 +2007,15 @@
             });
             document.addEventListener('pointerdown', (event) => {
                 const combobox = satelliteSearchInput.closest('.satellite-combobox');
-                if (!combobox || !combobox.contains(event.target)) {
+                const insideCombobox = combobox?.contains(event.target);
+                const insideResults = satelliteSearchResults?.contains(event.target);
+                if (!insideCombobox && !insideResults) {
                     closeSatelliteSearchResults();
                 }
             });
+            window.addEventListener('resize', positionSatelliteSearchResults);
+            window.addEventListener('scroll', positionSatelliteSearchResults, { passive: true });
+            controlsContainerElement?.addEventListener('scroll', positionSatelliteSearchResults, { passive: true });
         }
         if (satelliteSearchClearButton) {
             satelliteSearchClearButton.addEventListener('click', () => {
@@ -2256,7 +2195,6 @@
             currentSelectedSatellite = null;
             simParams.selectedSatelliteNoradId = null;
             setShowOnlySelectedSatellite(false);
-            updateSatelliteInfo(satelliteInfoDiv, null);
             updateSelectedSatelliteSummary(null);
             syncSatelliteSearchWithSelection();
             resetCameraToDefault();
@@ -2276,7 +2214,6 @@
             currentSelectedSatellite = null;
             simParams.selectedSatelliteNoradId = null;
             setShowOnlySelectedSatellite(false);
-            updateSatelliteInfo(satelliteInfoDiv, null);
             if (satelliteSelectDropdown) satelliteSelectDropdown.value = "None";
             simParams.selectedSatelliteName = "None";
             updateSelectedSatelliteSummary(null);
@@ -2290,7 +2227,6 @@
         simParams.selectedSatelliteNoradId = tleSatData.norad_id?.toString() || null;
         setShowOnlySelectedSatellite(true);
         enableHighDefForSelectedSatelliteIfNeeded(tleSatData);
-        updateSatelliteInfo(satelliteInfoDiv, tleSatData);
         updateSelectedSatelliteSummary(tleSatData);
         markSatelliteSearchReadyForNextSelection(tleSatData);
         ensureYPRControlsVisibleForSelection();
@@ -2939,7 +2875,6 @@
                     clearDetailedSatelliteView();
                     currentSelectedSatellite = null;
                     simParams.selectedSatelliteNoradId = null;
-                    updateSatelliteInfo(satelliteInfoDiv, null);
                     updateSelectedSatelliteSummary(null);
                     syncSatelliteSearchWithSelection();
                 }
@@ -2950,7 +2885,6 @@
             clearDetailedSatelliteView();
             currentSelectedSatellite = null;
             simParams.selectedSatelliteNoradId = null;
-            updateSatelliteInfo(satelliteInfoDiv, null);
             updateSelectedSatelliteSummary(null);
             syncSatelliteSearchWithSelection();
         }
@@ -2997,7 +2931,6 @@
             if (satelliteSelectDropdown) satelliteSelectDropdown.value = "None";
             removeAllGeometry(scene);
         }
-        updateSatelliteInfo(satelliteInfoDiv, tleSatData);
         updateSelectedSatelliteSummary(tleSatData);
         if (!tleSatData) syncSatelliteSearchWithSelection();
         if (simParams.showYPR) ensureYPRControlsVisibleForSelection();
@@ -3077,6 +3010,7 @@
             lastClockUpdate = nowPerf;
             const clockEl = document.getElementById("utcClockDisplay");
             if (clockEl) clockEl.textContent = formatUTCString(SIM_DATE);
+            syncSelectedSatelliteDetailPanelWidth();
         }
         updateTimeWarpControls();
 
@@ -3234,6 +3168,7 @@
                 mercatorCanvasElement.height = h;
             }
         }
+        syncSelectedSatelliteDetailPanelWidth();
     }
     window.addEventListener('resize', onWindowResize);
 

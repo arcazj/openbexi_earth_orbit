@@ -16,6 +16,8 @@ const filesToScan = [
   'js/SatelliteMenuLoader.js',
   'js/ganttTimelineLoader.js',
   'js/reentryTimeline.js',
+  'markdown_viewer.html',
+  'LICENSE.md',
   'README.md',
   'Test_and_Integration.md'
 ];

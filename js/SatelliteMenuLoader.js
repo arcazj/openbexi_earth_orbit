@@ -17,12 +17,11 @@ export function satelliteMenuLoader() {
           <div><span>Server URL</span><strong id="serverStatusUrl">http://127.0.0.1:8000</strong></div>
           <div><span>Connection</span><strong id="serverStatusState">Checking</strong></div>
           <div><span>Data source</span><strong id="serverDataSource">Local files</strong></div>
-          <div><span>App version</span><strong id="serverAppVersion">1.5.17</strong></div>
+          <div><span>App version</span><strong id="serverAppVersion">1.5.19</strong></div>
           <div><span>API version</span><strong id="serverApiVersion">Unavailable</strong></div>
           <div><span>Last data load</span><strong id="serverLastSync">Never</strong></div>
           <button id="serverReconnectButton" type="button" class="menu-secondary-action server-reconnect-button">Reconnect / Refresh</button>
         </div>
-        <div id="serverOfflineNotice" class="server-offline-notice" role="status" aria-live="polite" hidden>Server unavailable. Using local satellite data.</div>
       </div>
     </div>
 
@@ -48,10 +47,6 @@ export function satelliteMenuLoader() {
             <label><input type="checkbox" id="showECEFAxesToggle"> ECEF Axes</label>
             <label><input type="checkbox" id="showDayNightToggle" checked> Day/Night</label>
           </div>
-          <div class="view-control-row view-shortcut-row">
-            <button id="selectFirstStarlinkButton" type="button" class="view-shortcut-button" aria-label="Starlink shortcut unavailable" disabled>Starlink unavailable</button>
-            <button id="selectIssButton" type="button" class="view-shortcut-button" aria-label="ISS shortcut unavailable" disabled>ISS unavailable</button>
-          </div>
         </div>
       </section>
 
@@ -71,6 +66,10 @@ export function satelliteMenuLoader() {
             </div>
             <select id="satelliteSelect" class="legacy-satellite-select" aria-hidden="true" tabindex="-1"><option value="None">None</option></select>
             <div id="satelliteSearchEmpty" class="empty-state" hidden>No satellites match this search.</div>
+          </div>
+          <div class="satellite-shortcut-row" aria-label="Satellite shortcuts">
+            <button id="selectFirstStarlinkButton" type="button" class="satellite-shortcut-button" aria-label="Starlink shortcut unavailable" disabled>Starlink unavailable</button>
+            <button id="selectIssButton" type="button" class="satellite-shortcut-button" aria-label="ISS shortcut unavailable" disabled>ISS unavailable</button>
           </div>
 
           <div id="selectedSatelliteControls" class="satellite-option-grid" aria-label="Selected satellite options" aria-hidden="true" hidden>
@@ -99,7 +98,6 @@ export function satelliteMenuLoader() {
           </div>
 
           <div id="selectedSatelliteSummary" class="selected-satellite-summary" hidden></div>
-          <div id="satelliteInfo" hidden></div>
         </div>
       </section>
 
@@ -227,26 +225,18 @@ export function satelliteMenuLoader() {
               <strong>GitHub</strong>
               <span>Repository and source files</span>
             </a>
-            <a id="readmeMarkdownLink" class="help-doc-card help-markdown-link" href="README.md" title="README.md" data-markdown-source="README.md" data-markdown-title="README">
+            <a id="readmeMarkdownLink" class="help-doc-card" href="markdown_viewer.html?source=README.md&amp;title=README" title="Open README Markdown in a separate page" target="_blank" rel="noopener noreferrer">
               <strong>README</strong>
-              <span>Render project guide as Markdown</span>
+              <span>Open rendered project guide</span>
             </a>
-            <a id="releasesHistoryMarkdownLink" class="help-doc-card help-markdown-link" href="PROMPT_History.md" title="PROMPT_History.md" data-markdown-source="PROMPT_History.md" data-markdown-title="Releases History">
+            <a id="releasesHistoryMarkdownLink" class="help-doc-card" href="markdown_viewer.html?source=PROMPT_History.md&amp;title=Releases%20History" title="Open Releases History Markdown in a separate page" target="_blank" rel="noopener noreferrer">
               <strong>Releases History</strong>
-              <span>Render release prompts as Markdown</span>
+              <span>Open rendered release prompts</span>
             </a>
             <a id="licenseMarkdownLink" class="help-doc-card" href="LICENSE.md" title="LICENSE.md" target="_blank" rel="noopener noreferrer">
               <strong>Licenses</strong>
               <span>Open license Markdown page</span>
             </a>
-          </div>
-          <div id="helpMarkdownPanel" class="help-markdown-panel" aria-live="polite" hidden>
-            <div class="help-markdown-header">
-              <strong id="helpMarkdownTitle">Markdown Preview</strong>
-              <a id="helpMarkdownDirectLink" href="README.md">Open file</a>
-            </div>
-            <div id="helpMarkdownStatus" class="menu-helper">Select README or Releases History to render Markdown here.</div>
-            <div id="helpMarkdownContent" class="help-markdown-content"></div>
           </div>
           <div class="api-docs-panel" aria-label="Developer documentation links">
             <strong>Developer Docs</strong>
@@ -264,41 +254,4 @@ export function satelliteMenuLoader() {
       </section>
     </div>
   </div>`;
-}
-
-// -------------------------------------------------------------------
-// Satellite info panel
-// -------------------------------------------------------------------
-export function updateSatelliteInfo(infoDiv, sat) {
-    if (!infoDiv) return;
-
-    if (!sat) {
-        infoDiv.hidden = true;
-        infoDiv.innerHTML = '';
-        return;
-    }
-    infoDiv.hidden = false;
-
-    const m = sat.meta ?? {};
-    const tle1 = sat.tle_line1 ?? 'N/A';
-    const tle2 = sat.tle_line2 ?? 'N/A';
-
-    const kv = {
-        orbitType: sat.orbitType ?? m.orbital_slot?.nominal ?? 'N/A',
-        company: sat.company ?? m.manufacturer ?? 'N/A',
-        satellite_name: sat.satellite_name ?? sat.name ?? 'N/A',
-        norad_id: sat.norad_id ?? m.norad_id ?? 'N/A',
-        launch_date: sat.launch_date ?? 'N/A',
-        tle_line1: tle1,
-        tle_line2: tle2
-    };
-
-    const rows = Object.entries(kv)
-        .map(([k, v]) => `<tr><td class="k">${k}</td><td class="v" style="color:#ffd966;">${v}</td></tr>`)
-        .join('');
-
-    infoDiv.innerHTML = `
-    <table class="meta-table" style="font-size:12px;">
-      ${rows}
-    </table>`;
 }

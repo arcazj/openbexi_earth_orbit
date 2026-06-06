@@ -1,5 +1,227 @@
 # Prompt History
 
+## Release Date: 2026-06-06  Version 1.5.19
+
+Implement Version 1.5.19 selected-satellite detail cleanup and SSL 1300 model restriction update.
+
+This release builds on Version 1.5.18. Preserve the optional Python server data path, silent offline/local fallback, server status icon and panel, Help Markdown viewer pages, Licenses action, metallic accordion styling, Version 1.5.18 menu order and launch defaults, synchronized `Time x` sliders, selected-satellite control gating, search dropdown portal behavior, filters, timelines, Mercator view, orbit, footprint, Yaw-Pitch-Roll orientation, Share behavior, and existing satellite visualization behavior unless explicitly changed below.
+
+Requirements:
+
+1. Keep the release date and version exactly `Release Date: 2026-06-06  Version 1.5.19`.
+2. Update the visible application, JavaScript, and Python server version to `1.5.19`.
+3. After selecting a satellite, remove the detailed selected-satellite data/TLE table from the `Satellite Selection` menu. Do not duplicate detailed satellite metadata or TLE lines inside the menu.
+4. Keep selected-satellite data and TLE details only in the right-side panel on the canvas under the UTC clock.
+5. Make the right-side selected-satellite detail panel the same width as the UTC clock/horloge.
+6. Keep the existing transparent/semi-transparent styling of the right-side detail panel.
+7. Fix the right-side detail panel so TLE line 1 and TLE line 2 each appear only once.
+8. Use `SSL_1300.glb` only for `INTELSAT 20 (IS-20)` and `INTELSAT 18 (IS-18)`. Do not use `SSL_1300.glb` for other Intelsat, SSL, GEO, GOES, SES, manufacturer, bus, metadata, or alias matches.
+9. Preserve exact model resolution for Starlink, OneWeb, O3b, ISS, and other explicitly mapped assets.
+10. Update automated tests, `README.md`, and `Test_and_Integration.md` for Version 1.5.19.
+
+Acceptance Criteria:
+
+- Latest release is `Release Date: 2026-06-06  Version 1.5.19`.
+- `index.html` displays `Version 1.5.19 - hosted at GitHub Repo`.
+- Satellite Selection no longer contains the detailed selected-satellite metadata/TLE table after selection.
+- The right-side selected-satellite detail panel remains under the UTC clock, uses transparent styling, matches the UTC clock width, and shows each TLE line only once.
+- `SSL_1300.glb` resolves only for `INTELSAT 20 (IS-20)` and `INTELSAT 18 (IS-18)`.
+- Other Intelsat/SSL/GEO/GOES/SES/manufacturer/alias matches do not resolve to `SSL_1300.glb`.
+- Automated tests and syntax checks pass, or any limitation is explicitly documented.
+
+## Release Date: 2026-06-06  Version 1.5.18
+
+Implement the Version 1.5.18 launch-status cleanup and Satellite Selection search-dropdown visibility fix.
+
+This release builds on Version 1.5.17. Preserve the optional Python server data path, offline/local fallback behavior, server status icon and panel, Share image capture, Swagger/API documentation behavior, Help document actions, metallic accordion styling, Version 1.5.17 menu order and launch defaults, synchronized `Time x` sliders, selected-satellite control gating, filters, timelines, Mercator view, orbit, footprint, Yaw-Pitch-Roll orientation, and existing satellite visualization behavior unless explicitly changed below.
+
+Requirements:
+
+1. Follow the repository execution flow.
+   - Treat this `PROMPT_History.md` entry as the latest authoritative release entry.
+   - Keep the release date and version exactly `Release Date: 2026-06-06  Version 1.5.18`.
+   - Update the application version display to `Version 1.5.18 - hosted at GitHub Repo`.
+   - Before code changes, inspect `git status` and do not mix unrelated existing work, generated files, staged files, or untracked assets into the implementation.
+   - Update `Test_and_Integration.md` for every new behavior, regression risk, and verification step.
+   - Update `README.md` when usage, controls, menu behavior, testing, or documentation references change.
+   - Ensure `README.md` references every repository Markdown file with a short explanation.
+
+2. Remove the automatic offline notice/tag on launch.
+   - When `index.html` launches and the Python server is unavailable, do not show the visible tag/banner/message:
+     `Server unavailable. Using local satellite data.`
+   - The app must still silently fall back to local satellite data exactly as before.
+   - Keep the server status icon/control visible and accessible so users can still inspect connected, checking, offline, and error states.
+   - The server status panel may still report offline/local-data state when the user opens or focuses the status control, but the launch screen must not show an unsolicited offline tag/banner.
+   - Do not use blocking alerts, repeated notifications, or layout-shifting offline messages during startup.
+   - Keep console diagnostics for server connection failure and local-data fallback if they already exist.
+
+3. Fix Satellite Selection search dropdown stacking and visibility.
+   - When the user searches in the `Satellite Selection` combo box, the dropdown/list of matching satellites must be clearly visible.
+   - The dropdown must render above other menu elements, accordion panels, filters, buttons, metadata, and nearby controls.
+   - The dropdown must not be clipped by parent containers, accordion content overflow, menu scroll containers, metallic panel backgrounds, or z-index stacking contexts.
+   - If needed, change the dropdown positioning strategy, z-index, overflow rules, or render target so search results remain visible while preserving the existing menu layout.
+   - Keep the dropdown aligned with the search input and constrained to the viewport/menu width so it remains usable on desktop and narrow screens.
+   - Keep the result list scrollable when many results match.
+   - Preserve existing search behavior:
+     - search by satellite name, NORAD ID, orbit type, or tag
+     - mouse selection
+     - keyboard arrow navigation
+     - Enter to select
+     - Escape, Tab, outside click, or selection closes the dropdown
+     - no closed dropdown should block clicks on controls behind it
+   - Preserve selected-satellite workflow, selected-satellite summary, metadata display, show-only-selected behavior, shortcuts, timeline selection, and shared-link restoration.
+
+4. Move Starlink and ISS shortcut buttons into Satellite Selection.
+   - Move the `Starlink (<NORAD ID>)` shortcut button, such as `Starlink (44714)`, from `Views & Time` into the `Satellite Selection` section.
+   - Move the `ISS` shortcut button from `Views & Time` into the `Satellite Selection` section.
+   - Place these shortcut buttons near the satellite search combo so they are part of the satellite-selection workflow.
+   - Remove the Starlink and ISS shortcut row from `Views & Time`.
+   - Preserve the existing shortcut behavior:
+     - Starlink resolves dynamically to the first loaded Starlink target and displays its NORAD ID when available.
+     - Starlink shows its unavailable fallback when no Starlink target can be resolved.
+     - ISS resolves to ISS/ZARYA, preferring NORAD `25544`.
+     - ISS shows its unavailable fallback when no ISS target can be resolved.
+     - Both shortcuts select satellites through the same normal selection path as the combo box, timeline selection, and shared-link restoration.
+     - Selecting either shortcut still updates selected-satellite summary, metadata, show-only-selected state, camera/model framing, orbit, footprint, Yaw-Pitch-Roll gating, and high-definition Earth behavior as before.
+   - Keep the shortcut buttons visually consistent with the `Satellite Selection` metallic section styling and usable on desktop and narrow screens.
+   - Keep the `Views & Time` section focused on view mode, display, and time controls after the shortcuts are moved.
+
+5. Add a right-side selected-satellite data and TLE detail panel.
+   - After a satellite is selected, display all available data and TLE details for the selected satellite on the right side of the canvas.
+   - Position the panel under the UTC time clock/horloge area so it does not overlap the clock.
+   - Use a transparent or semi-transparent background so the canvas remains visible behind the panel.
+   - Keep the styling consistent with the existing OpenBEXI CSS: compact text, readable contrast, existing colors, borders, shadows, and spacing.
+   - The panel must include at minimum:
+     - satellite name
+     - NORAD ID
+     - orbit type
+     - tag/operator/company when available
+     - launch date when available
+     - selected satellite metadata already available to the app
+     - TLE line 1
+     - TLE line 2
+   - If additional selected-satellite fields are available, show them in a compact readable key/value layout.
+   - Preserve the existing Satellite Selection menu details unless intentionally mirrored; do not remove existing selected-satellite summary or metadata from the menu unless the implementation explicitly keeps equivalent access.
+   - The right-side panel must update whenever selection changes through the combo box, Starlink shortcut, ISS shortcut, timeline selection, globe/map selection, or shared-link restoration.
+   - Hide or clear the panel when no satellite is selected.
+   - The panel must not block canvas interaction more than necessary; use pointer-events carefully so text can be selected if practical while the canvas remains usable outside the panel.
+   - Keep the panel responsive on narrow screens; if the right side is too small, stack or constrain the panel without covering essential menu controls, the clock, or the Time x slider.
+   - Keep TLE text readable and copyable where practical, with wrapping or horizontal scrolling that does not break layout.
+
+6. Restrict `SSL_1300.glb` model resolution.
+   - In `js/satelliteModelResolver.js`, use `SSL_1300.glb` only when the selected satellite's app satellite identifier is exactly `20`.
+   - Treat `20` as an exact identifier match, not as a partial text match.
+   - Do not use `SSL_1300.glb` as a generic GEO, SSL, SSL 1300, manufacturer, company, metadata, name, alias, or fallback model for other satellites.
+   - Remove or disable broad aliases that cause `SSL_1300.glb` to be selected for satellites other than identifier `20`.
+   - If the current data schema has multiple possible identifier fields, inspect the loaded satellite data and document which field represents the requested satellite identifier `20`.
+   - Do not confuse this requirement with NORAD ID unless the existing data confirms the selected satellite's intended identifier field is `norad_id`.
+   - Satellites other than identifier `20` that previously matched the generic SSL 1300 fallback must use their exact configured model, another valid exact mapping, or the normal sprite fallback.
+   - Preserve exact model resolution for Starlink, OneWeb, O3b, ISS, and other explicitly mapped assets.
+   - Log or expose diagnostics explaining when `SSL_1300.glb` is skipped because the selected satellite identifier is not `20`.
+
+7. Fix Help Licenses action error response.
+   - Use the attached screenshot as evidence that selecting `Licenses` currently opens `http://127.0.0.1:8000/LICENSE.md` and receives an HTTP 404 error response:
+     `Error response`
+     `Error code: 404`
+     `Message: File not found.`
+   - Correct the Help `Licenses` / `Licences` action so it opens a valid existing license resource instead of a 404 page.
+   - Prefer adding or serving a real Markdown license page at `LICENSE.md` if the Help action targets `LICENSE.md`.
+   - If the app keeps the existing plain-text `LICENSE` file as the source of truth, the Help action may target `LICENSE` directly, but the visible Help behavior must not lead users to a missing page.
+   - Keep the visible Help label consistent with the current UI spelling, and support the user-facing `Licences` wording if that is what appears in the menu.
+   - The license page/action must work when served by `py -m http.server`, by the optional Python server, and by static hosting such as GitHub Pages.
+   - If Markdown rendering is used, keep it safe by escaping raw HTML and sanitizing links before injecting rendered content.
+   - Do not break the existing Help actions for GitHub, README, Releases History, Swagger, API, or the disclaimer.
+
+8. Open README and Releases History Markdown in a separate page.
+   - When the user selects `README` in the Help menu, display the rendered Markdown content in a new page or separate browser view, similar to the way Swagger opens separately.
+   - When the user selects `Releases History` in the Help menu, display the rendered `PROMPT_History.md` content in a new page or separate browser view, similar to the way Swagger opens separately.
+   - Do not render README or Releases History inline inside the compact Help accordion panel as the primary behavior.
+   - The new page/view must render Markdown as readable HTML, not raw plain text, when served over HTTP.
+   - Provide a safe fallback link or message if Markdown cannot be loaded, such as when the app is opened through a restricted local mode.
+   - Keep Markdown rendering safe by escaping raw HTML and sanitizing links before injecting rendered content.
+   - Preserve the existing Help menu labels `README` and `Releases History`.
+   - Preserve Swagger, API, Licenses/Licences, GitHub, and disclaimer behavior.
+   - The separate Markdown page/view must work with the optional Python server, a simple static HTTP server, and static hosting such as GitHub Pages.
+
+9. Documentation and tests.
+   - Add or update automated tests confirming the latest release entry is Version 1.5.18.
+   - Add tests confirming the visible offline launch text `Server unavailable. Using local satellite data.` is not shown automatically on startup.
+   - Add tests confirming server status icon/panel hooks still exist and offline/local-data status remains accessible without an unsolicited launch tag.
+   - Add tests confirming the satellite search dropdown has CSS/markup/runtime hooks that keep it above other menu elements.
+   - Add tests confirming hidden search results cannot block pointer events on controls behind them.
+   - Add tests confirming the search dropdown remains keyboard accessible and closes on Escape, Tab, outside click, and selection.
+   - Add tests confirming Starlink and ISS shortcut buttons are in `Satellite Selection`, not `Views & Time`.
+   - Add tests confirming Starlink and ISS shortcuts still use the normal satellite-selection path and dynamic/unavailable labels.
+   - Add tests confirming the right-side selected-satellite detail panel exists, is positioned under the UTC clock, and is hidden when no satellite is selected.
+   - Add tests confirming the right-side detail panel displays selected satellite metadata and TLE line 1/line 2 when a satellite is selected.
+   - Add tests confirming the right-side detail panel updates for combo-box selection, Starlink shortcut, ISS shortcut, timeline selection, and shared-link restoration where practical.
+   - Add tests or CSS checks confirming the panel uses transparent/semi-transparent styling and remains responsive.
+   - Add model resolver tests confirming `SSL_1300.glb` resolves only for satellite identifier `20`.
+   - Add model resolver tests confirming generic SSL, SSL 1300, GEO, manufacturer, alias, or metadata fallback does not resolve `SSL_1300.glb` for any other satellite.
+   - Add regression tests confirming Starlink, OneWeb, O3b, ISS, and other exact model mappings still resolve correctly.
+   - Add tests confirming the Help Licenses/Licences action targets an existing resource and does not produce a `/LICENSE.md` 404.
+   - Add tests confirming README and Releases History Help actions open a separate Markdown page/view instead of rendering inline in the Help accordion.
+   - Add tests confirming the separate Markdown page/view can render both `README.md` and `PROMPT_History.md` safely.
+   - Add server/static smoke checks for the license target used by the Help action.
+   - Update `Test_and_Integration.md` with manual desktop and narrow-screen checks for:
+     - launch with no Python server running
+     - no visible offline tag/banner at startup
+     - server status icon/panel still communicates offline/local fallback
+     - satellite search dropdown visibility above Filters and other menu controls
+     - dropdown scrolling with many matches
+     - mouse and keyboard selection
+     - Escape, Tab, outside click, and selection close behavior
+     - Starlink and ISS shortcut buttons appear in `Satellite Selection`
+     - Starlink and ISS shortcut buttons no longer appear in `Views & Time`
+     - Starlink and ISS shortcuts still select satellites correctly
+     - selected satellite metadata and TLE details appear on the right side under the UTC clock after selection
+     - the right-side detail panel updates when switching selected satellites
+     - the right-side detail panel hides or clears when no satellite is selected
+     - the right-side detail panel uses transparent/semi-transparent styling and does not obscure essential canvas/menu controls
+     - `SSL_1300.glb` loads only for satellite identifier `20`
+     - other satellites that previously matched generic SSL/GEO fallback do not load `SSL_1300.glb`
+     - selecting Help Licenses/Licences opens a valid license page without the 404 error response shown in the screenshot
+     - selecting Help README opens rendered README Markdown in a separate page/view
+     - selecting Help Releases History opens rendered `PROMPT_History.md` Markdown in a separate page/view
+   - Update `README.md` with the revised launch-status behavior and any dropdown behavior notes if user-visible behavior changes.
+   - Keep existing server, local fallback, Share, Swagger/API docs, Help actions, menu order, accordion defaults, synchronized `Time x` sliders, selected-satellite options, shortcut, orbit, footprint, timeline, Mercator, model, and orientation tests passing.
+
+Acceptance Criteria:
+
+- Latest release is `Release Date: 2026-06-06  Version 1.5.18`.
+- `index.html` displays `Version 1.5.18 - hosted at GitHub Repo`.
+- Launching `index.html` with the Python server unavailable does not show the visible tag/banner/message `Server unavailable. Using local satellite data.`
+- Offline/local fallback behavior still works exactly as before.
+- The server status icon/control remains visible, accessible, and able to expose offline/local-data state through its status panel.
+- No startup offline notice causes layout shift or blocks menu controls.
+- Satellite Selection search results are visible when typing in the combo box.
+- The search dropdown appears above other menu elements and is not clipped by accordion/menu overflow.
+- The dropdown remains aligned with the search input and usable on desktop and narrow screens.
+- Mouse selection and keyboard selection still work.
+- Escape, Tab, outside click, and satellite selection close the dropdown.
+- Hidden/closed search results do not intercept clicks or focus.
+- `Starlink (<NORAD ID>)`, including examples such as `Starlink (44714)`, and `ISS` shortcut buttons appear in `Satellite Selection`.
+- Starlink and ISS shortcut buttons no longer appear in `Views & Time`.
+- Starlink and ISS shortcuts preserve their dynamic labels, unavailable fallbacks, and normal satellite-selection behavior.
+- After selecting a satellite, a right-side panel under the UTC clock displays selected-satellite data and TLE details.
+- The right-side panel includes TLE line 1 and TLE line 2 plus available metadata such as name, NORAD ID, orbit type, tag/operator/company, and launch date.
+- The right-side panel has transparent/semi-transparent styling consistent with the existing OpenBEXI CSS.
+- The right-side panel updates for every supported satellite-selection path and hides or clears when no satellite is selected.
+- The right-side panel remains readable and responsive without covering essential controls.
+- `SSL_1300.glb` is used only for the selected satellite whose app satellite identifier is exactly `20`.
+- No other satellite resolves to `SSL_1300.glb` through generic SSL, GEO, manufacturer, alias, metadata, or fallback matching.
+- Starlink, OneWeb, O3b, ISS, and other explicit model mappings still resolve correctly.
+- Selecting Help `Licenses` / `Licences` opens an existing license resource and does not show the HTTP 404 error response from `/LICENSE.md`.
+- The license target works with the optional Python server, a simple static HTTP server, and static hosting.
+- Selecting Help `README` opens rendered README Markdown in a separate page/view, not inline as the primary Help accordion behavior.
+- Selecting Help `Releases History` opens rendered `PROMPT_History.md` Markdown in a separate page/view, not inline as the primary Help accordion behavior.
+- The separate Markdown page/view escapes raw HTML, sanitizes links, and works with the optional Python server, a simple static HTTP server, and static hosting.
+- Satellite selection, selected-satellite controls, metadata, shortcuts, timeline selection, and shared-link restoration still work.
+- `README.md`, `Test_and_Integration.md`, and automated tests are updated.
+- Automated tests and syntax checks pass, or any limitation is explicitly documented.
+
+---
+
 ## Release Date: 2026-06-06  Version 1.5.17
 
 Implement the Version 1.5.17 menu ordering, launch defaults, time-speed control placement, and menu text cleanup.

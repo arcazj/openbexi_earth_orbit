@@ -180,30 +180,6 @@ canvas {
     cursor: pointer;
 }
 
-/* Satellite Info Panel */
-#satelliteInfo {
-    margin-top: 1px;
-    color: #fff;
-    font-family: monospace;
-    background-color: #222;
-    padding: 10px;
-    border-radius: 5px;
-    font-size: 11px;
-    white-space: pre-wrap;
-    border: 1px solid #444;
-    max-height: 400px;
-    overflow-y: auto;
-}
-
-/* Satellite info table */
-#satelliteInfo .meta-table {
-    font-size: 12px;
-}
-
-#satelliteInfo .meta-table td.v {
-    color: #ffd966;
-}
-
 /* Satellite Count Display */
 #satelliteCountDisplay {
     font-size: 13px;
@@ -515,6 +491,109 @@ canvas {
     white-space: nowrap;
 }
 
+.selected-satellite-detail-panel {
+    position: fixed;
+    top: 52px;
+    right: 16px;
+    width: auto;
+    min-width: 0;
+    max-width: min(360px, calc(100vw - 32px));
+    max-height: calc(100vh - 82px);
+    overflow: hidden;
+    border: 1px solid rgba(126, 186, 255, 0.36);
+    border-radius: 12px;
+    background: linear-gradient(180deg, rgba(6, 15, 28, 0.74), rgba(3, 8, 16, 0.54));
+    color: #e8f5ff;
+    box-shadow: 0 18px 36px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    z-index: 2095;
+    pointer-events: auto;
+}
+
+.selected-satellite-detail-panel[hidden] {
+    display: none !important;
+}
+
+.selected-satellite-detail-header {
+    display: grid;
+    gap: 2px;
+    padding: 10px 12px 8px;
+    border-bottom: 1px solid rgba(126, 186, 255, 0.18);
+}
+
+.selected-satellite-detail-header span {
+    color: #8ecbff;
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+.selected-satellite-detail-header strong {
+    color: #ffffff;
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+
+.selected-satellite-detail-scroll {
+    max-height: calc(100vh - 142px);
+    overflow-y: auto;
+    padding: 10px 12px 12px;
+}
+
+.selected-satellite-detail-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+}
+
+.selected-satellite-detail-table th,
+.selected-satellite-detail-table td {
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(126, 186, 255, 0.12);
+    vertical-align: top;
+}
+
+.selected-satellite-detail-table th {
+    width: 36%;
+    padding-right: 8px;
+    color: #8faecb;
+    font-weight: 600;
+    text-align: left;
+}
+
+.selected-satellite-detail-table td {
+    color: #ffe58a;
+    overflow-wrap: anywhere;
+}
+
+.selected-satellite-tle-block {
+    display: grid;
+    gap: 5px;
+    margin-top: 10px;
+}
+
+.selected-satellite-tle-block strong {
+    color: #8ecbff;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.selected-satellite-tle-block code {
+    display: block;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    border: 1px solid rgba(255, 229, 138, 0.22);
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.34);
+    color: #fff3b8;
+    padding: 7px;
+    font-family: "SF Mono", "Roboto Mono", "Fira Mono", Menlo, Consolas, monospace;
+    font-size: 10px;
+    line-height: 1.35;
+}
+
 #timeWarpBox {
     display: flex;
     align-items: center;
@@ -767,12 +846,13 @@ canvas {
 }
 
 .satellite-search-results {
-    position: absolute;
-    z-index: 3002;
-    top: calc(100% + 4px);
+    position: fixed;
+    z-index: 5000;
+    top: 0;
     left: 0;
-    right: 0;
-    max-height: min(220px, calc(100vh - 260px));
+    right: auto;
+    width: min(340px, calc(100vw - 20px));
+    max-height: 260px;
     overflow-y: auto;
     margin: 0;
     padding: 4px;
@@ -782,10 +862,6 @@ canvas {
     box-shadow: 0 8px 18px rgba(0, 0, 0, 0.48);
     list-style: none;
     pointer-events: auto;
-}
-
-#satelliteInfo {
-    max-height: min(260px, calc(100vh - 330px));
 }
 
 .satellite-search-results[hidden] {
@@ -831,6 +907,13 @@ canvas {
     display: none !important;
 }
 
+.satellite-shortcut-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    margin: -2px 0 10px;
+}
+
 .view-option-grid {
     margin: 8px 0;
 }
@@ -849,21 +932,17 @@ canvas {
     grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.view-shortcut-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
 .view-control-row label {
     white-space: nowrap;
     font-size: 12px;
 }
 
-.view-shortcut-button {
-    border: 1px solid rgba(240, 180, 41, 0.55);
+.satellite-shortcut-button {
+    border: 1px solid rgba(53, 185, 169, 0.55);
     border-radius: 6px;
     padding: 5px 6px;
     background: linear-gradient(180deg, rgba(29, 57, 88, 0.92), rgba(10, 23, 41, 0.92));
-    color: #f7d67c;
+    color: #8be7d8;
     cursor: pointer;
     font-size: 12px;
     line-height: 1.15;
@@ -872,13 +951,13 @@ canvas {
     white-space: nowrap;
 }
 
-.view-shortcut-button:disabled {
+.satellite-shortcut-button:disabled {
     cursor: not-allowed;
     opacity: 0.48;
 }
 
-.view-shortcut-button:not(:disabled):hover,
-.view-shortcut-button:not(:disabled):focus-visible {
+.satellite-shortcut-button:not(:disabled):hover,
+.satellite-shortcut-button:not(:disabled):focus-visible {
     background: linear-gradient(180deg, rgba(54, 91, 130, 0.96), rgba(15, 39, 66, 0.96));
     color: #ffffff;
 }
@@ -1026,25 +1105,6 @@ canvas {
     margin-top: 2px;
 }
 
-.server-offline-notice {
-    border: 1px solid rgba(255, 201, 90, 0.45);
-    border-radius: 7px;
-    background: rgba(71, 43, 8, 0.54);
-    color: #ffe8b5;
-    padding: 7px 8px;
-    font-size: 11px;
-    line-height: 1.35;
-    position: absolute;
-    right: 0;
-    top: calc(100% + 5px);
-    width: min(280px, calc(100vw - 40px));
-    z-index: 3005;
-}
-
-.server-offline-notice[hidden] {
-    display: none !important;
-}
-
 .share-panel {
     border: 1px solid rgba(111, 208, 140, 0.28);
     border-radius: 8px;
@@ -1181,106 +1241,6 @@ canvas {
     background: linear-gradient(180deg, rgba(70, 103, 158, 0.84), rgba(17, 42, 77, 0.9));
 }
 
-.help-markdown-panel {
-    border: 1px solid rgba(169, 140, 255, 0.32);
-    border-radius: 8px;
-    background: rgba(8, 18, 38, 0.58);
-    padding: 8px;
-    margin: 8px 0;
-}
-
-.help-markdown-panel[hidden] {
-    display: none !important;
-}
-
-.help-markdown-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    margin-bottom: 6px;
-}
-
-.help-markdown-header strong {
-    color: #ffffff;
-}
-
-.help-markdown-header a {
-    color: #8ecbff;
-    font-size: 11px;
-}
-
-.help-markdown-content {
-    max-height: min(320px, calc(100vh - 360px));
-    overflow-y: auto;
-    padding: 8px;
-    border-radius: 7px;
-    background: rgba(4, 10, 20, 0.62);
-    color: #d9ecff;
-    font-size: 12px;
-    line-height: 1.45;
-}
-
-.help-markdown-content h1,
-.help-markdown-content h2,
-.help-markdown-content h3,
-.help-markdown-content h4,
-.help-markdown-content h5,
-.help-markdown-content h6 {
-    color: #ffffff;
-    margin: 10px 0 6px;
-    font-size: 14px;
-}
-
-.help-markdown-content p,
-.help-markdown-content ul,
-.help-markdown-content ol,
-.help-markdown-content blockquote,
-.help-markdown-content pre {
-    margin: 0 0 8px;
-}
-
-.help-markdown-content ul,
-.help-markdown-content ol {
-    padding-left: 18px;
-}
-
-.help-markdown-content a {
-    color: #8ecbff;
-}
-
-.help-markdown-content code {
-    color: #fff0b8;
-    background: rgba(255, 255, 255, 0.08);
-    border-radius: 4px;
-    padding: 1px 4px;
-}
-
-.help-markdown-content pre {
-    overflow-x: auto;
-    background: rgba(0, 0, 0, 0.38);
-    border: 1px solid rgba(184, 220, 255, 0.18);
-    border-radius: 6px;
-    padding: 8px;
-}
-
-.help-markdown-content pre code {
-    display: block;
-    padding: 0;
-    background: transparent;
-}
-
-.help-markdown-content blockquote {
-    border-left: 3px solid rgba(169, 140, 255, 0.72);
-    padding-left: 8px;
-    color: #c6d8ea;
-}
-
-.help-markdown-content img {
-    max-width: 100%;
-    border-radius: 6px;
-}
-
 .api-docs-panel {
     display: grid;
     gap: 6px;
@@ -1381,6 +1341,18 @@ canvas {
         letter-spacing: 0.08em;
     }
 
+    .selected-satellite-detail-panel {
+        top: 92px;
+        right: 8px;
+        left: auto;
+        max-height: min(42vh, 360px);
+        max-width: calc(100vw - 16px);
+    }
+
+    .selected-satellite-detail-scroll {
+        max-height: calc(min(42vh, 360px) - 56px);
+    }
+
     .menu-accordion {
         gap: 7px;
     }
@@ -1406,8 +1378,7 @@ canvas {
         min-width: 0;
     }
 
-    .server-status-panel,
-    .server-offline-notice {
+    .server-status-panel {
         left: 0;
         right: auto;
         width: min(280px, calc(100vw - 88px));

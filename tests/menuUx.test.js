@@ -12,6 +12,7 @@ function run() {
   const html = satelliteMenuLoader();
   const css = fs.readFileSync('css/style.css', 'utf8');
   const indexHtml = fs.readFileSync('index.html', 'utf8');
+  const markdownViewerHtml = fs.readFileSync('markdown_viewer.html', 'utf8');
   const launchTimeline = fs.readFileSync('js/ganttTimelineLoader.js', 'utf8');
   const reentryTimeline = fs.readFileSync('js/reentryTimeline.js', 'utf8');
 
@@ -58,14 +59,11 @@ function run() {
   const highDefToggle = indexOfOrFail(html, 'id="highDefToggle"', 'High Def toggle exists');
   const axesToggle = indexOfOrFail(html, 'id="showECEFAxesToggle"', 'ECEF Axes toggle exists');
   const dayNightToggle = indexOfOrFail(html, 'id="showDayNightToggle"', 'Day/Night toggle exists');
-  const starlinkShortcut = indexOfOrFail(html, 'id="selectFirstStarlinkButton"', 'First Starlink shortcut exists');
-  const issShortcut = indexOfOrFail(html, 'id="selectIssButton"', 'ISS shortcut exists');
   assert(
     viewContent < menuTimeWarpSlider && menuTimeWarpSlider < globeToggle && globeToggle < mercatorToggle &&
       mercatorToggle < highDefToggle && highDefToggle < axesToggle &&
-      axesToggle < dayNightToggle && dayNightToggle < starlinkShortcut &&
-      starlinkShortcut < issShortcut,
-    'Views & Time menu order is menu Time x slider, Globe/Mercator, High Def/ECEF/Day-Night, then First Starlink/ISS shortcuts'
+      axesToggle < dayNightToggle,
+    'Views & Time menu order is menu Time x slider, Globe/Mercator, then High Def/ECEF/Day-Night'
   );
   assert(!html.includes('Use the time slider at the top of the screen to control simulation speed.'), 'old Views & Time slider guidance is removed');
   assert(html.includes('class="menu-time-warp-control"'), 'Views & Time contains a compact menu time slider control');
@@ -73,7 +71,8 @@ function run() {
   assert(html.includes('id="menuTimeWarpVal"'), 'menu time slider has a synchronized value display');
   assert(html.includes('view-control-row view-control-row-two'), 'View menu has a two-item first row');
   assert(html.includes('view-control-row view-control-row-three'), 'View menu has a three-item second row');
-  assert(html.includes('view-control-row view-shortcut-row'), 'View menu has a shortcut button row');
+  assert(!html.includes('view-control-row view-shortcut-row'), 'View menu no longer has a satellite shortcut row');
+  assert(html.includes('class="satellite-shortcut-row"'), 'Satellite Selection has a shortcut button row');
   assert(html.includes('aria-label="Starlink shortcut unavailable"'), 'Starlink shortcut has unavailable accessible text before TLE load');
   assert(html.includes('aria-label="ISS shortcut unavailable"'), 'ISS shortcut has unavailable accessible text before TLE load');
   assert(html.includes('Starlink unavailable'), 'Starlink shortcut has required unavailable fallback text');
@@ -117,11 +116,15 @@ function run() {
 
   const satelliteSelection = indexOfOrFail(html, 'Satellite Selection', 'satellite selection section exists');
   const searchInput = indexOfOrFail(html, 'id="satelliteSearchInput"', 'search input exists');
+  const satelliteShortcutRow = indexOfOrFail(html, 'class="satellite-shortcut-row"', 'satellite shortcut row exists');
+  const starlinkShortcut = indexOfOrFail(html, 'id="selectFirstStarlinkButton"', 'Starlink shortcut exists');
+  const issShortcut = indexOfOrFail(html, 'id="selectIssButton"', 'ISS shortcut exists');
   const selectedControls = indexOfOrFail(html, 'id="selectedSatelliteControls"', 'selected satellite controls exist');
   const firstSatelliteCheckbox = indexOfOrFail(html, 'id="showYPRToggle"', 'satellite-specific checkboxes exist');
   assert(
-    satelliteSelection < searchInput && searchInput < selectedControls && selectedControls < firstSatelliteCheckbox,
-    'search/select satellite combo appears between the Satellite Selection header and checkboxes'
+    satelliteSelection < searchInput && searchInput < satelliteShortcutRow && satelliteShortcutRow < starlinkShortcut &&
+      starlinkShortcut < issShortcut && issShortcut < selectedControls && selectedControls < firstSatelliteCheckbox,
+    'search/select satellite combo and shortcuts appear between the Satellite Selection header and checkboxes'
   );
   assert(html.includes('id="selectedSatelliteControls" class="satellite-option-grid" aria-label="Selected satellite options" aria-hidden="true" hidden'), 'satellite-specific controls are hidden until selection');
   assert(html.includes('id="showFootprintCheckbox"><span>Show Footprint</span>'), 'Show Footprint checkbox exists and is unchecked by default');
@@ -129,6 +132,7 @@ function run() {
   assert(html.includes('id="showOrbitFrameToggle"> Orbit Frame (LVLH)'), 'Orbit Frame checkbox exists and is unchecked by default');
   assert(html.includes('id="showOrbitToggle"> Show Orbit'), 'Show Orbit checkbox exists and is unchecked by default');
   assert(!html.includes('No satellite selected'), 'visible no-selection placeholder text is removed from generated menu');
+  assert(!html.includes('id="satelliteInfo"'), 'Satellite Selection no longer contains the detailed metadata/TLE table');
 
   const timelinePanel = indexOfOrFail(html, 'id="timelineContent"', 'timeline content exists');
   const otherPanel = indexOfOrFail(html, 'id="otherSelectionsContent"', 'other content exists');
@@ -149,7 +153,8 @@ function run() {
   assert(html.includes('aria-label="Checking server connection"'), 'server status has checking accessible text');
   assert(html.includes('id="serverStatusPanel"'), 'server status panel exists');
   assert(html.includes('id="serverReconnectButton"'), 'server status exposes reconnect action');
-  assert(html.includes('Server unavailable. Using local satellite data.'), 'server offline message is present');
+  assert(!html.includes('Server unavailable. Using local satellite data.'), 'launch offline banner is removed');
+  assert(!html.includes('id="serverOfflineNotice"'), 'server offline notice hook is removed');
   assert(html.includes('id="copyShareLinkButton"'), 'Share section includes Copy Link');
   assert(html.includes('id="nativeShareButton"'), 'Share section includes native share action');
   assert(html.includes('id="shareLinkOutput"'), 'Share section includes generated link output');
@@ -160,16 +165,17 @@ function run() {
   assert(html.includes('href="https://github.com/arcazj/openbexi_earth_orbit"'), 'Help includes GitHub project link');
   assert(html.includes('target="_blank" rel="noopener noreferrer"'), 'GitHub Help link opens safely in a new tab');
   assert(html.includes('id="readmeMarkdownLink"'), 'Help includes README Markdown action');
-  assert(html.includes('data-markdown-source="README.md"'), 'README Markdown action targets README.md');
+  assert(html.includes('href="markdown_viewer.html?source=README.md&amp;title=README"'), 'README Markdown action opens the Markdown viewer');
   assert(html.includes('id="releasesHistoryMarkdownLink"'), 'Help includes Releases History Markdown action');
-  assert(html.includes('data-markdown-source="PROMPT_History.md"'), 'Releases History action targets PROMPT_History.md');
+  assert(html.includes('href="markdown_viewer.html?source=PROMPT_History.md&amp;title=Releases%20History"'), 'Releases History action opens the Markdown viewer');
   assert(html.includes('>Releases History</strong>'), 'Prompt History action is renamed to Releases History');
   assert(!html.includes('>Prompt History</a>'), 'Prompt History is not the visible Help action text');
-  assert(html.includes('id="helpMarkdownPanel"'), 'Help includes a rendered Markdown panel');
-  assert(html.includes('id="helpMarkdownContent"'), 'Help includes rendered Markdown content target');
+  assert(!html.includes('id="helpMarkdownPanel"'), 'Help no longer renders Markdown inline in the menu');
+  assert(!html.includes('id="helpMarkdownContent"'), 'Help no longer has an inline Markdown content target');
   assert(html.includes('class="help-smart-grid"'), 'Help uses a smart document grid');
   assert(html.includes('id="licenseMarkdownLink"'), 'Help includes Licenses link hook');
   assert(html.includes('href="LICENSE.md"'), 'Help includes Markdown license link');
+  assert(fs.existsSync('LICENSE.md'), 'LICENSE.md exists for the Help license link');
   assert(html.includes('>Licenses</strong>'), 'Help labels the license action as Licenses');
   assert(!html.includes('Swagger / API Documentation'), 'old Swagger/API heading is removed');
   assert(html.includes('Developer Docs'), 'Help includes developer documentation section');
@@ -196,11 +202,17 @@ function run() {
   assert(css.includes('font-weight: 900;'), 'satellite count is styled bold');
   assert(css.includes('.menu-accordion-section .collapsible-content:not(.collapsed)'), 'long active accordion panels have scroll constraints');
   assert(css.includes('overflow-y: auto'), 'narrowed menu keeps scrollable overflow');
-  assert(css.includes('max-height: min(220px, calc(100vh - 260px))'), 'satellite search results stay bounded after narrowing');
+  assert(css.includes('.satellite-search-results'), 'satellite search results have dedicated CSS');
+  assert(css.includes('position: fixed'), 'satellite search results can escape accordion clipping');
+  assert(css.includes('z-index: 5000'), 'satellite search results render above menu elements');
   assert(css.includes('.satellite-search-results[hidden]'), 'hidden satellite results have an explicit CSS state');
   assert(css.includes('display: none !important;'), 'hidden satellite results are removed from layout');
   assert(css.includes('pointer-events: none !important;'), 'hidden satellite results cannot block controls');
-  assert(css.includes('max-height: min(260px, calc(100vh - 330px))'), 'satellite metadata stays bounded after narrowing');
+  assert(!css.includes('#satelliteInfo'), 'obsolete Satellite Selection metadata/TLE table CSS is removed');
+  assert(css.includes('.selected-satellite-detail-panel'), 'selected satellite detail panel has dedicated CSS');
+  assert(css.includes('background: linear-gradient(180deg, rgba(6, 15, 28, 0.74), rgba(3, 8, 16, 0.54))'), 'selected satellite detail panel uses a transparent background');
+  assert(css.includes('.selected-satellite-tle-block'), 'selected satellite detail panel styles TLE details');
+  assert(css.includes('width: auto;'), 'selected satellite detail panel lets JavaScript sync width to the UTC clock');
   assert(css.includes('#timeWarpBox'), 'time slider has responsive layout CSS');
   assert(css.includes('.menu-time-warp-control'), 'menu Time x slider has dedicated CSS');
   assert(css.includes('#menuTimeWarpSlider'), 'menu Time x slider has dedicated slider CSS');
@@ -233,16 +245,16 @@ function run() {
   assert(css.includes('.help-panel'), 'Help panel has dedicated CSS');
   assert(css.includes('.help-smart-grid'), 'Help document grid has dedicated CSS');
   assert(css.includes('.help-doc-card'), 'Help document cards have dedicated CSS');
-  assert(css.includes('.help-markdown-panel'), 'Help Markdown preview has dedicated CSS');
-  assert(css.includes('.help-markdown-content'), 'Help rendered Markdown content has dedicated CSS');
+  assert(!css.includes('.help-markdown-panel'), 'inline Help Markdown preview CSS is removed');
+  assert(!css.includes('.help-markdown-content'), 'inline Help Markdown content CSS is removed');
   assert(css.includes('.help-disclaimer'), 'Help disclaimer has dedicated CSS');
   assert(css.includes('.filter-chip input[type="checkbox"]:checked + span'), 'selected tag chips have a distinct active style');
   assert(css.includes(':focus-visible'), 'menu controls have visible focus styling');
   assert(css.includes('@media (max-width: 560px)'), 'menu has narrow viewport behavior');
   assert(css.includes('.view-control-row-two'), 'View first row has dedicated CSS');
   assert(css.includes('.view-control-row-three'), 'View second row has dedicated CSS');
-  assert(css.includes('.view-shortcut-row'), 'View shortcut row has dedicated CSS');
-  assert(css.includes('.view-shortcut-button'), 'View shortcut buttons have dedicated CSS');
+  assert(css.includes('.satellite-shortcut-row'), 'Satellite shortcut row has dedicated CSS');
+  assert(css.includes('.satellite-shortcut-button'), 'Satellite shortcut buttons have dedicated CSS');
 
   assert(indexHtml.includes('MENU_COLLAPSE_STORAGE_KEY'), 'index persists collapsed accordion sections');
   assert(indexHtml.includes('menuTimeWarpSlider'), 'index reads the menu Time x slider');
@@ -250,12 +262,21 @@ function run() {
   assert(indexHtml.includes('sliderValueToTimeWarp'), 'index converts slider values through a shared helper');
   assert(indexHtml.includes('updateTimeWarpControls'), 'index synchronizes both Time x sliders');
   assert(indexHtml.includes('[timeWarpSlider, menuTimeWarpSlider]'), 'canvas and menu Time x sliders share input wiring');
-  assert(indexHtml.includes('renderMarkdown(markdown'), 'index renders Help Markdown locally');
-  assert(indexHtml.includes('escapeHtml(value'), 'Markdown rendering escapes raw HTML');
-  assert(indexHtml.includes('safeMarkdownHref'), 'Markdown links are sanitized before rendering');
-  assert(indexHtml.includes('loadHelpMarkdown(source, title)'), 'index loads README and Releases History Markdown in Help');
-  assert(indexHtml.includes('setupHelpMarkdownLink(readmeMarkdownLink)'), 'README Help action is wired to Markdown renderer');
-  assert(indexHtml.includes('setupHelpMarkdownLink(releasesHistoryMarkdownLink)'), 'Releases History Help action is wired to Markdown renderer');
+  assert(indexHtml.includes('id="selectedSatelliteDetailPanel"'), 'index defines the selected satellite detail panel');
+  assert(indexHtml.includes('updateSelectedSatelliteDetailPanel'), 'index updates the right-side selected satellite detail panel');
+  assert(indexHtml.includes('syncSelectedSatelliteDetailPanelWidth'), 'index syncs the selected detail panel width to the UTC clock');
+  assert(indexHtml.includes('selectedSatelliteDetailPanel.style.width'), 'selected detail panel width is assigned from the clock measurement');
+  assert(indexHtml.includes('SELECTED_DETAIL_DUPLICATE_KEYS'), 'index excludes duplicated selected-detail fields from the metadata table');
+  assert(indexHtml.includes("'tle_line1'"), 'TLE line 1 is excluded from duplicate metadata rows');
+  assert(indexHtml.includes("'tle_line2'"), 'TLE line 2 is excluded from duplicate metadata rows');
+  assert(indexHtml.includes('selected-satellite-tle-block'), 'selected satellite detail panel includes TLE details');
+  assert(!indexHtml.includes('updateSatelliteInfo'), 'index no longer updates a menu-side metadata/TLE table');
+  assert(!indexHtml.includes('loadHelpMarkdown(source, title)'), 'index no longer renders README and Releases History Markdown inside Help');
+  assert(!indexHtml.includes('setupHelpMarkdownLink(readmeMarkdownLink)'), 'README Help action is no longer wired to inline Markdown renderer');
+  assert(markdownViewerHtml.includes('renderMarkdown(markdown'), 'Markdown viewer renders Help Markdown in a separate page');
+  assert(markdownViewerHtml.includes('escapeHtml(value'), 'Markdown viewer escapes raw HTML');
+  assert(markdownViewerHtml.includes('safeMarkdownHref'), 'Markdown viewer sanitizes Markdown links');
+  assert(markdownViewerHtml.includes('ALLOWED_MARKDOWN_SOURCES'), 'Markdown viewer restricts allowed source files');
   assert(indexHtml.includes('updateSelectedSatelliteControlsVisibility'), 'index gates selected-satellite controls by selection state');
   assert(indexHtml.includes("'shareContent'"), 'Share starts collapsed with other non-default accordion sections');
   assert(indexHtml.includes("'helpContent'"), 'Help starts collapsed with other non-default accordion sections');
@@ -284,9 +305,9 @@ function run() {
   assert(indexHtml.includes("orbitType === 'MEO' || orbitType === 'GEO'"), 'MEO and GEO selections do not force High Def on');
   assert(indexHtml.includes('clearSatelliteSearchInputForNextSelection'), 'search field clears the prior selected label before a new search');
   assert(indexHtml.includes('satelliteSearchClearedForNextSelection'), 'search clearing preserves the current selected satellite');
-  assert(indexHtml.includes('findFirstStarlinkSatellite'), 'View shortcut can locate the first Starlink satellite');
-  assert(indexHtml.includes('findIssSatellite'), 'View shortcut can locate ISS/ZARYA');
-  assert(indexHtml.includes('selectSatelliteViaShortcut'), 'View shortcuts use the normal satellite selection path');
+  assert(indexHtml.includes('findFirstStarlinkSatellite'), 'Satellite Selection shortcut can locate the first Starlink satellite');
+  assert(indexHtml.includes('findIssSatellite'), 'Satellite Selection shortcut can locate ISS/ZARYA');
+  assert(indexHtml.includes('selectSatelliteViaShortcut'), 'Satellite Selection shortcuts use the normal satellite selection path');
   assert(indexHtml.includes('starlinkShortcutState(findFirstStarlinkSatellite())'), 'Starlink shortcut uses dynamic state helper');
   assert(indexHtml.includes('issShortcutState(findIssSatellite())'), 'ISS shortcut uses dynamic state helper');
   assert(indexHtml.includes("s?.norad_id?.toString() === ISS_NORAD_ID"), 'ISS shortcut prefers NORAD 25544');
@@ -296,6 +317,9 @@ function run() {
   assert(indexHtml.includes('visible = !!currentSelectedSatellite'), 'show-only visibility is not constrained by current filters');
   assert(indexHtml.includes('earthInView: selectedCameraFrameKeepsEarthInView'), 'selected-satellite camera metadata checks Earth remains visible');
   assert(indexHtml.includes('isSatelliteDropdownOpen'), 'satellite search uses explicit dropdown open state');
+  assert(indexHtml.includes('positionSatelliteSearchResults'), 'satellite search results are positioned over menu elements');
+  assert(indexHtml.includes('document.body.appendChild(satelliteSearchResults)'), 'satellite search results are portaled outside accordion clipping');
+  assert(indexHtml.includes('insideResults = satelliteSearchResults?.contains(event.target)'), 'outside-click handling preserves clicks inside portaled results');
   assert(indexHtml.includes('document.addEventListener(\'pointerdown\''), 'outside clicks close satellite search results');
   assert(indexHtml.includes("event.key === 'Tab'"), 'Tab closes satellite search results without trapping focus');
   assert(indexHtml.includes('if (forceOpen) isSatelliteDropdownOpen = true'), 'only explicit user actions open satellite search results');

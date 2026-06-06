@@ -16,15 +16,15 @@ OpenBEXI Earth Orbit is a browser-based satellite visualization app built with p
 - Debris filtering modes: show all, hide debris, or debris only.
 - Accordion-style menu sections ordered as Views & Time, Satellite Selection, Filters - Satellites Found, Other Selections, Timelines, Share, and Help, preserving the legacy colored section accents with section-matched metallic expanded backgrounds.
 - Deterministic launch defaults: Views & Time, Satellite Selection, and Filters - Satellites Found start expanded, while Other Selections, Timelines, Share, and Help start collapsed.
-- Optional Python server integration for live local API-backed TLE/satellite metadata loading, with automatic local-file fallback when the server is unavailable.
+- Optional Python server integration for live local API-backed TLE/satellite metadata loading, with automatic local-file fallback when the server is unavailable and no launch-time offline banner.
 - Aligned top menu header with Close, version/GitHub link, and server connection status in one compact desktop row.
 - Server status indicator with connected, checking, offline, and error states; connected uses `icons/power_green.png`, offline/error uses `icons/power_red.png`, and the status panel shows server URL, data source, version, last load time, and reconnect/refresh.
 - Share menu section for copying or natively sharing a safe link for the selected satellite, view mode, filters, simulation time, display settings, and a captured canvas image when supported.
-- Searchable satellite selector with typeahead support for satellite name, NORAD ID, orbit type, and company/tag; selected results close cleanly after mouse, keyboard, Escape, Tab, or outside-click interactions.
+- Searchable satellite selector with typeahead support for satellite name, NORAD ID, orbit type, and company/tag; the result list is portaled above other menu controls and closes cleanly after mouse, keyboard, Escape, Tab, or outside-click interactions.
 - After selecting a satellite, the selector search field clears the previous selected label on the next search interaction without clearing the active selection.
 - Selecting any satellite automatically enables `Show only selected satellite`, synchronizes the checkbox, and keeps the selected satellite visible even when current filters would otherwise hide it.
 - Filter reset, active-filter summary, and zero-result empty states.
-- Selected-satellite details, orbit path display, footprint display, LVLH orbit frame, and yaw/pitch/roll controls.
+- Selected-satellite menu controls plus a transparent right-side data/TLE detail panel under the UTC clock.
 - Local detailed model loading for selected satellites using OBJ/MTL and GLB assets under `obj/`.
 - Selected-satellite observer framing in 3D: selecting a satellite smoothly moves the camera to a close observer view with Earth centered behind the satellite.
 - Selected detailed models place the camera/observer eye exactly 100 real-world meters from the selected satellite target by default, with FOV-aware model visual scaling so the model remains inspectable without moving the observer farther away.
@@ -36,7 +36,7 @@ OpenBEXI Earth Orbit is a browser-based satellite visualization app built with p
 - Mercator selected-satellite state uses the selected NORAD ID, so ground tracks and marker rings still render when a detailed 3D model hides the selected sprite.
 - High-definition Earth texture toggle, ECEF axes, Moon view, launch timeline, and re-entry timeline.
 - Selecting non-MEO/GEO satellites automatically enables the high-definition Earth texture while MEO/GEO selections never force it off.
-- View shortcuts can select the first loaded Starlink satellite or ISS/ZARYA through the same camera/model path as the normal satellite selector. The Starlink shortcut displays the resolved NORAD ID as `Starlink (<NORAD ID>)`.
+- Satellite Selection shortcuts can select the first loaded Starlink satellite or ISS/ZARYA through the same camera/model path as the normal satellite selector. The Starlink shortcut displays the resolved NORAD ID as `Starlink (<NORAD ID>)`.
 - Help menu actions provide quick access to the GitHub project, rendered README Markdown, rendered Releases History Markdown, a Markdown license page, and Swagger/API pages that open separately even if the Python server still needs to be started.
 - Timeline checkboxes are mutually exclusive: enabling the launch timeline hides the re-entry timeline, and enabling the re-entry timeline hides the launch timeline.
 - Faster initial startup path: the globe and core controls render before the full TLE sprite pass, while timelines and decay estimates are prepared as deferred work.
@@ -72,6 +72,10 @@ Version 1.5.16 revises the menu UX. All accordion sections start collapsed by de
 
 Version 1.5.17 moves Satellite Selection directly under Views & Time, places Filters - Satellites Found immediately below Satellite Selection, restores deterministic launch defaults with those three sections expanded, adds a synchronized `Time x` slider at the top of Views & Time while keeping the existing canvas-top slider, and removes obsolete visible helper text from the orbit filter and satellite search areas.
 
+Version 1.5.18 removes the launch offline banner while keeping silent local-data fallback and the server status panel. It moves the Starlink and ISS shortcuts into Satellite Selection, portals the satellite-search dropdown above other menu controls, adds the transparent right-side selected-satellite data/TLE panel under the UTC clock, fixes the Licenses action with `LICENSE.md`, and makes README and Releases History open through `markdown_viewer.html` as separate rendered Markdown pages.
+
+Version 1.5.19 removes the detailed metadata/TLE table from Satellite Selection so the full selected-satellite details appear only in the right-side canvas panel. The right-side panel matches the UTC clock width, shows TLE line 1 and TLE line 2 only once, and restricts `SSL_1300.glb` to INTELSAT 20 (IS-20) and INTELSAT 18 (IS-18).
+
 The selected satellite model axis convention is:
 
 ```text
@@ -88,7 +92,7 @@ Model matching is deterministic:
 
 - Exact NORAD/metadata mappings are preferred when available.
 - If exact metadata is unavailable, normalized satellite names, company/operator tags, and constellation aliases are used.
-- Known local fallbacks include Starlink, OneWeb, O3b, ISS, and SSL 1300-style GEO satellites.
+- Known local fallbacks include Starlink, OneWeb, O3b, and ISS. `SSL_1300.glb` resolves only for `INTELSAT 20 (IS-20)` and `INTELSAT 18 (IS-18)` through exact selected-satellite name metadata, not through generic Intelsat, SSL, GEO, GOES, SES, manufacturer, bus, or alias matching.
 - OBJ/MTL assets are loaded as `obj/<asset>.obj` with optional `obj/<asset>.mtl`.
 - GLB assets are loaded directly from `obj/<asset>.glb`.
 
@@ -204,24 +208,27 @@ The timing summary includes lifecycle and app-specific marks such as `dom-conten
 
 The left menu is organized into compact colored accordion sections. Multiple sections can stay open at the same time; expanding one section does not collapse any other section. `Views & Time`, `Satellite Selection`, and `Filters - Satellites Found` start expanded when `index.html` loads; `Other Selections`, `Timelines`, `Share`, and `Help` start collapsed. Older local accordion state cannot override those launch defaults on refresh. Expanded panels use section-matched metallic gradients, and the live satellite count in the Filters header is red and bold.
 
-- `Views & Time`: a menu `Time x` slider synchronized with the existing canvas-top `Time x` slider, globe/Mercator controls on one row, high-definition texture/ECEF axes/day-night controls on the next row, and `Starlink (<NORAD ID>)` plus `ISS` shortcut buttons on the third row.
-- `Satellite Selection`: searchable satellite selector, selected-satellite status, metadata, and satellite-specific Yaw-Pitch-Roll, footprint, show-only, LVLH frame, and orbit controls that appear only after a satellite is selected.
+- `Views & Time`: a menu `Time x` slider synchronized with the existing canvas-top `Time x` slider, globe/Mercator controls on one row, and high-definition texture/ECEF axes/day-night controls on the next row.
+- `Satellite Selection`: searchable satellite selector, Starlink/ISS shortcut buttons, selected-satellite status, and satellite-specific Yaw-Pitch-Roll, footprint, show-only, LVLH frame, and orbit controls that appear only after a satellite is selected. Detailed metadata and TLE lines are not duplicated in the menu.
 - `Filters - Satellites Found`: orbit, tag, debris filters, active summary, dynamic found count, and reset action.
 - `Other Selections`: Earth/Moon context selection.
 - `Timelines`: checkbox toggles for launch and re-entry timelines.
 - `Share`: copy or natively share a safe URL that restores supported app state after satellite data loads, plus preview, download, or copy an image of the current canvas when the browser supports it.
 - `Help`: GitHub, rendered README, rendered Releases History, Markdown Licenses, Swagger, API, and the app disclaimer.
 
-The satellite selector is searchable. Type part of a satellite name, NORAD ID, orbit type, or tag, then use the mouse or keyboard arrow keys plus Enter to select a result. Selecting a result closes the dropdown immediately; Escape, Tab, or clicking outside the selector also closes the dropdown so it cannot block `Show Orbit`, `Show Footprint`, or other controls below it. After a satellite is selected, focusing, clicking, typing, pasting, or pressing `Clear` in the search field removes only the old selected label so a new search can start while the selected satellite remains active. Timeline controls are checkboxes: checked means the timeline is visible; unchecked means it is hidden. Only one timeline can be visible at a time. If Yaw-Pitch-Roll is enabled, selecting or switching satellites keeps the YPR sliders visible and preserves the current yaw, pitch, and roll values.
+The satellite selector is searchable. Type part of a satellite name, NORAD ID, orbit type, or tag, then use the mouse or keyboard arrow keys plus Enter to select a result. Selecting a result closes the dropdown immediately; Escape, Tab, or clicking outside the selector also closes the dropdown so it cannot block `Show Orbit`, `Show Footprint`, or other controls below it. The result list renders above the accordion panels so it stays visible while searching in the Satellite Selection section. After a satellite is selected, focusing, clicking, typing, pasting, or pressing `Clear` in the search field removes only the old selected label so a new search can start while the selected satellite remains active. Timeline controls are checkboxes: checked means the timeline is visible; unchecked means it is hidden. Only one timeline can be visible at a time. If Yaw-Pitch-Roll is enabled, selecting or switching satellites keeps the YPR sliders visible and preserves the current yaw, pitch, and roll values.
+
+After a satellite is selected, the right side of the canvas shows a translucent selected-satellite detail panel below the UTC clock with the same width as the clock. It includes name, NORAD ID, orbit type, tag/company, launch date, scalar metadata fields, and TLE line 1 plus TLE line 2 exactly once. Clearing the selection hides the panel.
 
 The Help section disclaimer is part of the application UI: OpenBEXI Earth Orbit is for visualization, educational, and experimental purposes only. It is not an authoritative source for navigation, safety, mission planning, collision avoidance, or operational satellite decisions.
 
-The Help section opens Swagger and API documentation in separate pages using the best-known local server URLs. If the Python server is offline, start it and refresh the opened page. The README and Releases History actions fetch `README.md` and `PROMPT_History.md`, render safe Markdown inside the Help panel, and provide direct file links if Markdown cannot be loaded from the current launch mode. The Licenses action opens `LICENSE.md` as a Markdown page.
+The Help section opens Swagger and API documentation in separate pages using the best-known local server URLs. If the Python server is offline, start it and refresh the opened page. README and Releases History open through `markdown_viewer.html` as separate rendered Markdown pages for `README.md` and `PROMPT_History.md`. The Licenses action opens `LICENSE.md` as a Markdown page.
 
 ## Project Structure
 
 - `index.html`: Main browser app and integration point for rendering, controls, selection, and animation.
 - `display_satellite.html`: Isolated local OBJ/MTL and GLB viewer for direct satellite model visibility checks.
+- `markdown_viewer.html`: Static rendered Markdown viewer used by Help for README and Releases History.
 - `css/`: Styling for the app, menu, filters, labels, and map layout.
 - `js/`: Browser modules for coordinates, satellite loading, models, menu, footprints, frames, day/night, Moon, timelines, and map rendering.
 - `server.py`: Optional standard-library Python server for static hosting, API endpoints, CORS, Swagger/OpenAPI docs, and server-backed data loading.

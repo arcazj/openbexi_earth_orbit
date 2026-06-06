@@ -44,17 +44,53 @@ async function run() {
   }, 'ISS.glb', 'ISS alias');
   assert.deepStrictEqual(modelAssetPaths(iss.entry), ['obj/ISS.glb']);
 
+  const sslByIs20 = assertResolved({
+    norad_id: '4321',
+    satellite_name: 'INTELSAT 20 (IS-20)',
+    company: 'Intelsat'
+  }, 'SSL_1300.glb', 'SSL 1300 exact INTELSAT 20 mapping');
+  assert.match(sslByIs20.reason, /exact restricted satellite name/, 'SSL 1300 diagnostic names the restricted satellite-name match');
+
+  const sslByIs18 = assertResolved({
+    norad_id: '37834',
+    satellite_name: 'INTELSAT 18 (IS-18)',
+    company: 'Intelsat'
+  }, 'SSL_1300.glb', 'SSL 1300 exact INTELSAT 18 mapping');
+  assert.match(sslByIs18.reason, /exact restricted satellite name/, 'IS-18 diagnostic names the restricted satellite-name match');
+
   assertResolved({
+    meta: { name: 'IS-20' },
+    norad_id: '4321',
+    satellite_name: 'INTELSAT TEST METADATA'
+  }, 'SSL_1300.glb', 'SSL 1300 exact meta IS-20 mapping');
+
+  const goesAliasOnly = resolveSatelliteModel({
     norad_id: '41866',
     satellite_name: 'G-16',
     company: 'GOES'
-  }, 'SSL_1300.glb', 'SSL 1300 GOES fallback');
+  });
+  assert.strictEqual(goesAliasOnly.found, false, 'GOES alias alone must not select SSL_1300');
 
-  assertResolved({
+  const intelsatAliasOnly = resolveSatelliteModel({
     norad_id: '4321',
-    satellite_name: 'IS-20',
+    satellite_name: 'INTELSAT 19 (IS-19)',
     company: 'Intelsat'
-  }, 'SSL_1300.glb', 'SSL 1300 Intelsat fallback');
+  });
+  assert.strictEqual(intelsatAliasOnly.found, false, 'other Intelsat satellites must not select SSL_1300');
+
+  const appIdTwentyOnly = resolveSatelliteModel({
+    satellite_id: 20,
+    norad_id: '4321',
+    satellite_name: 'APP ID 20 WITHOUT IS-20 NAME',
+    company: 'Intelsat'
+  });
+  assert.strictEqual(appIdTwentyOnly.found, false, 'app satellite id 20 alone must not select SSL_1300 in Version 1.5.19');
+
+  const noradTwentyOnly = resolveSatelliteModel({
+    norad_id: '20',
+    satellite_name: 'NORAD 20 TEST'
+  });
+  assert.strictEqual(noradTwentyOnly.found, false, 'NORAD 20 must not be confused with app satellite id 20');
 
   const unknown = resolveSatelliteModel({
     norad_id: '99999',

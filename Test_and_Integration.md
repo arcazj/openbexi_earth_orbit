@@ -52,6 +52,10 @@ Version 1.5.16 revises the menu UX. All accordion sections must start collapsed 
 
 Version 1.5.17 revises the menu order and launch defaults. `Satellite Selection` appears directly under `Views & Time`, `Filters - Satellites Found` appears directly under `Satellite Selection`, and those three sections start expanded on every launch or refresh while the remaining sections start collapsed. `Views & Time` includes a menu `Time x` slider synchronized with the canvas-top `Time x` slider. The obsolete visible orbit-filter and satellite-search helper text is removed without removing controls or accessible names.
 
+Version 1.5.18 removes the launch offline banner while preserving silent local-data fallback and the server status panel. Starlink and ISS shortcuts move from `Views & Time` into `Satellite Selection`; the satellite search results render above other menu elements; selecting a satellite displays a transparent right-side data/TLE panel under the UTC clock; README and Releases History open rendered Markdown in `markdown_viewer.html`; `LICENSE.md` backs the Licenses action; and `SSL_1300.glb` is restricted to app satellite identifier `20`.
+
+Version 1.5.19 removes the detailed metadata/TLE table from Satellite Selection and keeps full selected-satellite details only in the right-side canvas panel. The right-side panel must match the UTC clock width and show TLE line 1 and TLE line 2 only once. `SSL_1300.glb` is restricted to `INTELSAT 20 (IS-20)` and `INTELSAT 18 (IS-18)` only.
+
 ## Test Environment
 
 - Run from the repository root.
@@ -264,7 +268,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test Share links serialize selected satellite, view mode, filters, simulation time, and display settings without local paths, credentials, or server configuration.
 - Test shared links restore supported app state only after satellite data loads and fail safely if the referenced satellite is unavailable.
 - Test the Help section contains GitHub, README Markdown, Releases History Markdown, Licenses, Swagger, and API document actions.
-- Test README and Releases History render safe Markdown in the Help panel, with raw HTML escaped.
+- Test README and Releases History open rendered Markdown in `markdown_viewer.html`, with raw HTML escaped and rendered links sanitized.
 - Test the Releases History action targets `PROMPT_History.md` and no Help action displays the old `Prompt History` text.
 - Test Swagger/API/Licenses actions open separate pages or views and are not disabled solely because the Python server is offline.
 - Test the prohibited concatenated Swagger/API sentence is absent.
@@ -277,7 +281,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 ### Server Data Path
 
 - Test `/api/health` returns status `ok` and version metadata.
-- Test `/api/version` returns app/API version `1.5.17` and release date `2026-06-06`.
+- Test `/api/version` returns app/API version `1.5.19` and release date `2026-06-06`.
 - Test `/api/tle` and `/api/satellites` return valid TLE records with `norad_id`, `tle_line1`, and `tle_line2`.
 - Test `/api/satellite-metadata` lists known metadata files.
 - Test `/api/satellite-metadata/starlink_V1.json` returns one known metadata payload.
@@ -344,24 +348,29 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm the visible satellite-search helper text `Select Satellite: Search by name, NORAD ID, orbit type, or tag.` is gone.
 - Confirm the `Views & Time` section keeps `Globe` and `Mercator` on one row.
 - Confirm the `Views & Time` section keeps `High Def.`, `ECEF Axes`, and `Day/Night` on one row.
-- Confirm the `Views & Time` section keeps `First Starlink` and `ISS` shortcut buttons on one row.
+- Confirm the `Views & Time` section does not contain the Starlink or ISS shortcut buttons.
+- Confirm the `Satellite Selection` section keeps `Starlink (<NORAD ID>)` and `ISS` shortcut buttons below the search field.
 - Confirm the `Views & Time` section includes a real menu `Time x` slider at the top.
 - Confirm the existing canvas-top `Time x` slider remains visible.
 - Move the menu `Time x` slider and confirm the canvas-top slider, displayed value, and simulation speed update.
 - Move the canvas-top `Time x` slider and confirm the menu slider, displayed value, and simulation speed update.
 - Confirm the satellite-specific checkbox block is hidden before selecting a satellite.
-- Click `First Starlink` and confirm the first loaded Starlink is selected, `Show only selected satellite` becomes checked, only that satellite remains visible, `High Def.` becomes checked, and the selected-satellite camera/model path matches normal satellite selection.
+- Click `Starlink (<NORAD ID>)` in Satellite Selection and confirm the first loaded Starlink is selected, `Show only selected satellite` becomes checked, only that satellite remains visible, `High Def.` becomes checked, and the selected-satellite camera/model path matches normal satellite selection.
 - Click `ISS` and confirm ISS/ZARYA NORAD `25544` is selected through the normal selection path, `Show only selected satellite` becomes checked, only ISS remains visible, and `High Def.` becomes checked because ISS is not MEO/GEO.
 - Select a MEO or GEO satellite after High Def. is enabled and confirm the app does not force High Def. off.
 - Select a satellite that is outside the current filter selection through a shortcut and confirm the selected satellite remains visible even though the filter list is different.
 - After selecting a satellite, focus or click the satellite search field and confirm the previous selected label clears for a new search while the selected-satellite summary and selected marker/model remain active.
 - After selecting a satellite, type or paste into the already-focused search field and confirm the previous selected label clears before the new query is entered.
+- Confirm the satellite search result dropdown remains visible above the rest of the menu while open and does not get clipped by the accordion panel.
+- Confirm Satellite Selection does not show the detailed selected-satellite metadata/TLE table after selection.
+- Confirm the right-side selected-satellite detail panel appears under the UTC clock after selection, has a transparent background, matches the UTC clock width, shows metadata plus TLE line 1 and line 2 exactly once, and hides again when the selection is cleared.
+- Confirm `SSL_1300.glb` loads for `INTELSAT 20 (IS-20)` and `INTELSAT 18 (IS-18)` only, not for other Intelsat, SSL, GEO, GOES, SES, manufacturer, bus, or alias matches.
 - Confirm the Starlink shortcut label updates to `Starlink (<NORAD ID>)` after TLE data loads.
 - Confirm the Starlink shortcut shows `Starlink unavailable` if no Starlink target can be resolved.
 - Confirm the ISS shortcut shows `ISS unavailable` if no ISS target can be resolved.
 - Confirm `Other Selections` appears immediately after `Filters - Satellites Found`.
 - Confirm `Share` appears immediately after `Timelines` and immediately before `Help`.
-- Confirm `Close`, `Version 1.5.17 - hosted at GitHub Repo`, and the server status icon/text are aligned on one compact row on desktop.
+- Confirm `Close`, `Version 1.5.19 - hosted at GitHub Repo`, and the server status icon/text are aligned on one compact row on desktop.
 - Confirm the version/GitHub text is centered in the menu header.
 - Confirm the server status indicator appears above the accordion menu and does not shift layout when changing between checking, offline, connected, and error states.
 - Confirm connected status uses `power_green.png` and offline/error status uses `power_red.png`.
@@ -369,12 +378,12 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm `Copy Link` produces a URL that restores supported state after data loads.
 - Confirm native share is enabled only when the browser supports it.
 - Open Help and confirm the `GitHub`, `README`, `Releases History`, `Licenses`, `Swagger`, and `API` actions are readable and clickable.
-- Click `README` and confirm the README content renders as Markdown inside Help, not as raw plain text.
-- Click `Releases History` and confirm `PROMPT_History.md` content renders as Markdown inside Help, not as raw plain text.
+- Click `README` and confirm a separate `markdown_viewer.html?source=README.md&title=README` page renders the README as Markdown, not as raw plain text.
+- Click `Releases History` and confirm a separate `markdown_viewer.html?source=PROMPT_History.md&title=Releases%20History` page renders `PROMPT_History.md` as Markdown, not as raw plain text.
 - Confirm no visible Help action uses the old `Prompt History` label.
 - Open Help while the Python server is disconnected and confirm Swagger/API actions still open separate pages using the default local server URLs.
 - Open Help while the Python server is connected and confirm Swagger and API links open the connected server pages.
-- Confirm the GitHub Help link opens in a new tab and the Markdown/license links use relative repository paths.
+- Confirm the GitHub Help link opens in a new tab, README and Releases History use `markdown_viewer.html`, and the license link opens the relative `LICENSE.md` page.
 - Confirm the `Licenses` action opens `LICENSE.md`.
 - Confirm Help does not display the prohibited concatenated Swagger/API sentence.
 - Confirm the Help disclaimer is readable at the current menu width and on narrow screens.
@@ -1077,6 +1086,50 @@ Checks to perform for this release:
 - Run Python syntax checks.
 - Run Python server smoke checks for API, Swagger docs, and static app routes.
 
+## Release 1.5.19 Verification Log
+
+Checks performed for this Version 1.5.19 implementation session:
+
+- `PROMPT_History.md` contains the latest `Release Date: 2026-06-06 Version 1.5.19` entry at the top.
+- `index.html`, `js/serverConnection.js`, `js/SatelliteMenuLoader.js`, and `server.py` use version `1.5.19`.
+- Static tests confirm Satellite Selection no longer contains the detailed selected-satellite metadata/TLE table or `satelliteInfo` hook.
+- Static tests confirm the right-side `selectedSatelliteDetailPanel` remains the only detailed selected-satellite metadata/TLE display.
+- Static tests confirm the right-side detail panel syncs its width to the UTC clock/horloge and keeps transparent styling.
+- Static tests confirm TLE line 1 and TLE line 2 are excluded from generic metadata rows and displayed once in the TLE block.
+- Static tests confirm `SSL_1300.glb` resolves for `INTELSAT 20 (IS-20)` and `INTELSAT 18 (IS-18)` only, and does not resolve for other Intelsat/SSL/GEO/GOES/SES/manufacturer/alias matches or app id `20` alone.
+- `npm test`: passed.
+- Recursive `node --check` over `js/` and `tests/`: passed for 44 files.
+- `py -m py_compile server.py`: passed.
+- Python server smoke check with `curl.exe` on `127.0.0.1:8765`: `/api/version` returned `1.5.19` and `2026-06-06`; `/docs`, `/index.html`, `/LICENSE.md`, and `/markdown_viewer.html?source=README.md&title=README` returned HTTP 200.
+- `git diff --check`: passed with only LF-to-CRLF normalization warnings for edited files.
+
+Checks not fully performed in this terminal:
+
+- Full visible-browser confirmation that the right-side panel visually matches the UTC clock width, stays readable on narrow screens, and does not obscure essential canvas interaction remains manual unless browser automation is available.
+
+## Release 1.5.18 Verification Log
+
+Checks performed for this Version 1.5.18 implementation session:
+
+- `PROMPT_History.md` contains the latest `Release Date: 2026-06-06 Version 1.5.18` entry at the top.
+- `index.html`, `js/serverConnection.js`, `js/SatelliteMenuLoader.js`, and `server.py` use version `1.5.18`.
+- Static tests confirm the visible `Server unavailable. Using local satellite data.` launch banner and `serverOfflineNotice` hook are removed while the server status panel remains.
+- Static tests confirm Starlink and ISS shortcut buttons are under `Satellite Selection`, not `Views & Time`, and still use the normal selection path.
+- Static tests confirm satellite search results are portaled to `document.body`, use fixed positioning, sit above menu elements, and preserve Escape, Tab, keyboard, mouse, and outside-click behavior.
+- Static tests confirm the right-side `selectedSatelliteDetailPanel` renders selected satellite metadata and TLE details below the UTC clock and hides when no satellite is selected.
+- Static tests confirm README and Releases History open rendered Markdown in `markdown_viewer.html`, raw HTML is escaped, rendered links are sanitized, and the viewer restricts allowed Markdown source files.
+- Static tests confirm `LICENSE.md` exists and the Licenses Help action targets it.
+- Static tests confirm `SSL_1300.glb` is restricted to app satellite identifier `20`, does not match generic GOES/Intelsat/name aliases, and does not confuse NORAD `20` with app satellite id `20`.
+- `npm test`: passed.
+- Recursive `node --check` over `js/` and `tests/`: passed for 44 files.
+- `py -m py_compile server.py`: passed.
+- Python server smoke check with `curl.exe` on `127.0.0.1:8765`: `/api/version` returned `1.5.18` and `2026-06-06`; `/docs`, `/index.html`, `/LICENSE.md`, and `/markdown_viewer.html?source=README.md&title=README` returned HTTP 200.
+- `git diff --check`: passed with only LF-to-CRLF normalization warnings for edited files.
+
+Checks not fully performed in this terminal:
+
+- Full visible-browser confirmation of dropdown stacking, right-side selected-satellite panel placement, separate Help Markdown pages, and responsive desktop/mobile layout remains manual unless browser automation is available.
+
 ## Release 1.5.17 Verification Log
 
 Checks performed for this Version 1.5.17 implementation session:
@@ -1157,10 +1210,12 @@ Checks not fully performed in this terminal:
 - Share links copy and restore supported state without including local filesystem paths, tokens, or private server configuration.
 - Share can preview, download, copy, and natively share the current canvas image when the browser supports those APIs.
 - Help includes Swagger/API documentation links that open separate pages and remain clickable while offline.
-- Help renders README and Releases History Markdown inside the app and keeps `PROMPT_History.md` available through the `Releases History` action.
-- The Views & Time menu keeps a synchronized menu Time x slider, Globe/Mercator, High Def./ECEF Axes/Day-Night, and First Starlink/ISS controls.
+- Help opens README and Releases History Markdown through `markdown_viewer.html` and keeps `PROMPT_History.md` available through the `Releases History` action.
+- The Views & Time menu keeps a synchronized menu Time x slider, Globe/Mercator, and High Def./ECEF Axes/Day-Night controls; First Starlink/ISS shortcuts live in Satellite Selection.
 - The canvas-top Time x slider remains visible, and both Time x sliders control one shared simulation-speed state.
 - The obsolete visible helper text for Views & Time, the orbit filter, and Satellite Selection is removed without leaving empty layout gaps.
+- Satellite Selection does not duplicate the detailed selected-satellite metadata/TLE table; full details live only in the right-side panel under the UTC clock.
+- The right-side selected-satellite panel matches the UTC clock width and shows each TLE line once.
 - Selecting any satellite automatically checks `Show only selected satellite` and hides all non-selected satellites.
 - The selected satellite remains visible in show-only mode even when current filters would otherwise hide it.
 - Selecting a non-MEO/GEO satellite automatically enables `High Def.` Earth, and MEO/GEO selections never force High Def. off.
