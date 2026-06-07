@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-label="Checking server">
+  <circle cx="12" cy="12" r="10" fill="#122238" stroke="#7db8ff" stroke-width="2"/>
+  <path d="M12 6v6l4 2" fill="none" stroke="#d7ecff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
