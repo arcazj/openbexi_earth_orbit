@@ -60,6 +60,8 @@ Version 1.5.20 moves the combined Globe + Mercator overlay to the bottom-right o
 
 Version 1.5.21 makes the right-side selected-satellite data and TLE details independently collapsible and expanded by default whenever a satellite is selected, using `<details open>`. Starlink and ISS selections add an expanded `Source detail` section after TLE details with bold red attribution text for the model source and license/courtesy. ISS selected-model orientation swaps yaw and pitch control inputs so ISS `Yaw` applies the previous pitch behavior and ISS `Pitch` applies the previous yaw behavior, while roll remains unchanged. ISS local `+Y` is the pitch axis and stays pointed toward Earth/nadir as ISS propagates. It also captures the ADCS/attitude visualization layout correction requirements from the screenshot: unclipped title, non-overlapping Attitude table, centered satellite model, readable yaw/pitch/roll labels, aligned headers and units, and responsive layout. The ADCS page-specific correction is blocked in this workspace because no HTML/JS file contains the screenshot's `ADCS`, `Attitude`, `Commanded`, or `CMG Torque` UI text.
 
+Version 1.5.22 keeps the Earth-centered scene frame fixed, disables OrbitControls panning, keeps Earth mode targeted at `(0, 0, 0)`, keeps Moon mode targeted at `moon.position` without moving the Moon object to the origin, and preserves selected-satellite target priority. It allows Earth zoom to approximately 100 km above the surface, uses a large finite maximum zoom and far clipping plane, replaces spherical helper math with WGS84 geodetic/ECF calculations, distinguishes GEO/MEO/LEO/HEO/Other orbit classes without treating every slow object as GEO, filters invalid propagated positions out of visible sprites/paths, and makes Mercator markers, ground tracks, footprints, coverage overlays, and day/night shading use one Web Mercator helper. OB3/O3b satellites use the standard satellite icon/sprite in the main app and do not automatically load the OB3/O3b detailed model. Selected detailed model roots remain fixed to the canonical propagated satellite scene coordinate, model centering is applied only to child geometry, hidden selected sprites are synchronized with the same propagated coordinate, and `orbitAlignDebug` can log orbit alignment diagnostics. It documents that `satellite.js` returns TEME-like coordinates and the app treats them as ECI-like visualization coordinates unless a higher-fidelity transform is implemented later.
+
 ## Test Environment
 
 - Run from the repository root.
@@ -130,6 +132,16 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 
 - Test shared coordinate transforms for finite outputs and consistent units.
 - Test ECI/ECEF/scene conversion for the same satellite and simulation time.
+- Test Earth mesh remains at `(0, 0, 0)`.
+- Test Earth axes originate from `(0, 0, 0)`.
+- Test Earth-mode controls target remains `(0, 0, 0)`.
+- Test OrbitControls panning is disabled or constrained so mouse movement cannot pan Earth away from center.
+- Test Moon mode keeps the Moon visually centered by using `controls.target = moon.position`.
+- Test Moon mode does not move the Moon object to `(0, 0, 0)`.
+- Test selected-satellite target priority still works while Earth/Moon target enforcement is active.
+- Test Earth minimum zoom is `EARTH_SCENE_RADIUS + metersToSceneUnits(100000)`.
+- Test maximum zoom is finite and very large.
+- Test camera near/far planes do not clip Earth, Moon, GEO, MEO, LEO, HEO, or selected satellites in normal use.
 - Test that the live selected satellite scene position and the first/generated current orbit-trail point agree within a small tolerance.
 - Include at least one GEO, one MEO, and one LEO example from `json/tle/TLE.json`.
 - Test that all scene positions use the same `KM_TO_SCENE_UNITS` scale.
@@ -151,11 +163,23 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test GEO orbit radius remains plausible and unchanged while rendering fixes are applied.
 - Test orbit generation does not use frame-specific exceptions that make GEO and non-GEO paths incompatible with live satellite positions.
 - Test switching selected satellites removes or replaces previous orbit geometry.
+- Test WGS84 geodetic/ECF conversion at the equator and poles.
+- Test high-latitude WGS84 look geometry.
+- Test GEO, MEO, LEO, HEO, Other, and Unknown classification cases.
+- Test HEO/Molniya-style orbit duration renders a meaningful full orbit.
+- Test invalid, decayed, below-Earth, or non-finite propagated positions are hidden or omitted instead of frozen.
+- Test OB3/O3b satellites do not resolve to an automatic detailed model and remain represented by the standard satellite icon/sprite.
+- Test selected detailed model roots use the same propagated scene coordinate as the selected orbit trajectory.
+- Test model visual centering offsets child geometry only and does not change the detailed model root position.
+- Test selected hidden TLE sprite positions are synchronized with the detailed model root position.
+- Test selected model root-to-propagated-position distance remains below `0.01` scene units.
 
 ### Day/Night and Sun Direction
 
 - Test GMST normalization stays in `[0, 2 * Math.PI)`.
 - Test Sun vectors are normalized.
+- Test Web Mercator high-latitude projection clamps at the supported latitude limit and remains finite.
+- Test `drawDayNightMercator()` terminator math remains finite near equinox/subsolar-latitude singularities.
 - Test the Sun/light scene direction uses the same scene-frame transform convention as satellites.
 - Test day/night behavior at a known UTC time does not produce NaN or inverted vectors.
 
@@ -177,7 +201,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test normalized model matching is case-insensitive and ignores spaces, hyphens, underscores, and file extensions.
 - Test Starlink satellites resolve to the local Starlink model assets.
 - Test OneWeb satellites resolve to the local OneWeb OBJ/MTL assets.
-- Test O3b satellites resolve to the local O3b OBJ/MTL assets.
+- Test OB3/O3b satellites do not resolve to an automatic detailed model and remain on the selected sprite/icon fallback.
 - Test ISS resolves to the local ISS GLB asset.
 - Test GOES/Intelsat/SES-style GEO satellites can resolve to the SSL 1300 fallback asset.
 - Test unknown satellites return no model mapping so the selected sprite remains the visible fallback.
@@ -285,7 +309,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 ### Server Data Path
 
 - Test `/api/health` returns status `ok` and version metadata.
-- Test `/api/version` returns app/API version `1.5.21` and release date `2026-06-06`.
+- Test `/api/version` returns app/API version `1.5.22` and release date `2026-06-06`.
 - Test `/api/tle` and `/api/satellites` return valid TLE records with `norad_id`, `tle_line1`, and `tle_line2`.
 - Test `/api/satellite-metadata` lists known metadata files.
 - Test `/api/satellite-metadata/starlink_V1.json` returns one known metadata payload.
@@ -380,7 +404,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm the ISS shortcut shows `ISS unavailable` if no ISS target can be resolved.
 - Confirm `Other Selections` appears immediately after `Filters - Satellites Found`.
 - Confirm `Share` appears immediately after `Timelines` and immediately before `Help`.
-- Confirm `Close`, `Version 1.5.21 - hosted at GitHub Repo`, and the server status icon/text are aligned on one compact row on desktop.
+- Confirm `Close`, `Version 1.5.22 - hosted at GitHub Repo`, and the server status icon/text are aligned on one compact row on desktop.
 - Confirm the version/GitHub text is centered in the menu header.
 - Confirm the server status indicator appears above the accordion menu and does not shift layout when changing between checking, offline, connected, and error states.
 - Confirm connected status uses `power_green.png` and offline/error status uses `power_red.png`.
@@ -549,12 +573,14 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Select representative satellites with known local models and confirm the detailed model appears:
   - A `Starlink` satellite loads the Starlink model from `obj/`, appears centered, and is visually large enough to inspect.
   - A `OneWeb` satellite loads the OneWeb OBJ/MTL model from `obj/`.
-  - An `O3b` satellite loads the O3b OBJ/MTL model from `obj/`.
+  - An `O3b`/`OB3` satellite remains represented by the standard satellite sprite/icon and does not load an O3b OBJ/MTL model from `obj/`.
   - `ISS` loads the ISS GLB model from `obj/` when available in the filtered selection.
   - `ISS` visually uses the corrected orbital orientation: `+X` velocity, `+Y` pitch axis nadir toward Earth, and `+Z` right-handed negative cross-track.
   - ISS selected-model diagnostics report `orientationMode: "iss-velocity-pitch-nadir-frame"` plus yaw, pitch, roll, and pitch-axis Earth-facing calibration values.
   - From at least two camera angles, ISS remains inspectable and Earth remains visible in the initial selected view.
   - A GOES/Intelsat/SES-style GEO satellite loads the SSL 1300 fallback model when applicable.
+  - For SSL 1300 / INTELSAT 18 and INTELSAT 20, the detailed model root sits directly on the selected red orbit trajectory without visible offset.
+  - With `?orbitAlignDebug=1`, selected detailed model diagnostics report propagated ECI/TEME position, model world position, sprite world position, nearest orbit-line point distance, scene scale, and alignment tolerance.
 - Confirm selecting a satellite with a detailed model lowers near-plane clipping enough that the model is not clipped when the camera is close.
 - Confirm the selected-model fill light makes the model visible even when asset materials or texture lighting are weak.
 - Confirm the selected-model diagnostics in the console report mesh count, bounding diameter, scale, attempted asset paths, and visibility status.
@@ -1098,6 +1124,29 @@ Checks to perform for this release:
 - Run JavaScript syntax checks.
 - Run Python syntax checks.
 - Run Python server smoke checks for API, Swagger docs, and static app routes.
+
+## Release 1.5.22 Verification Log
+
+Checks performed for this Version 1.5.22 implementation session:
+
+- `PROMPT_History.md` contains the latest `Release Date: 2026-06-06 Version 1.5.22` entry at the top.
+- `index.html`, `js/serverConnection.js`, `js/SatelliteMenuLoader.js`, and `server.py` use version `1.5.22`.
+- Earth-centered scene controls now define 100 km above-surface minimum zoom, a large finite maximum zoom, disabled panning, and a safe finite camera far plane.
+- Static checks confirm Earth mesh origin enforcement, Earth-mode target `(0, 0, 0)`, Moon-mode target `moon.position`, no Moon recentering to origin, and selected-satellite target priority.
+- WGS84 geodetic/ECF helper math replaces spherical look geometry in `js/orbit/orbitLinkGeometry.js`.
+- Orbit classification distinguishes GEO, MEO, LEO, HEO, Other, and Unknown without classifying all slow objects as GEO.
+- HEO/Molniya-style orbit duration renders one full orbit.
+- Invalid or below-Earth propagated positions are rejected for orbit generation and hidden/flagged in the 3D sprite update loop.
+- Mercator map, footprints, coverage overlays, and day/night shading use the shared Web Mercator helper.
+- Day/night terminator math is finite near equinox.
+- OB3/O3b satellites are sprite/icon-only in the main app; the resolver no longer maps O3b metadata to `obj/o3b`.
+- Selected detailed model roots and hidden selected sprites are synchronized to the same propagated scene coordinate.
+- Model geometry centering preserves the detailed model root position, preventing selected models from drifting away from the selected orbit trajectory.
+
+Remaining manual verification:
+
+- Browser-confirm Earth and Moon mouse orbit/zoom behavior on desktop and mobile.
+- Browser-confirm no clipping for representative LEO, MEO, GEO, HEO, Moon, and selected high-detail satellite views.
 
 ## Release 1.5.21 Verification Log
 

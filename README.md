@@ -82,6 +82,8 @@ Version 1.5.20 moves the combined Globe + Mercator overlay to the bottom-right o
 
 Version 1.5.21 makes the right-side selected-satellite data and TLE sections collapsible and expanded by default after each satellite selection using `<details open>`. Starlink and ISS selections also add an expanded `Source detail` section after TLE details with bold red attribution text: Starlink cites `https://sketchfab.com/malacodart` with CC Attribution / Creative Commons Attribution, and ISS cites `https://github.com/nasa/NASA-3D-Resources` courtesy of NASA (National Aeronautics and Space Administration). ISS selected-model orientation swaps yaw and pitch control inputs so ISS `Yaw` applies the previous pitch behavior and ISS `Pitch` applies the previous yaw behavior, while roll remains unchanged; ISS local `+Y` is the pitch axis and stays pointed toward Earth/nadir as ISS propagates. Starlink and other models keep the standard mapping. The release also records the ADCS/attitude visualization correction requirements from the attached screenshot, but no repository HTML/JS source file currently contains the ADCS `Attitude`, `Commanded`, or `CMG Torque` UI text, so that page-specific layout correction remains blocked until the source file is added or identified.
 
+Version 1.5.22 keeps the Earth-centered scene frame fixed: the Earth mesh and ECEF axes remain at `(0, 0, 0)`, panning is disabled so mouse interaction cannot shift the active target, Earth mode targets the origin, Moon mode targets `moon.position` without moving the Moon object to the origin, and selected-satellite tracking keeps priority when a satellite/model is selected. Earth zoom can approach about 100 km above the surface, maximum zoom is a very large finite distance, and the camera far plane is widened for Earth, Moon, LEO, MEO, GEO, HEO, and selected-satellite views. Orbit helper math now uses WGS84 geodetic/ECF calculations, orbit classification distinguishes LEO/MEO/GEO/HEO/Other from mean motion plus eccentricity/inclination when metadata is missing, invalid propagated positions are hidden instead of frozen, and Mercator markers, footprints, coverage overlays, ground tracks, and day/night shading share one Web Mercator projection helper. OB3/O3b satellites intentionally use the standard satellite icon/sprite in the main app; the OB3/O3b detailed model assets are not automatically loaded from satellite selection. Selected detailed model roots now stay at the canonical propagated satellite scene coordinate, while model visual centering is applied only to child geometry, so detailed models and sprite fallbacks remain aligned with the selected red orbit trajectory. Add `?orbitAlignDebug=1` to log selected-model orbit alignment diagnostics.
+
 The selected satellite model axis convention is:
 
 ```text
@@ -92,6 +94,13 @@ Yaw, pitch, and roll are applied as a bias on top of that nadir-facing orientati
 
 For ISS selected models only, the yaw and pitch control inputs are swapped to match the corrected ISS visual orientation: the `Yaw` slider drives the previous pitch behavior, the `Pitch` slider drives the previous yaw behavior, and `Roll` is unchanged. The ISS pitch axis is local `+Y`; it points to Earth/nadir and keeps tracking Earth as time changes.
 
+## Orbital Accuracy Notes
+
+- TLE propagation remains on the existing `satellite.js` SGP4 path.
+- `satellite.js` returns TEME-like coordinates. The app treats those coordinates as ECI-like scene coordinates for visualization unless a higher-fidelity TEME-to-ITRF/ECI transform is explicitly added later.
+- TLE/SGP4 results are suitable for educational visualization and short-term screening, not operational flight dynamics or conjunction assessment.
+- The Moon remains a simplified visual model inside the Earth-centered scene; Moon mode changes the camera target to the Moon center but does not recenter the physical scene frame.
+
 ## 3D Model Asset Matching
 
 When a satellite is selected, the app first highlights the TLE sprite, then attempts to resolve a local detailed model from `obj/`.
@@ -100,13 +109,15 @@ Model matching is deterministic:
 
 - Exact NORAD/metadata mappings are preferred when available.
 - If exact metadata is unavailable, normalized satellite names, company/operator tags, and constellation aliases are used.
-- Known local fallbacks include Starlink, OneWeb, O3b, and ISS. `SSL_1300.glb` resolves only for `INTELSAT 20 (IS-20)` and `INTELSAT 18 (IS-18)` through exact selected-satellite name metadata, not through generic Intelsat, SSL, GEO, GOES, SES, manufacturer, bus, or alias matching.
+- Known local fallbacks include Starlink, OneWeb, and ISS. OB3/O3b satellites intentionally stay on the standard sprite/icon fallback in the main app. `SSL_1300.glb` resolves only for `INTELSAT 20 (IS-20)` and `INTELSAT 18 (IS-18)` through exact selected-satellite name metadata, not through generic Intelsat, SSL, GEO, GOES, SES, manufacturer, bus, or alias matching.
 - OBJ/MTL assets are loaded as `obj/<asset>.obj` with optional `obj/<asset>.mtl`.
 - GLB assets are loaded directly from `obj/<asset>.glb`.
 
 The sprite remains visible while the model is loading. If the local model is missing, fails to load, or becomes stale because the user selected another satellite, the app keeps the selected sprite visible instead of showing the wrong model or a blank selection.
 
 The app logs model visibility diagnostics for selected detailed models, including mesh count, bounding diameter, scale, and material visibility status. It also applies fallback material visibility settings and a camera-side fill light so models remain inspectable even when an asset material or texture is weak.
+
+Selected detailed models use a root object whose world position is reserved for the propagated satellite coordinate. Any model centering correction is applied to child geometry under that root. This prevents visual model assets such as SSL 1300, Starlink, and ISS from drifting away from the selected orbit trajectory.
 
 ## Isolated Model Viewer
 
@@ -257,6 +268,7 @@ The Help section opens Swagger and API documentation in separate pages using the
 - `README.md`: Project overview, setup, features, testing commands, and documentation index.
 - `LICENSE.md`: Markdown copy of the MIT license used by the Help Licenses action.
 - `PROMPT.md`: General execution prompt only; release-specific content belongs in prompt history.
+- `PROMPT4beamFormingSimulator3DWithMercatorMap_V2.MD`: Supplemental beam-forming/Mercator simulator prompt kept in the workspace when present.
 - `PROMPT_History.md`: Release-specific prompts and implementation requirements by date and version; shown in Help as `Releases History`.
 - `Test_and_Integration.md`: Authoritative automated, browser, manual, domain, visual, and regression acceptance checklist.
 

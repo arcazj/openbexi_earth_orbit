@@ -32,11 +32,20 @@ async function run() {
     company: 'ONEWEB'
   }, 'oneweb', 'OneWeb alias');
 
-  assertResolved({
+  const o3b = resolveSatelliteModel({
     norad_id: '39188',
     satellite_name: 'O3B FM5',
     company: 'O3B'
-  }, 'o3b', 'O3b alias');
+  });
+  assert.strictEqual(o3b.found, false, 'O3b satellites use the standard sprite/icon instead of a detailed model');
+  assert.match(o3b.reason, /No local model mapping/);
+
+  const ob3Typo = resolveSatelliteModel({
+    norad_id: '39188',
+    satellite_name: 'OB3 FM5',
+    company: 'OB3'
+  });
+  assert.strictEqual(ob3Typo.found, false, 'OB3 typo metadata also falls back to the standard sprite/icon');
 
   const iss = assertResolved({
     norad_id: '25544',

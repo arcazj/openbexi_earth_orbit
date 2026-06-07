@@ -5,6 +5,7 @@ import * as THREE from 'three';
 // If not, replace with direct values: e.g., const EARTH_RADIUS_KM = 6371;
 import { EARTH_RADIUS_KM } from './SatelliteConstantLoader.js';
 import { eciToSceneVector } from './sceneFrame.js';
+import { mercatorPixelFromLonLat } from './orbit/orbitLinkGeometry.js';
 
 let _scene;
 let _earthMesh; // A reference to the main Earth mesh is now needed
@@ -127,13 +128,7 @@ export function initFootprintRenderer(scene, earthMesh) {
  * @returns {{x: number, y: number}}
  */
 const ll2merc = (lat, lon, cv) => {
-    const w = cv.width, h = cv.height;
-    const x = (lon + 180) * (w / 360);
-    // Clamp latitude to Mercator limits to avoid infinite y values at the poles
-    const latRad = Math.max(-85.05112878, Math.min(85.05112878, lat)) * Math.PI / 180;
-    const mercN = Math.log(Math.tan(Math.PI / 4 + latRad / 2));
-    const y = h / 2 - (w * mercN) / (2 * Math.PI);
-    return { x, y };
+    return mercatorPixelFromLonLat(lon, lat, cv.width, cv.height);
 };
 
 

@@ -1,5 +1,87 @@
 # Prompt History
 
+## Release Date: 2026-06-06  Version 1.5.22
+
+Implement Release Date: 2026-06-06 Version 1.5.22 orbital accuracy, Earth-frame, Moon-frame, and camera-control corrections.
+
+This release builds on Version 1.5.21. Preserve the optional Python server data path, silent offline/local fallback, server status icon and panel, Help Markdown viewer pages, Licenses action, metallic accordion styling, Version 1.5.21 menu order and launch defaults, synchronized `Time x` sliders, selected-satellite control gating, search dropdown portal behavior, filters, timelines, bottom-right Globe + Mercator overlay, Sun/Earth-reflection selected-model lighting, orbit, footprint, Yaw-Pitch-Roll orientation, Share behavior, selected-satellite right-side detail panel, SSL 1300 restriction behavior, selected-satellite observer tracking, model loading, ISS yaw/pitch correction, and existing satellite visualization behavior unless explicitly changed below.
+
+Requirements:
+
+1. Keep the release date and version exactly `Release Date: 2026-06-06  Version 1.5.22`.
+2. Update the visible application, JavaScript, menu server panel, and Python server version to `1.5.22`.
+3. Preserve the existing `satellite.js` SGP4/TLE propagation path.
+4. Document that `satellite.js` returns TEME-like coordinates and the app treats them as ECI-like coordinates for visualization unless a higher-fidelity transform is explicitly implemented.
+5. Keep the global scene Earth-centered.
+6. Keep the Earth globe mesh at scene coordinate `(0, 0, 0)` at all times.
+7. Keep the X/Y/Z Earth axes originating from `(0, 0, 0)`.
+8. Prevent mouse drag, orbit, pan, and zoom interactions from moving the Earth center away from `(0, 0, 0)`.
+9. Disable or constrain panning so mouse interaction cannot shift the active controls target away from the correct target.
+10. In Earth mode, keep `controls.target` at the Earth center `(0, 0, 0)`.
+11. Do not move the Moon object to `(0, 0, 0)`.
+12. Preserve the physical Earth-centered scene frame and Earth-Moon geometry.
+13. In Moon mode, visually center the Moon by setting `controls.target` to `moon.position`.
+14. Mouse drag/orbit and zoom in Moon mode must orbit around the Moon center without shifting the Moon away from the view center.
+15. When leaving Moon mode, restore the correct Earth-centered or selected-satellite target behavior.
+16. Define camera target priority clearly: Earth mode targets `(0, 0, 0)`, Moon mode targets `moon.position`, and selected satellite mode targets the selected satellite/model position.
+17. Preserve selected-satellite observer and tracking behavior unless it conflicts with explicit Earth/Moon centering rules.
+18. Allow Earth-mode zooming close to approximately `100 km` above Earth surface.
+19. Interpret `100 km above Earth surface` as camera distance from Earth center equal to `EARTH_SCENE_RADIUS + metersToSceneUnits(100000)`, not `100 km` from Earth center.
+20. Allow zooming far away using a very large safe finite maximum distance; do not use literal `Infinity`.
+21. Adjust camera near/far clipping planes so Earth, Moon, GEO, MEO, LEO, HEO, and selected satellites are not clipped during normal use.
+22. Replace spherical Earth helper math in `js/orbit/orbitLinkGeometry.js` with WGS84 ellipsoid geodetic/ECF calculations.
+23. Improve orbit classification so GEO, MEO, LEO, HEO, and Other are distinguishable from mean motion, eccentricity, inclination, and altitude when metadata is unavailable.
+24. Do not classify every object below `2.5 rev/day` as GEO.
+25. Review `getOrbitDurationMinutes()` so HEO/Molniya-style orbits render a meaningful full orbit without being mislabeled as MEO/GEO.
+26. Keep invalid, decayed, below-Earth, or non-finite propagated positions out of orbit paths, ground tracks, footprints, and visible satellite markers.
+27. When `satellite.propagate()` returns invalid or decayed data in the 3D sprite update loop, hide or flag the sprite instead of leaving it frozen at the last valid position.
+28. Use true Web Mercator consistently for Mercator marker placement, selected ground tracks, footprint polygons, coverage overlays, and day/night terminator shading.
+29. Harden `drawDayNightMercator()` near equinox/subsolar latitude singularities.
+30. Add automated tests or static checks for Earth/Moon centering, panning constraints, selected-satellite target priority, zoom/clipping safety, WGS84 look geometry, orbit classification, HEO orbit duration, Web Mercator high-latitude projection, invalid propagation handling, and day/night terminator stability.
+31. Remove automatic OB3/O3b detailed model usage in the main satellite selection flow.
+32. Keep OB3/O3b satellites represented by the standard satellite icon/sprite, like normal TLE satellites.
+33. Do not delete OB3/O3b model asset files unless explicitly requested; only disable their automatic use in the app.
+34. Update model resolver tests so OB3/O3b satellites no longer resolve to an OB3/O3b model.
+35. Fix selected detailed-model orbit trajectory alignment so the selected model root and orbit trajectory use the same propagated satellite position, simulation date, scene frame, and `KM_TO_SCENE_UNITS` scale.
+36. Do not apply model visual scale, bounding-box offset, camera offset, selected-view framing offset, `lookAt`, nadir orientation, or local centering corrections to the detailed model root world position.
+37. The detailed model root object must be positioned only at the satellite ECI/TEME scene coordinate returned by `eciToSceneVector()`.
+38. If a model requires visual centering or geometry offset correction, apply it only to child geometry under the root, not to the root position.
+39. Keep selected-model tracking camera-only; it must update the camera and controls target without changing the satellite/model world position.
+40. Keep the hidden selected TLE sprite synchronized with the detailed model root from the same propagated scene coordinate.
+41. Regenerate or refresh the selected orbit trajectory when the detailed model replaces the selected sprite so stale orbit points are not reused.
+42. Add an optional `orbitAlignDebug` diagnostic that reports propagated ECI/TEME position, detailed model world position, selected sprite world position, nearest orbit-line point distance, scene scale, and alignment tolerance.
+43. Require selected detailed model root world position to remain within `< 0.01` scene units of the current propagated scene position.
+44. Update `README.md` and `Test_and_Integration.md` for Version `1.5.22`.
+45. Document remaining approximations clearly, especially TEME-as-ECI visualization, SGP4/TLE accuracy limits, simplified Moon model if still present, and non-operational visualization assumptions.
+
+Acceptance Criteria:
+
+- Latest release is `Release Date: 2026-06-06  Version 1.5.22`.
+- `index.html` displays `Version 1.5.22 - hosted at GitHub Repo`.
+- `js/serverConnection.js`, `js/SatelliteMenuLoader.js`, and `server.py` report app/API/server version `1.5.22`.
+- Earth mesh remains at `(0, 0, 0)` and Earth axes originate from `(0, 0, 0)`.
+- Earth-mode `controls.target` remains `(0, 0, 0)` and panning cannot shift the Earth center away from the active target.
+- Moon mode keeps the Moon visually centered with `controls.target.copy(moon.position)` without moving the Moon object to `(0, 0, 0)`.
+- Selected-satellite target priority and observer tracking continue to work.
+- Earth minimum zoom supports approximately `100 km` altitude above the Earth surface.
+- Maximum zoom is finite and very large.
+- Camera far clipping is large enough for Earth, Moon, GEO, MEO, LEO, HEO, and selected satellites.
+- WGS84 geodetic/ECF look geometry replaces spherical helper math.
+- GEO, MEO, LEO, HEO, Other, and Unknown orbit classifications are distinguishable.
+- HEO/Molniya-style orbit duration renders a full meaningful orbit.
+- Invalid, decayed, below-Earth, or non-finite propagation results are not drawn as stale sprites, orbit paths, ground tracks, or footprints.
+- Mercator markers, selected ground tracks, footprint polygons, coverage overlays, and day/night shading use one true Web Mercator helper.
+- Day/night terminator drawing remains finite and stable near equinox conditions.
+- Selecting an OB3/O3b satellite shows the standard satellite icon/sprite.
+- No OB3/O3b detailed model is automatically loaded or rendered in the main app.
+- Other satellite model mappings remain unchanged.
+- The selected detailed model visually lies on the red orbit trajectory.
+- No orbit line appears detached, offset, or parallel to the selected model path.
+- Sprite-only satellites and detailed models use consistent orbit alignment.
+- Existing model scale/framing remains visual-only and does not alter orbital position.
+- Selected model root-to-propagated-position distance remains `< 0.01` scene units.
+- Automated tests and syntax checks pass, or any limitation is explicitly documented.
+
 ## Release Date: 2026-06-06  Version 1.5.21
 
 Implement Version 1.5.21 selected-satellite detail expanded/collapsible behavior and record the ADCS/attitude visualization correction requirements.

@@ -6,6 +6,7 @@
 
 import * as THREE from 'three';
 import { eciToSceneVector, gmstFromJulianDay } from './sceneFrame.js';
+import { mercatorPixelFromLonLat, radToDeg } from './orbit/orbitLinkGeometry.js';
 
 /* ≡≡ Sun position in ECI frame from Date (unit vector) ≡≡ */
 function sunEciUnit(date) {
@@ -26,6 +27,10 @@ function eciToEcf(vecEci, gmst) {
 /* 2-D Mercator night-side                                            */
 
 /* ------------------------------------------------------------------ */
+export function terminatorLatitudeRad(lonRad, subLonRad, subLatRad) {
+    return Math.atan2(-Math.cos(lonRad - subLonRad), Math.tan(subLatRad));
+}
+
 export function drawDayNightMercator(ctx, width, height, date) {
     const jd = window.satellite.jday(
         date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate(),
@@ -43,9 +48,10 @@ export function drawDayNightMercator(ctx, width, height, date) {
     const pts = [];
     for (let x = 0; x <= width; ++x) {
         const lon = (x / width) * 2 * Math.PI - Math.PI;
-        const lat = Math.atan(-Math.cos(lon - subLon) / Math.tan(subLat));
-        const mercY = height / 2 - width * Math.log(Math.tan(Math.PI / 4 + lat / 2)) / (2 * Math.PI);
-        pts.push({x, y: mercY});
+        const lat = terminatorLatitudeRad(lon, subLon, subLat);
+        const latDeg = Number.isFinite(lat) ? radToDeg(lat) : 0;
+        const mercatorPoint = mercatorPixelFromLonLat(radToDeg(lon), latDeg, width, height);
+        pts.push({x, y: mercatorPoint.y});
     }
     ctx.moveTo(pts[0].x, pts[0].y);
     pts.forEach(p => ctx.lineTo(p.x, p.y));

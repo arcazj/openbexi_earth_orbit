@@ -9,6 +9,7 @@ import {
 } from './SatelliteConfigurationLoader.js';
 import {isUsableOrbitPosition, satellites} from './satelliteTLELoader.js';
 import {drawDayNightMercator} from './drawDayNight.js';
+import {mercatorPixelFromLonLat} from './orbit/orbitLinkGeometry.js';
 
 export let mercatorContainer, mercatorCanvasElement, mapBackgroundDiv;
 export let mercatorCtx, mapWidth = 400, mapHeight = 200;
@@ -351,11 +352,7 @@ export function updateMercatorMap(simParams) {
 function latLonToMercator(latDeg, lonDeg) {
     const w = mercatorCanvasElement ? mercatorCanvasElement.width : mapWidth;
     const h = mercatorCanvasElement ? mercatorCanvasElement.height : mapHeight;
-    const x = (lonDeg + 180) * (w / 360);
-    const latRad = Math.max(-85.05112878, Math.min(85.05112878, latDeg)) * Math.PI / 180;
-    const mercN = Math.log(Math.tan(Math.PI / 4 + latRad / 2));
-    const y = h / 2 - (w * mercN) / (2 * Math.PI);
-    return {x, y};
+    return mercatorPixelFromLonLat(lonDeg, latDeg, w, h);
 }
 
 // ------------------------------------------------------------------------------------------------

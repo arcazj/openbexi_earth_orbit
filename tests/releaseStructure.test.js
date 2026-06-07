@@ -27,13 +27,14 @@ function run() {
   const promptHistory = read('PROMPT_History.md');
   const indexHtml = read('index.html');
   const displaySatelliteHtml = read('display_satellite.html');
+  const readme = read('README.md');
 
   assert(prompt.startsWith('# General Execution Prompt'), 'PROMPT.md starts with General Execution Prompt');
   assert(!/^## Release Date:/m.test(prompt), 'PROMPT.md does not contain release history');
   assert(!/^## General Execution Prompt/m.test(prompt), 'PROMPT.md has one top-level general prompt section');
 
   const latestVersion = latestReleaseVersion(promptHistory);
-  assert.strictEqual(latestVersion, '1.5.21', 'latest release is Version 1.5.21');
+  assert.strictEqual(latestVersion, '1.5.22', 'latest release is Version 1.5.22');
 
   const versionMatch = indexHtml.match(/const\s+versionNumber\s*=\s*"([^"]+)"/);
   assert(versionMatch, 'index.html defines a visible version number');
@@ -45,6 +46,13 @@ function run() {
   assert.strictEqual(viewerVersions.core, viewerVersions.addons, 'display_satellite.html core/addons Three.js versions match');
   assert.strictEqual(indexVersions.core, '0.184.0', 'index.html uses verified Three.js 0.184.0');
   assert.strictEqual(viewerVersions.core, '0.184.0', 'display_satellite.html uses verified Three.js 0.184.0');
+
+  const markdownFiles = fs.readdirSync('.')
+    .filter(file => /\.md$/i.test(file))
+    .sort();
+  markdownFiles.forEach(file => {
+    assert(readme.includes(file), `README Markdown index references ${file}`);
+  });
 
   console.log('releaseStructure tests passed');
 }

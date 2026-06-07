@@ -1,8 +1,18 @@
-export const EARTH_RADIUS_KM = 6378.137;
+import {
+    EARTH_RADIUS_KM,
+    WGS84_A_KM,
+    WGS84_B_KM,
+    WGS84_F
+} from '../SatelliteConstantLoader.js';
+
+export { EARTH_RADIUS_KM, WGS84_A_KM, WGS84_B_KM, WGS84_F };
 export const EARTH_ROTATION_RAD_PER_SEC = 7.2921159e-5;
+export const WEB_MERCATOR_MAX_LAT_DEG = 85.05112878;
 
 const DEG_TO_RAD = Math.PI / 180;
 const RAD_TO_DEG = 180 / Math.PI;
+const WGS84_E2 = WGS84_F * (2 - WGS84_F);
+const WGS84_EP2 = (WGS84_A_KM * WGS84_A_KM - WGS84_B_KM * WGS84_B_KM) / (WGS84_B_KM * WGS84_B_KM);
 
 export function degToRad(deg) {
     return deg * DEG_TO_RAD;
@@ -16,16 +26,21 @@ export function normalizeLongitudeDeg(lonDeg) {
     return ((lonDeg + 540) % 360) - 180;
 }
 
+export function clampWebMercatorLatDeg(latDeg) {
+    return Math.max(-WEB_MERCATOR_MAX_LAT_DEG, Math.min(WEB_MERCATOR_MAX_LAT_DEG, latDeg));
+}
+
 export function geodeticToEcfKm(latDeg, lonDeg, altitudeKm = 0) {
     const lat = degToRad(latDeg);
     const lon = degToRad(lonDeg);
-    const radius = EARTH_RADIUS_KM + altitudeKm;
+    const sinLat = Math.sin(lat);
     const cosLat = Math.cos(lat);
+    const primeVerticalRadius = WGS84_A_KM / Math.sqrt(1 - WGS84_E2 * sinLat * sinLat);
 
     return {
-        x: radius * cosLat * Math.cos(lon),
-        y: radius * cosLat * Math.sin(lon),
-        z: radius * Math.sin(lat)
+        x: (primeVerticalRadius + altitudeKm) * cosLat * Math.cos(lon),
+        y: (primeVerticalRadius + altitudeKm) * cosLat * Math.sin(lon),
+        z: (primeVerticalRadius * (1 - WGS84_E2) + altitudeKm) * sinLat
     };
 }
 
@@ -39,16 +54,30 @@ export function eciToEcfKm(eciKm, gmstRad) {
     };
 }
 
-export function ecfToGeodeticSpherical(ecfKm) {
-    const radius = Math.hypot(ecfKm.x, ecfKm.y, ecfKm.z);
-    if (radius === 0) return null;
+export function ecfToGeodeticWgs84(ecfKm) {
+    const p = Math.hypot(ecfKm.x, ecfKm.y);
+    if (!Number.isFinite(p) || !Number.isFinite(ecfKm.z) || (p === 0 && ecfKm.z === 0)) return null;
+
+    const lonDeg = normalizeLongitudeDeg(radToDeg(Math.atan2(ecfKm.y, ecfKm.x)));
+    const theta = Math.atan2(ecfKm.z * WGS84_A_KM, p * WGS84_B_KM);
+    const sinTheta = Math.sin(theta);
+    const cosTheta = Math.cos(theta);
+    const lat = Math.atan2(
+        ecfKm.z + WGS84_EP2 * WGS84_B_KM * sinTheta * sinTheta * sinTheta,
+        p - WGS84_E2 * WGS84_A_KM * cosTheta * cosTheta * cosTheta
+    );
+    const sinLat = Math.sin(lat);
+    const primeVerticalRadius = WGS84_A_KM / Math.sqrt(1 - WGS84_E2 * sinLat * sinLat);
+    const altitudeKm = p / Math.cos(lat) - primeVerticalRadius;
 
     return {
-        latDeg: radToDeg(Math.asin(ecfKm.z / radius)),
-        lonDeg: normalizeLongitudeDeg(radToDeg(Math.atan2(ecfKm.y, ecfKm.x))),
-        altitudeKm: radius - EARTH_RADIUS_KM
+        latDeg: radToDeg(lat),
+        lonDeg,
+        altitudeKm
     };
 }
+
+export const ecfToGeodeticSpherical = ecfToGeodeticWgs84;
 
 export function computeLookGeometry(satEcfKm, targetLatDeg, targetLonDeg, targetAltKm = 0) {
     const ground = geodeticToEcfKm(targetLatDeg, targetLonDeg, targetAltKm);
@@ -69,9 +98,9 @@ export function computeLookGeometry(satEcfKm, targetLatDeg, targetLonDeg, target
         Math.cos(lat) * Math.sin(lon) * ry +
         Math.sin(lat) * rz;
 
-    const elevationDeg = radToDeg(Math.asin(up / rangeKm));
+    const elevationDeg = rangeKm > 0 ? radToDeg(Math.asin(Math.max(-1, Math.min(1, up / rangeKm)))) : -90;
     const azimuthDeg = (radToDeg(Math.atan2(east, north)) + 360) % 360;
-    const satGeodetic = ecfToGeodeticSpherical(satEcfKm);
+    const satGeodetic = ecfToGeodeticWgs84(satEcfKm);
 
     return {
         rangeKm,
@@ -93,7 +122,7 @@ export function radialVelocityMps(rangeKmNow, rangeKmLater, deltaSeconds) {
 }
 
 export function mercatorPixelFromLonLat(lonDeg, latDeg, width, height) {
-    const clampedLatDeg = Math.max(-85.05112878, Math.min(85.05112878, latDeg));
+    const clampedLatDeg = clampWebMercatorLatDeg(latDeg);
     const latRad = degToRad(clampedLatDeg);
 
     return {
@@ -109,13 +138,37 @@ export function lonLatFromMercatorPixel(x, y, width, height) {
 
     return {
         lonDeg: normalizeLongitudeDeg(lonDeg),
-        latDeg: radToDeg(latRad)
+        latDeg: clampWebMercatorLatDeg(radToDeg(latRad))
     };
 }
 
-export function orbitClassFromMeanMotion(meanMotionRevPerDay) {
+export function orbitClassFromMeanMotion(meanMotionRevPerDay, options = {}) {
     if (!Number.isFinite(meanMotionRevPerDay) || meanMotionRevPerDay <= 0) return 'UNKNOWN';
+
+    const eccentricity = Number.isFinite(options.eccentricity) ? Math.max(0, options.eccentricity) : 0;
+    const inclinationDeg = Number.isFinite(options.inclinationDeg) ? Math.abs(options.inclinationDeg) : 0;
+    const periodMinutes = Number.isFinite(options.periodMinutes) && options.periodMinutes > 0
+        ? options.periodMinutes
+        : 1440 / meanMotionRevPerDay;
+    const altitudeKm = Number.isFinite(options.altitudeKm) ? options.altitudeKm : null;
+
+    const isNearGeoPeriod = Math.abs(periodMinutes - 1436.1) <= 90;
+    const isNearGeoInclination = inclinationDeg <= 15;
+    const isNearCircular = eccentricity < 0.08;
+    if (isNearGeoPeriod && isNearGeoInclination && isNearCircular) return 'GEO';
+
+    const isMolniyaLike = periodMinutes >= 600 && periodMinutes <= 900 && inclinationDeg >= 50 && inclinationDeg <= 75;
+    const isHighlyEccentric = eccentricity >= 0.25;
+    const isLongElliptical = eccentricity >= 0.12 && periodMinutes > 225;
+    if (isHighlyEccentric || isMolniyaLike || isLongElliptical) return 'HEO';
+
+    if (altitudeKm !== null) {
+        if (altitudeKm < 2000) return 'LEO';
+        if (altitudeKm < 35786) return 'MEO';
+        return 'OTHER';
+    }
+
     if (meanMotionRevPerDay > 11) return 'LEO';
-    if (meanMotionRevPerDay < 2.5) return 'GEO';
-    return 'MEO';
+    if (meanMotionRevPerDay >= 2.5 && meanMotionRevPerDay <= 11) return 'MEO';
+    return 'OTHER';
 }

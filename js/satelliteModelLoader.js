@@ -222,6 +222,67 @@ export function prepareModelForSelectedView(root) {
     return diagnostics;
 }
 
+export function centerModelGeometryAtRoot(root) {
+    if (!root) return null;
+    root.updateMatrixWorld?.(true);
+    root.updateWorldMatrix?.(true, true);
+
+    const box = new THREE.Box3().setFromObject(root);
+    if (typeof box.isEmpty === 'function' && box.isEmpty()) return null;
+
+    const worldCenterBefore = new THREE.Vector3();
+    box.getCenter(worldCenterBefore);
+    if (![worldCenterBefore.x, worldCenterBefore.y, worldCenterBefore.z].every(Number.isFinite)) return null;
+
+    const rootPositionBefore = root.position.clone();
+    const localCenter = typeof root.worldToLocal === 'function'
+        ? root.worldToLocal(worldCenterBefore.clone())
+        : worldCenterBefore.clone().sub(root.position);
+    if (root.scale && !root.worldToLocal) {
+        localCenter.set(
+            root.scale.x ? localCenter.x / root.scale.x : localCenter.x,
+            root.scale.y ? localCenter.y / root.scale.y : localCenter.y,
+            root.scale.z ? localCenter.z / root.scale.z : localCenter.z
+        );
+    }
+    root.children.forEach(child => {
+        child.position.sub(localCenter);
+    });
+    root.position.copy(rootPositionBefore);
+    root.updateMatrixWorld?.(true);
+    root.updateWorldMatrix?.(true, true);
+
+    const centeredBox = new THREE.Box3().setFromObject(root);
+    const worldCenterAfter = new THREE.Vector3();
+    centeredBox.getCenter(worldCenterAfter);
+
+    root.userData = root.userData || {};
+    root.userData.geometryCentering = {
+        method: 'child-offset-root-preserved',
+        localOffsetApplied: {
+            x: -localCenter.x,
+            y: -localCenter.y,
+            z: -localCenter.z
+        },
+        rootPositionPreserved: {
+            x: root.position.x,
+            y: root.position.y,
+            z: root.position.z
+        },
+        worldCenterBefore: {
+            x: worldCenterBefore.x,
+            y: worldCenterBefore.y,
+            z: worldCenterBefore.z
+        },
+        worldCenterAfter: {
+            x: worldCenterAfter.x,
+            y: worldCenterAfter.y,
+            z: worldCenterAfter.z
+        }
+    };
+    return root.userData.geometryCentering;
+}
+
 function setTextureAnisotropy(material) {
     const renderer = currentRenderer();
     if (!renderer) return;
@@ -397,10 +458,7 @@ async function loadOBJWithMTL(fileBase, meta, { usePlaceholderOnFailure = true }
 
     // Center the model around its bounding box center (optional, default true)
     if (meta?.geometry?.center_model ?? true) {
-        const box = new THREE.Box3().setFromObject(root);
-        const c = new THREE.Vector3();
-        box.getCenter(c);
-        root.position.sub(c); // recenter at origin
+        centerModelGeometryAtRoot(root);
     }
 
     return root;
@@ -453,10 +511,7 @@ async function loadGLB(filePathOrBase, meta, { usePlaceholderOnFailure = true } 
     });
 
     if (meta?.geometry?.center_model ?? true) {
-        const box = new THREE.Box3().setFromObject(root);
-        const c = new THREE.Vector3();
-        box.getCenter(c);
-        root.position.sub(c);
+        centerModelGeometryAtRoot(root);
     }
 
     return root;
@@ -523,10 +578,13 @@ export async function showSatellite(noradId, scene, updatedNoradId, options = {}
         root = placeholderCube(0.5);
     }
 
+    const loaderUserData = root.userData || {};
+
     // Preserve your rich userData structure
     root.userData = {
         updatedNoradId: resolvedId,
         metadataId: metadataBaseName,
+        geometryCentering: loaderUserData.geometryCentering || null,
         meta: sat?.meta || {},
         orbit: sat?.orbit || {},
         attitude: sat?.attitude || sat?.meta?.attitude || {},

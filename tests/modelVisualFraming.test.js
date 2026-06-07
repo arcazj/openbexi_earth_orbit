@@ -39,6 +39,13 @@ function run() {
   assert.strictEqual(modelScaleToSceneUnits('cm', 1), metersToSceneUnits(0.01), 'centimeter model units convert through meters');
   assert.strictEqual(modelScaleToSceneUnits('km', 1), KM_TO_SCENE_UNITS, 'kilometer model units still map to scene kilometers');
 
+  const modelLoaderSource = fs.readFileSync('js/satelliteModelLoader.js', 'utf8');
+  assert(modelLoaderSource.includes('export function centerModelGeometryAtRoot'), 'model loader exposes root-preserving geometry centering');
+  assert(modelLoaderSource.includes('child.position.sub(localCenter)'), 'model centering offsets child geometry');
+  assert(modelLoaderSource.includes('root.position.copy(rootPositionBefore)'), 'model centering preserves root position');
+  assert(!modelLoaderSource.includes('root.position.sub(c)'), 'model centering no longer moves the root position');
+  assert(modelLoaderSource.includes("method: 'child-offset-root-preserved'"), 'model centering diagnostic records root-preserving method');
+
   const starlinkRawDiameter = objMaxDiameter('obj/starlink_V1.obj');
   assert(starlinkRawDiameter > 0, 'Starlink OBJ has nonzero raw bounds');
 

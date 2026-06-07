@@ -9,6 +9,7 @@ import {
 } from './SatelliteConfigurationLoader.js';
 import { EARTH_RADIUS_KM, EARTH_SCENE_RADIUS } from './SatelliteConstantLoader.js';
 import { processInChunks } from './startupPerformance.js';
+import { orbitClassFromMeanMotion, radToDeg } from './orbit/orbitLinkGeometry.js';
 
 export let satellites = [];
 let orbitLine = null;
@@ -24,19 +25,26 @@ function getSatelliteLib(satelliteLib = globalThis.satellite) {
     return satelliteLib;
 }
 
-export function classifyOrbitByPeriodMinutes(periodMinutes) {
-    if (periodMinutes > 1400 && periodMinutes < 1470) return 'GEO';
-    if (periodMinutes < 225) return 'LEO';
-    return 'MEO';
+export function classifyOrbitByPeriodMinutes(periodMinutes, satrec = null) {
+    const meanMotionRevPerDay = Number.isFinite(periodMinutes) && periodMinutes > 0
+        ? 1440 / periodMinutes
+        : NaN;
+    return orbitClassFromMeanMotion(meanMotionRevPerDay, {
+        periodMinutes,
+        eccentricity: satrec?.ecco,
+        inclinationDeg: Number.isFinite(satrec?.inclo) ? radToDeg(satrec.inclo) : undefined
+    });
 }
 
 export function getOrbitDurationMinutes(satrec) {
     const basePeriod = (2 * Math.PI) / satrec.no;
-    const orbitType = classifyOrbitByPeriodMinutes(basePeriod);
+    const orbitType = classifyOrbitByPeriodMinutes(basePeriod, satrec);
 
     if (orbitType === 'GEO') return basePeriod;
+    if (orbitType === 'HEO') return basePeriod;
     if (orbitType === 'LEO') return (24 * Math.PI) / satrec.no;
-    return (4 * Math.PI) / satrec.no;
+    if (orbitType === 'MEO') return (4 * Math.PI) / satrec.no;
+    return basePeriod;
 }
 
 export function isFiniteEciPosition(position) {
@@ -94,6 +102,36 @@ export function generateOrbitScenePointSegments(satrec, simDate = new Date(), op
 
 export function generateOrbitScenePoints(satrec, simDate = new Date(), options = {}) {
     return generateOrbitScenePointSegments(satrec, simDate, options).flat();
+}
+
+export function nearestPointDistanceToOrbitSegments(point, segments) {
+    if (!point || !Array.isArray(segments)) return null;
+
+    let best = null;
+    segments.forEach((segment, segmentIndex) => {
+        if (!Array.isArray(segment)) return;
+        segment.forEach((candidate, pointIndex) => {
+            if (!candidate) return;
+            const dx = (candidate.x ?? 0) - (point.x ?? 0);
+            const dy = (candidate.y ?? 0) - (point.y ?? 0);
+            const dz = (candidate.z ?? 0) - (point.z ?? 0);
+            const distanceSceneUnits = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (!Number.isFinite(distanceSceneUnits)) return;
+            if (!best || distanceSceneUnits < best.distanceSceneUnits) {
+                best = {
+                    distanceSceneUnits,
+                    nearestPoint: candidate.clone ? candidate.clone() : { ...candidate },
+                    segmentIndex,
+                    pointIndex
+                };
+            }
+        });
+    });
+    return best;
+}
+
+export function selectedOrbitNearestPointDistance(point) {
+    return nearestPointDistanceToOrbitSegments(point, orbitLine?.userData?.sourceSegments || []);
 }
 
 export function isScenePointOccludedByEarth(

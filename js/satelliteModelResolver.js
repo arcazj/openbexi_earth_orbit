@@ -20,13 +20,6 @@ export const LOCAL_MODEL_CATALOG = Object.freeze([
         noradIds: ['44072']
     },
     {
-        assetId: 'o3b',
-        metadataId: 'O3b',
-        kind: 'obj-mtl',
-        aliases: ['o3b', '03b', 'o 3 b'],
-        noradIds: ['39188']
-    },
-    {
         assetId: 'ISS.glb',
         metadataId: 'ISS',
         kind: 'glb',

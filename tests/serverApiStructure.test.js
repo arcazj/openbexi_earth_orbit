@@ -22,7 +22,7 @@ function run() {
 
   assert(serverPy.includes('Access-Control-Allow-Origin'), 'server.py sends CORS headers');
   assert(serverPy.includes('ThreadingHTTPServer'), 'server.py uses a local threaded HTTP server');
-  assert(serverPy.includes('APP_VERSION = "1.5.21"'), 'server.py version matches latest release');
+  assert(serverPy.includes('APP_VERSION = "1.5.22"'), 'server.py version matches latest release');
   assert(serverPy.includes('SwaggerUIBundle'), 'server docs page initializes Swagger UI when CDN is available');
   assert(serverPy.includes('.swagger-ui .opblock .opblock-summary-path'), 'server docs override Swagger route text contrast');
   assert(serverPy.includes('color: #ffffff !important'), 'server docs include high-contrast route/method text');
@@ -44,6 +44,8 @@ function run() {
   });
   assert(readme.includes('py server.py --host 127.0.0.1 --port 8000'), 'README documents Python server startup');
   assert(readme.includes('Version 1.5.21 makes the right-side selected-satellite data and TLE sections collapsible'), 'README documents Version 1.5.21 UI changes');
+  assert(readme.includes('Version 1.5.22 keeps the Earth-centered scene frame fixed'), 'README documents Version 1.5.22 Earth/Moon camera changes');
+  assert(readme.includes('TEME-like coordinates'), 'README documents TEME-as-ECI visualization approximation');
   assert(readme.includes('README and Releases History open through `markdown_viewer.html`'), 'README documents separate-page Markdown rendering');
   assert(readme.includes('SSL_1300.glb` resolves only for `INTELSAT 20 (IS-20)` and `INTELSAT 18 (IS-18)`'), 'README documents SSL_1300 IS-20/IS-18 gating');
   assert(readme.includes('LICENSE.md'), 'README documents the Markdown license file');
@@ -54,6 +56,8 @@ function run() {
   assert(integration.includes('/api/health'), 'integration plan includes API health checks');
   assert(integration.includes('Swagger/API docs'), 'integration plan includes Swagger/API docs checks');
   assert(integration.includes('Version 1.5.21'), 'integration plan covers Version 1.5.21');
+  assert(integration.includes('Version 1.5.22'), 'integration plan covers Version 1.5.22');
+  assert(integration.includes('Earth mesh remains at `(0, 0, 0)`'), 'integration plan covers Earth-origin checks');
   assert(integration.includes('README and Releases History open rendered Markdown in `markdown_viewer.html`'), 'integration plan covers separate-page Help Markdown rendering');
   assert(integration.includes('SSL_1300.glb` is restricted to `INTELSAT 20 (IS-20)` and `INTELSAT 18 (IS-18)`'), 'integration plan covers SSL_1300 IS-20/IS-18 gating');
 
