@@ -25,6 +25,7 @@
 </div>
 <div id="utcClockDisplay"></div>
 <aside id="selectedSatelliteDetailPanel" class="selected-satellite-detail-panel" aria-live="polite" hidden></aside>
+<aside id="solarSystemPlanetHud" class="selected-satellite-detail-panel solar-system-planet-hud" aria-live="polite" hidden></aside>
 <div id="marsTextureLoading" class="planet-texture-loading" role="status" aria-live="polite" hidden>
     <div class="planet-texture-loading-header">
         <span id="marsTextureLoadingLabel">Loading Mars map/texture...</span>
@@ -119,14 +120,24 @@
     import { initFootprintRenderer, updateFootprints } from './js/satelliteFootprintLoader.js';
 
     import { createMoon, updateMoon } from './js/MoonFrameLoader.js';
-    import { createMars, updateMars } from './js/MarsFrameLoader.js';
+    import { MARS_TEXTURE_URL, createMars, updateMars } from './js/MarsFrameLoader.js';
     import { BRIGHT_STARS_DEMO } from './data/stars/bright-stars-demo.js';
     import {
-        DEFAULT_STAR_MAGNITUDE_LIMIT,
-        MAX_INTEGRATED_STAR_MAGNITUDE_LIMIT,
         buildStarBufferData,
         raDecToCartesian
     } from './js/starSkyUtils.js';
+    import {
+        SOLAR_SYSTEM_PLANETS,
+        createSolarSystemOverview,
+        updateSolarSystemOverview,
+        setSolarSystemOverviewVisible,
+        setSolarSystemOverviewOptions,
+        pickSolarSystemPlanet,
+        setSolarSystemSelectedPlanet,
+        focusSolarSystemPlanet,
+        resetSolarSystemOverviewCamera,
+        solarSystemPlanetSummary
+    } from './js/solarSystemOverviewLoader.js';
 
     import { initTimeline } from './js/ganttTimelineLoader.js';
     import { computeDecayEstimates, loadConfirmedDecays } from './js/decayPredictor.js';
@@ -178,7 +189,7 @@
     })();
     startupPerf.mark('module-loaded');
 
-    const versionNumber = "1.6";
+    const versionNumber = "1.6.2";
     if (versionNumber !== APP_VERSION) {
         console.warn(`Version mismatch: index ${versionNumber}, server module ${APP_VERSION}`);
     }
@@ -218,6 +229,10 @@
     const MARS_TEXTURE_LOADING_MIN_VISIBLE_MS = 1600;
     const STAR_SKY_RADIUS = SAFE_MAX_CONTROL_DISTANCE * 1.1;
     const STAR_LABEL_RADIUS = STAR_SKY_RADIUS * 0.995;
+    const STAR_LABEL_CANVAS_WIDTH = 768;
+    const STAR_LABEL_CANVAS_HEIGHT = 192;
+    const STAR_LABEL_FONT_PX = 72;
+    const STAR_LABEL_WORLD_HEIGHT_FACTOR = 0.035;
     const MILKY_WAY_TEXTURE_URL = 'obj/Textures/starmap-4k.jpg';
     const STAR_LABEL_MAGNITUDE_LIMIT = 2.1;
     const STARLINK_MODEL_ASSET_ID = 'starlink_V1';
@@ -239,7 +254,6 @@
         'filtersContent'
     ]);
     const DEFAULT_COLLAPSED_ACCORDION_SECTIONS = new Set([
-        'otherSelectionsContent',
         'timelineContent',
         'shareContent',
         'helpContent'
@@ -324,6 +338,9 @@
     let raDecGrid = null;
     let brightStarLabelGroup = null;
     let starAtmosphereMesh = null;
+    let solarSystemOverview = null;
+    let solarSystemPreviousState = null;
+    let solarSystemPlanetHudElement = null;
 
     const ALL_COMPANY_OPTION = "ALL COMPANY";
     const ORBIT_ALL_OPTION = "ALL";
@@ -381,11 +398,16 @@
         showFootprint: false,
         showOnlySelectedSatellite: false,
         otherSelection: 'Earth',
+        solarSystemOverview: false,
+        solarSystemFocusedPlanet: null,
+        solarSystemPlanetLabels: true,
+        solarSystemOrbitPaths: true,
+        solarSystemPlanetTextures: true,
+        solarSystemSunGlow: true,
         showStarsMilkyWay: false,
         showRaDecGrid: false,
         showBrightStarLabels: false,
-        showStarAtmosphere: false,
-        starMagnitudeLimit: DEFAULT_STAR_MAGNITUDE_LIMIT
+        showStarAtmosphere: false
     };
     const pendingShareState = parseShareStateFromSearch(window.location.search);
     let pendingShareStateApplied = false;
@@ -393,8 +415,11 @@
     let orbitTypeFilterSelect, companyFilterSelect, debrisFilterSelect, satelliteCountDisplay;
     let view3DToggle, viewMercatorToggle, showOrbitToggle, showOrbitFrameToggle;
     let highDefToggleElement, showECEFAxesToggleElement, showOrbitFrameToggleElement;
+    let solarSystemOverviewToggleElement, solarSystemOptionsElement, solarSystemPlanetLabelsToggleElement;
+    let solarSystemOrbitPathsToggleElement, solarSystemPlanetTexturesToggleElement, solarSystemSunGlowToggleElement;
+    let solarSystemBackButtonElement, solarSystemExitButtonElement, solarSystemSelectionSummaryElement;
     let starsMilkyWayToggleElement, starsMilkyWayOptionsElement, showRaDecGridToggleElement;
-    let showBrightStarLabelsToggleElement, showStarAtmosphereToggleElement, starMagnitudeLimitSliderElement, starMagnitudeLimitValueElement;
+    let showBrightStarLabelsToggleElement, showStarAtmosphereToggleElement, starCatalogSummaryElement;
     let satelliteSelectDropdown;
     let satelliteSearchInput, satelliteSearchResults, satelliteSearchClearButton, satelliteSearchEmpty;
     let selectFirstStarlinkButton, selectIssButton, showOnlySelectedSatelliteCheckbox, selectedSatelliteControls;
@@ -1662,8 +1687,6 @@
     document.body.insertAdjacentHTML('beforeend', twHTML);
     const timeWarpSlider = document.getElementById('timeWarpSlider');
     const timeWarpVal = document.getElementById('timeWarpVal');
-    const menuTimeWarpSlider = document.getElementById('menuTimeWarpSlider');
-    const menuTimeWarpVal = document.getElementById('menuTimeWarpVal');
 
     function sliderValueToTimeWarp(value) {
         const parsed = parseInt(value, 10);
@@ -1682,9 +1705,7 @@
         const sliderValue = timeWarpToSliderValue(simParams.timeWarp);
         const labelValue = formatTimeWarpLabel(simParams.timeWarp);
         if (timeWarpSlider) timeWarpSlider.value = sliderValue;
-        if (menuTimeWarpSlider) menuTimeWarpSlider.value = sliderValue;
         if (timeWarpVal) timeWarpVal.textContent = labelValue;
-        if (menuTimeWarpVal) menuTimeWarpVal.textContent = labelValue;
     }
 
     function setTimeWarpFromSliderValue(value) {
@@ -1911,16 +1932,24 @@
 
     function createStarTextSprite(text) {
         const canvas = document.createElement('canvas');
-        canvas.width = 256;
-        canvas.height = 64;
+        canvas.width = STAR_LABEL_CANVAS_WIDTH;
+        canvas.height = STAR_LABEL_CANVAS_HEIGHT;
         const ctx = canvas.getContext('2d');
-        ctx.fillStyle = 'rgba(3, 8, 18, 0.58)';
+        ctx.fillStyle = 'rgba(3, 8, 18, 0.72)';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.font = 'bold 24px Trebuchet MS, Segoe UI, sans-serif';
+        ctx.font = `bold ${STAR_LABEL_FONT_PX}px Trebuchet MS, Segoe UI, sans-serif`;
+        ctx.textBaseline = 'middle';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.9)';
+        ctx.lineWidth = 10;
+        ctx.strokeText(text, 34, canvas.height / 2 + 2);
         ctx.fillStyle = '#dff4ff';
-        ctx.fillText(text, 12, 40);
+        ctx.fillText(text, 34, canvas.height / 2 + 2);
         const texture = new THREE.CanvasTexture(canvas);
         texture.colorSpace = THREE.SRGBColorSpace;
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        texture.generateMipmaps = false;
         const material = new THREE.SpriteMaterial({
             map: texture,
             transparent: true,
@@ -1928,7 +1957,8 @@
             depthTest: true
         });
         const sprite = new THREE.Sprite(material);
-        sprite.scale.set(STAR_SKY_RADIUS * 0.045, STAR_SKY_RADIUS * 0.011, 1);
+        const labelHeight = STAR_SKY_RADIUS * STAR_LABEL_WORLD_HEIGHT_FACTOR;
+        sprite.scale.set(labelHeight * (canvas.width / canvas.height), labelHeight, 1);
         return sprite;
     }
 
@@ -1943,7 +1973,7 @@
 
         brightStarLabelGroup = new THREE.Group();
         BRIGHT_STARS_DEMO
-            .filter(star => star.mag < STAR_LABEL_MAGNITUDE_LIMIT && star.mag < simParams.starMagnitudeLimit)
+            .filter(star => star.mag < STAR_LABEL_MAGNITUDE_LIMIT)
             .forEach(star => {
                 const p = raDecToCartesian({
                     raHours: star.raHours,
@@ -1960,19 +1990,11 @@
         updateStarSkyVisibility();
     }
 
-    function updateIntegratedStarField() {
+    function updateBundledStarField() {
         if (!scene) return;
-        const magnitudeLimit = Math.min(
-            MAX_INTEGRATED_STAR_MAGNITUDE_LIMIT,
-            Math.max(4, Number(simParams.starMagnitudeLimit) || DEFAULT_STAR_MAGNITUDE_LIMIT)
-        );
-        simParams.starMagnitudeLimit = magnitudeLimit;
-        if (starMagnitudeLimitSliderElement) starMagnitudeLimitSliderElement.value = magnitudeLimit.toFixed(1);
-        if (starMagnitudeLimitValueElement) starMagnitudeLimitValueElement.textContent = `<${magnitudeLimit.toFixed(1)}`;
-
         const starData = buildStarBufferData(BRIGHT_STARS_DEMO, {
             radius: STAR_SKY_RADIUS,
-            magnitudeLimit,
+            magnitudeLimit: Number.POSITIVE_INFINITY,
             colorMode: 'color'
         });
         const geometry = new THREE.BufferGeometry();
@@ -1992,6 +2014,7 @@
             scene.add(starPoints);
         }
         starPoints.userData.visibleStarCount = starData.stars.length;
+        updateStarCatalogSummaryVisibility();
         updateBrightStarLabels();
         updateStarSkyVisibility();
     }
@@ -2096,7 +2119,7 @@
 
         createRaDecGrid();
         createStarAtmosphere();
-        updateIntegratedStarField();
+        updateBundledStarField();
         updateStarSkyVisibility();
     }
 
@@ -2105,16 +2128,301 @@
         const visible = !!simParams.showStarsMilkyWay;
         starsMilkyWayOptionsElement.hidden = !visible;
         starsMilkyWayOptionsElement.setAttribute('aria-hidden', visible ? 'false' : 'true');
+        updateStarCatalogSummaryVisibility();
+    }
+
+    function updateStarCatalogSummaryVisibility() {
+        if (!starCatalogSummaryElement) return;
+        const visible = !!simParams.showStarsMilkyWay && !!simParams.showBrightStarLabels;
+        starCatalogSummaryElement.textContent = `Displaying ${BRIGHT_STARS_DEMO.length} bundled reference stars`;
+        starCatalogSummaryElement.hidden = !visible;
+        starCatalogSummaryElement.setAttribute('aria-hidden', visible ? 'false' : 'true');
     }
 
     function updateStarSkyVisibility() {
-        const showSky = !!simParams.showStarsMilkyWay;
+        const showSky = !!simParams.showStarsMilkyWay && !simParams.solarSystemOverview;
         if (milkyWaySphere) milkyWaySphere.visible = showSky;
         if (starPoints) starPoints.visible = showSky;
         if (raDecGrid) raDecGrid.visible = showSky && !!simParams.showRaDecGrid;
         if (brightStarLabelGroup) brightStarLabelGroup.visible = showSky && !!simParams.showBrightStarLabels;
         if (starAtmosphereMesh) starAtmosphereMesh.visible = showSky && !!simParams.showStarAtmosphere;
         syncStarsMilkyWayControlsVisibility();
+        updateStarCatalogSummaryVisibility();
+    }
+
+    function syncSolarSystemControlsVisibility() {
+        if (!solarSystemOptionsElement) return;
+        const visible = !!simParams.solarSystemOverview;
+        solarSystemOptionsElement.hidden = !visible;
+        solarSystemOptionsElement.setAttribute('aria-hidden', visible ? 'false' : 'true');
+    }
+
+    function syncSolarSystemControlsState() {
+        if (solarSystemOverviewToggleElement) solarSystemOverviewToggleElement.checked = !!simParams.solarSystemOverview;
+        if (solarSystemPlanetLabelsToggleElement) solarSystemPlanetLabelsToggleElement.checked = !!simParams.solarSystemPlanetLabels;
+        if (solarSystemOrbitPathsToggleElement) solarSystemOrbitPathsToggleElement.checked = !!simParams.solarSystemOrbitPaths;
+        if (solarSystemPlanetTexturesToggleElement) solarSystemPlanetTexturesToggleElement.checked = !!simParams.solarSystemPlanetTextures;
+        if (solarSystemSunGlowToggleElement) solarSystemSunGlowToggleElement.checked = !!simParams.solarSystemSunGlow;
+        syncSolarSystemControlsVisibility();
+        updateSolarSystemSelectionUi();
+    }
+
+    function updateSolarSystemOptions() {
+        setSolarSystemOverviewOptions(solarSystemOverview, {
+            planetLabels: simParams.solarSystemPlanetLabels,
+            orbitPaths: simParams.solarSystemOrbitPaths,
+            planetTextures: simParams.solarSystemPlanetTextures,
+            sunGlow: simParams.solarSystemSunGlow
+        });
+        syncSolarSystemControlsState();
+    }
+
+    function updateSolarSystemSelectionUi() {
+        const planet = SOLAR_SYSTEM_PLANETS.find(item => item.name === simParams.solarSystemFocusedPlanet);
+        const summary = planet
+            ? solarSystemPlanetSummary(planet)
+            : 'Solar System overview mode';
+        if (solarSystemSelectionSummaryElement) solarSystemSelectionSummaryElement.textContent = summary;
+        if (solarSystemPlanetHudElement) {
+            if (simParams.solarSystemOverview && planet) {
+                solarSystemPlanetHudElement.innerHTML = `
+                    <div class="selected-satellite-detail-header">
+                        <span>Solar System Planet</span>
+                        <strong>${planet.name}</strong>
+                    </div>
+                    <div class="selected-satellite-detail-body">
+                        <div><span>Distance from Sun</span><strong>${planet.semiMajorAu.toFixed(3)} AU</strong></div>
+                        <div><span>Orbital period</span><strong>${Math.round(planet.periodDays)} days</strong></div>
+                        <div><span>Ephemeris</span><strong>Approximate visual Kepler model</strong></div>
+                    </div>`;
+                solarSystemPlanetHudElement.hidden = false;
+            } else {
+                solarSystemPlanetHudElement.hidden = true;
+                solarSystemPlanetHudElement.innerHTML = '';
+            }
+        }
+    }
+
+    function snapshotSolarSystemPreviousState() {
+        if (!camera || !controls) return null;
+        return {
+            view3D: simParams.view3D,
+            viewMercator: simParams.viewMercator,
+            otherSelection: simParams.otherSelection,
+            showOrbit: simParams.showOrbit,
+            showOrbitFrame: simParams.showOrbitFrame,
+            showYPR: simParams.showYPR,
+            showFootprint: simParams.showFootprint,
+            cameraPosition: camera.position.clone(),
+            controlsTarget: controls.target.clone(),
+            controlsMinDistance: controls.minDistance,
+            controlsMaxDistance: controls.maxDistance,
+            detailedSatelliteModelVisible: detailedSatelliteModel?.visible === true
+        };
+    }
+
+    function restoreSolarSystemPreviousState() {
+        const previous = solarSystemPreviousState;
+        if (!previous) return;
+        simParams.view3D = previous.view3D;
+        simParams.viewMercator = previous.viewMercator;
+        simParams.otherSelection = previous.otherSelection;
+        simParams.showOrbit = previous.showOrbit;
+        simParams.showOrbitFrame = previous.showOrbitFrame;
+        simParams.showYPR = previous.showYPR;
+        simParams.showFootprint = previous.showFootprint;
+        if (camera) camera.position.copy(previous.cameraPosition);
+        if (controls) {
+            controls.target.copy(previous.controlsTarget);
+            controls.minDistance = previous.controlsMinDistance;
+            controls.maxDistance = previous.controlsMaxDistance;
+            controls.update();
+        }
+        if (detailedSatelliteModel) {
+            detailedSatelliteModel.visible = !!previous.detailedSatelliteModelVisible;
+        }
+        solarSystemPreviousState = null;
+    }
+
+    function setSolarSystemEarthLayerVisibility(active) {
+        if (earthMesh) earthMesh.visible = !active;
+        if (moon) moon.visible = !active;
+        if (mars) mars.visible = !active;
+        satellites.forEach(s => {
+            if (s.mesh && active) s.mesh.visible = false;
+        });
+        if (detailedSatelliteModel && active) detailedSatelliteModel.visible = false;
+        if (selectedModelFillLight && active) selectedModelFillLight.visible = false;
+        if (selectedModelEarthAlbedoLight && active) selectedModelEarthAlbedoLight.visible = false;
+        if (orbitFrame && active) setOrbitFrameVisibility(orbitFrame, false);
+        if (yprFrame && active) setYPRVisibility(yprFrame, false);
+        const selectedOrbit = scene?.getObjectByName?.('selectedOrbitTrajectoryRoot');
+        if (selectedOrbit) selectedOrbit.visible = !active && !!simParams.showOrbit;
+        if (selectedSatelliteDetailPanel) selectedSatelliteDetailPanel.hidden = active || !currentSelectedSatellite;
+        if (mercatorContainer && active) mercatorContainer.style.display = 'none';
+        ['labelXecr','labelYecr','labelZecr','labelNorthPole','labelEquatorLine','labelGreenwichMeridian']
+            .forEach(id => { const el = document.getElementById(id); if (el && active) el.style.display = 'none'; });
+        updateStarSkyVisibility();
+    }
+
+    function setSolarSystemOverviewMode(enabled, { restorePrevious = true, resetOverviewCamera = true } = {}) {
+        const next = !!enabled;
+        if (next === !!simParams.solarSystemOverview) {
+            syncSolarSystemControlsState();
+            return;
+        }
+        if (next) {
+            solarSystemPreviousState = snapshotSolarSystemPreviousState();
+            simParams.solarSystemOverview = true;
+            simParams.solarSystemFocusedPlanet = null;
+            simParams.view3D = true;
+            simParams.viewMercator = false;
+            setSolarSystemOverviewVisible(solarSystemOverview, true);
+            if (resetOverviewCamera) resetSolarSystemOverviewCamera(solarSystemOverview, camera, controls);
+        } else {
+            simParams.solarSystemOverview = false;
+            simParams.solarSystemFocusedPlanet = null;
+            setSolarSystemOverviewVisible(solarSystemOverview, false);
+            setSolarSystemSelectedPlanet(solarSystemOverview, null);
+            if (restorePrevious) restoreSolarSystemPreviousState();
+            if (!restorePrevious) solarSystemPreviousState = null;
+            restoreEarthControlLimits();
+            updateSatelliteList();
+            if (renderer?.domElement) renderer.domElement.style.cursor = '';
+        }
+        setSolarSystemEarthLayerVisibility(simParams.solarSystemOverview);
+        syncSolarSystemControlsState();
+        updateViewShortcutButtonsState();
+        if (view3DToggle) view3DToggle.checked = simParams.view3D;
+        if (viewMercatorToggle) viewMercatorToggle.checked = simParams.viewMercator;
+        if (showOrbitToggle) showOrbitToggle.checked = simParams.showOrbit;
+        if (showOrbitFrameToggleElement) showOrbitFrameToggleElement.checked = simParams.showOrbitFrame;
+        const showFootprintChk = document.getElementById('showFootprintCheckbox');
+        if (showFootprintChk) showFootprintChk.checked = simParams.showFootprint;
+        const showDayNightToggle = document.getElementById('showDayNightToggle');
+        if (showDayNightToggle) showDayNightToggle.checked = simParams.showDayNight;
+        updateSolarSystemOptions();
+    }
+
+    function activateEarthFromSolarSystemSelection() {
+        setSolarSystemOverviewMode(false, { restorePrevious: false });
+        simParams.otherSelection = 'Earth';
+        simParams.view3D = true;
+        simParams.viewMercator = false;
+        const otherSel = document.getElementById('otherSelection');
+        if (otherSel) otherSel.value = 'Earth';
+        if (view3DToggle) view3DToggle.checked = true;
+        if (viewMercatorToggle) viewMercatorToggle.checked = false;
+        hideMarsTextureLoadingPanel();
+        if (satelliteSelectDropdown) {
+            satelliteSelectDropdown.value = 'None';
+            simParams.selectedSatelliteName = 'None';
+        }
+        selectSatelliteSprite(null);
+        clearDetailedSatelliteView();
+        removeAllGeometry(scene);
+        updateSatelliteList();
+        resetCameraToDefault();
+    }
+
+    function activateMoonFromSolarSystemSelection() {
+        setSolarSystemOverviewMode(false, { restorePrevious: false });
+        simParams.otherSelection = 'Moon';
+        simParams.view3D = true;
+        simParams.viewMercator = false;
+        if (view3DToggle) view3DToggle.checked = true;
+        if (viewMercatorToggle) viewMercatorToggle.checked = false;
+        hideMarsTextureLoadingPanel();
+        if (satelliteSelectDropdown) {
+            satelliteSelectDropdown.value = 'None';
+            simParams.selectedSatelliteName = 'None';
+        }
+        selectSatelliteSprite(null);
+        clearDetailedSatelliteView();
+        removeAllGeometry(scene);
+        flyCameraToObject(moon, 1500, {
+            distanceMultiplier: 4,
+            minContextDistance: EARTH_SCENE_RADIUS * 0.6
+        });
+        const bodyRadius = moon?.userData?.radiusScene || moon?.geometry?.parameters?.radius || EARTH_SCENE_RADIUS * 0.27;
+        controls.minDistance = Math.max(bodyRadius * 1.1, 0.05 * EARTH_SCENE_RADIUS);
+        controls.maxDistance = SAFE_MAX_CONTROL_DISTANCE;
+        controls.target.copy(moon.position);
+        controls.update();
+    }
+
+    function activateMarsFromSolarSystemSelection() {
+        setSolarSystemOverviewMode(false, { restorePrevious: false });
+        simParams.otherSelection = 'Mars';
+        simParams.view3D = true;
+        simParams.viewMercator = false;
+        const otherSel = document.getElementById('otherSelection');
+        if (otherSel) otherSel.value = 'Mars';
+        if (view3DToggle) view3DToggle.checked = true;
+        if (viewMercatorToggle) viewMercatorToggle.checked = false;
+        showMarsTextureProgressForSelection();
+        if (satelliteSelectDropdown) {
+            satelliteSelectDropdown.value = 'None';
+            simParams.selectedSatelliteName = 'None';
+        }
+        selectSatelliteSprite(null);
+        clearDetailedSatelliteView();
+        removeAllGeometry(scene);
+        flyCameraToObject(mars, 1500, {
+            distanceMultiplier: MARS_CAMERA_DISTANCE_MULTIPLIER,
+            minContextDistance: MARS_CAMERA_MIN_CONTEXT_DISTANCE
+        });
+        const bodyRadius = mars?.userData?.radiusScene || mars?.geometry?.parameters?.radius || EARTH_SCENE_RADIUS * 0.53;
+        controls.minDistance = Math.max(bodyRadius * 1.1, 0.05 * EARTH_SCENE_RADIUS);
+        controls.maxDistance = SAFE_MAX_CONTROL_DISTANCE;
+        controls.target.copy(mars.position);
+        controls.update();
+    }
+
+    function focusSolarSystemPlanetInMode(planetName) {
+        if (!planetName) return;
+        if (planetName === 'Earth') {
+            activateEarthFromSolarSystemSelection();
+            return;
+        }
+        if (planetName === 'Moon') {
+            activateMoonFromSolarSystemSelection();
+            return;
+        }
+        if (planetName === 'Mars') {
+            activateMarsFromSolarSystemSelection();
+            return;
+        }
+        simParams.solarSystemFocusedPlanet = planetName;
+        focusSolarSystemPlanet(solarSystemOverview, planetName, camera, controls);
+        updateSolarSystemSelectionUi();
+    }
+
+    function returnToSolarSystemOverview() {
+        simParams.solarSystemFocusedPlanet = null;
+        resetSolarSystemOverviewCamera(solarSystemOverview, camera, controls);
+        updateSolarSystemSelectionUi();
+    }
+
+    function handleSolarSystemPointerMove(event) {
+        if (!simParams.solarSystemOverview || !renderer?.domElement) return;
+        const planetName = pickSolarSystemPlanet(solarSystemOverview, event, camera);
+        renderer.domElement.style.cursor = planetName ? 'pointer' : 'grab';
+    }
+
+    function handleSolarSystemPointerClick(event) {
+        if (!simParams.solarSystemOverview) return;
+        const planetName = pickSolarSystemPlanet(solarSystemOverview, event, camera);
+        if (planetName) focusSolarSystemPlanetInMode(planetName);
+    }
+
+    function handleSolarSystemKeydown(event) {
+        if (!simParams.solarSystemOverview || event.key !== 'Escape') return;
+        if (simParams.solarSystemFocusedPlanet) {
+            returnToSolarSystemOverview();
+        } else {
+            setSolarSystemOverviewMode(false, { restorePrevious: true });
+        }
     }
 
     function init3D() {
@@ -2208,9 +2516,9 @@
         });
         updateMoon(moon, SIM_DATE);
 
-        /* Mars (always available for Other Selections) */
+        /* Mars (always available for Earth/Moon/Mars context switching) */
         mars = createMars(scene, EARTH_SCENE_RADIUS, {
-            textureUrl: 'textures/March.jpg',
+            textureUrl: MARS_TEXTURE_URL,
             onTextureLoadStart: () => recordMarsTextureLoadState('loading', 0),
             onTextureLoadProgress: handleMarsTextureProgress,
             onTextureLoadComplete: () => recordMarsTextureLoadState('complete', 100),
@@ -2234,6 +2542,13 @@
         camera.far = SAFE_CAMERA_FAR;
         defaultCameraFar = camera.far;
         camera.updateProjectionMatrix();
+
+        /* Solar System Overview (created hidden; toggled from Views & Time) */
+        solarSystemOverview = createSolarSystemOverview(scene, { renderer, camera, controls });
+        setSolarSystemOverviewVisible(solarSystemOverview, false);
+        renderer.domElement.addEventListener('pointermove', handleSolarSystemPointerMove);
+        renderer.domElement.addEventListener('click', handleSolarSystemPointerClick);
+        window.addEventListener('keydown', handleSolarSystemKeydown);
     }
 
     function setupHTMLControls() {
@@ -2326,13 +2641,21 @@
         highDefToggleElement = document.getElementById('highDefToggle');
         showECEFAxesToggleElement = document.getElementById('showECEFAxesToggle');
         showOrbitFrameToggleElement = document.getElementById('showOrbitFrameToggle');
+        solarSystemOverviewToggleElement = document.getElementById('solarSystemOverviewToggle');
+        solarSystemOptionsElement = document.getElementById('solarSystemOptions');
+        solarSystemPlanetLabelsToggleElement = document.getElementById('solarSystemPlanetLabelsToggle');
+        solarSystemOrbitPathsToggleElement = document.getElementById('solarSystemOrbitPathsToggle');
+        solarSystemPlanetTexturesToggleElement = document.getElementById('solarSystemPlanetTexturesToggle');
+        solarSystemSunGlowToggleElement = document.getElementById('solarSystemSunGlowToggle');
+        solarSystemBackButtonElement = document.getElementById('solarSystemBackButton');
+        solarSystemExitButtonElement = document.getElementById('solarSystemExitButton');
+        solarSystemSelectionSummaryElement = document.getElementById('solarSystemSelectionSummary');
         starsMilkyWayToggleElement = document.getElementById('starsMilkyWayToggle');
         starsMilkyWayOptionsElement = document.getElementById('starsMilkyWayOptions');
         showRaDecGridToggleElement = document.getElementById('showRaDecGridToggle');
         showBrightStarLabelsToggleElement = document.getElementById('showBrightStarLabelsToggle');
         showStarAtmosphereToggleElement = document.getElementById('showStarAtmosphereToggle');
-        starMagnitudeLimitSliderElement = document.getElementById('starMagnitudeLimitSlider');
-        starMagnitudeLimitValueElement = document.getElementById('starMagnitudeLimitValue');
+        starCatalogSummaryElement = document.getElementById('starCatalogSummary');
         showOrbitToggle = document.getElementById('showOrbitToggle');
         selectFirstStarlinkButton = document.getElementById('selectFirstStarlinkButton');
         selectIssButton = document.getElementById('selectIssButton');
@@ -2351,6 +2674,7 @@
         resetFiltersEmptyButton = document.getElementById('resetFiltersEmptyButton');
         selectedSatelliteSummary = document.getElementById('selectedSatelliteSummary');
         selectedSatelliteDetailPanel = document.getElementById('selectedSatelliteDetailPanel');
+        solarSystemPlanetHudElement = document.getElementById('solarSystemPlanetHud');
         selectedSatelliteControls = document.getElementById('selectedSatelliteControls');
 
         // Labels
@@ -2377,12 +2701,13 @@
         viewMercatorToggle.checked = simParams.viewMercator;
         if (highDefToggleElement) highDefToggleElement.checked = simParams.useHighDefTexture;
         if (showECEFAxesToggleElement) showECEFAxesToggleElement.checked = simParams.showECEFAxes;
+        syncSolarSystemControlsState();
+        updateSolarSystemOptions();
         if (starsMilkyWayToggleElement) starsMilkyWayToggleElement.checked = simParams.showStarsMilkyWay;
         if (showRaDecGridToggleElement) showRaDecGridToggleElement.checked = simParams.showRaDecGrid;
         if (showBrightStarLabelsToggleElement) showBrightStarLabelsToggleElement.checked = simParams.showBrightStarLabels;
         if (showStarAtmosphereToggleElement) showStarAtmosphereToggleElement.checked = simParams.showStarAtmosphere;
-        if (starMagnitudeLimitSliderElement) starMagnitudeLimitSliderElement.value = simParams.starMagnitudeLimit.toFixed(1);
-        if (starMagnitudeLimitValueElement) starMagnitudeLimitValueElement.textContent = `<${simParams.starMagnitudeLimit.toFixed(1)}`;
+        updateStarCatalogSummaryVisibility();
         syncStarsMilkyWayControlsVisibility();
         updateStarSkyVisibility();
         if (showOrbitFrameToggleElement) showOrbitFrameToggleElement.checked = simParams.showOrbitFrame;
@@ -2397,11 +2722,9 @@
             if (reentryTimelineToggle.checked) syncExclusiveTimelineSelection('reentryTimelineToggle');
         });
 
-        // Time-warp sliders: the canvas control and menu control mirror one shared speed state.
-        [timeWarpSlider, menuTimeWarpSlider].forEach(slider => {
-            slider?.addEventListener('input', e => {
-                setTimeWarpFromSliderValue(e.target.value);
-            });
+        // The canvas Time x slider is the single simulation speed control.
+        timeWarpSlider?.addEventListener('input', e => {
+            setTimeWarpFromSliderValue(e.target.value);
         });
         updateTimeWarpControls();
 
@@ -2484,6 +2807,30 @@
         });
         viewMercatorToggle.addEventListener('change', (e) => simParams.viewMercator = e.target.checked);
 
+        solarSystemOverviewToggleElement?.addEventListener('change', (e) => {
+            setSolarSystemOverviewMode(e.target.checked, { restorePrevious: true });
+        });
+        solarSystemPlanetLabelsToggleElement?.addEventListener('change', (e) => {
+            simParams.solarSystemPlanetLabels = e.target.checked;
+            updateSolarSystemOptions();
+        });
+        solarSystemOrbitPathsToggleElement?.addEventListener('change', (e) => {
+            simParams.solarSystemOrbitPaths = e.target.checked;
+            updateSolarSystemOptions();
+        });
+        solarSystemPlanetTexturesToggleElement?.addEventListener('change', (e) => {
+            simParams.solarSystemPlanetTextures = e.target.checked;
+            updateSolarSystemOptions();
+        });
+        solarSystemSunGlowToggleElement?.addEventListener('change', (e) => {
+            simParams.solarSystemSunGlow = e.target.checked;
+            updateSolarSystemOptions();
+        });
+        solarSystemBackButtonElement?.addEventListener('click', returnToSolarSystemOverview);
+        solarSystemExitButtonElement?.addEventListener('click', () => {
+            setSolarSystemOverviewMode(false, { restorePrevious: true });
+        });
+
         starsMilkyWayToggleElement?.addEventListener('change', (e) => {
             simParams.showStarsMilkyWay = e.target.checked;
             updateStarSkyVisibility();
@@ -2499,13 +2846,6 @@
         showStarAtmosphereToggleElement?.addEventListener('change', (e) => {
             simParams.showStarAtmosphere = e.target.checked;
             updateStarSkyVisibility();
-        });
-        starMagnitudeLimitSliderElement?.addEventListener('input', (e) => {
-            simParams.starMagnitudeLimit = Math.min(
-                MAX_INTEGRATED_STAR_MAGNITUDE_LIMIT,
-                Math.max(4, parseFloat(e.target.value) || DEFAULT_STAR_MAGNITUDE_LIMIT)
-            );
-            updateIntegratedStarField();
         });
 
         if (highDefToggleElement) {
@@ -2718,12 +3058,15 @@
             simParams.showDayNight = e.target.checked;
         });
 
-        // === Other Selections (Earth/Moon/Mars) ===
+        // === Legacy Earth/Moon/Mars context dropdown hook ===
         const otherSel = document.getElementById('otherSelection');
         if (otherSel) {
             otherSel.value = simParams.otherSelection;
 
             otherSel.addEventListener('change', () => {
+                if (simParams.solarSystemOverview) {
+                    setSolarSystemOverviewMode(false, { restorePrevious: false });
+                }
                 simParams.otherSelection = otherSel.value;
 
                 if (simParams.otherSelection === 'Moon' || simParams.otherSelection === 'Mars') {
@@ -3890,7 +4233,9 @@
             controls.update();
             if (f >= 1) { cameraMove = null; controls.enabled = true; }
         } else {
-            enforceActiveControlTarget();
+            if (!simParams.solarSystemOverview) {
+                enforceActiveControlTarget();
+            }
             controls.update();
         }
 
@@ -3899,6 +4244,10 @@
         simMillis += dtReal * 1000 * 60 * simParams.timeWarp;
         SIM_DATE.setTime(simMillis);
         simParams.simDate = SIM_DATE; // keep external readers happy
+        if (simParams.solarSystemOverview) {
+            updateSolarSystemOverview(solarSystemOverview, SIM_DATE);
+            setSolarSystemEarthLayerVisibility(true);
+        }
 
         const jDay = satellite.jday(
             SIM_DATE.getUTCFullYear(), SIM_DATE.getUTCMonth() + 1, SIM_DATE.getUTCDate(),
@@ -3923,21 +4272,23 @@
         updateECEFAxesOrientation(rotY);
 
         /* Visible TLE sprites */
-        for (const s of satellites) {
-            if (!s.mesh || !s.mesh.visible || !s.satrec) continue;
-            const pv = satellite.propagate(s.satrec, SIM_DATE);
-            if (!isUsableOrbitPosition(pv?.position)) {
-                s.propagationInvalid = true;
-                s.mesh.visible = false;
-                continue;
+        if (!simParams.solarSystemOverview) {
+            for (const s of satellites) {
+                if (!s.mesh || !s.mesh.visible || !s.satrec) continue;
+                const pv = satellite.propagate(s.satrec, SIM_DATE);
+                if (!isUsableOrbitPosition(pv?.position)) {
+                    s.propagationInvalid = true;
+                    s.mesh.visible = false;
+                    continue;
+                }
+                s.propagationInvalid = false;
+                eciToSceneVector(s.mesh.position, pv.position);
             }
-            s.propagationInvalid = false;
-            eciToSceneVector(s.mesh.position, pv.position);
         }
 
         /* Detailed model (selected) */
         let selectedPropagation = null;
-        if (detailedSatelliteModel?.visible && currentSelectedSatellite?.satrec) {
+        if (!simParams.solarSystemOverview && detailedSatelliteModel?.visible && currentSelectedSatellite?.satrec) {
             selectedPropagation = satellite.propagate(currentSelectedSatellite.satrec, SIM_DATE);
             if (setDetailedSatelliteModelPositionFromPropagation(selectedPropagation, 'animation-frame')) {
                 applySelectedSatelliteNadirOrientation(selectedPropagation);
@@ -3954,7 +4305,7 @@
         updateSelectedModelLighting(jDay);
 
         /* LVLH orbit frame (selected) */
-        if (simParams.showOrbitFrame && orbitFrame && currentSelectedSatellite?.satrec && currentSelectedSatellite.mesh?.visible) {
+        if (!simParams.solarSystemOverview && simParams.showOrbitFrame && orbitFrame && currentSelectedSatellite?.satrec && currentSelectedSatellite.mesh?.visible) {
             const pv = satellite.propagate(currentSelectedSatellite.satrec, SIM_DATE);
             if (isUsableOrbitPosition(pv?.position) && pv?.velocity) {
                 updateOrbitFrame(
@@ -3966,7 +4317,7 @@
         }
 
         /* YPR frame */
-        if (simParams.showYPR && yprFrame && currentSelectedSatellite?.satrec) {
+        if (!simParams.solarSystemOverview && simParams.showYPR && yprFrame && currentSelectedSatellite?.satrec) {
             const displayObject = selectedSatelliteDisplayObject();
             if (displayObject) {
                 const q = applySelectedSatelliteNadirOrientation();
@@ -3983,7 +4334,7 @@
         if (mars) updateMars(mars, SIM_DATE);
 
         /* Moon/Mars controls target */
-        if (!cameraMove && controls) {
+        if (!simParams.solarSystemOverview && !cameraMove && controls) {
             if ((simParams.otherSelection === 'Moon' && moon) || (simParams.otherSelection === 'Mars' && mars)) {
                 const selectedBody = simParams.otherSelection === 'Moon' ? moon : mars;
                 // Unit vector from Earth to selected body.
@@ -4008,36 +4359,38 @@
 
         /* Footprints */
         updateFootprints(currentSelectedSatellite, gmstNow, {
-            showFootprint: !!simParams.showFootprint,
+            showFootprint: !!simParams.showFootprint && !simParams.solarSystemOverview,
             mercatorCtx: null,
             simDate: SIM_DATE
         });
 
         /* Sun light and Sun visuals must update before the 3-D render */
         drawDayNight3D(scene, earthMesh, SIM_DATE, {
-            showSun:  simParams.showDayNight && simParams.view3D,
-            showHalo: simParams.showDayNight && simParams.view3D,
+            showSun:  simParams.showDayNight && simParams.view3D && !simParams.solarSystemOverview,
+            showHalo: simParams.showDayNight && simParams.view3D && !simParams.solarSystemOverview,
             earthRadius: EARTH_SCENE_RADIUS,
             sunIntensity: SUN_LIGHT_INTENSITY
         });
 
         /* Render 3-D vs Mercator */
-        const show3D = simParams.view3D;
+        const show3D = simParams.view3D || simParams.solarSystemOverview;
         if (renderer) renderer.domElement.style.display = show3D ? 'block' : 'none';
         if (show3D) {
-            if (simParams.showOrbit) {
+            if (simParams.showOrbit && !simParams.solarSystemOverview) {
                 refreshSelectedOrbitOcclusion(camera, { earthRadiusScene: EARTH_SCENE_RADIUS });
             }
             renderer.render(scene, camera);
             startupPerf.markOnce('first-visible-globe-render');
-            update3DLabelsPosition(camera, simParams, rotY);
+            if (!simParams.solarSystemOverview) {
+                update3DLabelsPosition(camera, simParams, rotY);
+            }
         } else {
             ['labelXecr','labelYecr','labelZecr','labelNorthPole','labelEquatorLine','labelGreenwichMeridian']
                 .forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
         }
 
         if (mercatorContainer) {
-            if (simParams.viewMercator) {
+            if (simParams.viewMercator && !simParams.solarSystemOverview) {
                 mercatorContainer.style.display = 'block';
                 mercatorContainer.classList.toggle('fullscreen', !show3D);
                 mercatorContainer.classList.toggle('globe-overlay', show3D);

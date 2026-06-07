@@ -42,51 +42,68 @@ function run() {
   const satelliteSection = indexOfOrFail(html, 'id="satelliteAccordionSection"', 'satellite accordion exists');
   const viewSection = indexOfOrFail(html, 'id="viewAccordionSection"', 'view accordion exists');
   const timelinesSection = indexOfOrFail(html, 'id="timelinesAccordionSection"', 'timelines accordion exists');
-  const otherSection = indexOfOrFail(html, 'id="otherAccordionSection"', 'other accordion exists');
   const shareSection = indexOfOrFail(html, 'id="shareAccordionSection"', 'share accordion exists');
   const helpSection = indexOfOrFail(html, 'id="helpAccordionSection"', 'help accordion exists');
+  assert(!html.includes('id="otherAccordionSection"'), 'Other Selections accordion section is removed');
+  assert(!html.includes('id="otherSelectionsContent"'), 'Other Selections content panel is removed');
+  assert(!html.includes('id="otherSelection"'), 'Other Selections dropdown is removed');
   assert(!html.includes('id="settingsAccordionSection"'), 'Settings accordion section is removed');
   assert(!html.includes('data-collapsible-target="settingsContent"'), 'Settings content target is removed');
   assert(
-    viewSection < satelliteSection && satelliteSection < filtersSection && filtersSection < otherSection &&
-      otherSection < timelinesSection && timelinesSection < shareSection && shareSection < helpSection,
-    'accordion section order is Views & Time, Satellite Selection, Filters, Other, Timelines, Share, Help'
+    viewSection < satelliteSection && satelliteSection < filtersSection &&
+      filtersSection < timelinesSection && timelinesSection < shareSection && shareSection < helpSection,
+    'accordion section order is Views & Time, Satellite Selection, Filters, Timelines, Share, Help'
   );
   assert(html.includes('Views &amp; Time'), 'View section is renamed to Views & Time');
 
   const viewContent = indexOfOrFail(html, 'id="viewContent"', 'View content exists');
-  const menuTimeWarpSlider = indexOfOrFail(html, 'id="menuTimeWarpSlider"', 'menu Time x slider exists');
-  const globeToggle = indexOfOrFail(html, 'id="view3DToggle"', 'Globe toggle exists');
-  const mercatorToggle = indexOfOrFail(html, 'id="viewMercatorToggle"', 'Mercator toggle exists');
+  const solarSystemToggle = indexOfOrFail(html, 'id="solarSystemOverviewToggle"', 'Solar System toggle exists');
   const starsMilkyWayToggle = indexOfOrFail(html, 'id="starsMilkyWayToggle"', 'Stars & Milky Way toggle exists');
+  const globeToggle = indexOfOrFail(html, 'id="view3DToggle"', 'Globe toggle exists');
   const highDefToggle = indexOfOrFail(html, 'id="highDefToggle"', 'High Def toggle exists');
   const axesToggle = indexOfOrFail(html, 'id="showECEFAxesToggle"', 'ECEF Axes toggle exists');
+  const mercatorToggle = indexOfOrFail(html, 'id="viewMercatorToggle"', 'Mercator toggle exists');
   const dayNightToggle = indexOfOrFail(html, 'id="showDayNightToggle"', 'Day/Night toggle exists');
+  const solarOptions = indexOfOrFail(html, 'id="solarSystemOptions"', 'Solar System options container exists');
   const starOptions = indexOfOrFail(html, 'id="starsMilkyWayOptions"', 'Stars & Milky Way options container exists');
   const raDecGridToggle = indexOfOrFail(html, 'id="showRaDecGridToggle"', 'RA/Dec Grid toggle exists');
   const brightStarLabelsToggle = indexOfOrFail(html, 'id="showBrightStarLabelsToggle"', 'Bright Labels toggle exists');
   const starAtmosphereToggle = indexOfOrFail(html, 'id="showStarAtmosphereToggle"', 'Atmosphere toggle exists');
-  const starMagnitudeSlider = indexOfOrFail(html, 'id="starMagnitudeLimitSlider"', 'Magnitude limit slider exists');
+  const starCatalogSummary = indexOfOrFail(html, 'id="starCatalogSummary"', 'bundled star catalog summary exists');
   assert(
-    viewContent < menuTimeWarpSlider && menuTimeWarpSlider < globeToggle && globeToggle < mercatorToggle &&
-      mercatorToggle < starsMilkyWayToggle && starsMilkyWayToggle < highDefToggle && highDefToggle < axesToggle &&
-      axesToggle < dayNightToggle && dayNightToggle < starOptions && starOptions < raDecGridToggle &&
+    viewContent < solarSystemToggle && solarSystemToggle < starsMilkyWayToggle && starsMilkyWayToggle < globeToggle &&
+      globeToggle < highDefToggle && highDefToggle < axesToggle && axesToggle < mercatorToggle &&
+      mercatorToggle < dayNightToggle && dayNightToggle < solarOptions && solarOptions < starOptions && starOptions < raDecGridToggle &&
       raDecGridToggle < brightStarLabelsToggle && brightStarLabelsToggle < starAtmosphereToggle &&
-      starAtmosphereToggle < starMagnitudeSlider,
-    'Views & Time menu order is menu Time x slider, Globe/Mercator/Stars, High Def/ECEF/Day-Night, then star sub-controls'
+      starAtmosphereToggle < starCatalogSummary,
+    'Views & Time menu order is Solar/Stars, Globe/HighDef/ECEF, Mercator/Day-Night, then mode sub-controls'
   );
   assert(!html.includes('Use the time slider at the top of the screen to control simulation speed.'), 'old Views & Time slider guidance is removed');
-  assert(html.includes('class="menu-time-warp-control"'), 'Views & Time contains a compact menu time slider control');
-  assert(html.includes('for="menuTimeWarpSlider">Time x</label>'), 'menu time slider uses the Time x label');
-  assert(html.includes('id="menuTimeWarpVal"'), 'menu time slider has a synchronized value display');
-  assert(html.includes('view-control-row view-control-row-three view-primary-row'), 'View menu has a three-item first row');
+  assert(!html.includes('menu-time-warp-control'), 'Views & Time menu Time x slider is removed');
+  assert(!html.includes('menuTimeWarpSlider'), 'menu Time x slider id is removed');
+  assert(!html.includes('menuTimeWarpVal'), 'menu Time x value is removed');
+  assert(html.includes('view-control-row view-control-row-two view-primary-row'), 'View menu has a two-item first row');
+  assert(html.includes('<label><input type="checkbox" id="solarSystemOverviewToggle">Solar System</label>'), 'Solar System is unchecked by default');
   assert(html.includes('<label><input type="checkbox" id="starsMilkyWayToggle">Stars &amp; Milky Way</label>'), 'Stars & Milky Way is unchecked by default');
+  assert(html.includes('<label><input type="checkbox" id="view3DToggle" checked>Globe</label>'), 'Globe remains checked by default');
+  assert(html.includes('<label><input type="checkbox" id="highDefToggle"> High Def.</label>'), 'High Def remains unchecked by default');
+  assert(html.includes('<label><input type="checkbox" id="showECEFAxesToggle"> ECEF Axes</label>'), 'ECEF Axes remains unchecked by default');
+  assert(html.includes('<label><input type="checkbox" id="viewMercatorToggle">Mercator</label>'), 'Mercator remains unchecked by default');
+  assert(html.includes('<label><input type="checkbox" id="showDayNightToggle" checked> Day/Night</label>'), 'Day/Night remains checked by default');
+  assert(html.includes('id="solarSystemOptions" class="solar-system-options" hidden aria-hidden="true"'), 'Solar System sub-controls are hidden by default');
+  assert(html.includes('id="solarSystemPlanetLabelsToggle" checked'), 'Solar System planet labels are enabled by default inside mode');
+  assert(html.includes('id="solarSystemOrbitPathsToggle" checked'), 'Solar System orbit paths are enabled by default inside mode');
+  assert(html.includes('id="solarSystemPlanetTexturesToggle" checked'), 'Solar System planet textures are enabled by default inside mode');
+  assert(html.includes('id="solarSystemSunGlowToggle" checked'), 'Solar System sun glow is enabled by default inside mode');
+  assert(html.includes('solarSystemBackButton'), 'Solar System has a back-to-overview action');
+  assert(html.includes('solarSystemExitButton'), 'Solar System has an exit action');
   assert(html.includes('id="starsMilkyWayOptions" class="stars-milky-way-options" hidden aria-hidden="true"'), 'Stars & Milky Way sub-controls are hidden by default');
   assert(html.includes('<label><input type="checkbox" id="showRaDecGridToggle">RA/Dec Grid</label>'), 'RA/Dec Grid is unchecked by default');
   assert(html.includes('<label><input type="checkbox" id="showBrightStarLabelsToggle">Bright Labels</label>'), 'Bright Labels is unchecked by default');
   assert(html.includes('<label><input type="checkbox" id="showStarAtmosphereToggle">Atmosphere</label>'), 'Atmosphere is unchecked by default');
-  assert(html.includes('id="starMagnitudeLimitSlider" min="4" max="13" step="0.1" value="10"'), 'Magnitude limit defaults to <10 and caps at <13');
-  assert(html.includes('id="starMagnitudeLimitValue">&lt;10.0</span>'), 'Magnitude limit visible value defaults to <10.0');
+  assert(html.includes('id="starCatalogSummary" class="star-catalog-summary" aria-live="polite" hidden aria-hidden="true"'), 'bundled catalog summary is hidden by default');
+  assert(!html.includes('starMagnitudeLimitSlider'), 'main menu no longer exposes a Magnitude limit slider');
+  assert(!html.includes('starMagnitudeLimitValue'), 'main menu no longer exposes a Magnitude limit value');
   assert(html.includes('view-control-row view-control-row-three'), 'View menu keeps a three-item second row');
   assert(!html.includes('view-control-row view-shortcut-row'), 'View menu no longer has a satellite shortcut row');
   assert(html.includes('class="satellite-shortcut-row"'), 'Satellite Selection has a shortcut button row');
@@ -100,9 +117,10 @@ function run() {
   ['viewContent', 'satelliteSelectionContent', 'filtersContent'].forEach(id => {
     assert(indexHtml.includes(`'${id}'`), `${id} starts expanded on launch`);
   });
-  ['otherSelectionsContent', 'timelineContent', 'shareContent', 'helpContent'].forEach(id => {
+  ['timelineContent', 'shareContent', 'helpContent'].forEach(id => {
     assert(indexHtml.includes(`'${id}'`), `${id} starts collapsed on launch`);
   });
+  assert(!indexHtml.includes("'otherSelectionsContent'"), 'removed Other Selections content is not part of accordion defaults');
   assert(!indexHtml.includes("'settingsContent'"), 'settings content is not part of accordion defaults');
   assert(indexHtml.includes('persisted state cannot reopen') || indexHtml.includes('persisted state cannot override'), 'persisted accordion state cannot override launch defaults');
   assert(indexHtml.includes('setAccordionSectionCollapsed(targetId, nextCollapsed, collapsedSections)'), 'accordion toggles only the targeted section');
@@ -152,16 +170,13 @@ function run() {
   assert(!html.includes('id="satelliteInfo"'), 'Satellite Selection no longer contains the detailed metadata/TLE table');
 
   const timelinePanel = indexOfOrFail(html, 'id="timelineContent"', 'timeline content exists');
-  const otherPanel = indexOfOrFail(html, 'id="otherSelectionsContent"', 'other content exists');
   const sharePanel = indexOfOrFail(html, 'id="shareContent"', 'share content exists');
   const helpPanel = indexOfOrFail(html, 'id="helpContent"', 'help content exists');
-  assert(filtersSection < otherPanel && otherPanel < timelinePanel && timelinePanel < sharePanel && sharePanel < helpPanel, 'Filters follows Satellite Selection and Other/Timelines/Share/Help retain order');
+  assert(filtersSection < timelinePanel && timelinePanel < sharePanel && sharePanel < helpPanel, 'Filters follows Satellite Selection and Timelines/Share/Help retain order');
   assert(html.includes('type="checkbox" id="launchTimelineToggle"'), 'launch timeline toggle is a checkbox');
   assert(html.includes('type="checkbox" id="reentryTimelineToggle"'), 're-entry timeline toggle is a checkbox');
-  assert(!html.includes('other-selections-heading'), 'Other Selections header does not use a special text-style class');
-  assert(html.includes('data-collapsible-target="otherSelectionsContent"'), 'Other Selections is collapsible');
-  assert(html.includes('<option value="Mars">Mars</option>'), 'Other Selections includes Mars');
-  assert(html.includes('Earth, Moon, and Mars'), 'Other Selections helper mentions Mars');
+  assert(!html.includes('other-selections-heading'), 'removed Other Selections header has no special text-style class');
+  assert(!html.includes('data-collapsible-target="otherSelectionsContent"'), 'removed Other Selections is not collapsible');
   assert(html.includes('data-collapsible-target="shareContent"'), 'Share section is collapsible');
   assert(html.includes('data-collapsible-target="helpContent"'), 'Help section is collapsible');
   assert(html.includes('id="menuHeaderRow"'), 'menu header row exists');
@@ -235,8 +250,8 @@ function run() {
   assert(css.includes('.selected-satellite-tle-block'), 'selected satellite detail panel styles TLE details');
   assert(css.includes('width: auto;'), 'selected satellite detail panel lets JavaScript sync width to the UTC clock');
   assert(css.includes('#timeWarpBox'), 'time slider has responsive layout CSS');
-  assert(css.includes('.menu-time-warp-control'), 'menu Time x slider has dedicated CSS');
-  assert(css.includes('#menuTimeWarpSlider'), 'menu Time x slider has dedicated slider CSS');
+  assert(!css.includes('.menu-time-warp-control'), 'removed menu Time x slider CSS is gone');
+  assert(!css.includes('#menuTimeWarpSlider'), 'removed menu Time x slider id CSS is gone');
   assert(css.includes('#mercatorContainer.globe-overlay'), 'Globe + Mercator mode has a dedicated Mercator overlay style');
   assert(css.includes('#mercatorContainer.globe-overlay') && css.includes('bottom: 10px;') && css.includes('right: 10px;'), 'Mercator overlay is anchored to the bottom-right of the globe canvas');
   assert(css.includes('top: 50px !important'), 'narrow viewport time slider is moved away from top controls');
@@ -244,8 +259,9 @@ function run() {
   assert(css.includes('.menu-accordion-heading-satellite { border-left-color: #35b9a9; }'), 'Satellite keeps the legacy teal accent');
   assert(css.includes('.menu-accordion-heading-view { border-left-color: #f0b429; }'), 'View keeps the legacy yellow accent');
   assert(css.includes('.menu-accordion-heading-timelines { border-left-color: #d45187; }'), 'Timelines keeps the legacy pink accent');
-  assert(css.includes('.menu-accordion-heading-other { border-left-color: #53a7ff; }'), 'Other keeps the legacy blue accent');
-  assert(!css.includes('.menu-accordion-heading-other:not([aria-expanded="true"])'), 'Other does not override collapsed header text style');
+  assert(!css.includes('.menu-section-other'), 'removed Other Selections section CSS is gone');
+  assert(!css.includes('.menu-accordion-heading-other'), 'removed Other Selections header CSS is gone');
+  assert(!css.includes('.other-selections-panel'), 'removed Other Selections panel CSS is gone');
   assert(!css.includes('.other-selections-heading'), 'Other header special text styling is removed');
   assert(!css.includes('.menu-accordion-heading-settings'), 'Settings accordion accent CSS is removed');
   assert(css.includes('.menu-accordion-heading-share { border-left-color: #6fd08c; }'), 'Share keeps a dedicated legacy-style accent');
@@ -276,18 +292,22 @@ function run() {
   assert(css.includes('@media (max-width: 560px)'), 'menu has narrow viewport behavior');
   assert(css.includes('.view-primary-row'), 'View first row has dedicated Stars & Milky Way CSS');
   assert(css.includes('.view-control-row-three'), 'View rows keep three-column CSS');
+  assert(css.includes('.solar-system-options[hidden]'), 'Solar System sub-controls are hidden by default through CSS');
+  assert(css.includes('.solar-system-selection-summary'), 'Solar System selection summary has dedicated CSS');
+  assert(css.includes('.solar-system-planet-hud'), 'Solar System selected planet HUD has dedicated CSS');
   assert(css.includes('.stars-milky-way-options[hidden]'), 'Stars & Milky Way sub-controls are hidden by default through CSS');
-  assert(css.includes('.star-magnitude-control'), 'Magnitude limit control has dedicated CSS');
+  assert(css.includes('.star-catalog-summary'), 'bundled star catalog summary has dedicated CSS');
+  assert(!css.includes('.star-magnitude-control'), 'removed Magnitude limit control CSS is gone');
   assert(css.includes('font-size: 13px'), 'Stars & Milky Way controls use readable menu text');
   assert(css.includes('.satellite-shortcut-row'), 'Satellite shortcut row has dedicated CSS');
   assert(css.includes('.satellite-shortcut-button'), 'Satellite shortcut buttons have dedicated CSS');
 
   assert(indexHtml.includes('MENU_COLLAPSE_STORAGE_KEY'), 'index persists collapsed accordion sections');
-  assert(indexHtml.includes('menuTimeWarpSlider'), 'index reads the menu Time x slider');
-  assert(indexHtml.includes('menuTimeWarpVal'), 'index reads the menu Time x value');
+  assert(!indexHtml.includes('menuTimeWarpSlider'), 'index no longer reads the removed menu Time x slider');
+  assert(!indexHtml.includes('menuTimeWarpVal'), 'index no longer reads the removed menu Time x value');
   assert(indexHtml.includes('sliderValueToTimeWarp'), 'index converts slider values through a shared helper');
-  assert(indexHtml.includes('updateTimeWarpControls'), 'index synchronizes both Time x sliders');
-  assert(indexHtml.includes('[timeWarpSlider, menuTimeWarpSlider]'), 'canvas and menu Time x sliders share input wiring');
+  assert(indexHtml.includes('updateTimeWarpControls'), 'index keeps the canvas Time x slider synchronized with state');
+  assert(indexHtml.includes('timeWarpSlider?.addEventListener'), 'canvas Time x slider drives simulation speed');
   assert(indexHtml.includes("mercatorContainer.classList.toggle('globe-overlay', show3D)"), 'Mercator overlay class is enabled when Globe and Mercator are both selected');
   assert(indexHtml.includes("mercatorContainer.classList.remove('fullscreen', 'globe-overlay')"), 'Mercator view classes are cleared when Mercator is disabled');
   assert(indexHtml.includes('id="selectedSatelliteDetailPanel"'), 'index defines the selected satellite detail panel');
@@ -395,8 +415,8 @@ function run() {
   assert(indexHtml.includes('function enforceActiveControlTarget()'), 'index defines active camera target priority enforcement');
   assert(indexHtml.includes('controls.target.copy(moon.position)'), 'Moon mode targets the Moon position');
   assert(indexHtml.includes('controls.target.copy(mars.position)'), 'Mars mode targets the Mars position');
-  assert(indexHtml.includes("import { createMars, updateMars } from './js/MarsFrameLoader.js';"), 'index imports Mars frame helpers');
-  assert(indexHtml.includes("textureUrl: 'textures/March.jpg'"), 'index creates Mars with the required local texture');
+  assert(indexHtml.includes("import { MARS_TEXTURE_URL, createMars, updateMars } from './js/MarsFrameLoader.js';"), 'index imports Mars frame helpers and the shared texture path');
+  assert(indexHtml.includes('textureUrl: MARS_TEXTURE_URL'), 'index creates Mars with the shared optimized Mars texture path');
   assert(indexHtml.includes('id="marsTextureLoading"'), 'index includes a Mars texture loading status panel');
   assert(indexHtml.includes('Loading Mars map/texture...'), 'Mars texture loading panel has the required label');
   assert(indexHtml.includes('onTextureLoadProgress: handleMarsTextureProgress'), 'index wires Mars texture progress callbacks');
@@ -413,25 +433,57 @@ function run() {
   assert(indexHtml.includes('MARS_CAMERA_DISTANCE_MULTIPLIER = 1.45'), 'Mars observer starts close to the Mars globe');
   assert(indexHtml.includes('distanceMultiplier: simParams.otherSelection === \'Mars\' ? MARS_CAMERA_DISTANCE_MULTIPLIER : 4'), 'Mars selection uses the closer observer distance');
   assert(indexHtml.includes('mercatorUsesEarthSatellites = simParams.otherSelection !== \'Mars\''), 'Mercator suppresses Earth satellite overlays in Mars context');
-  assert(indexHtml.includes("simParams.otherSelection === 'Mars'"), 'index handles Mars in Other Selections');
+  assert(indexHtml.includes("simParams.otherSelection === 'Mars'"), 'index handles internal Mars context state');
   assert(indexHtml.includes('if (mars) updateMars(mars, SIM_DATE)'), 'index updates Mars each frame');
   assert(indexHtml.includes('updateMars(mars, SIM_DATE);'), 'index initializes Mars position before the first selectable frame');
+  assert(indexHtml.includes("from './js/solarSystemOverviewLoader.js'"), 'index imports the integrated Solar System module');
+  assert(indexHtml.includes('solarSystemOverview: false'), 'Solar System mode is disabled by default in simParams');
+  assert(indexHtml.includes('solarSystemPlanetLabels: true'), 'Solar System planet labels default enabled inside mode');
+  assert(indexHtml.includes('solarSystemOrbitPaths: true'), 'Solar System orbit paths default enabled inside mode');
+  assert(indexHtml.includes('solarSystemPlanetTextures: true'), 'Solar System planet textures default enabled inside mode');
+  assert(indexHtml.includes('solarSystemSunGlow: true'), 'Solar System sun glow default enabled inside mode');
+  assert(indexHtml.includes('function setSolarSystemOverviewMode'), 'index defines explicit Solar System mode state transitions');
+  assert(indexHtml.includes('snapshotSolarSystemPreviousState'), 'Solar System mode stores previous app state');
+  assert(indexHtml.includes('restoreSolarSystemPreviousState'), 'Solar System mode can restore previous app state');
+  assert(indexHtml.includes('setSolarSystemEarthLayerVisibility'), 'Solar System mode gates Earth-specific layers');
+  assert(indexHtml.includes('activateEarthFromSolarSystemSelection'), 'Solar System Earth selection exits to Globe mode');
+  assert(indexHtml.includes('activateMoonFromSolarSystemSelection'), 'Solar System Moon selection exits to Moon mode');
+  assert(indexHtml.includes('activateMarsFromSolarSystemSelection'), 'Solar System Mars selection exits to Mars mode');
+  assert(indexHtml.includes("if (planetName === 'Moon')"), 'Solar System click handling maps Moon to Moon mode');
+  assert(indexHtml.includes('focusSolarSystemPlanetInMode'), 'Solar System can focus non-Earth/Mars planets');
+  assert(indexHtml.includes('pickSolarSystemPlanet'), 'Solar System mode supports planet/label click selection');
+  assert(indexHtml.includes('handleSolarSystemKeydown'), 'Solar System mode supports Escape handling');
+  assert(indexHtml.includes('Solar System Planet'), 'index defines a selected planet HUD');
+  assert(indexHtml.includes('showFootprint: !!simParams.showFootprint && !simParams.solarSystemOverview'), 'Solar System mode suppresses footprints');
+  assert(indexHtml.includes('simParams.viewMercator && !simParams.solarSystemOverview'), 'Solar System mode suppresses Mercator rendering');
+  assert(indexHtml.includes('showSun:  simParams.showDayNight && simParams.view3D && !simParams.solarSystemOverview'), 'Solar System mode suppresses Earth day/night sun layer');
   assert(indexHtml.includes("import { BRIGHT_STARS_DEMO } from './data/stars/bright-stars-demo.js';"), 'index imports the real RA/Dec demo star catalog');
-  assert(indexHtml.includes('MAX_INTEGRATED_STAR_MAGNITUDE_LIMIT'), 'index imports the integrated magnitude limit cap');
+  assert(!indexHtml.includes('MAX_INTEGRATED_STAR_MAGNITUDE_LIMIT'), 'index no longer imports the integrated magnitude limit cap');
   assert(indexHtml.includes('showStarsMilkyWay: false'), 'Stars & Milky Way is disabled by default in simParams');
   assert(indexHtml.includes('showRaDecGrid: false'), 'RA/Dec Grid is disabled by default in simParams');
   assert(indexHtml.includes('showBrightStarLabels: false'), 'Bright Labels is disabled by default in simParams');
   assert(indexHtml.includes('showStarAtmosphere: false'), 'Atmosphere is disabled by default in simParams');
-  assert(indexHtml.includes('starMagnitudeLimit: DEFAULT_STAR_MAGNITUDE_LIMIT'), 'main app star magnitude limit defaults to <10');
+  assert(!indexHtml.includes('starMagnitudeLimit'), 'main app no longer keeps user-facing star magnitude state');
   assert(indexHtml.includes('const MILKY_WAY_TEXTURE_URL = \'obj/Textures/starmap-4k.jpg\''), 'main app uses the local Milky Way texture path');
   assert(indexHtml.includes('function initStarsMilkyWayLayer()'), 'index initializes the optional Stars & Milky Way layer');
   assert(indexHtml.includes('new THREE.Points(geometry, starMaterial)'), 'Stars are rendered as a single THREE.Points layer');
   assert(indexHtml.includes('new THREE.SphereGeometry(STAR_SKY_RADIUS * 1.02'), 'Milky Way renders as a celestial sphere');
   assert(indexHtml.includes('buildStarBufferData(BRIGHT_STARS_DEMO'), 'star field uses the real RA/Dec demo catalog');
+  assert(indexHtml.includes('magnitudeLimit: Number.POSITIVE_INFINITY'), 'main app renders the full bundled star catalog without a user-controlled magnitude limit');
+  assert(indexHtml.includes('starPoints.userData.visibleStarCount = starData.stars.length'), 'main app records visible bundled star count');
+  assert(indexHtml.includes('Displaying ${BRIGHT_STARS_DEMO.length} bundled reference stars'), 'main app computes catalog summary from catalog length');
+  assert(indexHtml.includes('STAR_LABEL_CANVAS_WIDTH = 768'), 'bright star labels use a high-resolution canvas');
+  assert(indexHtml.includes('STAR_LABEL_FONT_PX = 72'), 'bright star labels use readable text size');
+  assert(indexHtml.includes('STAR_LABEL_WORLD_HEIGHT_FACTOR = 0.035'), 'bright star labels use a larger world scale');
+  assert(indexHtml.includes('ctx.strokeText(text'), 'bright star labels draw outlined text for contrast');
+  assert(indexHtml.includes('function updateStarCatalogSummaryVisibility()'), 'index has a dedicated star catalog summary visibility helper');
+  assert(indexHtml.includes('const visible = !!simParams.showStarsMilkyWay && !!simParams.showBrightStarLabels'), 'star catalog summary is shown only when Stars & Milky Way and Bright Labels are enabled');
+  assert(indexHtml.includes('starCatalogSummaryElement.hidden = !visible'), 'star catalog summary hides when either required checkbox is off');
+  assert(indexHtml.includes("starCatalogSummaryElement.setAttribute('aria-hidden', visible ? 'false' : 'true')"), 'star catalog summary updates aria-hidden with visibility');
   assert(indexHtml.includes('function syncStarsMilkyWayControlsVisibility()'), 'index hides/shows star sub-controls');
   assert(indexHtml.includes('starsMilkyWayOptionsElement.hidden = !visible'), 'star sub-controls are hidden when Stars & Milky Way is off');
-  assert(indexHtml.includes('starMagnitudeLimitSliderElement?.addEventListener(\'input\''), 'magnitude limit updates the star field without app reload');
-  assert(indexHtml.includes('MAX_INTEGRATED_STAR_MAGNITUDE_LIMIT'), 'magnitude limit is capped for the integrated main view');
+  assert(!indexHtml.includes('starMagnitudeLimitSliderElement'), 'removed Magnitude limit input listener is gone');
+  assert(indexHtml.includes('const showSky = !!simParams.showStarsMilkyWay && !simParams.solarSystemOverview'), 'Stars & Milky Way main layer is hidden while Solar System mode provides its own sky');
   assert(indexHtml.includes('milkyWaySphere.visible = showSky'), 'Milky Way is visible only when Stars & Milky Way is enabled');
   assert(indexHtml.includes('starPoints.visible = showSky'), 'Star points are visible only when Stars & Milky Way is enabled');
   assert(indexHtml.includes('raDecGrid.visible = showSky && !!simParams.showRaDecGrid'), 'RA/Dec grid depends on Stars & Milky Way and its checkbox');
@@ -440,6 +492,8 @@ function run() {
   assert(indexHtml.includes('controls.target.set(0, 0, 0)'), 'Earth mode targets the Earth center');
   assert(!indexHtml.includes('moon.position.set(0, 0, 0)'), 'Moon mode does not move the Moon object to scene origin');
   assert(!indexHtml.includes('mars.position.set(0, 0, 0)'), 'Mars mode does not move the Mars object to scene origin');
+  assert(marsFrameLoader.includes("MARS_TEXTURE_SOURCE_URL = 'textures/March.jpg'"), 'Mars loader preserves the original source texture path');
+  assert(marsFrameLoader.includes("MARS_TEXTURE_URL = 'textures/March_8k.jpg'"), 'Mars loader uses the optimized browser-safe 8K runtime texture');
   assert(marsFrameLoader.includes('onTextureLoadStart'), 'Mars loader exposes a texture load start callback');
   assert(marsFrameLoader.includes('onTextureLoadProgress'), 'Mars loader exposes texture progress callbacks');
   assert(marsFrameLoader.includes('onTextureLoadComplete'), 'Mars loader exposes texture complete callbacks');

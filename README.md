@@ -15,8 +15,8 @@ OpenBEXI Earth Orbit is a browser-based satellite visualization app built with p
 - Multi-select orbit filters for `ALL`, `GEO`, `MEO`, `LEO`, `HEO`, and `Other`.
 - Multi-select tag/operator filters such as `Starlink`, `One Web`, `SES`, `Intelsat`, `Weather`, and `Iridium`.
 - Debris filtering modes: show all, hide debris, or debris only.
-- Accordion-style menu sections ordered as Views & Time, Satellite Selection, Filters - Satellites Found, Other Selections, Timelines, Share, and Help, preserving the legacy colored section accents with section-matched metallic expanded backgrounds.
-- Deterministic launch defaults: Views & Time, Satellite Selection, and Filters - Satellites Found start expanded, while Other Selections, Timelines, Share, and Help start collapsed.
+- Accordion-style menu sections ordered as Views & Time, Satellite Selection, Filters - Satellites Found, Timelines, Share, and Help, preserving the legacy colored section accents with section-matched metallic expanded backgrounds.
+- Deterministic launch defaults: Views & Time, Satellite Selection, and Filters - Satellites Found start expanded, while Timelines, Share, and Help start collapsed.
 - Optional Python server integration for live local API-backed TLE/satellite metadata loading, with automatic local-file fallback when the server is unavailable and no launch-time offline banner.
 - Aligned top menu header with Close, version/GitHub link, and server connection status in one compact desktop row.
 - Server status indicator with connected, checking, offline, and error states; connected uses `icons/power_green.png`, offline/error uses `icons/power_red.png`, and the status panel shows server URL, data source, version, last load time, and reconnect/refresh.
@@ -36,8 +36,8 @@ OpenBEXI Earth Orbit is a browser-based satellite visualization app built with p
 - Nadir-oriented detailed satellite models: the selected model treats local `+Z` as the Earth-facing axis and points it toward Earth's center before applying yaw/pitch/roll bias.
 - 2D/Mercator selected-satellite UX: selection is highlighted with a clear marker ring instead of applying 3D-only camera-distance behavior.
 - Mercator selected-satellite state uses the selected NORAD ID, so ground tracks and marker rings still render when a detailed 3D model hides the selected sprite.
-- High-definition Earth texture toggle, ECEF axes, Moon/Mars view, launch timeline, and re-entry timeline.
-- Optional Stars & Milky Way view layer in Views & Time, with real RA/Dec demo stars, Milky Way sphere, RA/Dec grid, bright labels, atmosphere, and integrated magnitude limit up to `<13`.
+- High-definition Earth texture toggle, ECEF axes, Moon/Mars context through Solar System selection, launch timeline, and re-entry timeline.
+- Optional Stars & Milky Way view layer in Views & Time, with 46 bundled real RA/Dec reference stars, Milky Way sphere, RA/Dec grid, bright labels, and atmosphere.
 - Selecting non-MEO/GEO satellites automatically enables the high-definition Earth texture while MEO/GEO selections never force it off.
 - Satellite Selection shortcuts can select the first loaded Starlink satellite or ISS/ZARYA through the same camera/model path as the normal satellite selector. The Starlink shortcut displays the resolved NORAD ID as `Starlink (<NORAD ID>)`.
 - Help menu actions provide quick access to the GitHub project, rendered README Markdown, rendered Releases History Markdown, a Markdown license page, and Swagger/API pages that open separately even if the Python server still needs to be started.
@@ -85,9 +85,13 @@ Version 1.5.21 makes the right-side selected-satellite data and TLE sections col
 
 Version 1.5.22 keeps the Earth-centered scene frame fixed: the Earth mesh and ECEF axes remain at `(0, 0, 0)`, panning is disabled so mouse interaction cannot shift the active target, Earth mode targets the origin, Moon mode targets `moon.position` without moving the Moon object to the origin, and selected-satellite tracking keeps priority when a satellite/model is selected. Earth zoom can approach about 100 km above the surface, maximum zoom is a very large finite distance, and the camera far plane is widened for Earth, Moon, LEO, MEO, GEO, HEO, and selected-satellite views. Orbit helper math now uses WGS84 geodetic/ECF calculations, orbit classification distinguishes LEO/MEO/GEO/HEO/Other from mean motion plus eccentricity/inclination when metadata is missing, invalid propagated positions are hidden instead of frozen, and Mercator markers, footprints, coverage overlays, ground tracks, and day/night shading share one Web Mercator projection helper. OB3/O3b satellites intentionally use the standard satellite icon/sprite in the main app; the OB3/O3b detailed model assets are not automatically loaded from satellite selection. Selected detailed model roots now stay at the canonical propagated satellite scene coordinate, while model visual centering is applied only to child geometry, so detailed models and sprite fallbacks remain aligned with the selected red orbit trajectory. Add `?orbitAlignDebug=1` to log selected-model orbit alignment diagnostics.
 
-Version 1.5.23 adds `Mars` to `Other Selections`. Selecting Mars displays a Mars globe, uses the local texture asset `textures/March.jpg`, targets `mars.position` for orbit/zoom controls like Moon mode, starts the observer close to the Mars globe, and preserves the Earth-centered scene frame without moving Earth, Moon, or Mars to the origin. Mars texture loading is silent during initial `index.html` launch while Earth is active. When the user selects Mars, the app shows a centered progress bar labeled `Loading Mars map/texture...`, keeps it visible long enough for fast cached/local loads to be seen, shows a short confirmation state if the texture already loaded silently before selection, hides it after successful load, and reports a fallback message if the texture fails. Mars context also switches the Mercator background to `textures/March.jpg` and suppresses Earth-specific satellite markers, footprints, ground tracks, and day/night shading on the Mars map. The Mars position is an approximate visual model using simplified circular heliocentric Earth-to-Mars relative motion. `textures/March.jpg` is treated as a local project-provided Mars texture; its exact source and license still need to be confirmed.
+Version 1.5.23 adds `Mars` to `Other Selections`. Selecting Mars displays a Mars globe, uses the local source texture asset `textures/March.jpg`, targets `mars.position` for orbit/zoom controls like Moon mode, starts the observer close to the Mars globe, and preserves the Earth-centered scene frame without moving Earth, Moon, or Mars to the origin. Mars texture loading is silent during initial `index.html` launch while Earth is active. When the user selects Mars, the app shows a centered progress bar labeled `Loading Mars map/texture...`, keeps it visible long enough for fast cached/local loads to be seen, shows a short confirmation state if the texture already loaded silently before selection, hides it after successful load, and reports a fallback message if the texture fails. Mars context also switches the Mercator background to the shared Mars texture and suppresses Earth-specific satellite markers, footprints, ground tracks, and day/night shading on the Mars map. The Mars position is an approximate visual model using simplified circular heliocentric Earth-to-Mars relative motion. `textures/March.jpg` is treated as a local project-provided Mars texture source; its exact source and license still need to be confirmed.
 
-Version 1.6 adds an optional `Stars & Milky Way` checkbox to the `Views & Time` row beside `Globe` and `Mercator`. It is unchecked by default. When enabled, the main app displays a Milky Way celestial sphere and real RA/Dec demo-star field without changing the Earth-centered scene, satellites, Moon/Mars behavior, Mercator, orbit, footprint, selected-satellite, timeline, Share, or Help flows. The `RA/Dec Grid`, `Bright Labels`, `Atmosphere`, and `Magnitude limit` controls are visible only while `Stars & Milky Way` is checked. The integrated magnitude limit defaults to `<10.0` and can increase to `<13.0`; magnitude `<18` remains a future external Gaia DR3 tiled/LOD/binary dataset only, not an inline browser dataset.
+Version 1.6 adds an optional `Stars & Milky Way` checkbox to the `Views & Time` row beside `Globe` and `Mercator`. It is unchecked by default. When enabled, the main app displays a Milky Way celestial sphere and real RA/Dec demo-star field without changing the Earth-centered scene, satellites, Moon/Mars behavior, Mercator, orbit, footprint, selected-satellite, timeline, Share, or Help flows. The `RA/Dec Grid`, `Bright Labels`, `Atmosphere`, and `Magnitude limit` controls were introduced for the initial integrated view. Mars now loads the optimized runtime texture `textures/March_8k.jpg` generated from the local source `textures/March.jpg` so WebGL does not resize the original `21339x10670` image at upload time.
+
+Version 1.6.1 removes the integrated main-app `Magnitude limit` slider because the bundled catalog currently contains only 46 stars and the slider does not add useful visual detail. When `Stars & Milky Way` is enabled, the main app displays all 46 bundled reference stars from `data/stars/bright-stars-demo.js` and shows a menu note based on the catalog length. `RA/Dec Grid`, `Bright Labels`, and `Atmosphere` remain hidden until `Stars & Milky Way` is enabled and unchecked by default. Bright Labels remain internally limited to bright stars so the sky is readable. Magnitude filtering can return later when a larger local preprocessed catalog is added.
+
+Version 1.6.2 integrates `Solar System Overview` into the main `Views & Time` section while keeping `SolarSystemOverview.html` available as a standalone debug page. The menu Time x slider is removed; the top/canvas Time x slider remains the single simulation-speed control for Earth and Solar System motion. `Views & Time` now has `Solar System` and `Stars & Milky Way` on the first row, `Globe`, `High Def.`, and `ECEF Axes` on the second row, and `Mercator` plus `Day/Night` on the third row. Solar System mode is off by default, stores the previous Earth/satellite state, hides Earth-specific satellite layers while active, and restores the previous state when exited. The integrated mode uses `js/solarSystemOverviewLoader.js` to render the Sun, orbit paths, readable labels, selected-body highlight/HUD, Saturn rings, and textured Mercury, Venus, Earth, Moon, Mars, Jupiter, Saturn, and Uranus with approximate Kepler/visual positions. Earth selection exits into normal Globe mode, Moon selection exits into the existing Moon-centered mode, Mars selection exits into the existing Mars mode, and other planet selections focus the planet inside Solar System mode. The old `Other Selections` menu section is removed; Earth/Moon/Mars context switching is now reached through Solar System selection. The `Displaying 46 bundled reference stars` menu note is hidden by default and appears only when both `Stars & Milky Way` and `Bright Labels` are checked. Planet textures are local only; Mercury, Venus, Jupiter, Saturn, Uranus, Sun, and Saturn ring visual maps under `textures/planets/` are project-generated procedural visual assets, Earth reuses `textures/earthmap1k.jpg`, Moon reuses `textures/moon_map2.jpg`, and Mars reuses `textures/March_8k.jpg`.
 
 The selected satellite model axis convention is:
 
@@ -106,7 +110,8 @@ For ISS selected models only, the yaw and pitch control inputs are swapped to ma
 - TLE/SGP4 results are suitable for educational visualization and short-term screening, not operational flight dynamics or conjunction assessment.
 - The Moon remains a simplified visual model inside the Earth-centered scene; Moon mode changes the camera target to the Moon center but does not recenter the physical scene frame.
 - Mars remains a simplified visual model inside the Earth-centered scene; Mars mode changes the camera target to the Mars center but does not recenter the physical scene frame.
-- Mars texture: `textures/March.jpg`, local project-provided texture, exact source/license to be confirmed.
+- Mars texture source: `textures/March.jpg`, local project-provided texture, exact source/license to be confirmed.
+- Mars runtime texture: `textures/March_8k.jpg`, optimized to `8192x4096` to stay inside common WebGL maximum texture size limits and avoid Three.js upload-time resizing.
 
 ## 3D Model Asset Matching
 
@@ -147,6 +152,18 @@ http://127.0.0.1:8000/Earth_Stars_MilkyWay.html
 ```
 
 The viewer keeps Earth centered, renders a Milky Way sky sphere, and places stars from real RA/Dec catalog rows using a reusable J2000/ICRS fixed-sphere conversion. The default magnitude limit is `<10`, and the browser slider is capped at `<11.5`. Magnitude `<18` is documented as external-only because Gaia DR3-scale data requires tiled/LOD/binary preprocessing rather than inline HTML. The bundled demo catalog is intentionally small; use `tools/preprocess_star_catalog.py` to convert licensed Tycho-2-style or Gaia-derived CSV exports into browser-friendly RA tiles.
+
+## Solar System Overview
+
+Use `SolarSystemOverview.html` for a standalone experimental Three.js heliocentric overview:
+
+```text
+http://127.0.0.1:8000/SolarSystemOverview.html
+```
+
+The page renders a Sun-centered visual scene with thin colored orbit paths, approximate Kepler positions, readable labels, UTC time, Sun glow, and a star/Milky Way background. It includes Mercury, Venus, Earth, Moon, Mars, Jupiter, Saturn, and Uranus. The main app also integrates Solar System Overview starting in Version 1.6.2; the standalone page remains useful as a focused debug/inspection page.
+
+Planet texture attribution: the integrated Solar System mode uses local project-generated procedural visual maps for Mercury, Venus, Jupiter, Saturn, Uranus, Sun, and Saturn rings under `textures/planets/`. These are visual approximations, not authoritative planetary maps. Earth reuses the existing project texture `textures/earthmap1k.jpg`; Mars reuses `textures/March_8k.jpg`, generated from the local project Mars source texture. No planet texture is fetched remotely at runtime.
 
 ## Requirements
 
@@ -244,12 +261,11 @@ The timing summary includes lifecycle and app-specific marks such as `dom-conten
 
 ## Menu Usage
 
-The left menu is organized into compact colored accordion sections. Multiple sections can stay open at the same time; expanding one section does not collapse any other section. `Views & Time`, `Satellite Selection`, and `Filters - Satellites Found` start expanded when `index.html` loads; `Other Selections`, `Timelines`, `Share`, and `Help` start collapsed. Older local accordion state cannot override those launch defaults on refresh. Expanded panels use section-matched metallic gradients, and the live satellite count in the Filters header is red and bold.
+The left menu is organized into compact colored accordion sections. Multiple sections can stay open at the same time; expanding one section does not collapse any other section. `Views & Time`, `Satellite Selection`, and `Filters - Satellites Found` start expanded when `index.html` loads; `Timelines`, `Share`, and `Help` start collapsed. Older local accordion state cannot override those launch defaults on refresh. Expanded panels use section-matched metallic gradients, and the live satellite count in the Filters header is red and bold.
 
-- `Views & Time`: a menu `Time x` slider synchronized with the existing canvas-top `Time x` slider, globe/Mercator controls on one row, and high-definition texture/ECEF axes/day-night controls on the next row.
+- `Views & Time`: Solar System and Stars & Milky Way controls, Globe/High Def./ECEF Axes, Mercator/Day-Night, plus mode-specific sub-controls. The top/canvas `Time x` slider is the single simulation-speed control.
 - `Satellite Selection`: searchable satellite selector, Starlink/ISS shortcut buttons, selected-satellite status, and satellite-specific Yaw-Pitch-Roll, footprint, show-only, LVLH frame, and orbit controls that appear only after a satellite is selected. Detailed metadata and TLE lines are not duplicated in the menu.
 - `Filters - Satellites Found`: orbit, tag, debris filters, active summary, dynamic found count, and reset action.
-- `Other Selections`: Earth/Moon/Mars context selection.
 - `Timelines`: checkbox toggles for launch and re-entry timelines.
 - `Share`: copy or natively share a safe URL that restores supported app state after satellite data loads, plus preview, download, or copy an image of the current canvas when the browser supports it.
 - `Help`: GitHub, rendered README, rendered Releases History, Markdown Licenses, Swagger, API, and the app disclaimer.
@@ -267,6 +283,7 @@ The Help section opens Swagger and API documentation in separate pages using the
 - `index.html`: Main browser app and integration point for rendering, controls, selection, and animation.
 - `display_satellite.html`: Manifest-backed isolated local OBJ/MTL and GLB viewer for direct satellite model visibility checks.
 - `Earth_Stars_MilkyWay.html`: Standalone Three.js Earth, Milky Way, and real RA/Dec star-field viewer.
+- `SolarSystemOverview.html`: Standalone experimental Three.js heliocentric solar-system overview.
 - `markdown_viewer.html`: Static rendered Markdown viewer used by Help for README and Releases History.
 - `css/`: Styling for the app, menu, filters, labels, and map layout.
 - `js/`: Browser modules for coordinates, satellite loading, models, menu, footprints, frames, day/night, Moon/Mars, timelines, and map rendering.
@@ -277,6 +294,7 @@ The Help section opens Swagger and API documentation in separate pages using the
 - `json/display_satellite_models.json`: Model manifest used by `display_satellite.html`.
 - `data/stars/`: Small real-star demo catalog and optional preprocessed star tiles.
 - `textures/`: Earth, Moon, Mars, satellite, and material textures.
+- `textures/planets/`: Local project-generated procedural visual maps for integrated Solar System Overview planets and rings.
 - `icons/`: Satellite and UI icon assets.
 - `obj/`: OBJ, MTL, and GLB satellite model assets.
 - `tests/`: Node-based deterministic regression tests.

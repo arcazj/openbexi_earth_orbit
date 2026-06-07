@@ -590,6 +590,15 @@ canvas {
     display: none !important;
 }
 
+.solar-system-planet-hud {
+    border-color: rgba(255, 211, 107, 0.38);
+    background: linear-gradient(180deg, rgba(20, 15, 5, 0.74), rgba(3, 8, 16, 0.54));
+}
+
+.solar-system-planet-hud .selected-satellite-detail-header strong {
+    color: #ffe58a;
+}
+
 .selected-satellite-detail-header {
     display: grid;
     gap: 2px;
@@ -754,40 +763,6 @@ canvas {
     max-width: min(200px, calc(100vw - 300px));
 }
 
-.menu-time-warp-control {
-    display: grid;
-    grid-template-columns: auto minmax(120px, 1fr) auto auto;
-    align-items: center;
-    gap: 7px;
-    width: 100%;
-    padding: 6px 8px;
-    border: 1px solid rgba(240, 180, 41, 0.38);
-    border-radius: 8px;
-    background: linear-gradient(135deg, rgba(255, 248, 201, 0.18), rgba(240, 180, 41, 0.08));
-    color: #ffffff;
-    box-sizing: border-box;
-}
-
-.menu-time-warp-control label {
-    white-space: nowrap;
-    font-size: 12px;
-    font-weight: 800;
-    color: #fff3a8;
-    text-shadow: 0 1px 2px #000;
-}
-
-#menuTimeWarpSlider {
-    width: 100%;
-    min-width: 0;
-}
-
-#menuTimeWarpVal {
-    min-width: 2ch;
-    text-align: right;
-    font-weight: 800;
-    color: #ffffff;
-}
-
 /* Release 1.5.3 accordion menu and readability */
 :root {
     --menu-bg: rgba(24, 28, 34, 0.94);
@@ -857,11 +832,6 @@ canvas {
     --section-panel-bg: linear-gradient(180deg, rgba(154, 255, 237, 0.22), rgba(9, 46, 42, 0.58) 62%, rgba(4, 11, 17, 0.76));
 }
 
-.menu-section-other {
-    --section-metal: var(--menu-metal-blue);
-    --section-panel-bg: linear-gradient(180deg, rgba(83, 167, 255, 0.24), rgba(9, 34, 68, 0.58) 62%, rgba(5, 10, 18, 0.76));
-}
-
 .menu-section-timelines {
     --section-metal: var(--menu-metal-pink);
     --section-panel-bg: linear-gradient(180deg, rgba(255, 174, 209, 0.22), rgba(68, 12, 39, 0.58) 62%, rgba(14, 6, 13, 0.76));
@@ -880,7 +850,6 @@ canvas {
 .menu-accordion-heading-satellite { border-left-color: #35b9a9; }
 .menu-accordion-heading-view { border-left-color: #f0b429; }
 .menu-accordion-heading-timelines { border-left-color: #d45187; }
-.menu-accordion-heading-other { border-left-color: #53a7ff; }
 .menu-accordion-heading-share { border-left-color: #6fd08c; }
 
 #controlsContainer h3.menu-accordion-heading[aria-expanded="true"] {
@@ -1081,12 +1050,14 @@ canvas {
 }
 
 .view-primary-row label,
-.star-view-control-row label {
+.star-view-control-row label,
+.solar-system-control-row label {
     font-size: 13px;
     font-weight: 800;
 }
 
-.stars-milky-way-options {
+.stars-milky-way-options,
+.solar-system-options {
     display: grid;
     gap: 7px;
     margin-top: 7px;
@@ -1096,36 +1067,41 @@ canvas {
     background: linear-gradient(135deg, rgba(22, 40, 75, 0.34), rgba(6, 14, 28, 0.22));
 }
 
-.stars-milky-way-options[hidden] {
+.stars-milky-way-options[hidden],
+.solar-system-options[hidden] {
     display: none !important;
 }
 
-.star-magnitude-control {
+.star-catalog-summary {
+    color: #ffe58a;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+}
+
+.solar-system-action-row {
     display: grid;
-    gap: 5px;
-    color: #e8f5ff;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
 }
 
-.star-magnitude-control label {
-    display: flex !important;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    margin: 0 !important;
-    color: #d7ecff !important;
-    font-size: 13px !important;
-    font-weight: 800 !important;
-}
-
-.star-magnitude-control input[type="range"] {
+.solar-system-action-row .menu-secondary-action {
     width: 100%;
     min-width: 0;
-    accent-color: #8fd0ff;
+    padding-inline: 6px;
+    font-size: 11px;
+    line-height: 1.15;
 }
 
-#starMagnitudeLimitValue {
+.solar-system-selection-summary {
+    border: 1px solid rgba(255, 211, 107, 0.26);
+    border-radius: 8px;
+    padding: 6px 7px;
+    background: rgba(255, 190, 80, 0.08);
     color: #ffe58a;
-    white-space: nowrap;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.25;
 }
 
 .satellite-shortcut-button {
@@ -1163,13 +1139,6 @@ canvas {
 .ypr-slider-grid input[type="range"] {
     width: 100%;
     min-width: 0;
-}
-
-.other-selections-panel {
-    border: 1px solid rgba(83, 167, 255, 0.24);
-    border-radius: 8px;
-    padding: 8px;
-    background: rgba(8, 32, 61, 0.34);
 }
 
 .menu-accordion-heading-help { border-left-color: #a98cff; }

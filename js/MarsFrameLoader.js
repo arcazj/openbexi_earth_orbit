@@ -5,7 +5,8 @@ import * as THREE from 'three';
 import { KM_TO_SCENE_UNITS } from './SatelliteConstantLoader.js';
 import { eciToSceneVector, sceneCoordinatesFromEciKm } from './sceneFrame.js';
 
-export const MARS_TEXTURE_URL = 'textures/March.jpg';
+export const MARS_TEXTURE_SOURCE_URL = 'textures/March.jpg';
+export const MARS_TEXTURE_URL = 'textures/March_8k.jpg';
 export const MARS_MEAN_RADIUS_KM = 3389.5;
 export const EARTH_ORBIT_RADIUS_KM = 149_597_870.7;
 export const MARS_ORBIT_RADIUS_KM = 227_939_200;

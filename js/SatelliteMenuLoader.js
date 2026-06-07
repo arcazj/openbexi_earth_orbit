@@ -17,7 +17,7 @@ export function satelliteMenuLoader() {
           <div><span>Server URL</span><strong id="serverStatusUrl">http://127.0.0.1:8000</strong></div>
           <div><span>Connection</span><strong id="serverStatusState">Checking</strong></div>
           <div><span>Data source</span><strong id="serverDataSource">Local files</strong></div>
-          <div><span>App version</span><strong id="serverAppVersion">1.6</strong></div>
+          <div><span>App version</span><strong id="serverAppVersion">1.6.2</strong></div>
           <div><span>API version</span><strong id="serverApiVersion">Unavailable</strong></div>
           <div><span>Last data load</span><strong id="serverLastSync">Never</strong></div>
           <button id="serverReconnectButton" type="button" class="menu-secondary-action server-reconnect-button">Reconnect / Refresh</button>
@@ -33,20 +33,33 @@ export function satelliteMenuLoader() {
         </h3>
 
         <div id="viewContent" class="collapsible-content view-option-grid" aria-labelledby="viewAccordionHeader">
-          <div class="menu-time-warp-control" aria-label="Menu simulation speed control">
-            <label for="menuTimeWarpSlider">Time x</label>
-            <input type="range" id="menuTimeWarpSlider" min="0" max="60" step="1" value="0" aria-label="Time speed multiplier" title="Time speed multiplier">
-            <span id="menuTimeWarpVal">0</span><span aria-hidden="true">x</span>
-          </div>
-          <div class="view-control-row view-control-row-three view-primary-row">
-            <label><input type="checkbox" id="view3DToggle" checked>Globe</label>
-            <label><input type="checkbox" id="viewMercatorToggle">Mercator</label>
+          <div class="view-control-row view-control-row-two view-primary-row">
+            <label><input type="checkbox" id="solarSystemOverviewToggle">Solar System</label>
             <label><input type="checkbox" id="starsMilkyWayToggle">Stars &amp; Milky Way</label>
           </div>
           <div class="view-control-row view-control-row-three">
+            <label><input type="checkbox" id="view3DToggle" checked>Globe</label>
             <label><input type="checkbox" id="highDefToggle"> High Def.</label>
             <label><input type="checkbox" id="showECEFAxesToggle"> ECEF Axes</label>
+          </div>
+          <div class="view-control-row view-control-row-two">
+            <label><input type="checkbox" id="viewMercatorToggle">Mercator</label>
             <label><input type="checkbox" id="showDayNightToggle" checked> Day/Night</label>
+          </div>
+          <div id="solarSystemOptions" class="solar-system-options" hidden aria-hidden="true">
+            <div class="view-control-row view-control-row-two solar-system-control-row">
+              <label><input type="checkbox" id="solarSystemPlanetLabelsToggle" checked>Planet Labels</label>
+              <label><input type="checkbox" id="solarSystemOrbitPathsToggle" checked>Orbit Paths</label>
+            </div>
+            <div class="view-control-row view-control-row-two solar-system-control-row">
+              <label><input type="checkbox" id="solarSystemPlanetTexturesToggle" checked>Planet Textures</label>
+              <label><input type="checkbox" id="solarSystemSunGlowToggle" checked>Sun Glow</label>
+            </div>
+            <div class="solar-system-action-row">
+              <button id="solarSystemBackButton" type="button" class="menu-secondary-action">Back to Solar System Overview</button>
+              <button id="solarSystemExitButton" type="button" class="menu-secondary-action">Exit Solar System Overview</button>
+            </div>
+            <div id="solarSystemSelectionSummary" class="solar-system-selection-summary" aria-live="polite">Solar System overview mode</div>
           </div>
           <div id="starsMilkyWayOptions" class="stars-milky-way-options" hidden aria-hidden="true">
             <div class="view-control-row view-control-row-three star-view-control-row">
@@ -54,10 +67,7 @@ export function satelliteMenuLoader() {
               <label><input type="checkbox" id="showBrightStarLabelsToggle">Bright Labels</label>
               <label><input type="checkbox" id="showStarAtmosphereToggle">Atmosphere</label>
             </div>
-            <div class="star-magnitude-control" aria-label="Stars and Milky Way magnitude limit">
-              <label for="starMagnitudeLimitSlider">Magnitude limit <span id="starMagnitudeLimitValue">&lt;10.0</span></label>
-              <input type="range" id="starMagnitudeLimitSlider" min="4" max="13" step="0.1" value="10" aria-label="Magnitude limit for Stars and Milky Way">
-            </div>
+            <div id="starCatalogSummary" class="star-catalog-summary" aria-live="polite" hidden aria-hidden="true">Displaying bundled reference stars</div>
           </div>
         </div>
       </section>
@@ -160,22 +170,6 @@ export function satelliteMenuLoader() {
               <button type="button" class="segmented-option" data-debris-filter="only" aria-pressed="false">Debris only</button>
             </div>
           </div>
-        </div>
-      </section>
-
-      <section id="otherAccordionSection" class="menu-accordion-section menu-section-other">
-        <h3 id="otherAccordionHeader" role="button" tabindex="0" aria-controls="otherSelectionsContent" aria-expanded="false" data-collapsible-target="otherSelectionsContent" class="section-heading menu-accordion-heading menu-accordion-heading-other" data-default-collapsed="true">
-          <span>Other Selections</span>
-          <span class="toggle-icon">v</span>
-        </h3>
-        <div id="otherSelectionsContent" class="collapsible-content other-selections-panel collapsed" aria-labelledby="otherAccordionHeader">
-          <label for="otherSelection" class="section-subtitle">Other Selections:</label>
-          <div class="menu-helper">Switch the observer context between Earth, Moon, and Mars without changing the app mode.</div>
-          <select id="otherSelection">
-            <option value="Earth">Earth</option>
-            <option value="Moon">Moon</option>
-            <option value="Mars">Mars</option>
-          </select>
         </div>
       </section>
 

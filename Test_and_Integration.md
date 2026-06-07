@@ -62,9 +62,13 @@ Version 1.5.21 makes the right-side selected-satellite data and TLE details inde
 
 Version 1.5.22 keeps the Earth-centered scene frame fixed, disables OrbitControls panning, keeps Earth mode targeted at `(0, 0, 0)`, keeps Moon mode targeted at `moon.position` without moving the Moon object to the origin, and preserves selected-satellite target priority. It allows Earth zoom to approximately 100 km above the surface, uses a large finite maximum zoom and far clipping plane, replaces spherical helper math with WGS84 geodetic/ECF calculations, distinguishes GEO/MEO/LEO/HEO/Other orbit classes without treating every slow object as GEO, filters invalid propagated positions out of visible sprites/paths, and makes Mercator markers, ground tracks, footprints, coverage overlays, and day/night shading use one Web Mercator helper. OB3/O3b satellites use the standard satellite icon/sprite in the main app and do not automatically load the OB3/O3b detailed model. Selected detailed model roots remain fixed to the canonical propagated satellite scene coordinate, model centering is applied only to child geometry, hidden selected sprites are synchronized with the same propagated coordinate, and `orbitAlignDebug` can log orbit alignment diagnostics. It documents that `satellite.js` returns TEME-like coordinates and the app treats them as ECI-like visualization coordinates unless a higher-fidelity transform is implemented later.
 
-Version 1.5.23 adds `Mars` to `Other Selections`. Mars mode displays a Mars globe using the local texture `textures/March.jpg`, targets `mars.position` for orbit/zoom controls like Moon mode, preserves the Earth-centered frame, does not move Earth/Moon/Mars to `(0, 0, 0)`, and documents that the Mars texture is local project-provided with exact source/license to be confirmed.
+Version 1.5.23 adds `Mars` to `Other Selections`. Mars mode displays a Mars globe using the local source texture `textures/March.jpg`, targets `mars.position` for orbit/zoom controls like Moon mode, preserves the Earth-centered frame, does not move Earth/Moon/Mars to `(0, 0, 0)`, and documents that the Mars texture is local project-provided with exact source/license to be confirmed.
 
-Version 1.6 adds the optional `Stars & Milky Way` view layer to the main `index.html` app. `Stars & Milky Way` is placed in Views & Time beside `Globe` and `Mercator`, remains unchecked by default, and reveals `RA/Dec Grid`, `Bright Labels`, `Atmosphere`, and `Magnitude limit` controls only while enabled. The integrated magnitude limit defaults to `<10.0`, can increase to `<13.0`, uses the bundled real RA/Dec demo catalog, and keeps magnitude `<18` as external Gaia DR3 tiled/LOD/binary future work only. Regression checks must confirm existing Earth, Moon, Mars, satellite, Mercator, server, Help, Share, timeline, selected-satellite, orbit, footprint, and model-loading behavior remains unchanged.
+Version 1.6 adds the optional `Stars & Milky Way` view layer to the main `index.html` app. `Stars & Milky Way` is placed in Views & Time beside `Globe` and `Mercator`, remains unchecked by default, and reveals `RA/Dec Grid`, `Bright Labels`, `Atmosphere`, and initial magnitude controls only while enabled. Mars now loads optimized `textures/March_8k.jpg` generated from local source `textures/March.jpg` to avoid WebGL upload-time resizing of the oversized source texture. Regression checks must confirm existing Earth, Moon, Mars, satellite, Mercator, server, Help, Share, timeline, selected-satellite, orbit, footprint, and model-loading behavior remains unchanged.
+
+Version 1.6.1 removes the integrated `Magnitude limit` slider from the main app because the bundled catalog currently contains 46 reference stars and the slider does not add useful visual detail. The integrated `Stars & Milky Way` view renders all 46 bundled real RA/Dec stars from `data/stars/bright-stars-demo.js`, shows a catalog summary computed from `BRIGHT_STARS_DEMO.length`, keeps `RA/Dec Grid`, `Bright Labels`, and `Atmosphere` hidden until enabled, and keeps Bright Labels internally limited to bright stars for readability. Standalone `Earth_Stars_MilkyWay.html` may keep its own magnitude controls for experimentation.
+
+Version 1.6.2 integrates Solar System Overview into the main app while keeping `SolarSystemOverview.html` as a standalone debug page. `Views & Time` removes the menu Time x slider and keeps the top/canvas Time x slider as the single simulation-speed control. The new layout is row 1: `Solar System`, `Stars & Milky Way`; row 2: `Globe`, `High Def.`, `ECEF Axes`; row 3: `Mercator`, `Day/Night`. Solar System mode is off by default, stores the previous Earth/satellite state, hides Earth-specific satellite layers while active, and restores state on exit. It renders textured Mercury, Venus, Earth, Moon, Mars, Jupiter, Saturn, and Uranus with local textures, orbit paths, labels, Sun glow, Saturn rings, selected-body HUD/highlight, and approximate Kepler/visual positions. Earth selection exits to normal Globe mode, Moon selection exits to existing Moon-centered mode, Mars selection exits to existing Mars mode, and other planet selections focus inside Solar System mode. The old `Other Selections` menu section is removed; Earth/Moon/Mars context switching is preserved through Solar System selection. The `Displaying 46 bundled reference stars` summary appears only when both `Stars & Milky Way` and `Bright Labels` are checked.
 
 ## Test Environment
 
@@ -144,7 +148,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test Moon mode does not move the Moon object to `(0, 0, 0)`.
 - Test Mars mode keeps Mars visually centered by using `controls.target = mars.position`.
 - Test Mars mode does not move Earth, Moon, or Mars to `(0, 0, 0)`.
-- Test Mars uses the local texture asset `textures/March.jpg`.
+- Test Mars keeps the local source texture asset `textures/March.jpg` and loads optimized runtime texture `textures/March_8k.jpg`.
 - Test selected-satellite target priority still works while Earth/Moon target enforcement is active.
 - Test Earth minimum zoom is `EARTH_SCENE_RADIUS + metersToSceneUnits(100000)`.
 - Test maximum zoom is finite and very large.
@@ -201,14 +205,44 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 
 - Test Mars position returns finite scene coordinates.
 - Test Mars distance stays within a plausible simplified Earth-to-Mars range.
-- Test Mars uses `textures/March.jpg` and does not fetch remote textures at runtime.
+- Test Mars uses local project textures and does not fetch remote textures at runtime.
 - Test Version 1.6 Stars & Milky Way controls are added without changing existing Views & Time control order except the explicit new checkbox beside Globe and Mercator.
-- Test Stars & Milky Way is unchecked by default and its RA/Dec Grid, Bright Labels, Atmosphere, and Magnitude limit controls are hidden by default.
+- Test Stars & Milky Way is unchecked by default and its RA/Dec Grid, Bright Labels, and Atmosphere controls are hidden by default.
 - Test checking Stars & Milky Way reveals the sub-controls, keeps them unchecked by default, and renders the star field/Milky Way only when enabled.
-- Test integrated Magnitude limit defaults to `<10.0`, caps at `<13.0`, and updates the star field without app reload.
+- Test Version 1.6.1 removes the integrated Magnitude limit slider and renders all 46 bundled reference stars.
+- Test the star-options panel shows a catalog summary computed from `BRIGHT_STARS_DEMO.length`.
 - Test magnitude `<18` is documented as external Gaia DR3 tiled/LOD/binary future work only.
 - Test Mars mode targets `mars.position` and preserves Earth-centered scene coordinates.
 - Document that the Mars position and texture provenance are approximate/local unless later replaced with a verified source.
+
+### Solar System Overview Integration
+
+- Test Version 1.6.2 `Views & Time` row order and defaults: `Solar System` unchecked, `Stars & Milky Way` unchecked; `Globe` checked, `High Def.` unchecked, `ECEF Axes` unchecked; `Mercator` unchecked, `Day/Night` checked.
+- Test the menu Time x slider is removed and the top/canvas Time x slider remains functional.
+- Test `js/solarSystemOverviewLoader.js` defines Mercury, Venus, Earth, Moon, Mars, Jupiter, Saturn, and Uranus.
+- Test every integrated planet has a local texture path, no remote runtime URL, fallback material, SRGB color space handling, anisotropy handling, and browser-safe dimensions.
+- Test `Other Selections` is absent from the menu and from default accordion collapse state.
+- Test the `Displaying 46 bundled reference stars` summary is hidden by default and appears only when `Stars & Milky Way` and `Bright Labels` are both checked.
+- Test Solar System mode is off on startup and normal Earth satellite view remains active.
+- Test enabling Solar System mode hides Earth-specific satellite sprites, selected model, selected orbit path, footprints, LVLH/YPR frames, Mercator overlay, and selected-satellite panel.
+- Test exiting Solar System mode restores previous Earth/satellite state without mutating TLE data, filters, or satellite lists.
+- Test selecting Earth from Solar System mode exits to normal Globe mode.
+- Test selecting Moon from Solar System mode exits to existing Moon-centered mode and targets `moon.position`.
+- Test selecting Mars from Solar System mode exits to existing Mars mode and preserves Mars progress/target behavior.
+- Test selecting Mercury, Venus, Jupiter, Saturn, or Uranus keeps Solar System mode active, focuses the selected planet, shows a HUD, and can return to overview.
+- Test Solar System body motion is driven from shared `SIM_DATE`, which is advanced by the top/canvas `Time x` slider through `simParams.timeWarp`.
+- Test Escape exits selected-planet focus or Solar System mode where practical.
+- Test Version 1.6.1 Stars & Milky Way behavior remains: no integrated magnitude slider, 46 bundled stars, readable Bright Labels.
+
+### Standalone Solar System Overview
+
+- Test `SolarSystemOverview.html` exists as a standalone page.
+- Test it uses Three.js `0.184.0` and `OrbitControls`.
+- Test it defines Mercury, Venus, Earth, Moon, Mars, Jupiter, Saturn, and Uranus.
+- Test it renders orbit paths, planet markers, readable labels, a Sun glow, and a UTC clock.
+- Test it reuses local star/Milky Way assets when available and has a procedural star fallback.
+- Test it does not use or display external third-party logos or watermarks.
+- Test it remains available as a standalone debug page after the main app integration.
 
 ### Satellite Model Scaling
 
@@ -267,16 +301,16 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test the Orbit filter includes `ALL`, `GEO`, `MEO`, `LEO`, `HEO`, and `Other`.
 - Test the filter menu does not contain an `Active` button/control.
 - Test generated company/tag chips exclude `Active`, not only the static markup.
-- Test the `Views & Time` section has one collapsible container containing the menu `Time x` slider, Globe, Mercator, High Def., ECEF Axes, Day/Night controls, and shortcuts.
-- Test the menu `Time x` slider and canvas-top `Time x` slider stay synchronized in both directions and update one shared simulation-speed state.
+- Test the `Views & Time` section has one collapsible container containing Solar System, Stars & Milky Way, Globe, Mercator, High Def., ECEF Axes, Day/Night controls, and mode-specific sub-controls, with no menu `Time x` slider.
+- Test the top/canvas `Time x` slider updates the shared simulation-speed state after the Version 1.6.2 menu layout change.
 - Test menu CSS keeps the narrowed menu width, legacy colored accordion headers, and scrollable long panels.
 - Test the vertical tab rail is removed and the menu uses stacked accordion sections.
-- Test accordion section order is `Views & Time`, `Satellite Selection`, `Filters - Satellites Found`, `Other Selections`, `Timelines`, `Share`, `Help`.
+- Test accordion section order is `Views & Time`, `Satellite Selection`, `Filters - Satellites Found`, `Timelines`, `Share`, `Help`.
 - Test the Settings accordion section is absent.
 - Test multiple accordion sections can be open simultaneously.
 - Test expanding one accordion section does not collapse another section.
 - Test `Views & Time`, `Satellite Selection`, and `Filters - Satellites Found` are expanded on initial page load.
-- Test `Other Selections`, `Timelines`, `Share`, and `Help` are collapsed on initial page load.
+- Test `Timelines`, `Share`, and `Help` are collapsed on initial page load.
 - Test persisted accordion state cannot override the required launch defaults on initial page load.
 - Test the visible text `Use the time slider at the top of the screen to control simulation speed.` is absent.
 - Test the visible text `Orbit filter (multi-select): Choose one or more orbit families. ALL enables every orbit category.` is absent while orbit filter controls remain usable.
@@ -307,7 +341,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test selected-satellite camera metadata confirms Earth remains visible in the selected observer frame.
 - Test the Starlink shortcut dynamic state helper emits `Starlink (<NORAD ID>)` for a resolved Starlink target and `Starlink unavailable` when no target exists.
 - Test the ISS shortcut dynamic state helper emits `ISS` for a resolved ISS target and `ISS unavailable` when no target exists.
-- Test generated menu markup contains `Other Selections` immediately after `Satellite Selection`.
+- Test generated menu markup does not contain `Other Selections`.
 - Test generated menu markup contains `Share` immediately after `Timelines` and before `Help`.
 - Test the server status icon exposes connected, checking, disconnected, and error states through CSS and accessible text.
 - Test connected status uses `icons/power_green.png` and disconnected/error status uses `icons/power_red.png`.
@@ -329,7 +363,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 ### Server Data Path
 
 - Test `/api/health` returns status `ok` and version metadata.
-- Test `/api/version` returns app/API version `1.6` and release date `2026-06-07`.
+- Test `/api/version` returns app/API version `1.6.2` and release date `2026-06-07`.
 - Test `/api/tle` and `/api/satellites` return valid TLE records with `norad_id`, `tle_line1`, and `tle_line2`.
 - Test `/api/satellite-metadata` lists known metadata files.
 - Test `/api/satellite-metadata/starlink_V1.json` returns one known metadata payload.
@@ -385,11 +419,11 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm the left menu is thinner than Version 1.5.1 but still usable on desktop and narrow viewports.
 - Confirm the `Filters - Satellites Found` numeric count is red and bold in both expanded and collapsed filter states.
 - Confirm `Views & Time`, `Satellite Selection`, and `Filters - Satellites Found` start expanded on every `index.html` load, even after previously changing accordion states.
-- Confirm `Other Selections`, `Timelines`, `Share`, and `Help` start collapsed on every `index.html` load.
+- Confirm `Timelines`, `Share`, and `Help` start collapsed on every `index.html` load.
 - Confirm the Settings accordion section is not present.
 - Confirm multiple accordion sections can stay open at the same time.
 - Confirm selecting filters, tags, debris modes, timelines, and view toggles does not collapse unrelated accordion sections.
-- Confirm the accordion order is `Views & Time`, `Satellite Selection`, `Filters - Satellites Found`, `Other Selections`, `Timelines`, `Share`, `Help`.
+- Confirm the accordion order is `Views & Time`, `Satellite Selection`, `Filters - Satellites Found`, `Timelines`, `Share`, `Help`.
 - Confirm `Satellite Selection` appears immediately under `Views & Time`.
 - Confirm `Filters - Satellites Found` appears immediately under `Satellite Selection`.
 - Confirm the visible orbit-filter helper text `Orbit filter (multi-select): Choose one or more orbit families. ALL enables every orbit category.` is gone.
@@ -422,9 +456,9 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm the Starlink shortcut label updates to `Starlink (<NORAD ID>)` after TLE data loads.
 - Confirm the Starlink shortcut shows `Starlink unavailable` if no Starlink target can be resolved.
 - Confirm the ISS shortcut shows `ISS unavailable` if no ISS target can be resolved.
-- Confirm `Other Selections` appears immediately after `Filters - Satellites Found`.
+- Confirm `Timelines` appears immediately after `Filters - Satellites Found`.
 - Confirm `Share` appears immediately after `Timelines` and immediately before `Help`.
-- Confirm `Close`, `Version 1.6 - hosted at GitHub Repo`, and the server status icon/text are aligned on one compact row on desktop.
+- Confirm `Close`, `Version 1.6.2 - hosted at GitHub Repo`, and the server status icon/text are aligned on one compact row on desktop.
 - Confirm the version/GitHub text is centered in the menu header.
 - Confirm the server status indicator appears above the accordion menu and does not shift layout when changing between checking, offline, connected, and error states.
 - Confirm connected status uses `power_green.png` and offline/error status uses `power_red.png`.
@@ -465,7 +499,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm beam, footprint, satellite marker, Earth rendering, filters, timelines, YPR controls, and view controls still work.
 - Confirm dense panels, satellite metadata, and search results scroll internally after menu narrowing.
 - Confirm the vertical tab rail is gone.
-- Confirm the left menu shows stacked accordion sections for Views & Time, Filters, Satellite Selection, Other Selections, Timelines, Share, and Help.
+- Confirm the left menu shows stacked accordion sections for Views & Time, Satellite Selection, Filters - Satellites Found, Timelines, Share, and Help.
 - Confirm each accordion header keeps the legacy dark navy/blue style and colored left accent.
 - Confirm expanded accordion headers are readable, especially `Filters - Satellites Found` and `Satellite Selection` on initial page load.
 - Confirm the numeric satellite count in `Filters - Satellites Found` is red and bold in both expanded and collapsed states.
@@ -474,7 +508,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm the expanded header chevron/toggle marker remains visible.
 - Confirm collapsed accordion headers remain readable.
 - Confirm every section is collapsed immediately after loading `index.html`.
-- Expand `Views & Time`, expand `Timelines`, then expand `Other Selections`; confirm multiple sections remain open simultaneously.
+- Expand `Views & Time`, expand `Timelines`, then expand `Share`; confirm multiple sections remain open simultaneously.
 - Expand one section and confirm no other section collapses.
 - Change filters, reset filters, select a satellite, clear satellite search, toggle YPR, toggle view controls, and toggle timeline checkboxes; confirm accordion state is not reset.
 - Collapse and expand sections, refresh, and confirm every section returns to the collapsed launch state.
@@ -486,8 +520,8 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm `Reset Filters` restores Orbit `MEO`, Tags `All tags`, and Debris `Show`.
 - Confirm the active-filter summary updates after each filter change.
 - Choose a filter combination with zero results and confirm the empty state appears with a reset shortcut.
-- Confirm `Other Selections` is blue-styled and collapsible.
-- Confirm changing `Earth`/`Moon`/`Mars` is not reset by collapsing or expanding accordion sections.
+- Confirm `Other Selections` is absent.
+- Confirm selecting `Earth`/`Moon`/`Mars` from Solar System mode is not reset by collapsing or expanding accordion sections.
 
 ## Satellite Search Regression
 
@@ -511,7 +545,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 
 ## Timeline Checkbox Regression
 
-- Confirm `Show Launch Timeline` and `Show Re-entry Timeline` appear in the `Timelines` accordion section before `Other Selections`.
+- Confirm `Show Launch Timeline` and `Show Re-entry Timeline` appear in the `Timelines` accordion section immediately after Filters.
 - Confirm both timeline controls are checkboxes, not buttons.
 - Check `Show Launch Timeline` and confirm the launch timeline opens.
 - While launch is checked, check `Show Re-entry Timeline` and confirm launch unchecks and the launch HUD hides.
@@ -616,8 +650,8 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - With `Show Footprint` enabled, confirm the selected Mercator ground track remains visible above or clearly through the footprint overlay.
 - Toggle `Show orbit` off and confirm the 3D orbit is removed and the Mercator ground track stops drawing.
 - Select a satellite in Mercator-only mode, turn the 3D globe back on, and confirm the selected-satellite close framing is applied.
-- Use `Other Selections` to switch to `Moon`, then back to `Earth`; confirm filters return to the default startup state.
-- Use `Other Selections` to switch to `Mars`, then back to `Earth`; confirm filters return to the default startup state.
+- Use Solar System mode to select `Moon`, then select `Earth`; confirm filters return to the default startup state.
+- Use Solar System mode to select `Mars`, then select `Earth`; confirm filters return to the default startup state.
 - Open and close the launch timeline.
 - Open and close the re-entry timeline.
 - Select a satellite from a timeline and confirm the app resets filters broadly enough to reveal that satellite.
@@ -644,7 +678,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
   - High Def. is not forced off if it was already enabled.
 - Confirm the Sun/day-night terminator changes as simulation time advances.
 - Confirm the Moon appears at the documented distance and follows the documented model.
-- Confirm Mars appears with `textures/March.jpg`, remains visually centered in Mars mode, and follows the documented simplified model.
+- Confirm Mars appears with optimized runtime texture `textures/March_8k.jpg`, remains visually centered in Mars mode, and follows the documented simplified model.
 
 ## Visual Regression
 
@@ -1147,25 +1181,54 @@ Checks to perform for this release:
 - Run Python syntax checks.
 - Run Python server smoke checks for API, Swagger docs, and static app routes.
 
-## Release 1.6 Verification Log
+## Release 1.6.2 Verification Log
 
-Checks performed for this Version 1.6 implementation session:
+Checks performed for this Version 1.6.2 implementation session:
 
-- `PROMPT_History.md` contains the latest `Release Date: 2026-06-07 Version 1.6` entry at the top.
-- `index.html`, `js/serverConnection.js`, `js/SatelliteMenuLoader.js`, and `server.py` use version `1.6`.
+- `PROMPT_History.md` contains the latest `Release Date: 2026-06-07 Version 1.6.2` entry at the top.
+- `index.html`, `js/serverConnection.js`, `js/SatelliteMenuLoader.js`, and `server.py` use version `1.6.2`.
+- `Views & Time` has the new row order: Solar System + Stars & Milky Way; Globe + High Def. + ECEF Axes; Mercator + Day/Night.
+- The menu Time x slider is removed and the top/canvas Time x slider remains the simulation-speed control.
+- Solar System mode is unchecked by default.
+- Solar System sub-controls are hidden by default and visible only when Solar System mode is checked.
+- The integrated Solar System module defines the required planets plus Moon, local texture paths, fallback materials, orbit paths, labels, Sun glow, Saturn rings, and selection helpers.
+- `Other Selections` is removed from the menu; Timelines follows Filters.
+- The bundled star catalog summary is hidden by default and only shown when `Stars & Milky Way` and `Bright Labels` are both checked.
+- Earth-specific satellite layers are suppressed while Solar System mode is active.
+- Earth, Moon, and Mars selections route to their existing app modes; other planets remain focused inside Solar System mode.
+- Solar System motion uses the shared top/canvas `Time x` simulation state.
+- Version 1.6.1 Stars & Milky Way behavior remains: no integrated magnitude slider and all 46 bundled reference stars render.
+
+Remaining manual verification:
+
+- Browser-confirm enabling Solar System mode displays textured planets, labels, Sun glow, orbit paths, and star background.
+- Browser-confirm Earth selection exits to normal Globe view.
+- Browser-confirm Moon selection exits to existing Moon-centered view.
+- Browser-confirm Mars selection exits to existing Mars view with Mars texture/progress behavior.
+- Browser-confirm the star catalog summary appears only when both `Stars & Milky Way` and `Bright Labels` are checked.
+- Browser-confirm Mercury, Venus, Jupiter, Saturn, and Uranus focus inside Solar System mode and return to overview.
+- Browser-confirm existing Globe, Mercator, Moon, Mars, satellite search, orbit, footprint, timelines, Share, and Help behavior remains unchanged.
+
+## Release 1.6.1 Verification Log
+
+Checks performed for this Version 1.6.1 implementation session:
+
+- `PROMPT_History.md` contains the latest `Release Date: 2026-06-07 Version 1.6.1` entry at the top.
+- `index.html`, `js/serverConnection.js`, `js/SatelliteMenuLoader.js`, and `server.py` use version `1.6.1`.
 - `Views & Time` contains `Globe`, `Mercator`, and unchecked `Stars & Milky Way` on the same row.
-- `RA/Dec Grid`, `Bright Labels`, `Atmosphere`, and `Magnitude limit` are hidden by default and visible only when `Stars & Milky Way` is checked.
+- `RA/Dec Grid`, `Bright Labels`, and `Atmosphere` are hidden by default and visible only when `Stars & Milky Way` is checked.
 - `RA/Dec Grid`, `Bright Labels`, and `Atmosphere` are unchecked by default.
-- Integrated `Magnitude limit` defaults to `<10.0`, caps at `<13.0`, and updates the star field without app reload.
-- The star layer uses the bundled real RA/Dec demo catalog and `THREE.Points` / `BufferGeometry`.
+- The integrated `Magnitude limit` slider has been removed from the main app.
+- The star layer renders all 46 bundled real RA/Dec reference stars with `THREE.Points` / `BufferGeometry`.
+- The star-options panel shows a catalog summary based on `BRIGHT_STARS_DEMO.length`.
 - The Milky Way layer uses `obj/Textures/starmap-4k.jpg` when available and a procedural fallback otherwise.
-- Magnitude `<18` remains documented as external Gaia DR3 tiled/LOD/binary future work only.
+- Future magnitude filtering remains documented as dependent on a larger local preprocessed catalog.
 - Static regression checks confirm existing menu order, satellite selection, Mercator overlay, Mars behavior, selected-satellite panel, timelines, Share, Help, and server fallback hooks remain present.
 
 Remaining manual verification:
 
 - Browser-confirm enabling `Stars & Milky Way` displays the star field and Milky Way behind Earth without hiding satellites.
-- Browser-confirm toggling RA/Dec Grid, Bright Labels, Atmosphere, and Magnitude limit works visually on desktop and mobile.
+- Browser-confirm toggling RA/Dec Grid, Bright Labels, and Atmosphere works visually on desktop and mobile.
 - Browser-confirm existing Globe, Mercator, Moon, Mars, satellite search, orbit, footprint, timelines, Share, and Help behavior remains unchanged.
 
 ## Release 1.5.23 Verification Log
@@ -1175,12 +1238,12 @@ Checks performed for this Version 1.5.23 implementation session:
 - `PROMPT_History.md` contains the latest `Release Date: 2026-06-07 Version 1.5.23` entry at the top.
 - `index.html`, `js/serverConnection.js`, `js/SatelliteMenuLoader.js`, and `server.py` use version `1.5.23`.
 - `Other Selections` includes `Mars`.
-- Mars uses the local texture path `textures/March.jpg`.
+- Mars keeps local source texture `textures/March.jpg` and uses optimized runtime texture `textures/March_8k.jpg`.
 - Mars texture loading does not show a visible progress bar on initial `index.html` launch while Earth is active.
 - Selecting Mars shows a progress bar labeled `Loading Mars map/texture...` in the middle of the canvas, remains visible long enough for cached/local loads, shows a short confirmation state if the texture already loaded silently before selection, and reports fallback color use on texture load failure.
 - Mars mode targets `mars.position` and does not move Earth, Moon, or Mars to `(0, 0, 0)`.
 - Mars observer fly-to starts close to the Mars globe while preserving orbit/zoom controls.
-- Mars Mercator uses `textures/March.jpg` instead of the Earth map and suppresses Earth-specific satellite markers, footprints, ground tracks, and day/night shading.
+- Mars Mercator uses `textures/March_8k.jpg` instead of the Earth map and suppresses Earth-specific satellite markers, footprints, ground tracks, and day/night shading.
 - Mars position uses a documented simplified circular heliocentric Earth-to-Mars relative visual model.
 - The local Mars texture source/license status is documented as to be confirmed.
 
@@ -1380,8 +1443,8 @@ Checks not fully performed in this terminal:
 - Share can preview, download, copy, and natively share the current canvas image when the browser supports those APIs.
 - Help includes Swagger/API documentation links that open separate pages and remain clickable while offline.
 - Help opens README and Releases History Markdown through `markdown_viewer.html` and keeps `PROMPT_History.md` available through the `Releases History` action.
-- The Views & Time menu keeps a synchronized menu Time x slider, Globe/Mercator, and High Def./ECEF Axes/Day-Night controls; First Starlink/ISS shortcuts live in Satellite Selection.
-- The canvas-top Time x slider remains visible, and both Time x sliders control one shared simulation-speed state.
+- The Views & Time menu uses the Version 1.6.2 Solar System/Stars, Globe/High Def./ECEF, and Mercator/Day-Night rows; First Starlink/ISS shortcuts live in Satellite Selection.
+- The canvas-top Time x slider remains visible and controls the shared simulation-speed state.
 - The obsolete visible helper text for Views & Time, the orbit filter, and Satellite Selection is removed without leaving empty layout gaps.
 - Satellite Selection does not duplicate the detailed selected-satellite metadata/TLE table; full details live only in the right-side panel under the UTC clock.
 - The right-side selected-satellite panel matches the UTC clock width and shows each TLE line once.

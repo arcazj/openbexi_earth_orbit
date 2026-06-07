@@ -1,5 +1,179 @@
 # Prompt History
 
+## Release Date: 2026-06-07  Version 1.6.2
+
+Integrate Solar System Overview into the main OpenBEXI Earth Orbit app.
+
+This release builds on Version 1.6.1. Preserve all existing Earth, Moon, Mars, satellite, Mercator, server, Help, Share, timeline, selected-satellite, orbit, footprint, model-loading, Stars & Milky Way, and menu behavior unless explicitly changed below.
+
+Requirements:
+
+1. Update visible app, JavaScript, menu server panel, and Python server version to `1.6.2`.
+2. Keep `SolarSystemOverview.html` as a standalone debug/experimental page.
+3. Refactor reusable solar-system logic into `js/solarSystemOverviewLoader.js`.
+4. Integrate Solar System Overview into `index.html` as explicit `simParams.solarSystemOverview` mode.
+5. Remove the menu `Time x` slider from `Views & Time`; keep the top/canvas `Time x` slider unchanged.
+6. Reorganize `Views & Time`: first row `Solar System` unchecked and `Stars & Milky Way` unchecked; second row `Globe` checked, `High Def.` unchecked, `ECEF Axes` unchecked; third row `Mercator` unchecked and `Day/Night` checked.
+7. Keep `RA/Dec Grid`, `Bright Labels`, and `Atmosphere` visible only when `Stars & Milky Way` is checked.
+8. Keep the integrated magnitude slider removed.
+9. Add Solar System-only sub-controls visible only while Solar System is enabled: `Planet Labels`, `Orbit Paths`, `Planet Textures`, and `Sun Glow`.
+10. Store previous Earth/Moon/Mars/satellite view state when entering Solar System mode and restore it when exiting without selecting a planet.
+11. While Solar System mode is active, hide Earth-specific satellite layers: satellite sprites, selected model, Earth orbit paths, footprints, LVLH/YPR frames, Mercator overlay, and selected-satellite panel.
+12. Do not mutate TLE data, filters, or satellite lists.
+13. Disable satellite picking behavior while Solar System mode is active.
+14. Share should capture the active Solar System canvas when active.
+15. Show the Sun centered with glow/halo.
+16. Show orbit paths and textured planets for Mercury, Venus, Earth, Mars, Jupiter, Saturn, and Uranus.
+17. Add readable labels, hover/click feedback, selected-planet highlight, and selected-planet HUD.
+18. Display approximate UTC simulation time using the existing app time flow where practical.
+19. Use approximate Kepler/heliocentric calculations first and document that positions are not operational ephemerides.
+20. Use separate visual scale for orbit distances and planet radii.
+21. Saturn must include tilted readable rings.
+22. Use local textures only; do not fetch planet textures remotely at runtime.
+23. Reuse existing Earth texture and Mars `textures/March_8k.jpg`.
+24. Add local textures for Mercury, Venus, Jupiter, Saturn, Uranus, Sun, and Saturn rings under `textures/planets/`.
+25. Use equirectangular/proper spherical maps where possible.
+26. Set `texture.colorSpace = THREE.SRGBColorSpace` and anisotropy where available.
+27. Avoid oversized textures; keep planet textures within common WebGL limits.
+28. Add fallback colored materials if texture loading fails.
+29. Document texture sources/licenses as project-generated procedural visual maps unless replaced later by verified public-domain assets.
+30. User can select a planet by clicking marker or label.
+31. Selecting Earth smoothly transitions to normal Earth Globe mode.
+32. Selecting Mars smoothly transitions to existing Mars mode and reuses existing Mars target/camera/progress behavior.
+33. Selecting Mercury, Venus, Jupiter, Saturn, or Uranus keeps Solar System mode active and focuses that planet.
+34. Add `Back to Solar System Overview`, `Exit Solar System Overview`, and Escape handling.
+35. Add tests for new `Views & Time` row order/defaults, removed menu Time x, retained top Time x, Solar System module/planets/textures, Earth/Mars selection mappings, other-planet focus, hidden/restored Earth-specific layers, and Version 1.6.1 Stars & Milky Way behavior preservation.
+36. Update `README.md`, `Test_and_Integration.md`, and automated tests.
+
+Acceptance Criteria:
+
+- App version is `1.6.2`.
+- Normal startup remains Earth satellite view.
+- `Views & Time` has the corrected three-row layout.
+- Solar System mode shows textured planets, orbit paths, labels, Sun glow, and star background.
+- Earth and Mars selections transition into their existing app modes.
+- Other planets focus inside Solar System mode.
+- Exiting restores the correct previous state.
+- Existing Globe, Mercator, Moon, Mars, Stars & Milky Way, filters, selected-satellite details, timelines, Share, and Help remain functional.
+- `SolarSystemOverview.html` still works standalone.
+- Automated tests pass.
+
+### Version 1.6.2 Correction
+
+Correct and finalize the Version `1.6.2` Solar System integration.
+
+Preserve all existing Version `1.6.2` behavior unless explicitly changed below.
+
+Requirements:
+
+1. Show the text `Displaying 46 bundled reference stars` only when both `Stars & Milky Way` and `Bright Labels` are checked.
+2. Hide the reference-star text on launch, when `Stars & Milky Way` is unchecked, and when `Bright Labels` is unchecked.
+3. Keep Bright Labels readable, using large text equivalent to the previous `72px` correction.
+4. Remove the `Other Selections` menu section.
+5. Do not regress Moon access when removing `Other Selections`.
+6. Add Moon as a selectable body in Solar System Overview, or provide another explicit Moon selection path.
+7. Selecting Earth from Solar System must transition to the same normal Earth Globe view as checking `Globe`.
+8. Selecting Mars from Solar System must transition to the same Mars view previously reached from `Other Selections`.
+9. Selecting Moon from Solar System must transition to the same Moon-centered view previously reached from `Other Selections`.
+10. Solar System planet and Moon movement must use the existing top/canvas `Time x` simulation time, not an independent animation clock.
+11. `Time x = 0` must pause or nearly pause Solar System movement.
+12. Increasing `Time x` must visibly accelerate Solar System movement proportionally.
+13. Preserve existing Globe, Mercator, High Def., ECEF Axes, Day/Night, Stars & Milky Way, RA/Dec Grid, Bright Labels, Atmosphere, satellite filters, selected-satellite details, orbit paths, footprints, timelines, Share, Help, and server behavior.
+14. Update `README.md`, `Test_and_Integration.md`, `PROMPT_History.md`, and automated tests.
+
+Acceptance Criteria:
+
+- `Other Selections` no longer appears in the menu.
+- Earth, Moon, and Mars remain reachable after removing `Other Selections`.
+- Earth selection from Solar System returns to normal Earth Globe mode.
+- Moon selection from Solar System opens the existing Moon-centered view.
+- Mars selection from Solar System opens the existing Mars view.
+- `Displaying 46 bundled reference stars` appears only when `Stars & Milky Way` and `Bright Labels` are both checked.
+- Solar System motion follows the existing top/canvas `Time x` slider.
+- `Time x = 0` pauses or nearly pauses Solar System motion.
+- Higher `Time x` values accelerate Solar System motion.
+- Existing Version `1.6.2` features remain functional.
+- Automated tests pass.
+
+## Release Date: 2026-06-07  Version 1.6.1
+
+Implement Version `1.6.1` as a focused Stars & Milky Way usability update.
+
+This release builds on Version 1.6. Preserve all existing Earth, Moon, Mars, satellite, Mercator, server, Help, Share, timeline, selected-satellite, orbit, footprint, model-loading, and menu behavior unless explicitly changed below.
+
+Requirements:
+
+1. Keep the release date and version exactly `Release Date: 2026-06-07  Version 1.6.1`.
+2. Update the visible application, JavaScript, menu server panel, and Python server version to `1.6.1`.
+3. Remove the integrated main-app `Magnitude limit` slider from `Views & Time`.
+4. Remove the visible `Magnitude limit <10.0` value text and all integrated main-app slider event wiring.
+5. Remove `starMagnitudeLimit` from main-app `simParams`.
+6. Remove unused `DEFAULT_STAR_MAGNITUDE_LIMIT` and `MAX_INTEGRATED_STAR_MAGNITUDE_LIMIT` imports from `index.html`.
+7. Keep `starSkyUtils.js` magnitude helpers available for standalone `Earth_Stars_MilkyWay.html`, preprocessing tests, and future larger-catalog work.
+8. When `Stars & Milky Way` is enabled in `index.html`, render all finite-magnitude stars from the bundled `BRIGHT_STARS_DEMO` catalog.
+9. The current bundled catalog contains 46 reference stars; show a readable menu note computed from `BRIGHT_STARS_DEMO.length`, for example `Displaying 46 bundled reference stars`.
+10. Keep `RA/Dec Grid`, `Bright Labels`, and `Atmosphere` visible only when `Stars & Milky Way` is enabled.
+11. Keep `Stars & Milky Way`, `RA/Dec Grid`, `Bright Labels`, and `Atmosphere` unchecked by default.
+12. Keep Bright Labels internally limited to bright stars, currently magnitude `<2.1`, so the sky is not overloaded with 46 labels.
+13. Rename the integrated star update function if needed so it no longer implies user-controlled magnitude filtering.
+14. Add tests proving the integrated menu no longer contains `starMagnitudeLimitSlider`, `starMagnitudeLimitValue`, or `.star-magnitude-control`.
+15. Add tests proving the integrated main app renders the full bundled catalog without user-controlled magnitude filtering.
+16. Document that the magnitude slider can return later only after a larger local preprocessed catalog is added.
+17. Preserve standalone `Earth_Stars_MilkyWay.html` behavior if it still has its own magnitude controls.
+18. Preserve all Version 1.6 Stars & Milky Way behavior except the removed integrated main-app magnitude slider.
+19. Update `README.md`, `Test_and_Integration.md`, and automated tests for Version `1.6.1`.
+
+Acceptance Criteria:
+
+- Latest release is `Release Date: 2026-06-07  Version 1.6.1`.
+- `index.html` displays `Version 1.6.1 - hosted at GitHub Repo`.
+- `js/serverConnection.js`, `js/SatelliteMenuLoader.js`, and `server.py` report app/API/server version `1.6.1`.
+- No `Magnitude limit` slider appears in the integrated main app menu.
+- No `starMagnitudeLimit` state or event listener remains in `index.html`.
+- Enabling `Stars & Milky Way` displays all 46 bundled reference stars.
+- The star-options panel shows a catalog summary based on `BRIGHT_STARS_DEMO.length`.
+- `RA/Dec Grid`, `Bright Labels`, and `Atmosphere` still work and remain unchecked by default.
+- Bright Labels are readable and remain limited to bright stars.
+- Existing Earth/Moon/Mars/satellite/Mercator behavior remains unchanged.
+- Full automated test suite passes.
+
+### Non-Release Implementation Note: SolarSystemOverview.html
+
+Implement a standalone Three.js page named `SolarSystemOverview.html`.
+
+This is not Version 1.6.2 and must not change the main `index.html` release version, menu, or app flow.
+
+Requirements:
+
+1. Create `SolarSystemOverview.html` at the repository root.
+2. Do not update the main app version.
+3. Do not add this page into the main `index.html` menu yet.
+4. Do not create a new release version for this feature.
+5. Render a standalone heliocentric solar-system scene with the Sun near the center.
+6. Render thin colored orbit paths for at least Mercury, Venus, Earth, Mars, Jupiter, Saturn, and Uranus.
+7. Render planet markers/spheres at approximate orbital positions.
+8. Add readable labels near each planet.
+9. Add a bright Sun glow/lens halo effect.
+10. Add a star/Milky Way background, reusing local project assets when possible.
+11. Display the current simulation UTC time in the upper-left corner.
+12. Add camera orbit/zoom controls around the solar system.
+13. Use approximate heliocentric orbital calculations first if precise ephemerides are not available.
+14. Use practical visual scaling so inner and outer planets are all visible.
+15. Do not copy or display third-party logos or watermarks.
+16. Keep this standalone page independent from satellite rendering, Earth-centered scene logic, Mercator, filters, timelines, Share, and Help.
+17. Add tests confirming `SolarSystemOverview.html` exists, uses Three.js, defines the required planets, draws orbit paths, draws labels, displays UTC time, and does not change the main app version.
+18. Update `README.md` and `Test_and_Integration.md` to mention the standalone experimental page only.
+
+Acceptance Criteria:
+
+- Opening `SolarSystemOverview.html` shows the Sun, colored planet orbit paths, labeled planets, and star background.
+- Planet labels are readable.
+- UTC time is visible.
+- Orbit controls allow zoom and rotation.
+- `index.html` remains unchanged except for no required changes.
+- Main app version remains `1.6.1`.
+- Automated tests pass.
+
 ## Release Date: 2026-06-07  Version 1.6
 
 Implement a major Version `1.6` release that integrates the optional Stars & Milky Way view layer into the main `index.html` app.
@@ -29,6 +203,7 @@ Requirements:
 19. Preserve and regression-test at minimum: local/server satellite loading, server status, silent local fallback, Globe, Mercator and bottom-right overlay, High Def Earth, ECEF axes, Day/Night/Sun lighting, Moon/Mars selections, Mars texture progress behavior, satellite search portal, Starlink/ISS shortcuts, show-only-selected mode, right-side satellite data/TLE/source panel, orbit display and occlusion, footprints, LVLH frame, Yaw/Pitch/Roll and ISS yaw/pitch swap, detailed model loading, SSL 1300 IS-18/IS-20 restriction, OB3/O3b sprite-only behavior, timeline exclusivity, Share, Help, menu order/default state, synchronized Time x sliders, and startup/deferred loading behavior.
 20. Add automated/static regression checks proving the new Stars & Milky Way UI does not reorder, remove, rename, or disable existing controls unless explicitly required.
 21. Update `README.md`, `Test_and_Integration.md`, and automated tests for Version `1.6`.
+22. Optimize Mars texture loading by using a browser-safe `textures/March_8k.jpg` runtime texture generated from local source `textures/March.jpg`, avoiding Three.js resizing warnings for the original `21339x10670` source image.
 
 Acceptance Criteria:
 
@@ -43,6 +218,7 @@ Acceptance Criteria:
 - `Magnitude limit` defaults to `<10.0` and can increase to `<13.0`.
 - Star field and Milky Way render only when enabled.
 - Existing Earth/Moon/Mars/satellite/Mercator behavior remains unchanged.
+- Mars globe and Mars Mercator use `textures/March_8k.jpg` at runtime, while `textures/March.jpg` remains documented as the local source texture.
 - Full automated test suite passes.
 
 ## Release Date: 2026-06-07  Version 1.5.23

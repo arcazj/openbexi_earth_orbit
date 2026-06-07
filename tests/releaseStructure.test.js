@@ -34,7 +34,7 @@ function run() {
   assert(!/^## General Execution Prompt/m.test(prompt), 'PROMPT.md has one top-level general prompt section');
 
   const latestVersion = latestReleaseVersion(promptHistory);
-  assert.strictEqual(latestVersion, '1.6', 'latest release is Version 1.6');
+  assert.strictEqual(latestVersion, '1.6.2', 'latest release is Version 1.6.2');
 
   const versionMatch = indexHtml.match(/const\s+versionNumber\s*=\s*"([^"]+)"/);
   assert(versionMatch, 'index.html defines a visible version number');
