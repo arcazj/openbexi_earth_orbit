@@ -1096,6 +1096,34 @@ canvas {
     margin: 8px 0;
 }
 
+.view-checkbox-table {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(78px, 1fr));
+    gap: 7px 8px;
+    align-items: center;
+    width: 100%;
+}
+
+.view-checkbox-cell {
+    display: flex;
+    align-items: center;
+    min-height: 24px;
+    min-width: 0;
+}
+
+.view-checkbox-cell label {
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+    white-space: nowrap;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.view-checkbox-empty {
+    pointer-events: none;
+}
+
 .view-control-row {
     display: grid;
     align-items: center;
@@ -1115,7 +1143,6 @@ canvas {
     font-size: 12px;
 }
 
-.view-primary-row label,
 .star-view-control-row label,
 .solar-system-control-row label {
     font-size: 13px;

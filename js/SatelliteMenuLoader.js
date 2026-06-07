@@ -33,18 +33,16 @@ export function satelliteMenuLoader() {
         </h3>
 
         <div id="viewContent" class="collapsible-content view-option-grid" aria-labelledby="viewAccordionHeader">
-          <div class="view-control-row view-control-row-two view-primary-row">
-            <label><input type="checkbox" id="solarSystemOverviewToggle">Solar System</label>
-            <label><input type="checkbox" id="starsMilkyWayToggle">Stars &amp; Milky Way</label>
-          </div>
-          <div class="view-control-row view-control-row-three">
-            <label><input type="checkbox" id="view3DToggle" checked>Globe</label>
-            <label><input type="checkbox" id="highDefToggle"> High Def.</label>
-            <label><input type="checkbox" id="showECEFAxesToggle"> ECEF Axes</label>
-          </div>
-          <div class="view-control-row view-control-row-two">
-            <label><input type="checkbox" id="viewMercatorToggle">Mercator</label>
-            <label><input type="checkbox" id="showDayNightToggle" checked> Day/Night</label>
+          <div class="view-checkbox-table" role="group" aria-label="Views and time display controls">
+            <div class="view-checkbox-cell"><label><input type="checkbox" id="solarSystemOverviewToggle">Solar System</label></div>
+            <div class="view-checkbox-cell"><label><input type="checkbox" id="starsMilkyWayToggle">Stars &amp; Milky Way</label></div>
+            <div class="view-checkbox-cell view-checkbox-empty" aria-hidden="true"></div>
+            <div class="view-checkbox-cell"><label><input type="checkbox" id="view3DToggle" checked>Globe</label></div>
+            <div class="view-checkbox-cell"><label><input type="checkbox" id="highDefToggle"> High Def.</label></div>
+            <div class="view-checkbox-cell"><label><input type="checkbox" id="showECEFAxesToggle"> ECEF Axes</label></div>
+            <div class="view-checkbox-cell"><label><input type="checkbox" id="viewMercatorToggle">Mercator</label></div>
+            <div class="view-checkbox-cell"><label><input type="checkbox" id="showDayNightToggle" checked> Day/Night</label></div>
+            <div class="view-checkbox-cell view-checkbox-empty" aria-hidden="true"></div>
           </div>
           <div id="solarSystemOptions" class="solar-system-options" hidden aria-hidden="true">
             <div class="view-control-row view-control-row-two solar-system-control-row">

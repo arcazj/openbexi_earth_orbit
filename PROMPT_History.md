@@ -17,6 +17,10 @@ Requirements:
    - Move all orbit, tag/company, debris, reset, and zero-result filter controls under the `Satellite Selection` accordion.
    - Rename the Satellite Selection heading to `Satellites Selection - Found <number>`.
    - Keep the found number red, bold, and accessible with an updated `aria-label`.
+   - Align the main `Views & Time` checkboxes in a 3x3 table/grid so columns stay aligned across the three rows:
+     - Row 1: `Solar System`, `Stars & Milky Way`, empty cell.
+     - Row 2: `Globe`, `High Def.`, `ECEF Axes`.
+     - Row 3: `Mercator`, `Day/Night`, empty cell.
    - `Views & Time` and `Satellites Selection - Found` must launch expanded by default.
    - `Timelines`, `Share`, and `Help` must launch collapsed by default.
    - Remove all `filtersContent` accordion-state/default behavior.
@@ -46,6 +50,7 @@ Requirements:
 Acceptance criteria:
 
 - The menu order is `Views & Time`, `Satellites Selection - Found`, `Timelines`, `Share`, `Help`.
+- `Views & Time` main checkboxes are aligned in a stable 3x3 table/grid.
 - The standalone `Filters - Satellites Found` section does not exist.
 - `filtersContent`, `filtersAccordionSection`, and `filterStatusSummary` are not in generated menu markup.
 - `Reset Filters` appears beside `Show`, `Hide`, and `Debris only`.

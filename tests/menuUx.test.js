@@ -85,7 +85,10 @@ function run() {
   assert(!html.includes('menu-time-warp-control'), 'Views & Time menu Time x slider is removed');
   assert(!html.includes('menuTimeWarpSlider'), 'menu Time x slider id is removed');
   assert(!html.includes('menuTimeWarpVal'), 'menu Time x value is removed');
-  assert(html.includes('view-control-row view-control-row-two view-primary-row'), 'View menu has a two-item first row');
+  assert(html.includes('class="view-checkbox-table"'), 'View menu uses a 3x3 checkbox table for alignment');
+  assert(html.includes('aria-label="Views and time display controls"'), 'View checkbox table has an accessible group name');
+  assert((html.match(/class="view-checkbox-cell"/g) || []).length === 7, 'View checkbox table has seven visible checkbox cells');
+  assert((html.match(/class="view-checkbox-cell view-checkbox-empty"/g) || []).length === 2, 'View checkbox table has two empty cells to preserve the 3x3 layout');
   assert(html.includes('<label><input type="checkbox" id="solarSystemOverviewToggle">Solar System</label>'), 'Solar System is unchecked by default');
   assert(html.includes('<label><input type="checkbox" id="starsMilkyWayToggle">Stars &amp; Milky Way</label>'), 'Stars & Milky Way is unchecked by default');
   assert(html.includes('<label><input type="checkbox" id="view3DToggle" checked>Globe</label>'), 'Globe remains checked by default');
@@ -107,7 +110,7 @@ function run() {
   assert(html.includes('id="starCatalogSummary" class="star-catalog-summary" aria-live="polite" hidden aria-hidden="true"'), 'bundled catalog summary is hidden by default');
   assert(!html.includes('starMagnitudeLimitSlider'), 'main menu no longer exposes a Magnitude limit slider');
   assert(!html.includes('starMagnitudeLimitValue'), 'main menu no longer exposes a Magnitude limit value');
-  assert(html.includes('view-control-row view-control-row-three'), 'View menu keeps a three-item second row');
+  assert(html.includes('view-control-row view-control-row-three'), 'View sub-option rows keep three-column CSS');
   assert(!html.includes('view-control-row view-shortcut-row'), 'View menu no longer has a satellite shortcut row');
   assert(html.includes('class="satellite-shortcut-row"'), 'Satellite Selection has a shortcut button row');
   assert(html.includes('aria-label="Starlink shortcut unavailable"'), 'Starlink shortcut has unavailable accessible text before TLE load');
@@ -320,8 +323,10 @@ function run() {
   assert(css.includes('.filter-chip input[type="checkbox"]:checked + span'), 'selected tag chips have a distinct active style');
   assert(css.includes(':focus-visible'), 'menu controls have visible focus styling');
   assert(css.includes('@media (max-width: 560px)'), 'menu has narrow viewport behavior');
-  assert(css.includes('.view-primary-row'), 'View first row has dedicated Stars & Milky Way CSS');
-  assert(css.includes('.view-control-row-three'), 'View rows keep three-column CSS');
+  assert(css.includes('.view-checkbox-table'), 'View main controls have 3x3 table CSS');
+  assert(css.includes('grid-template-columns: repeat(3, minmax(78px, 1fr))'), 'View main controls use three aligned columns');
+  assert(css.includes('.view-checkbox-empty'), 'View main control table has styled empty cells');
+  assert(css.includes('.view-control-row-three'), 'View sub-option rows keep three-column CSS');
   assert(css.includes('.solar-system-options[hidden]'), 'Solar System sub-controls are hidden by default through CSS');
   assert(css.includes('.solar-system-selection-summary'), 'Solar System selection summary has dedicated CSS');
   assert(css.includes('.solar-system-planet-hud'), 'Solar System selected planet HUD has dedicated CSS');

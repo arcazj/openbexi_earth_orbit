@@ -73,6 +73,7 @@ Version 1.6.2 integrates Solar System Overview into the main app while keeping `
 Version 1.7 upgrades Solar System textures and adds bundled JPL-derived ephemeris data. Mercury uses `textures/mercury.png`, Venus uses `textures/venus.png`, and Jupiter uses `textures/jupiter.jpg`. Integrated Solar System mode loads local `data/ephemeris/solar_system_jpl_horizons_2020_2035_6h.json`, uses shared `SIM_DATE`, shows ephemeris source/range in the UI, and labels fallback clearly if data is missing, loading, invalid, or out of range. Moon is derived from Earth/Moon ephemeris vectors. Existing Version 1.6.2 menu behavior, removed `Other Selections`, Earth/Moon/Mars reachability through Solar System selection, and legacy satellite/Mercator/Stars/Share/Help behavior must remain intact.
 
 Version 1.7.1 consolidates `Filters - Satellites Found` into `Satellites Selection - Found`. The standalone Filters accordion is removed; orbit, tag, debris, reset, and zero-result controls live inside Satellite Selection; the found count is red/bold in the Satellite Selection heading; `Reset Filters` is on the same row as `Show`, `Hide`, and `Debris only`; the old active summary text and visible helper paragraphs are removed. Multi-check filter combinations must update the found count, hidden select options, and visible search dropdown from the same filtered satellite set.
+The main `Views & Time` checkboxes are aligned in a 3x3 table/grid: `Solar System`, `Stars & Milky Way`, empty; `Globe`, `High Def.`, `ECEF Axes`; `Mercator`, `Day/Night`, empty.
 
 ## Test Environment
 
@@ -318,6 +319,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test the filter menu does not contain an `Active` button/control.
 - Test generated company/tag chips exclude `Active`, not only the static markup.
 - Test the `Views & Time` section has one collapsible container containing Solar System, Stars & Milky Way, Globe, Mercator, High Def., ECEF Axes, Day/Night controls, and mode-specific sub-controls, with no menu `Time x` slider.
+- Test the main `Views & Time` checkboxes render in a stable 3x3 table/grid so columns are aligned across all three rows.
 - Test the top/canvas `Time x` slider updates the shared simulation-speed state after the Version 1.7 Solar System ephemeris integration.
 - Test menu CSS keeps the narrowed menu width, legacy colored accordion headers, and scrollable long panels.
 - Test the vertical tab rail is removed and the menu uses stacked accordion sections.
