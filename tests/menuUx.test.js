@@ -30,15 +30,18 @@ function run() {
   assert(html.includes('class="menu-accordion"'), 'menu uses stacked accordion markup');
   assert(html.includes('menu-accordion-heading'), 'accordion headers are present');
   assert(html.includes('role="button"'), 'accordion headers expose button semantics');
-  assert(html.includes('aria-controls="filtersContent"'), 'Filters header controls its content');
+  assert(!html.includes('aria-controls="filtersContent"'), 'standalone Filters accordion target is removed');
   assert(html.includes('aria-controls="satelliteSelectionContent"'), 'Satellite header controls its content');
   assert(html.includes('aria-expanded="true" data-collapsible-target="viewContent"'), 'Views & Time starts expanded in markup');
   assert(html.includes('aria-expanded="true" data-collapsible-target="satelliteSelectionContent"'), 'Satellite Selection starts expanded in markup');
-  assert(html.includes('aria-expanded="true" data-collapsible-target="filtersContent"'), 'Filters starts expanded in markup');
+  assert(!html.includes('data-collapsible-target="filtersContent"'), 'Filters no longer has its own accordion state');
   assert(html.includes('data-default-expanded="true"'), 'default-expanded accordion state is declared');
   assert(html.includes('data-default-collapsed="true"'), 'default-collapsed accordion state is declared for non-default sections');
 
-  const filtersSection = indexOfOrFail(html, 'id="filtersAccordionSection"', 'filters accordion exists');
+  assert(!html.includes('id="filtersAccordionSection"'), 'standalone filters accordion is removed');
+  assert(!html.includes('id="filtersAccordionHeader"'), 'standalone filters header is removed');
+  assert(!html.includes('id="filtersContent"'), 'standalone filters content panel is removed');
+  assert(!html.includes('Filters - Satellites Found'), 'old Filters - Satellites Found heading is removed');
   const satelliteSection = indexOfOrFail(html, 'id="satelliteAccordionSection"', 'satellite accordion exists');
   const viewSection = indexOfOrFail(html, 'id="viewAccordionSection"', 'view accordion exists');
   const timelinesSection = indexOfOrFail(html, 'id="timelinesAccordionSection"', 'timelines accordion exists');
@@ -50,9 +53,9 @@ function run() {
   assert(!html.includes('id="settingsAccordionSection"'), 'Settings accordion section is removed');
   assert(!html.includes('data-collapsible-target="settingsContent"'), 'Settings content target is removed');
   assert(
-    viewSection < satelliteSection && satelliteSection < filtersSection &&
-      filtersSection < timelinesSection && timelinesSection < shareSection && shareSection < helpSection,
-    'accordion section order is Views & Time, Satellite Selection, Filters, Timelines, Share, Help'
+    viewSection < satelliteSection && satelliteSection < timelinesSection &&
+      timelinesSection < shareSection && shareSection < helpSection,
+    'accordion section order is Views & Time, Satellite Selection, Timelines, Share, Help'
   );
   assert(html.includes('Views &amp; Time'), 'View section is renamed to Views & Time');
 
@@ -114,9 +117,10 @@ function run() {
 
   assert(indexHtml.includes('DEFAULT_EXPANDED_ACCORDION_SECTIONS = new Set(['), 'required accordion sections are forced open on page load');
   assert(indexHtml.includes('DEFAULT_COLLAPSED_ACCORDION_SECTIONS'), 'other accordion defaults are explicit');
-  ['viewContent', 'satelliteSelectionContent', 'filtersContent'].forEach(id => {
+  ['viewContent', 'satelliteSelectionContent'].forEach(id => {
     assert(indexHtml.includes(`'${id}'`), `${id} starts expanded on launch`);
   });
+  assert(!indexHtml.includes("'filtersContent'"), 'removed Filters content is not part of accordion defaults');
   ['timelineContent', 'shareContent', 'helpContent'].forEach(id => {
     assert(indexHtml.includes(`'${id}'`), `${id} starts collapsed on launch`);
   });
@@ -141,25 +145,46 @@ function run() {
   assert(html.includes('id="satelliteSearchResults"'), 'satellite search results list is present');
   assert(html.includes('role="listbox"'), 'satellite search results use listbox semantics');
   assert(html.includes('id="satelliteSearchClear"'), 'satellite search clear action is present');
+  assert(html.includes('Satellites Selection - Found'), 'Satellite Selection heading includes found-count text');
+  assert(html.includes('id="satelliteCountDisplay" class="satellite-found-count" aria-live="polite" aria-label="Satellites found: 0"'), 'found count is in the Satellite Selection heading with live accessible text');
   assert(html.includes('id="resetFiltersButton"'), 'reset filters action is present');
-  assert(html.includes('id="filterStatusSummary"'), 'active filter summary is present');
+  assert(!html.includes('id="filterStatusSummary"'), 'active filter summary is removed');
+  assert(!html.includes('MEO + All tags + Debris shown'), 'old filter summary text is removed');
   assert(html.includes('id="filterEmptyState"'), 'filter empty state is present');
   assert(!html.includes('Orbit filter (multi-select):'), 'old orbit filter visible label is removed');
   assert(!html.includes('Choose one or more orbit families. ALL enables every orbit category.'), 'old orbit filter helper text is removed');
+  assert(!html.includes('Tag filter (multi-select):'), 'old tag filter visible label is removed');
+  assert(!html.includes('Use tags to narrow by constellation, operator, or mission group.'), 'old tag filter helper text is removed');
+  assert(!html.includes('Debris filter:'), 'old debris filter visible label is removed');
+  assert(!html.includes('Show all objects, hide debris, or inspect debris only.'), 'old debris helper text is removed');
   assert(html.includes('id="orbitTypeFilter"'), 'orbit filter controls remain present');
   assert(html.includes('aria-label="Orbit filter"'), 'orbit filter keeps an accessible name');
+  assert(indexHtml.includes('function buildFilteredSatellitesBySelection()'), 'index has one canonical filtered satellite builder');
+  assert(indexHtml.includes('const filteredTLEs = buildFilteredSatellitesBySelection();'), 'updateSatelliteList uses the canonical filtered satellite set');
+  assert(indexHtml.includes('renderSatelliteSearchResults(filteredTLEs, false)'), 'visible search results are rendered from the canonical filtered satellite set');
+  assert(indexHtml.includes('filteredTLEs.forEach(s => {'), 'hidden legacy select options are built from the canonical filtered satellite set');
+  assert(indexHtml.includes('renderSatelliteSearchResults(buildFilteredSatellitesBySelection(), true)'), 'user search interactions reopen results from active filters');
+  assert(indexHtml.includes('setSatelliteFoundCountLabel('), 'found count updates use one accessible helper');
 
-  const satelliteSelection = indexOfOrFail(html, 'Satellite Selection', 'satellite selection section exists');
+  const satelliteSelection = indexOfOrFail(html, 'Satellites Selection - Found', 'satellite selection section exists');
   const searchInput = indexOfOrFail(html, 'id="satelliteSearchInput"', 'search input exists');
   const satelliteShortcutRow = indexOfOrFail(html, 'class="satellite-shortcut-row"', 'satellite shortcut row exists');
   const starlinkShortcut = indexOfOrFail(html, 'id="selectFirstStarlinkButton"', 'Starlink shortcut exists');
   const issShortcut = indexOfOrFail(html, 'id="selectIssButton"', 'ISS shortcut exists');
+  const satelliteFilterPanel = indexOfOrFail(html, 'class="satellite-filter-panel filters-panel"', 'filter panel is inside Satellite Selection');
+  const orbitFilter = indexOfOrFail(html, 'id="orbitTypeFilter"', 'orbit filter exists');
+  const companyFilter = indexOfOrFail(html, 'id="companyFilter"', 'tag filter exists');
+  const debrisFilter = indexOfOrFail(html, 'id="debrisFilter"', 'debris filter exists');
+  const resetFilters = indexOfOrFail(html, 'id="resetFiltersButton"', 'reset filters exists');
+  const debrisResetRow = indexOfOrFail(html, 'class="debris-reset-row"', 'reset filters shares the debris row');
   const selectedControls = indexOfOrFail(html, 'id="selectedSatelliteControls"', 'selected satellite controls exist');
   const firstSatelliteCheckbox = indexOfOrFail(html, 'id="showYPRToggle"', 'satellite-specific checkboxes exist');
   assert(
     satelliteSelection < searchInput && searchInput < satelliteShortcutRow && satelliteShortcutRow < starlinkShortcut &&
-      starlinkShortcut < issShortcut && issShortcut < selectedControls && selectedControls < firstSatelliteCheckbox,
-    'search/select satellite combo and shortcuts appear between the Satellite Selection header and checkboxes'
+      starlinkShortcut < issShortcut && issShortcut < satelliteFilterPanel && satelliteFilterPanel < orbitFilter &&
+      orbitFilter < companyFilter && companyFilter < debrisResetRow && debrisResetRow < debrisFilter &&
+      debrisFilter < resetFilters && resetFilters < selectedControls && selectedControls < firstSatelliteCheckbox,
+    'search, shortcuts, filters, and selected-satellite controls appear inside Satellite Selection in the required order'
   );
   assert(html.includes('id="selectedSatelliteControls" class="satellite-option-grid" aria-label="Selected satellite options" aria-hidden="true" hidden'), 'satellite-specific controls are hidden until selection');
   assert(html.includes('id="showFootprintCheckbox"><span>Show Footprint</span>'), 'Show Footprint checkbox exists and is unchecked by default');
@@ -172,7 +197,7 @@ function run() {
   const timelinePanel = indexOfOrFail(html, 'id="timelineContent"', 'timeline content exists');
   const sharePanel = indexOfOrFail(html, 'id="shareContent"', 'share content exists');
   const helpPanel = indexOfOrFail(html, 'id="helpContent"', 'help content exists');
-  assert(filtersSection < timelinePanel && timelinePanel < sharePanel && sharePanel < helpPanel, 'Filters follows Satellite Selection and Timelines/Share/Help retain order');
+  assert(satelliteSection < timelinePanel && timelinePanel < sharePanel && sharePanel < helpPanel, 'Timelines/Share/Help retain order after Satellite Selection');
   assert(html.includes('type="checkbox" id="launchTimelineToggle"'), 'launch timeline toggle is a checkbox');
   assert(html.includes('type="checkbox" id="reentryTimelineToggle"'), 're-entry timeline toggle is a checkbox');
   assert(!html.includes('other-selections-heading'), 'removed Other Selections header has no special text-style class');
@@ -223,7 +248,7 @@ function run() {
 
   assert(css.includes('.menu-accordion-heading'), 'CSS defines accordion headers');
   assert(css.includes('--menu-metal-yellow'), 'CSS defines a metallic yellow view style');
-  assert(css.includes('--menu-metal-blue'), 'CSS defines a metallic blue filters style');
+  assert(!css.includes('.menu-section-filters'), 'removed Filters section CSS is gone');
   assert(css.includes('--section-panel-bg'), 'CSS defines section-specific panel backgrounds');
   assert(css.includes('#controlsContainer h3.menu-accordion-heading[aria-expanded="true"]'), 'expanded accordion header contrast rule overrides global h3 color');
   assert(css.includes('color: #06182c !important;'), 'expanded accordion headers use dark high-contrast text');
@@ -232,6 +257,11 @@ function run() {
   assert(css.includes('width: min(380px, calc(100vw - 20px))'), 'menu is thinner than the 1.5.4 accordion menu');
   assert(!css.includes('width: min(420px, calc(100vw - 20px))'), 'previous 420px menu width is no longer used');
   assert(css.includes('#satelliteCountDisplay'), 'satellite count has a dedicated style hook');
+  assert(css.includes('.satellite-found-count'), 'satellite count has a heading-specific style hook');
+  assert(css.includes('.satellite-filter-panel'), 'embedded Satellite Selection filters have dedicated CSS');
+  assert(css.includes('.debris-reset-row'), 'Reset Filters is styled in the debris row');
+  assert(css.includes('.reset-filters-inline-button'), 'inline Reset Filters button has dedicated CSS');
+  assert(!css.includes('.filter-status-summary'), 'removed filter summary CSS is gone');
   assert(css.includes('color: #ff2a2a !important;'), 'satellite count is styled red');
   assert(css.includes('font-weight: 900;'), 'satellite count is styled bold');
   assert(css.includes('.menu-accordion-section .collapsible-content:not(.collapsed)'), 'long active accordion panels have scroll constraints');

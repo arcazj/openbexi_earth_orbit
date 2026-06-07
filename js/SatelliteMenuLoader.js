@@ -17,7 +17,7 @@ export function satelliteMenuLoader() {
           <div><span>Server URL</span><strong id="serverStatusUrl">http://127.0.0.1:8000</strong></div>
           <div><span>Connection</span><strong id="serverStatusState">Checking</strong></div>
           <div><span>Data source</span><strong id="serverDataSource">Local files</strong></div>
-          <div><span>App version</span><strong id="serverAppVersion">1.7</strong></div>
+          <div><span>App version</span><strong id="serverAppVersion">1.7.1</strong></div>
           <div><span>API version</span><strong id="serverApiVersion">Unavailable</strong></div>
           <div><span>Last data load</span><strong id="serverLastSync">Never</strong></div>
           <button id="serverReconnectButton" type="button" class="menu-secondary-action server-reconnect-button">Reconnect / Refresh</button>
@@ -74,7 +74,7 @@ export function satelliteMenuLoader() {
 
       <section id="satelliteAccordionSection" class="menu-accordion-section menu-section-satellite">
         <h3 id="satelliteAccordionHeader" role="button" tabindex="0" aria-controls="satelliteSelectionContent" aria-expanded="true" data-collapsible-target="satelliteSelectionContent" class="section-heading menu-accordion-heading menu-accordion-heading-satellite" data-default-expanded="true">
-          <span>Satellite Selection</span>
+          <span class="satellite-heading-title">Satellites Selection - Found <span id="satelliteCountDisplay" class="satellite-found-count" aria-live="polite" aria-label="Satellites found: 0">0</span></span>
           <span class="toggle-icon">v</span>
         </h3>
 
@@ -92,6 +92,44 @@ export function satelliteMenuLoader() {
           <div class="satellite-shortcut-row" aria-label="Satellite shortcuts">
             <button id="selectFirstStarlinkButton" type="button" class="satellite-shortcut-button" aria-label="Starlink shortcut unavailable" disabled>Starlink unavailable</button>
             <button id="selectIssButton" type="button" class="satellite-shortcut-button" aria-label="ISS shortcut unavailable" disabled>ISS unavailable</button>
+          </div>
+
+          <div class="satellite-filter-panel filters-panel" aria-label="Satellite filters">
+            <div id="filterEmptyState" class="empty-state" hidden>
+              <span>No satellites match these filters.</span>
+              <button id="resetFiltersEmptyButton" type="button">Reset filters</button>
+            </div>
+
+            <div class="filter-block orbit-filter-block">
+              <div id="orbitTypeFilter" class="segmented-control orbit-segmented" role="group" aria-label="Orbit filter">
+                <button type="button" class="segmented-option" data-orbit-filter="ALL" aria-pressed="false">ALL</button>
+                <button type="button" class="segmented-option" data-orbit-filter="GEO" aria-pressed="false">GEO</button>
+                <button type="button" class="segmented-option" data-orbit-filter="MEO" aria-pressed="true">MEO</button>
+                <button type="button" class="segmented-option" data-orbit-filter="LEO" aria-pressed="false">LEO</button>
+                <button type="button" class="segmented-option" data-orbit-filter="HEO" aria-pressed="false">HEO</button>
+                <button type="button" class="segmented-option" data-orbit-filter="OTHER" aria-pressed="false">Other</button>
+              </div>
+            </div>
+
+            <div class="filter-block">
+              <div id="companyFilter" class="tag-chip-list" role="group" aria-label="Tag filter">
+                <label class="filter-chip">
+                  <input type="checkbox" value="ALL COMPANY" checked>
+                  <span>All tags</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="filter-block debris-filter-block">
+              <div class="debris-reset-row">
+                <div id="debrisFilter" class="segmented-control debris-segmented" role="radiogroup" aria-label="Debris filter">
+                  <button type="button" class="segmented-option" data-debris-filter="show" aria-pressed="true">Show</button>
+                  <button type="button" class="segmented-option" data-debris-filter="hide" aria-pressed="false">Hide</button>
+                  <button type="button" class="segmented-option" data-debris-filter="only" aria-pressed="false">Debris only</button>
+                </div>
+                <button id="resetFiltersButton" type="button" class="menu-secondary-action reset-filters-inline-button">Reset Filters</button>
+              </div>
+            </div>
           </div>
 
           <div id="selectedSatelliteControls" class="satellite-option-grid" aria-label="Selected satellite options" aria-hidden="true" hidden>
@@ -120,56 +158,6 @@ export function satelliteMenuLoader() {
           </div>
 
           <div id="selectedSatelliteSummary" class="selected-satellite-summary" hidden></div>
-        </div>
-      </section>
-
-      <section id="filtersAccordionSection" class="menu-accordion-section menu-section-filters">
-        <h3 id="filtersAccordionHeader" role="button" tabindex="0" aria-controls="filtersContent" aria-expanded="true" data-collapsible-target="filtersContent" class="section-heading menu-accordion-heading menu-accordion-heading-filters" data-default-expanded="true">
-          <span>Filters - Satellites Found: <span id="satelliteCountDisplay">0</span></span>
-          <span class="toggle-icon">v</span>
-        </h3>
-
-        <div id="filtersContent" class="collapsible-content filters-panel" aria-labelledby="filtersAccordionHeader">
-          <div class="filter-toolbar">
-            <div id="filterStatusSummary" class="filter-status-summary" aria-live="polite">MEO + All tags + Debris shown | 0 satellites</div>
-            <button id="resetFiltersButton" type="button" class="menu-secondary-action">Reset Filters</button>
-          </div>
-          <div id="filterEmptyState" class="empty-state" hidden>
-            <span>No satellites match these filters.</span>
-            <button id="resetFiltersEmptyButton" type="button">Reset filters</button>
-          </div>
-
-          <div class="filter-block orbit-filter-block">
-            <div id="orbitTypeFilter" class="segmented-control orbit-segmented" role="group" aria-label="Orbit filter">
-              <button type="button" class="segmented-option" data-orbit-filter="ALL" aria-pressed="false">ALL</button>
-              <button type="button" class="segmented-option" data-orbit-filter="GEO" aria-pressed="false">GEO</button>
-              <button type="button" class="segmented-option" data-orbit-filter="MEO" aria-pressed="true">MEO</button>
-              <button type="button" class="segmented-option" data-orbit-filter="LEO" aria-pressed="false">LEO</button>
-              <button type="button" class="segmented-option" data-orbit-filter="HEO" aria-pressed="false">HEO</button>
-              <button type="button" class="segmented-option" data-orbit-filter="OTHER" aria-pressed="false">Other</button>
-            </div>
-          </div>
-
-          <div class="filter-block">
-            <div class="filter-label">Tag filter (multi-select):</div>
-            <div class="menu-helper">Use tags to narrow by constellation, operator, or mission group.</div>
-            <div id="companyFilter" class="tag-chip-list" role="group" aria-label="Tag filter">
-              <label class="filter-chip">
-                <input type="checkbox" value="ALL COMPANY" checked>
-                <span>All tags</span>
-              </label>
-            </div>
-          </div>
-
-          <div class="filter-block">
-            <div class="filter-label">Debris filter:</div>
-            <div class="menu-helper">Show all objects, hide debris, or inspect debris only.</div>
-            <div id="debrisFilter" class="segmented-control debris-segmented" role="radiogroup" aria-label="Debris filter">
-              <button type="button" class="segmented-option" data-debris-filter="show" aria-pressed="true">Show</button>
-              <button type="button" class="segmented-option" data-debris-filter="hide" aria-pressed="false">Hide</button>
-              <button type="button" class="segmented-option" data-debris-filter="only" aria-pressed="false">Debris only</button>
-            </div>
-          </div>
         </div>
       </section>
 

@@ -149,6 +149,7 @@
         processInChunks,
         scheduleDeferredWork
     } from './js/startupPerformance.js';
+    import { createAnimationTimer } from './js/animationTimer.js';
     import {
         issShortcutState,
         starlinkShortcutState
@@ -191,7 +192,7 @@
     })();
     startupPerf.mark('module-loaded');
 
-    const versionNumber = "1.7";
+    const versionNumber = "1.7.1";
     if (versionNumber !== APP_VERSION) {
         console.warn(`Version mismatch: index ${versionNumber}, server module ${APP_VERSION}`);
     }
@@ -252,8 +253,7 @@
     const MENU_COLLAPSE_STORAGE_KEY = 'openbexi.menu.collapsedSections';
     const DEFAULT_EXPANDED_ACCORDION_SECTIONS = new Set([
         'viewContent',
-        'satelliteSelectionContent',
-        'filtersContent'
+        'satelliteSelectionContent'
     ]);
     const DEFAULT_COLLAPSED_ACCORDION_SECTIONS = new Set([
         'timelineContent',
@@ -425,7 +425,7 @@
     let satelliteSelectDropdown;
     let satelliteSearchInput, satelliteSearchResults, satelliteSearchClearButton, satelliteSearchEmpty;
     let selectFirstStarlinkButton, selectIssButton, showOnlySelectedSatelliteCheckbox, selectedSatelliteControls;
-    let filterStatusSummary, filterEmptyState, resetFiltersButton, resetFiltersEmptyButton, selectedSatelliteSummary, selectedSatelliteDetailPanel;
+    let filterEmptyState, resetFiltersButton, resetFiltersEmptyButton, selectedSatelliteSummary, selectedSatelliteDetailPanel;
     let currentSearchResults = [];
     let activeSearchResultIndex = -1;
     let isSatelliteDropdownOpen = false;
@@ -661,8 +661,15 @@
         control.setAttribute('aria-busy', disabled ? 'true' : 'false');
     }
 
+    function setSatelliteFoundCountLabel(text) {
+        if (!satelliteCountDisplay) return;
+        const label = text?.toString() || '0';
+        satelliteCountDisplay.textContent = label;
+        satelliteCountDisplay.setAttribute('aria-label', `Satellites found: ${label}`);
+    }
+
     function setSatelliteLoadingState(text) {
-        if (satelliteCountDisplay) satelliteCountDisplay.textContent = text;
+        setSatelliteFoundCountLabel(text);
         if (satelliteSelectDropdown) {
             satelliteSelectDropdown.innerHTML = `<option value="None">${text}</option>`;
             satelliteSelectDropdown.value = 'None';
@@ -813,26 +820,9 @@
         persistSetting(key, value);
     }
 
-    function debrisFilterLabel(mode = simParams.debrisFilter) {
-        if (mode === DEBRIS_FILTER_HIDE) return 'Debris hidden';
-        if (mode === DEBRIS_FILTER_ONLY) return 'Debris only';
-        return 'Debris shown';
-    }
-
     function updateFilterStatus(filteredTLEs = []) {
-        const orbitLabel = isAllOrbitSelection(simParams.orbitTypeFilter)
-            ? 'ALL orbits'
-            : normalizeOrbitSelection(simParams.orbitTypeFilter).join(' + ') || 'All orbits';
-        const companySelection = normalizeCompanySelection(simParams.companyFilter);
-        const companyLabel = companySelection.includes(ALL_COMPANY_OPTION)
-            ? 'All tags'
-            : companySelection.map(formatCompanyLabel).join(' + ');
-        const count = filteredTLEs.length;
-        if (filterStatusSummary) {
-            filterStatusSummary.textContent = `${orbitLabel} + ${companyLabel} + ${debrisFilterLabel()} | ${count} satellites`;
-        }
         if (filterEmptyState) {
-            filterEmptyState.hidden = count !== 0;
+            filterEmptyState.hidden = filteredTLEs.length !== 0;
         }
     }
 
@@ -2628,9 +2618,7 @@
                 tleDataSource: 'live server',
                 chunkSize: SATELLITE_SETUP_CHUNK_SIZE,
                 onProgress: ({ processed, total }) => {
-                    if (satelliteCountDisplay) {
-                        satelliteCountDisplay.textContent = `Loading ${processed}/${total}`;
-                    }
+                    setSatelliteFoundCountLabel(`Loading ${processed}/${total}`);
                 }
             });
             updateSatelliteList();
@@ -2683,7 +2671,6 @@
         if (satelliteSearchResults && satelliteSearchResults.parentElement !== document.body) {
             document.body.appendChild(satelliteSearchResults);
         }
-        filterStatusSummary = document.getElementById('filterStatusSummary');
         filterEmptyState = document.getElementById('filterEmptyState');
         resetFiltersButton = document.getElementById('resetFiltersButton');
         resetFiltersEmptyButton = document.getElementById('resetFiltersEmptyButton');
@@ -3366,7 +3353,7 @@
         }
     }
 
-    const clock = new THREE.Clock();
+    const clock = createAnimationTimer();
     let cameraMove = null;
 
     function enforceSceneOrigin() {
@@ -4046,7 +4033,7 @@
 
     function updateSatelliteList() {
         if (!satellites || !satelliteSelectDropdown || !companyFilterSelect) {
-            if (satelliteCountDisplay) satelliteCountDisplay.textContent = '0';
+            setSatelliteFoundCountLabel('0');
             if (satelliteSelectDropdown) satelliteSelectDropdown.innerHTML = '<option value="None">None</option>';
             if (companyFilterSelect) {
                 renderCompanyFilter([], simParams.companyFilter);
@@ -4102,10 +4089,9 @@
             }
         });
 
-        if (satelliteCountDisplay) {
-            satelliteCountDisplay.textContent =
-                simParams.showOnlySelectedSatellite ? (currentSelectedSatellite ? '1' : '0') : filteredTLEs.length.toString();
-        }
+        setSatelliteFoundCountLabel(
+            simParams.showOnlySelectedSatellite ? (currentSelectedSatellite ? '1' : '0') : filteredTLEs.length.toString()
+        );
         updateFilterStatus(filteredTLEs);
         updateSelectedSatelliteSummary(currentSelectedSatellite);
 
@@ -4489,9 +4475,7 @@
                 tleDataSource: serverTleData ? 'live server' : 'local files',
                 chunkSize: SATELLITE_SETUP_CHUNK_SIZE,
                 onProgress: ({ processed, total }) => {
-                    if (satelliteCountDisplay) {
-                        satelliteCountDisplay.textContent = `Loading ${processed}/${total}`;
-                    }
+                    setSatelliteFoundCountLabel(`Loading ${processed}/${total}`);
                 }
             });
             startupPerf.mark('satellite-data-ready', { count: satellites.length });

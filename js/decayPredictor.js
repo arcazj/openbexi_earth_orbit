@@ -85,14 +85,35 @@ function confidenceForWindow(crossDate, now, satrec, horizonDays) {
     return Math.max(0.1, Math.min(1, base + proximity * 0.5));
 }
 
-function parseMdyDate(value) {
+export function parseDecayDate(value) {
     if (typeof value !== 'string') return null;
-    const parts = value.split('/').map((p) => parseInt(p, 10));
-    if (parts.length !== 3) return null;
-    const [month, day, year] = parts;
+
+    const trimmed = value.trim();
+    let year;
+    let month;
+    let day;
+
+    const isoMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (isoMatch) {
+        year = parseInt(isoMatch[1], 10);
+        month = parseInt(isoMatch[2], 10);
+        day = parseInt(isoMatch[3], 10);
+    } else {
+        const parts = trimmed.split('/').map((p) => parseInt(p, 10));
+        if (parts.length !== 3) return null;
+        [month, day, year] = parts;
+    }
+
     if (!month || !day || !year) return null;
     const date = new Date(Date.UTC(year, month - 1, day));
     if (Number.isNaN(date.getTime())) return null;
+    if (
+        date.getUTCFullYear() !== year ||
+        date.getUTCMonth() !== month - 1 ||
+        date.getUTCDate() !== day
+    ) {
+        return null;
+    }
     const iso = `${date.getUTCFullYear()}-${(date.getUTCMonth() + 1).toString().padStart(2, '0')}-${date
         .getUTCDate()
         .toString()
@@ -100,7 +121,7 @@ function parseMdyDate(value) {
     return { date, iso };
 }
 
-function normalizeDecayRecord(raw, warn) {
+export function normalizeDecayRecord(raw, warn = () => {}) {
     const noradRaw = raw?.NORAD_CAT_ID ?? raw?.norad_cat_id ?? raw?.NORADID ?? raw?.noradId;
     const noradId = noradRaw === undefined || noradRaw === null ? null : String(noradRaw).trim();
     if (!noradId) {
@@ -108,13 +129,13 @@ function normalizeDecayRecord(raw, warn) {
         return null;
     }
 
-    const decayParsed = parseMdyDate(raw?.DECAY_DATE ?? raw?.decay_date);
+    const decayParsed = parseDecayDate(raw?.DECAY_DATE ?? raw?.decay_date);
     if (!decayParsed) {
         warn(`invalid DECAY_DATE for NORAD ${noradId}`);
         return null;
     }
 
-    const launchParsed = parseMdyDate(raw?.LAUNCH_DATE ?? raw?.launch_date);
+    const launchParsed = parseDecayDate(raw?.LAUNCH_DATE ?? raw?.launch_date);
 
     return {
         noradId,
@@ -125,7 +146,7 @@ function normalizeDecayRecord(raw, warn) {
     };
 }
 
-function flattenDecayData(data) {
+export function flattenDecayData(data) {
     if (!data || typeof data !== 'object') return [];
     const warnMessages = new Set();
     let warnCount = 0;

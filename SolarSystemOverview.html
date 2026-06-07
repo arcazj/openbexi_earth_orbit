@@ -266,6 +266,7 @@
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
     import { SOLAR_SYSTEM_TEXTURE_PATHS } from './js/solarSystemOverviewLoader.js';
+    import { createAnimationTimer } from './js/animationTimer.js';
     import {
       createSolarSystemEphemerisState,
       loadSolarSystemEphemeris,
@@ -443,7 +444,7 @@
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.05;
       document.body.appendChild(renderer.domElement);
-      simClock = new THREE.Clock();
+      simClock = createAnimationTimer();
 
       controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;

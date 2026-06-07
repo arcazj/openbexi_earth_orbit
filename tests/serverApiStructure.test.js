@@ -22,7 +22,7 @@ function run() {
 
   assert(serverPy.includes('Access-Control-Allow-Origin'), 'server.py sends CORS headers');
   assert(serverPy.includes('ThreadingHTTPServer'), 'server.py uses a local threaded HTTP server');
-  assert(serverPy.includes('APP_VERSION = "1.7"'), 'server.py version matches latest release');
+  assert(serverPy.includes('APP_VERSION = "1.7.1"'), 'server.py version matches latest release');
   assert(serverPy.includes('SwaggerUIBundle'), 'server docs page initializes Swagger UI when CDN is available');
   assert(serverPy.includes('.swagger-ui .opblock .opblock-summary-path'), 'server docs override Swagger route text contrast');
   assert(serverPy.includes('color: #ffffff !important'), 'server docs include high-contrast route/method text');
@@ -50,6 +50,7 @@ function run() {
   assert(readme.includes('Version 1.6.1 removes the integrated main-app `Magnitude limit` slider'), 'README documents Version 1.6.1 star catalog changes');
   assert(readme.includes('Version 1.6.2 integrates `Solar System Overview`'), 'README documents Version 1.6.2 Solar System integration');
   assert(readme.includes('Version 1.7 upgrades Solar System textures and uses bundled JPL-derived ephemeris data'), 'README documents Version 1.7 ephemeris and texture changes');
+  assert(readme.includes('Version 1.7.1 consolidates satellite filters into `Satellites Selection - Found`'), 'README documents Version 1.7.1 menu consolidation');
   assert(readme.includes('displays all 46 bundled reference stars'), 'README documents the bundled star count');
   assert(readme.includes('textures/March.jpg'), 'README documents the local Mars texture path');
   assert(readme.includes('Mars texture loading is silent during initial `index.html` launch while Earth is active'), 'README documents silent Mars texture loading on launch');
@@ -79,6 +80,7 @@ function run() {
   assert(integration.includes('Version 1.6.1 removes the integrated `Magnitude limit` slider'), 'integration plan covers Version 1.6.1');
   assert(integration.includes('Version 1.6.2 integrates Solar System Overview'), 'integration plan covers Version 1.6.2');
   assert(integration.includes('Version 1.7 upgrades Solar System textures and adds bundled JPL-derived ephemeris data'), 'integration plan covers Version 1.7');
+  assert(integration.includes('Version 1.7.1 consolidates `Filters - Satellites Found` into `Satellites Selection - Found`'), 'integration plan covers Version 1.7.1');
   assert(integration.includes('controls only while enabled'), 'integration plan covers hidden Stars & Milky Way sub-controls');
   assert(integration.includes('Test Mars mode keeps Mars visually centered'), 'integration plan covers Mars target checks');
   assert(integration.includes('Mars texture loading does not show a visible progress bar on initial `index.html` launch'), 'integration plan covers silent Mars launch behavior');

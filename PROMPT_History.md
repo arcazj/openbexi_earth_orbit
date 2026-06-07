@@ -1,5 +1,58 @@
 # Prompt History
 
+## Release Date: 2026-06-07  Version 1.7.1
+
+Implement Version `1.7.1` as a menu consolidation and satellite filtering maintenance release.
+
+Preserve all existing Earth, Moon, Mars, satellite, Mercator, server, Help, Share, timeline, selected-satellite, orbit, footprint, model-loading, Stars & Milky Way, Solar System, ephemeris, and `Time x` behavior unless explicitly changed below. Do not break legacy behavior from Versions `1.5.x`, `1.6`, `1.6.1`, `1.6.2`, and `1.7`.
+
+Requirements:
+
+1. Versioning
+   - Update visible app version to `1.7.1`.
+   - Update `js/serverConnection.js`, `js/SatelliteMenuLoader.js`, and `server.py` to report version `1.7.1`.
+
+2. Menu Consolidation
+   - Remove the standalone `Filters - Satellites Found` accordion section.
+   - Move all orbit, tag/company, debris, reset, and zero-result filter controls under the `Satellite Selection` accordion.
+   - Rename the Satellite Selection heading to `Satellites Selection - Found <number>`.
+   - Keep the found number red, bold, and accessible with an updated `aria-label`.
+   - `Views & Time` and `Satellites Selection - Found` must launch expanded by default.
+   - `Timelines`, `Share`, and `Help` must launch collapsed by default.
+   - Remove all `filtersContent` accordion-state/default behavior.
+
+3. Filter Layout
+   - Move `Reset Filters` to the same line as `Show`, `Hide`, and `Debris only`.
+   - Remove the visible text:
+     - `Debris filter:`
+     - `Show all objects, hide debris, or inspect debris only.`
+     - `Tag filter (multi-select):`
+     - `Use tags to narrow by constellation, operator, or mission group.`
+   - Remove active summary text such as `MEO + All tags + Debris shown | 44 satellites`.
+   - Keep accessible names for orbit, tag, debris, and search controls.
+
+4. Search and Filter Consistency
+   - The Satellite Selection search dropdown must display only satellites matching the active orbit/tag/debris filters.
+   - The hidden legacy `select` options must match the same filtered satellite set used by the visible search dropdown.
+   - Multi-check combinations must update the visible count, search dropdown, empty state, satellite visibility, and hidden select from one canonical filtered list.
+   - Reset filters must restore default filters and immediately refresh the count, dropdown, hidden select, and visible satellites.
+
+5. Regression Safety
+   - Do not change selected-satellite details on the right-side canvas panel.
+   - Do not change Starlink/ISS shortcuts, model loading, selected-satellite tracking, orbit rendering, Mercator rendering, Share, Help, server status, Stars & Milky Way, Solar System, or ephemeris behavior.
+   - Add or update tests for the new menu structure, removed summary/helper text, default accordion state, found-count styling/accessibility, reset/debris row layout, and multi-check search/filter consistency.
+   - Run the full automated test suite and fix regressions before delivery.
+
+Acceptance criteria:
+
+- The menu order is `Views & Time`, `Satellites Selection - Found`, `Timelines`, `Share`, `Help`.
+- The standalone `Filters - Satellites Found` section does not exist.
+- `filtersContent`, `filtersAccordionSection`, and `filterStatusSummary` are not in generated menu markup.
+- `Reset Filters` appears beside `Show`, `Hide`, and `Debris only`.
+- The old helper paragraphs and active summary string are absent.
+- Search results, hidden select options, visible satellite count, and satellite visibility all match active multi-check filters.
+- Existing features from Version `1.7` and earlier still pass their automated tests.
+
 ## Release Date: 2026-06-07  Version 1.7
 
 Implement Version `1.7` as a Solar System texture and JPL-derived ephemeris upgrade.

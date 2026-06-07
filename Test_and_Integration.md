@@ -72,6 +72,8 @@ Version 1.6.2 integrates Solar System Overview into the main app while keeping `
 
 Version 1.7 upgrades Solar System textures and adds bundled JPL-derived ephemeris data. Mercury uses `textures/mercury.png`, Venus uses `textures/venus.png`, and Jupiter uses `textures/jupiter.jpg`. Integrated Solar System mode loads local `data/ephemeris/solar_system_jpl_horizons_2020_2035_6h.json`, uses shared `SIM_DATE`, shows ephemeris source/range in the UI, and labels fallback clearly if data is missing, loading, invalid, or out of range. Moon is derived from Earth/Moon ephemeris vectors. Existing Version 1.6.2 menu behavior, removed `Other Selections`, Earth/Moon/Mars reachability through Solar System selection, and legacy satellite/Mercator/Stars/Share/Help behavior must remain intact.
 
+Version 1.7.1 consolidates `Filters - Satellites Found` into `Satellites Selection - Found`. The standalone Filters accordion is removed; orbit, tag, debris, reset, and zero-result controls live inside Satellite Selection; the found count is red/bold in the Satellite Selection heading; `Reset Filters` is on the same row as `Show`, `Hide`, and `Debris only`; the old active summary text and visible helper paragraphs are removed. Multi-check filter combinations must update the found count, hidden select options, and visible search dropdown from the same filtered satellite set.
+
 ## Test Environment
 
 - Run from the repository root.
@@ -319,11 +321,16 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test the top/canvas `Time x` slider updates the shared simulation-speed state after the Version 1.7 Solar System ephemeris integration.
 - Test menu CSS keeps the narrowed menu width, legacy colored accordion headers, and scrollable long panels.
 - Test the vertical tab rail is removed and the menu uses stacked accordion sections.
-- Test accordion section order is `Views & Time`, `Satellite Selection`, `Filters - Satellites Found`, `Timelines`, `Share`, `Help`.
+- Test accordion section order is `Views & Time`, `Satellites Selection - Found`, `Timelines`, `Share`, `Help`.
+- Test the standalone `Filters - Satellites Found` accordion, `filtersContent`, and active summary text are absent.
+- Test orbit, tag, debris, reset, and zero-result controls are inside `Satellites Selection - Found`.
+- Test `Reset Filters` appears on the same row as `Show`, `Hide`, and `Debris only`.
+- Test the found count in `Satellites Selection - Found` is red, bold, and updates its accessible label.
+- Test multi-check filtering in Search satellite: the visible dropdown list of satellites must match the requested orbit/tag/debris filtering exactly, and the hidden legacy select must contain the same filtered satellite set.
 - Test the Settings accordion section is absent.
 - Test multiple accordion sections can be open simultaneously.
 - Test expanding one accordion section does not collapse another section.
-- Test `Views & Time`, `Satellite Selection`, and `Filters - Satellites Found` are expanded on initial page load.
+- Test `Views & Time` and `Satellites Selection - Found` are expanded on initial page load.
 - Test `Timelines`, `Share`, and `Help` are collapsed on initial page load.
 - Test persisted accordion state cannot override the required launch defaults on initial page load.
 - Test the visible text `Use the time slider at the top of the screen to control simulation speed.` is absent.
@@ -377,7 +384,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 ### Server Data Path
 
 - Test `/api/health` returns status `ok` and version metadata.
-- Test `/api/version` returns app/API version `1.7` and release date `2026-06-07`.
+- Test `/api/version` returns app/API version `1.7.1` and release date `2026-06-07`.
 - Test `/api/tle` and `/api/satellites` return valid TLE records with `norad_id`, `tle_line1`, and `tle_line2`.
 - Test `/api/satellite-metadata` lists known metadata files.
 - Test `/api/satellite-metadata/starlink_V1.json` returns one known metadata payload.
@@ -431,15 +438,15 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm the time slider label is readable as `Time x` and is not obscured by the narrowed menu.
 - Confirm headings, accordion labels, helper text, toggle icons, time slider labels, and menu buttons render without visible mojibake.
 - Confirm the left menu is thinner than Version 1.5.1 but still usable on desktop and narrow viewports.
-- Confirm the `Filters - Satellites Found` numeric count is red and bold in both expanded and collapsed filter states.
-- Confirm `Views & Time`, `Satellite Selection`, and `Filters - Satellites Found` start expanded on every `index.html` load, even after previously changing accordion states.
+- Confirm the `Satellites Selection - Found` numeric count is red and bold in the Satellite Selection header.
+- Confirm `Views & Time` and `Satellites Selection - Found` start expanded on every `index.html` load, even after previously changing accordion states.
 - Confirm `Timelines`, `Share`, and `Help` start collapsed on every `index.html` load.
 - Confirm the Settings accordion section is not present.
 - Confirm multiple accordion sections can stay open at the same time.
 - Confirm selecting filters, tags, debris modes, timelines, and view toggles does not collapse unrelated accordion sections.
-- Confirm the accordion order is `Views & Time`, `Satellite Selection`, `Filters - Satellites Found`, `Timelines`, `Share`, `Help`.
+- Confirm the accordion order is `Views & Time`, `Satellites Selection - Found`, `Timelines`, `Share`, `Help`.
 - Confirm `Satellite Selection` appears immediately under `Views & Time`.
-- Confirm `Filters - Satellites Found` appears immediately under `Satellite Selection`.
+- Confirm orbit/tag/debris filters appear inside `Satellites Selection - Found`.
 - Confirm the visible orbit-filter helper text `Orbit filter (multi-select): Choose one or more orbit families. ALL enables every orbit category.` is gone.
 - Confirm the visible satellite-search helper text `Select Satellite: Search by name, NORAD ID, orbit type, or tag.` is gone.
 - Confirm the `Views & Time` section keeps `Globe` and `Mercator` on one row.
@@ -471,9 +478,9 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm the Starlink shortcut label updates to `Starlink (<NORAD ID>)` after TLE data loads.
 - Confirm the Starlink shortcut shows `Starlink unavailable` if no Starlink target can be resolved.
 - Confirm the ISS shortcut shows `ISS unavailable` if no ISS target can be resolved.
-- Confirm `Timelines` appears immediately after `Filters - Satellites Found`.
+- Confirm `Timelines` appears immediately after `Satellites Selection - Found`.
 - Confirm `Share` appears immediately after `Timelines` and immediately before `Help`.
-- Confirm `Close`, `Version 1.7 - hosted at GitHub Repo`, and the server status icon/text are aligned on one compact row on desktop.
+- Confirm `Close`, `Version 1.7.1 - hosted at GitHub Repo`, and the server status icon/text are aligned on one compact row on desktop.
 - Confirm the version/GitHub text is centered in the menu header.
 - Confirm the server status indicator appears above the accordion menu and does not shift layout when changing between checking, offline, connected, and error states.
 - Confirm connected status uses `power_green.png` and offline/error status uses `power_red.png`.
@@ -514,10 +521,10 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm beam, footprint, satellite marker, Earth rendering, filters, timelines, YPR controls, and view controls still work.
 - Confirm dense panels, satellite metadata, and search results scroll internally after menu narrowing.
 - Confirm the vertical tab rail is gone.
-- Confirm the left menu shows stacked accordion sections for Views & Time, Satellite Selection, Filters - Satellites Found, Timelines, Share, and Help.
+- Confirm the left menu shows stacked accordion sections for Views & Time, Satellites Selection - Found, Timelines, Share, and Help.
 - Confirm each accordion header keeps the legacy dark navy/blue style and colored left accent.
-- Confirm expanded accordion headers are readable, especially `Filters - Satellites Found` and `Satellite Selection` on initial page load.
-- Confirm the numeric satellite count in `Filters - Satellites Found` is red and bold in both expanded and collapsed states.
+- Confirm expanded accordion headers are readable, especially `Satellites Selection - Found` on initial page load.
+- Confirm the numeric satellite count in `Satellites Selection - Found` is red and bold.
 - Confirm the menu is visibly thinner than Version 1.5.4 while filters, reset button, search, YPR sliders, timeline checkboxes, metadata, and view controls remain usable.
 - Confirm the time slider remains readable and unobscured after the menu narrowing.
 - Confirm the expanded header chevron/toggle marker remains visible.

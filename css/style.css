@@ -180,8 +180,16 @@ canvas {
     cursor: pointer;
 }
 
+.satellite-heading-title {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
 /* Satellite Count Display */
-#satelliteCountDisplay {
+#satelliteCountDisplay,
+.satellite-found-count {
     font-size: 13px;
     color: #ff2a2a !important;
     font-weight: 900;
@@ -347,11 +355,15 @@ canvas {
 }
 
 /* Filters layout */
-#filtersContent.filters-panel {
+.satellite-filter-panel {
     display: flex;
     flex-direction: column;
     gap: 16px;
     align-items: stretch;
+    padding: 10px;
+    border: 1px solid rgba(65, 185, 169, 0.22);
+    border-radius: 8px;
+    background: rgba(4, 20, 25, 0.34);
 }
 
 .filter-block {
@@ -409,6 +421,18 @@ canvas {
     flex-wrap: wrap;
     gap: 6px;
     align-items: flex-start;
+}
+
+.debris-reset-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.reset-filters-inline-button {
+    min-height: 38px;
+    white-space: nowrap;
 }
 
 #controlsContainer .filter-chip {
@@ -877,11 +901,6 @@ canvas {
     --section-panel-bg: linear-gradient(180deg, rgba(255, 242, 164, 0.24), rgba(28, 22, 8, 0.58) 62%, rgba(7, 10, 17, 0.76));
 }
 
-.menu-section-filters {
-    --section-metal: var(--menu-metal-blue);
-    --section-panel-bg: linear-gradient(180deg, rgba(154, 210, 255, 0.24), rgba(7, 30, 58, 0.58) 62%, rgba(5, 10, 18, 0.76));
-}
-
 .menu-section-satellite {
     --section-metal: var(--menu-metal-teal);
     --section-panel-bg: linear-gradient(180deg, rgba(154, 255, 237, 0.22), rgba(9, 46, 42, 0.58) 62%, rgba(4, 11, 17, 0.76));
@@ -934,14 +953,6 @@ canvas {
     margin-top: -2px;
 }
 
-.filter-toolbar {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 8px;
-    align-items: center;
-}
-
-.filter-status-summary,
 .selected-satellite-summary {
     padding: 7px 9px;
     border: 1px solid rgba(88, 155, 220, 0.35);
@@ -1578,8 +1589,7 @@ canvas {
     }
 
     .satellite-option-grid,
-    .view-option-grid,
-    .filter-toolbar {
+    .view-option-grid {
         grid-template-columns: 1fr;
     }
 
