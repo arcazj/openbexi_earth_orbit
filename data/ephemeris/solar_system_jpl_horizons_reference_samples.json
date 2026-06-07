@@ -1,0 +1,398 @@
+{
+  "metadata": {
+    "source": "NASA/JPL Horizons API",
+    "sourceUrl": "https://ssd.jpl.nasa.gov/api/horizons.api",
+    "generatedAtUtc": "2026-06-07T21:25:23Z",
+    "purpose": "Independent midpoint validation samples for the bundled daily ephemeris interpolation.",
+    "referenceFrame": "ICRF",
+    "referencePlane": "ECLIPTIC",
+    "origin": "Sun center, Horizons center 500@10",
+    "units": "km and km/s"
+  },
+  "samples": [
+    {
+      "body": "mercury",
+      "name": "Mercury",
+      "category": "inner",
+      "dateUtc": "2021-03-20T12:00:00Z",
+      "positionKm": [
+        6138418.606714,
+        -68407847.877997,
+        -6153130.800731
+      ],
+      "velocityKmPerSec": [
+        38.747863,
+        6.854733,
+        -2.994221
+      ]
+    },
+    {
+      "body": "mercury",
+      "name": "Mercury",
+      "category": "inner",
+      "dateUtc": "2026-06-07T12:00:00Z",
+      "positionKm": [
+        -58405143.314162,
+        -3484676.493822,
+        5071978.377698
+      ],
+      "velocityKmPerSec": [
+        -7.233641,
+        -46.536137,
+        -3.13965
+      ]
+    },
+    {
+      "body": "mercury",
+      "name": "Mercury",
+      "category": "inner",
+      "dateUtc": "2034-09-22T12:00:00Z",
+      "positionKm": [
+        30610300.890408,
+        -57672196.337412,
+        -7520660.448212
+      ],
+      "velocityKmPerSec": [
+        33.286547,
+        25.254163,
+        -0.988058
+      ]
+    },
+    {
+      "body": "venus",
+      "name": "Venus",
+      "category": "inner",
+      "dateUtc": "2021-03-20T12:00:00Z",
+      "positionKm": [
+        108325811.849674,
+        -6891102.918446,
+        -6345553.674151
+      ],
+      "velocityKmPerSec": [
+        2.066969,
+        34.789209,
+        0.358159
+      ]
+    },
+    {
+      "body": "venus",
+      "name": "Venus",
+      "category": "inner",
+      "dateUtc": "2026-06-07T12:00:00Z",
+      "positionKm": [
+        -105615548.26196,
+        19711021.579308,
+        6364741.590418
+      ],
+      "velocityKmPerSec": [
+        -6.608935,
+        -34.583323,
+        -0.093805
+      ]
+    },
+    {
+      "body": "venus",
+      "name": "Venus",
+      "category": "inner",
+      "dateUtc": "2034-09-22T12:00:00Z",
+      "positionKm": [
+        102982208.225179,
+        -34648336.975933,
+        -6418038.380765
+      ],
+      "velocityKmPerSec": [
+        10.97961,
+        33.038833,
+        -0.178738
+      ]
+    },
+    {
+      "body": "earth",
+      "name": "Earth",
+      "category": "inner",
+      "dateUtc": "2021-03-20T12:00:00Z",
+      "positionKm": [
+        -148988475.281218,
+        490196.376651,
+        382.414462
+      ],
+      "velocityKmPerSec": [
+        -0.573002,
+        -29.902667,
+        0.000377
+      ]
+    },
+    {
+      "body": "earth",
+      "name": "Earth",
+      "category": "inner",
+      "dateUtc": "2026-06-07T12:00:00Z",
+      "positionKm": [
+        -35708995.452854,
+        -147557436.709237,
+        9034.479053
+      ],
+      "velocityKmPerSec": [
+        28.465567,
+        -7.128516,
+        -0.000801
+      ]
+    },
+    {
+      "body": "earth",
+      "name": "Earth",
+      "category": "inner",
+      "dateUtc": "2034-09-22T12:00:00Z",
+      "positionKm": [
+        150142681.763994,
+        -2395427.681225,
+        -1507.752039
+      ],
+      "velocityKmPerSec": [
+        -0.019053,
+        29.668198,
+        -0.001813
+      ]
+    },
+    {
+      "body": "moon",
+      "name": "Moon",
+      "category": "moon",
+      "dateUtc": "2021-03-20T12:00:00Z",
+      "positionKm": [
+        -148901757.181813,
+        882949.041465,
+        2972.871557
+      ],
+      "velocityKmPerSec": [
+        -1.524777,
+        -29.725077,
+        0.085772
+      ]
+    },
+    {
+      "body": "moon",
+      "name": "Moon",
+      "category": "moon",
+      "dateUtc": "2026-06-07T12:00:00Z",
+      "positionKm": [
+        -35353485.009614,
+        -147719253.842919,
+        10833.145825
+      ],
+      "velocityKmPerSec": [
+        28.824414,
+        -6.19653,
+        0.086883
+      ]
+    },
+    {
+      "body": "moon",
+      "name": "Moon",
+      "category": "moon",
+      "dateUtc": "2034-09-22T12:00:00Z",
+      "positionKm": [
+        150267374.855202,
+        -2767977.458415,
+        31466.15418
+      ],
+      "velocityKmPerSec": [
+        0.904078,
+        30.032823,
+        -0.045073
+      ]
+    },
+    {
+      "body": "mars",
+      "name": "Mars",
+      "category": "inner",
+      "dateUtc": "2021-03-20T12:00:00Z",
+      "positionKm": [
+        -61603502.33086,
+        231843201.988948,
+        6369674.68699
+      ],
+      "velocityKmPerSec": [
+        -22.500791,
+        -4.165247,
+        0.464672
+      ]
+    },
+    {
+      "body": "mars",
+      "name": "Mars",
+      "category": "inner",
+      "dateUtc": "2026-06-07T12:00:00Z",
+      "positionKm": [
+        196942392.338581,
+        78649537.72393,
+        -3180941.871266
+      ],
+      "velocityKmPerSec": [
+        -8.057213,
+        24.572132,
+        0.712518
+      ]
+    },
+    {
+      "body": "mars",
+      "name": "Mars",
+      "category": "inner",
+      "dateUtc": "2034-09-22T12:00:00Z",
+      "positionKm": [
+        -235242352.045823,
+        81747297.940767,
+        7477913.874617
+      ],
+      "velocityKmPerSec": [
+        -7.047832,
+        -20.817138,
+        -0.263662
+      ]
+    },
+    {
+      "body": "jupiter",
+      "name": "Jupiter",
+      "category": "outer",
+      "dateUtc": "2021-03-20T12:00:00Z",
+      "positionKm": [
+        521792549.859056,
+        -550343942.369057,
+        -9388459.286971
+      ],
+      "velocityKmPerSec": [
+        9.333719,
+        9.616061,
+        -0.248768
+      ]
+    },
+    {
+      "body": "jupiter",
+      "name": "Jupiter",
+      "category": "outer",
+      "dateUtc": "2026-06-07T12:00:00Z",
+      "positionKm": [
+        -415862105.624284,
+        669407252.607518,
+        6523616.014691
+      ],
+      "velocityKmPerSec": [
+        -11.260712,
+        -6.291998,
+        0.277992
+      ]
+    },
+    {
+      "body": "jupiter",
+      "name": "Jupiter",
+      "category": "outer",
+      "dateUtc": "2034-09-22T12:00:00Z",
+      "positionKm": [
+        734517437.043369,
+        97475225.784291,
+        -16837726.231187
+      ],
+      "velocityKmPerSec": [
+        -1.874785,
+        13.573748,
+        -0.014439
+      ]
+    },
+    {
+      "body": "saturn",
+      "name": "Saturn",
+      "category": "outer",
+      "dateUtc": "2021-03-20T12:00:00Z",
+      "positionKm": [
+        871733093.249634,
+        -1210911126.383982,
+        -13640860.582522
+      ],
+      "velocityKmPerSec": [
+        7.313491,
+        5.630593,
+        -0.38925
+      ]
+    },
+    {
+      "body": "saturn",
+      "name": "Saturn",
+      "category": "outer",
+      "dateUtc": "2026-06-07T12:00:00Z",
+      "positionKm": [
+        1405305267.329285,
+        169301307.813297,
+        -58888073.605232
+      ],
+      "velocityKmPerSec": [
+        -1.694233,
+        9.56642,
+        -0.098903
+      ]
+    },
+    {
+      "body": "saturn",
+      "name": "Saturn",
+      "category": "outer",
+      "dateUtc": "2034-09-22T12:00:00Z",
+      "positionKm": [
+        -613705101.293869,
+        1208209483.606434,
+        3443839.841476
+      ],
+      "velocityKmPerSec": [
+        -9.13733,
+        -4.389933,
+        0.440455
+      ]
+    },
+    {
+      "body": "uranus",
+      "name": "Uranus",
+      "category": "outer",
+      "dateUtc": "2021-03-20T12:00:00Z",
+      "positionKm": [
+        2266672144.343743,
+        1897773123.971589,
+        -22318060.220892
+      ],
+      "velocityKmPerSec": [
+        -4.413133,
+        4.913521,
+        0.075193
+      ]
+    },
+    {
+      "body": "uranus",
+      "name": "Uranus",
+      "category": "outer",
+      "dateUtc": "2026-06-07T12:00:00Z",
+      "positionKm": [
+        1396625536.922941,
+        2554626821.435838,
+        -8621464.504008
+      ],
+      "velocityKmPerSec": [
+        -6.03674,
+        2.94658,
+        0.089107
+      ]
+    },
+    {
+      "body": "uranus",
+      "name": "Uranus",
+      "category": "outer",
+      "dateUtc": "2034-09-22T12:00:00Z",
+      "positionKm": [
+        -337188251.743357,
+        2808106958.829209,
+        14775849.807596
+      ],
+      "velocityKmPerSec": [
+        -6.816161,
+        -1.121196,
+        0.08405
+      ]
+    }
+  ]
+}
