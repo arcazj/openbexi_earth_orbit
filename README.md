@@ -1,6 +1,6 @@
 # OpenBEXI Earth Orbit
 
-OpenBEXI Earth Orbit is a browser-based satellite visualization app built with plain HTML, CSS, JavaScript modules, Three.js, and satellite.js. It renders Earth, satellite positions from TLE data, orbit paths, footprints, day/night lighting, Moon context, and 2D Mercator map views.
+OpenBEXI Earth Orbit is a browser-based satellite visualization app built with plain HTML, CSS, JavaScript modules, Three.js, and satellite.js. It renders Earth, satellite positions from TLE data, orbit paths, footprints, day/night lighting, Moon and Mars context, and 2D Mercator map views.
 
 ## Live Demo
 
@@ -36,7 +36,7 @@ OpenBEXI Earth Orbit is a browser-based satellite visualization app built with p
 - Nadir-oriented detailed satellite models: the selected model treats local `+Z` as the Earth-facing axis and points it toward Earth's center before applying yaw/pitch/roll bias.
 - 2D/Mercator selected-satellite UX: selection is highlighted with a clear marker ring instead of applying 3D-only camera-distance behavior.
 - Mercator selected-satellite state uses the selected NORAD ID, so ground tracks and marker rings still render when a detailed 3D model hides the selected sprite.
-- High-definition Earth texture toggle, ECEF axes, Moon view, launch timeline, and re-entry timeline.
+- High-definition Earth texture toggle, ECEF axes, Moon/Mars view, launch timeline, and re-entry timeline.
 - Selecting non-MEO/GEO satellites automatically enables the high-definition Earth texture while MEO/GEO selections never force it off.
 - Satellite Selection shortcuts can select the first loaded Starlink satellite or ISS/ZARYA through the same camera/model path as the normal satellite selector. The Starlink shortcut displays the resolved NORAD ID as `Starlink (<NORAD ID>)`.
 - Help menu actions provide quick access to the GitHub project, rendered README Markdown, rendered Releases History Markdown, a Markdown license page, and Swagger/API pages that open separately even if the Python server still needs to be started.
@@ -84,6 +84,8 @@ Version 1.5.21 makes the right-side selected-satellite data and TLE sections col
 
 Version 1.5.22 keeps the Earth-centered scene frame fixed: the Earth mesh and ECEF axes remain at `(0, 0, 0)`, panning is disabled so mouse interaction cannot shift the active target, Earth mode targets the origin, Moon mode targets `moon.position` without moving the Moon object to the origin, and selected-satellite tracking keeps priority when a satellite/model is selected. Earth zoom can approach about 100 km above the surface, maximum zoom is a very large finite distance, and the camera far plane is widened for Earth, Moon, LEO, MEO, GEO, HEO, and selected-satellite views. Orbit helper math now uses WGS84 geodetic/ECF calculations, orbit classification distinguishes LEO/MEO/GEO/HEO/Other from mean motion plus eccentricity/inclination when metadata is missing, invalid propagated positions are hidden instead of frozen, and Mercator markers, footprints, coverage overlays, ground tracks, and day/night shading share one Web Mercator projection helper. OB3/O3b satellites intentionally use the standard satellite icon/sprite in the main app; the OB3/O3b detailed model assets are not automatically loaded from satellite selection. Selected detailed model roots now stay at the canonical propagated satellite scene coordinate, while model visual centering is applied only to child geometry, so detailed models and sprite fallbacks remain aligned with the selected red orbit trajectory. Add `?orbitAlignDebug=1` to log selected-model orbit alignment diagnostics.
 
+Version 1.5.23 adds `Mars` to `Other Selections`. Selecting Mars displays a Mars globe, uses the local texture asset `textures/March.jpg`, targets `mars.position` for orbit/zoom controls like Moon mode, starts the observer close to the Mars globe, and preserves the Earth-centered scene frame without moving Earth, Moon, or Mars to the origin. Mars texture loading is silent during initial `index.html` launch while Earth is active. When the user selects Mars, the app shows a centered progress bar labeled `Loading Mars map/texture...`, keeps it visible long enough for fast cached/local loads to be seen, shows a short confirmation state if the texture already loaded silently before selection, hides it after successful load, and reports a fallback message if the texture fails. Mars context also switches the Mercator background to `textures/March.jpg` and suppresses Earth-specific satellite markers, footprints, ground tracks, and day/night shading on the Mars map. The Mars position is an approximate visual model using simplified circular heliocentric Earth-to-Mars relative motion. `textures/March.jpg` is treated as a local project-provided Mars texture; its exact source and license still need to be confirmed.
+
 The selected satellite model axis convention is:
 
 ```text
@@ -100,6 +102,8 @@ For ISS selected models only, the yaw and pitch control inputs are swapped to ma
 - `satellite.js` returns TEME-like coordinates. The app treats those coordinates as ECI-like scene coordinates for visualization unless a higher-fidelity TEME-to-ITRF/ECI transform is explicitly added later.
 - TLE/SGP4 results are suitable for educational visualization and short-term screening, not operational flight dynamics or conjunction assessment.
 - The Moon remains a simplified visual model inside the Earth-centered scene; Moon mode changes the camera target to the Moon center but does not recenter the physical scene frame.
+- Mars remains a simplified visual model inside the Earth-centered scene; Mars mode changes the camera target to the Mars center but does not recenter the physical scene frame.
+- Mars texture: `textures/March.jpg`, local project-provided texture, exact source/license to be confirmed.
 
 ## 3D Model Asset Matching
 
@@ -232,7 +236,7 @@ The left menu is organized into compact colored accordion sections. Multiple sec
 - `Views & Time`: a menu `Time x` slider synchronized with the existing canvas-top `Time x` slider, globe/Mercator controls on one row, and high-definition texture/ECEF axes/day-night controls on the next row.
 - `Satellite Selection`: searchable satellite selector, Starlink/ISS shortcut buttons, selected-satellite status, and satellite-specific Yaw-Pitch-Roll, footprint, show-only, LVLH frame, and orbit controls that appear only after a satellite is selected. Detailed metadata and TLE lines are not duplicated in the menu.
 - `Filters - Satellites Found`: orbit, tag, debris filters, active summary, dynamic found count, and reset action.
-- `Other Selections`: Earth/Moon context selection.
+- `Other Selections`: Earth/Moon/Mars context selection.
 - `Timelines`: checkbox toggles for launch and re-entry timelines.
 - `Share`: copy or natively share a safe URL that restores supported app state after satellite data loads, plus preview, download, or copy an image of the current canvas when the browser supports it.
 - `Help`: GitHub, rendered README, rendered Releases History, Markdown Licenses, Swagger, API, and the app disclaimer.
@@ -251,13 +255,13 @@ The Help section opens Swagger and API documentation in separate pages using the
 - `display_satellite.html`: Manifest-backed isolated local OBJ/MTL and GLB viewer for direct satellite model visibility checks.
 - `markdown_viewer.html`: Static rendered Markdown viewer used by Help for README and Releases History.
 - `css/`: Styling for the app, menu, filters, labels, and map layout.
-- `js/`: Browser modules for coordinates, satellite loading, models, menu, footprints, frames, day/night, Moon, timelines, and map rendering.
+- `js/`: Browser modules for coordinates, satellite loading, models, menu, footprints, frames, day/night, Moon/Mars, timelines, and map rendering.
 - `server.py`: Optional standard-library Python server for static hosting, API endpoints, CORS, Swagger/OpenAPI docs, and server-backed data loading.
 - `js/startupPerformance.js`: Startup timing, deferred scheduling, and chunked-work helpers used to keep the first render responsive.
 - `json/tle/`: TLE source data.
 - `json/satellites/`: Satellite metadata and model configuration.
 - `json/display_satellite_models.json`: Model manifest used by `display_satellite.html`.
-- `textures/`: Earth, Moon, satellite, and material textures.
+- `textures/`: Earth, Moon, Mars, satellite, and material textures.
 - `icons/`: Satellite and UI icon assets.
 - `obj/`: OBJ, MTL, and GLB satellite model assets.
 - `tests/`: Node-based deterministic regression tests.

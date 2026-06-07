@@ -1,5 +1,59 @@
 # Prompt History
 
+## Release Date: 2026-06-07  Version 1.5.23
+
+Implement a Mars planet option in `Other Selections`, similar to the existing Moon option.
+
+This release builds on Version 1.5.22. Preserve the optional Python server data path, silent offline/local fallback, server status icon and panel, Help Markdown viewer pages, Licenses action, metallic accordion styling, Version 1.5.22 menu order and launch defaults, synchronized `Time x` sliders, selected-satellite control gating, search dropdown portal behavior, filters, timelines, bottom-right Globe + Mercator overlay, Sun/Earth-reflection selected-model lighting, orbit, footprint, Yaw-Pitch-Roll orientation, Share behavior, selected-satellite right-side detail panel, SSL 1300 restriction behavior, selected-satellite observer tracking, model loading, ISS yaw/pitch correction, 1.5.22 Earth/Moon target enforcement, selected-model orbit alignment, and OB3/O3b sprite-only behavior unless explicitly changed below.
+
+Requirements:
+
+1. Keep the release date and version exactly `Release Date: 2026-06-07  Version 1.5.23`.
+2. Update the visible application, JavaScript, menu server panel, and Python server version to `1.5.23`.
+3. Add `Mars` to the `Other Selections` dropdown beside `Earth` and `Moon`.
+4. When `Mars` is selected, display a textured Mars globe in the 3D scene.
+5. Use the local texture asset `textures/March.jpg` for Mars.
+6. Do not fetch any remote Mars texture at runtime.
+7. Document `textures/March.jpg` as a local project-provided Mars texture with source/license to be confirmed unless exact provenance is later provided.
+8. Preserve the Earth-centered scene frame; do not move Earth to accommodate Mars.
+9. Preserve existing Moon behavior exactly.
+10. Like Moon mode, Mars mode must visually center Mars by setting `controls.target` to `mars.position`.
+11. Do not move Mars to `(0, 0, 0)`; preserve physical scene consistency.
+12. Mouse orbit and zoom in Mars mode must orbit around Mars and keep Mars visually centered.
+13. When leaving Mars mode, restore the correct Earth-centered or selected-satellite camera target behavior.
+14. Preserve satellite selection, orbit display, footprints, Mercator view, selected-satellite tracking, time controls, and lighting.
+15. Add or update automated tests/static checks confirming `Other Selections` includes `Mars`, Mars uses `textures/March.jpg`, Mars mode targets `mars.position`, Mars mode does not move Earth/Moon/Mars to the origin, and leaving Mars mode restores target priority.
+16. Update `README.md` and `Test_and_Integration.md` for Version `1.5.23`.
+17. When loading the Mars map/texture from `textures/March.jpg`, show a progress bar labeled `Loading Mars map/texture...` in the middle of the canvas.
+18. Hide the Mars texture progress bar after successful load, and show a clear fallback message if the texture fails so the user knows the fallback Mars color is being used.
+19. Do not show the Mars progress bar during initial `index.html` launch while `Other Selections` is `Earth`.
+20. Defer visible Mars texture progress UI until the user selects `Mars`; Mars texture may still load silently in the background at startup.
+21. If `textures/March.jpg` is already loaded by the time the user selects Mars, still show a short centered loading/confirmation state.
+22. Keep the Mars progress bar visible long enough for cached/local loads to be seen; do not let fast local texture completion hide it immediately.
+23. Make the Mars observer start closer than the previous 1.5.23 Mars view while keeping zoom, orbit controls, and Mars target tracking functional.
+24. When Mars is selected and Mercator is enabled, display the Mars Mercator map using `textures/March.jpg` instead of the Earth map, and do not draw Earth-specific satellite footprints, ground tracks, day/night shading, or satellite markers on top of the Mars map.
+
+Acceptance Criteria:
+
+- Latest release is `Release Date: 2026-06-07  Version 1.5.23`.
+- `index.html` displays `Version 1.5.23 - hosted at GitHub Repo`.
+- `js/serverConnection.js`, `js/SatelliteMenuLoader.js`, and `server.py` report app/API/server version `1.5.23`.
+- `Other Selections` contains `Mars`.
+- Selecting Mars shows a textured Mars globe using `textures/March.jpg`.
+- Mars is centered in the camera like Moon mode.
+- Mars starts close to the globe in the observer view, closer than the first 1.5.23 Mars fly-to distance.
+- Zoom/orbit controls work around Mars.
+- Mars loading progress does not appear on initial launch while Earth is active.
+- Loading Mars texture displays a centered progress bar and a clear fallback message on failure.
+- Selecting Mars displays the centered progress bar even if the Mars texture finished loading silently before selection.
+- Fast cached/local Mars texture loads keep the progress bar visible long enough for the user to see it.
+- Mars + Mercator displays `textures/March.jpg` as the map background, not the Earth map.
+- Mars + Mercator does not overlay Earth satellite geometry on the Mars map.
+- Existing Moon behavior is unchanged.
+- Earth, Moon, and Mars are not moved to `(0, 0, 0)` by context switching.
+- The texture path and source/license status are documented.
+- Automated tests and syntax checks pass, or any limitation is explicitly documented.
+
 ## Release Date: 2026-06-06  Version 1.5.22
 
 Implement Release Date: 2026-06-06 Version 1.5.22 orbital accuracy, Earth-frame, Moon-frame, and camera-control corrections.

@@ -10,6 +10,7 @@ import {
 import {isUsableOrbitPosition, satellites} from './satelliteTLELoader.js';
 import {drawDayNightMercator} from './drawDayNight.js';
 import {mercatorPixelFromLonLat} from './orbit/orbitLinkGeometry.js';
+import {MARS_TEXTURE_URL} from './MarsFrameLoader.js';
 
 export let mercatorContainer, mercatorCanvasElement, mapBackgroundDiv;
 export let mercatorCtx, mapWidth = 400, mapHeight = 200;
@@ -21,6 +22,63 @@ const ImageCtor = globalThis.Image || class {
 };
 let mercatorSatIcon = new ImageCtor();
 let mercatorSatIconLoaded = false;
+let activeMercatorBackgroundUrl = null;
+let activeMercatorBackgroundBody = null;
+
+export function isMarsMercatorContext(simParams) {
+    return simParams?.otherSelection === 'Mars';
+}
+
+export function mercatorBackgroundUrlForContext(simParams) {
+    return isMarsMercatorContext(simParams) ? MARS_TEXTURE_URL : earthConfig.textureLight;
+}
+
+function notifyMarsMapLoading(state, detail = {}) {
+    if (detail.bodyLabel !== 'Mars') return;
+    if (!globalThis.dispatchEvent || !globalThis.CustomEvent) return;
+    globalThis.dispatchEvent(new CustomEvent('openbexi:mars-map-loading', {
+        detail: {
+            state,
+            progressPct: state === 'start' ? 15 : 100,
+            ...detail
+        }
+    }));
+}
+
+function setMercatorBackground(url, bodyLabel = 'Earth') {
+    if (!mapBackgroundDiv) return;
+    if (activeMercatorBackgroundUrl === url && activeMercatorBackgroundBody === bodyLabel) return;
+
+    activeMercatorBackgroundUrl = url;
+    activeMercatorBackgroundBody = bodyLabel;
+    mapBackgroundDiv.dataset.mapBody = bodyLabel;
+
+    if (!url) {
+        mapBackgroundDiv.style.backgroundImage = '';
+        mapBackgroundDiv.classList.add('fallback-css');
+        return;
+    }
+
+    notifyMarsMapLoading('start', { bodyLabel, url });
+    const img = new ImageCtor();
+    img.crossOrigin = 'Anonymous';
+    img.onload = () => {
+        mapBackgroundDiv.style.backgroundImage = `url("${url}")`;
+        mapBackgroundDiv.classList.remove('fallback-css');
+        notifyMarsMapLoading('complete', { bodyLabel, url });
+    };
+    img.onerror = () => {
+        mapBackgroundDiv.style.backgroundImage = '';
+        mapBackgroundDiv.classList.add('fallback-css');
+        notifyMarsMapLoading('error', { bodyLabel, url });
+    };
+    img.src = url;
+}
+
+export function updateMercatorBackgroundForContext(simParams) {
+    const bodyLabel = isMarsMercatorContext(simParams) ? 'Mars' : 'Earth';
+    setMercatorBackground(mercatorBackgroundUrlForContext(simParams), bodyLabel);
+}
 
 /* ─────────── Ground‑track parameters & helpers ─────────── */
 const R2D = 180 / Math.PI;
@@ -171,19 +229,7 @@ export function initMercatorView() {
     mercatorCtx = mercatorCanvasElement.getContext('2d');
 
     /*── Background texture ──*/
-    const remoteMapBgUrl = earthConfig.textureLight;
-    if (remoteMapBgUrl) {
-        const img = new Image();
-        img.crossOrigin = 'Anonymous';
-        img.onload = () => {
-            mapBackgroundDiv.style.backgroundImage = `url(${remoteMapBgUrl})`;
-            mapBackgroundDiv.classList.remove('fallback-css');
-        };
-        img.onerror = () => mapBackgroundDiv.classList.add('fallback-css');
-        img.src = remoteMapBgUrl;
-    } else {
-        mapBackgroundDiv.classList.add('fallback-css');
-    }
+    updateMercatorBackgroundForContext({ otherSelection: 'Earth' });
 
     /*── Satellite icon ──*/
     const mercatorIconFullUrl = getFullGitHubUrl(
@@ -203,6 +249,7 @@ export function initMercatorView() {
 /* ─────────── Per‑frame update ─────────── */
 export function updateMercatorMap(simParams) {
     if (!mercatorCtx || mercatorContainer.style.display === 'none') return;
+    updateMercatorBackgroundForContext(simParams);
 
     // Resize canvas on fullscreen toggle
     const w = mapBackgroundDiv.clientWidth;
@@ -213,6 +260,19 @@ export function updateMercatorMap(simParams) {
     }
 
     mercatorCtx.clearRect(0, 0, mercatorCanvasElement.width, mercatorCanvasElement.height);
+
+    if (isMarsMercatorContext(simParams)) {
+        mercatorCtx.save();
+        mercatorCtx.font = 'bold 12px sans-serif';
+        mercatorCtx.textAlign = 'left';
+        mercatorCtx.textBaseline = 'top';
+        mercatorCtx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+        mercatorCtx.fillRect(8, 8, 144, 24);
+        mercatorCtx.fillStyle = '#ffd0b5';
+        mercatorCtx.fillText('Mars Mercator map', 14, 13);
+        mercatorCtx.restore();
+        return;
+    }
 
     /*── Day-night band ──*/
     if (simParams.showDayNight) {

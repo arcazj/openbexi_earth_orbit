@@ -25,6 +25,15 @@
 </div>
 <div id="utcClockDisplay"></div>
 <aside id="selectedSatelliteDetailPanel" class="selected-satellite-detail-panel" aria-live="polite" hidden></aside>
+<div id="marsTextureLoading" class="planet-texture-loading" role="status" aria-live="polite" hidden>
+    <div class="planet-texture-loading-header">
+        <span id="marsTextureLoadingLabel">Loading Mars map/texture...</span>
+        <span id="marsTextureProgressText">0%</span>
+    </div>
+    <div class="planet-texture-progress-track" aria-hidden="true">
+        <div id="marsTextureProgressFill" class="planet-texture-progress-fill"></div>
+    </div>
+</div>
 
 <script type="module">
     import * as THREE from 'three';
@@ -110,6 +119,7 @@
     import { initFootprintRenderer, updateFootprints } from './js/satelliteFootprintLoader.js';
 
     import { createMoon, updateMoon } from './js/MoonFrameLoader.js';
+    import { createMars, updateMars } from './js/MarsFrameLoader.js';
 
     import { initTimeline } from './js/ganttTimelineLoader.js';
     import { computeDecayEstimates, loadConfirmedDecays } from './js/decayPredictor.js';
@@ -161,7 +171,7 @@
     })();
     startupPerf.mark('module-loaded');
 
-    const versionNumber = "1.5.22";
+    const versionNumber = "1.5.23";
     if (versionNumber !== APP_VERSION) {
         console.warn(`Version mismatch: index ${versionNumber}, server module ${APP_VERSION}`);
     }
@@ -196,6 +206,9 @@
     const SELECTED_MODEL_EARTH_ALBEDO_INTENSITY = 0.22;
     const SELECTED_MODEL_EARTH_ALBEDO_MIN_FACTOR = 0.12;
     const SCENE_TONE_MAPPING_EXPOSURE = 0.9;
+    const MARS_CAMERA_DISTANCE_MULTIPLIER = 1.45;
+    const MARS_CAMERA_MIN_CONTEXT_DISTANCE = EARTH_SCENE_RADIUS * 0.18;
+    const MARS_TEXTURE_LOADING_MIN_VISIBLE_MS = 1600;
     const STARLINK_MODEL_ASSET_ID = 'starlink_V1';
     const STARLINK_MODEL_CALIBRATION_YAW_DEG = 0;
     const ISS_NORAD_ID = '25544';
@@ -277,7 +290,7 @@
         return { latDeg, lonDeg };
     }
 
-    let moon;
+    let moon, mars;
     let scene, camera, renderer, earthMesh, controls;
     let defaultControlsMinDistance = null;
     let defaultControlsMaxDistance = null;
@@ -367,6 +380,11 @@
     let isSatelliteDropdownOpen = false;
     let satelliteSearchPendingClearForNextSelection = false;
     let satelliteSearchClearedForNextSelection = false;
+    let marsTextureLoadingElement, marsTextureLoadingLabelElement, marsTextureProgressFillElement, marsTextureProgressTextElement;
+    let marsTextureLoadingHideTimer = null;
+    let marsTextureLoadingStartedAt = 0;
+    let marsTextureLoadStatus = 'idle';
+    let marsTextureLoadProgressPct = 0;
     let launchTimelineHandle = null;
     let reentryTimelineHandle = null;
     let serverStatusButton, serverStatusIcon, serverStatusText, serverStatusPanel, serverStatusUrl;
@@ -1650,6 +1668,115 @@
         updateTimeWarpControls();
     }
 
+    function resolveMarsTextureLoadingElements() {
+        if (!marsTextureLoadingElement) {
+            marsTextureLoadingElement = document.getElementById('marsTextureLoading');
+            marsTextureLoadingLabelElement = document.getElementById('marsTextureLoadingLabel');
+            marsTextureProgressFillElement = document.getElementById('marsTextureProgressFill');
+            marsTextureProgressTextElement = document.getElementById('marsTextureProgressText');
+        }
+        return marsTextureLoadingElement;
+    }
+
+    function setMarsTextureLoadingState(state, progressPct = 0) {
+        const panel = resolveMarsTextureLoadingElements();
+        if (!panel) return;
+
+        if (marsTextureLoadingHideTimer) {
+            clearTimeout(marsTextureLoadingHideTimer);
+            marsTextureLoadingHideTimer = null;
+        }
+
+        const pct = Math.max(0, Math.min(100, Math.round(progressPct)));
+        panel.hidden = false;
+        panel.classList.toggle('is-error', state === 'error');
+        if (marsTextureProgressFillElement) marsTextureProgressFillElement.style.width = `${pct}%`;
+        if (marsTextureProgressTextElement) marsTextureProgressTextElement.textContent = `${pct}%`;
+
+        if (state === 'loading') {
+            if (!marsTextureLoadingStartedAt) marsTextureLoadingStartedAt = performance.now();
+            if (marsTextureLoadingLabelElement) marsTextureLoadingLabelElement.textContent = 'Loading Mars map/texture...';
+        } else if (state === 'complete') {
+            if (marsTextureLoadingLabelElement) marsTextureLoadingLabelElement.textContent = 'Mars map/texture loaded';
+            const elapsedMs = marsTextureLoadingStartedAt ? performance.now() - marsTextureLoadingStartedAt : 0;
+            const hideDelayMs = Math.max(900, MARS_TEXTURE_LOADING_MIN_VISIBLE_MS - elapsedMs);
+            marsTextureLoadingHideTimer = setTimeout(() => {
+                panel.hidden = true;
+                marsTextureLoadingStartedAt = 0;
+            }, hideDelayMs);
+        } else if (state === 'error') {
+            if (marsTextureLoadingLabelElement) {
+                marsTextureLoadingLabelElement.textContent = 'Mars texture failed to load. Using fallback Mars color.';
+            }
+            const elapsedMs = marsTextureLoadingStartedAt ? performance.now() - marsTextureLoadingStartedAt : 0;
+            const hideDelayMs = Math.max(5000, MARS_TEXTURE_LOADING_MIN_VISIBLE_MS - elapsedMs);
+            marsTextureLoadingHideTimer = setTimeout(() => {
+                panel.hidden = true;
+                marsTextureLoadingStartedAt = 0;
+            }, hideDelayMs);
+        }
+    }
+
+    function hideMarsTextureLoadingPanel() {
+        const panel = resolveMarsTextureLoadingElements();
+        if (!panel) return;
+        if (marsTextureLoadingHideTimer) {
+            clearTimeout(marsTextureLoadingHideTimer);
+            marsTextureLoadingHideTimer = null;
+        }
+        panel.hidden = true;
+        marsTextureLoadingStartedAt = 0;
+    }
+
+    function shouldShowMarsTextureProgress() {
+        return simParams.otherSelection === 'Mars';
+    }
+
+    function recordMarsTextureLoadState(state, progressPct = 0) {
+        marsTextureLoadStatus = state;
+        marsTextureLoadProgressPct = Math.max(0, Math.min(100, Math.round(progressPct)));
+        if (shouldShowMarsTextureProgress()) {
+            setMarsTextureLoadingState(state, marsTextureLoadProgressPct);
+        }
+    }
+
+    function showMarsTextureProgressForSelection() {
+        if (marsTextureLoadStatus === 'error') {
+            setMarsTextureLoadingState('error', 100);
+            return;
+        }
+
+        if (marsTextureLoadStatus === 'complete') {
+            setMarsTextureLoadingState('loading', 100);
+            requestAnimationFrame(() => setMarsTextureLoadingState('complete', 100));
+            return;
+        }
+
+        const progressPct = marsTextureLoadStatus === 'loading'
+            ? Math.max(10, marsTextureLoadProgressPct)
+            : 10;
+        setMarsTextureLoadingState('loading', progressPct);
+    }
+
+    function handleMarsTextureProgress(event) {
+        const progressPct = event?.total > 0
+            ? (event.loaded / event.total) * 100
+            : 35;
+        recordMarsTextureLoadState('loading', progressPct);
+    }
+
+    window.addEventListener('openbexi:mars-map-loading', (event) => {
+        if (!shouldShowMarsTextureProgress()) return;
+        const state = event?.detail?.state;
+        if (state === 'start') {
+            setMarsTextureLoadingState('loading', event.detail.progressPct ?? 10);
+        } else if (state === 'complete') {
+            setMarsTextureLoadingState('complete', 100);
+        } else if (state === 'error') {
+            setMarsTextureLoadingState('error', 100);
+        }
+    });
+
     function updateEarthTexture() {
         if (!earthMesh || !textureLoader || !earthConfig) return;
 
@@ -1770,6 +1897,17 @@
         moon = createMoon(scene, EARTH_SCENE_RADIUS, {
             textureUrl: 'textures/moon_map2.jpg'
         });
+        updateMoon(moon, SIM_DATE);
+
+        /* Mars (always available for Other Selections) */
+        mars = createMars(scene, EARTH_SCENE_RADIUS, {
+            textureUrl: 'textures/March.jpg',
+            onTextureLoadStart: () => recordMarsTextureLoadState('loading', 0),
+            onTextureLoadProgress: handleMarsTextureProgress,
+            onTextureLoadComplete: () => recordMarsTextureLoadState('complete', 100),
+            onTextureLoadError: () => recordMarsTextureLoadState('error', 100)
+        });
+        updateMars(mars, SIM_DATE);
 
         /* Controls */
         controls = new OrbitControls(camera, renderer.domElement);
@@ -2229,7 +2367,7 @@
             simParams.showDayNight = e.target.checked;
         });
 
-        // === Other Selections (Earth/Moon) ===
+        // === Other Selections (Earth/Moon/Mars) ===
         const otherSel = document.getElementById('otherSelection');
         if (otherSel) {
             otherSel.value = simParams.otherSelection;
@@ -2237,7 +2375,16 @@
             otherSel.addEventListener('change', () => {
                 simParams.otherSelection = otherSel.value;
 
-                if (simParams.otherSelection === 'Moon') {
+                if (simParams.otherSelection === 'Moon' || simParams.otherSelection === 'Mars') {
+                    const selectedBody = simParams.otherSelection === 'Moon' ? moon : mars;
+                    const fallbackRadius = simParams.otherSelection === 'Moon'
+                        ? EARTH_SCENE_RADIUS * 0.27
+                        : EARTH_SCENE_RADIUS * 0.53;
+                    if (simParams.otherSelection === 'Mars') {
+                        showMarsTextureProgressForSelection();
+                    } else {
+                        hideMarsTextureLoadingPanel();
+                    }
                     // Deselect current satellite for clarity (optional)
                     if (satelliteSelectDropdown) {
                         satelliteSelectDropdown.value = 'None';
@@ -2247,19 +2394,27 @@
                     clearDetailedSatelliteView();       // clears any detailed model
                     removeAllGeometry(scene);
 
-                    // Fly to Moon
-                    flyCameraToObject(moon, 1500);
+                    // Fly to the selected body without moving it to the scene origin.
+                    flyCameraToObject(selectedBody, 1500, {
+                        distanceMultiplier: simParams.otherSelection === 'Mars' ? MARS_CAMERA_DISTANCE_MULTIPLIER : 4,
+                        minContextDistance: simParams.otherSelection === 'Mars'
+                            ? MARS_CAMERA_MIN_CONTEXT_DISTANCE
+                            : EARTH_SCENE_RADIUS * 0.6
+                    });
 
-                    // Let users get closer to the Moon
-                    const moonRadius = EARTH_SCENE_RADIUS * 0.27;
+                    // Let users get closer to the selected body.
+                    const bodyRadius = selectedBody?.userData?.radiusScene ||
+                        selectedBody?.geometry?.parameters?.radius ||
+                        fallbackRadius;
                     controls.enablePan = false;
-                    controls.minDistance = Math.max(moonRadius * 1.1, 0.05 * EARTH_SCENE_RADIUS);
+                    controls.minDistance = Math.max(bodyRadius * 1.1, 0.05 * EARTH_SCENE_RADIUS);
                     controls.maxDistance = SAFE_MAX_CONTROL_DISTANCE;
 
-                    // Start orbiting around the Moon immediately
-                    controls.target.copy(moon.position);
+                    // Start orbiting around the selected body immediately.
+                    controls.target.copy(selectedBody.position);
                     controls.update();
                 } else {
+                    hideMarsTextureLoadingPanel();
                     // Back to Earth home view and initial MEO filter as on app start.
                     resetCameraToDefault();
 
@@ -2515,6 +2670,8 @@
         if (currentSelectedSatellite || detailedSatelliteModel?.visible) return;
         if (simParams.otherSelection === 'Moon' && moon) {
             controls.target.copy(moon.position);
+        } else if (simParams.otherSelection === 'Mars' && mars) {
+            controls.target.copy(mars.position);
         } else {
             controls.target.set(0, 0, 0);
         }
@@ -2957,13 +3114,15 @@
         controls.enabled = false;
     }
 
-    function flyCameraToObject(targetObject, millis = 1500) {
+    function flyCameraToObject(targetObject, millis = 1500, options = {}) {
         if (!targetObject || !camera || !controls) return;
         targetObject.updateMatrixWorld(true);
         const targetPos = V_TMP2.setFromMatrixPosition(targetObject.matrixWorld);
         const outward = V_TMP3.copy(targetPos).normalize();
         const diameter = getObjectVisualDiameter(targetObject, EARTH_SCENE_RADIUS * 0.25);
-        const distance = Math.max(diameter * 4, EARTH_SCENE_RADIUS * 0.6);
+        const distanceMultiplier = options.distanceMultiplier ?? 4;
+        const minContextDistance = options.minContextDistance ?? EARTH_SCENE_RADIUS * 0.6;
+        const distance = Math.max(diameter * distanceMultiplier, minContextDistance);
         const endCamPos = outward.multiplyScalar(distance).add(targetPos).clone();
         animateCameraTo(endCamPos, targetPos.clone(), millis);
     }
@@ -3468,20 +3627,27 @@
             }
         }
 
-        /* Moon controls target */
+        /* Update contextual bodies before camera target enforcement. */
+        if (moon) updateMoon(moon, SIM_DATE);
+        if (mars) updateMars(mars, SIM_DATE);
+
+        /* Moon/Mars controls target */
         if (!cameraMove && controls) {
-            if (simParams.otherSelection === 'Moon' && moon) {
-                // Unit vector from Earth to Moon.
-                V_TMP1.copy(moon.position).normalize();
-                const moonRadius = EARTH_SCENE_RADIUS * 0.27;
-                const keepDist = Math.max(moonRadius * 4, EARTH_SCENE_RADIUS * 0.6);
-                V_TMP2.copy(V_TMP1).multiplyScalar(keepDist).add(moon.position);
+            if ((simParams.otherSelection === 'Moon' && moon) || (simParams.otherSelection === 'Mars' && mars)) {
+                const selectedBody = simParams.otherSelection === 'Moon' ? moon : mars;
+                // Unit vector from Earth to selected body.
+                V_TMP1.copy(selectedBody.position).normalize();
+                const bodyRadius = selectedBody.userData?.radiusScene ||
+                    selectedBody.geometry?.parameters?.radius ||
+                    EARTH_SCENE_RADIUS * 0.27;
+                const keepDist = Math.max(bodyRadius * 4, EARTH_SCENE_RADIUS * 0.6);
+                V_TMP2.copy(V_TMP1).multiplyScalar(keepDist).add(selectedBody.position);
 
                 // dt-aware smoothing keeps stable when Time x changes.
                 const chaseSmooth = 1 - Math.pow(0.001, dtReal); // fast, stable
                 //camera.position.lerp(V_TMP2, chaseSmooth);
 
-                controls.target.copy(moon.position);
+                controls.target.copy(selectedBody.position);
                 controls.update();
             } else if (!currentSelectedSatellite && !detailedSatelliteModel?.visible) {
                 controls.target.set(0, 0, 0);
@@ -3496,14 +3662,13 @@
             simDate: SIM_DATE
         });
 
-        /* Sun light, Sun visuals, and Moon must update before the 3-D render */
+        /* Sun light and Sun visuals must update before the 3-D render */
         drawDayNight3D(scene, earthMesh, SIM_DATE, {
             showSun:  simParams.showDayNight && simParams.view3D,
             showHalo: simParams.showDayNight && simParams.view3D,
             earthRadius: EARTH_SCENE_RADIUS,
             sunIntensity: SUN_LIGHT_INTENSITY
         });
-        if (moon) updateMoon(moon, SIM_DATE);
 
         /* Render 3-D vs Mercator */
         const show3D = simParams.view3D;
@@ -3536,16 +3701,17 @@
                     if (performance.now() - lastMercatorRedraw > 33) {
                         lastMercatorRedraw = performance.now();
                         updateMercatorMap(simParams);
-                        if (simParams.showFootprint) {
+                        const mercatorUsesEarthSatellites = simParams.otherSelection !== 'Mars';
+                        if (mercatorUsesEarthSatellites && simParams.showFootprint) {
                             updateFootprints(currentSelectedSatellite, gmstNow, {
                                 showFootprint: true, mercatorCtx, simDate: SIM_DATE
                             });
-                        } else {
+                        } else if (mercatorUsesEarthSatellites) {
                             updateFootprints(currentSelectedSatellite, gmstNow, {
                                 showFootprint: false, mercatorCtx, simDate: SIM_DATE
                             });
                         }
-                        if (simParams.showOrbit && simParams.showFootprint) {
+                        if (mercatorUsesEarthSatellites && simParams.showOrbit && simParams.showFootprint) {
                             drawSelectedGroundTrack(simParams, mercatorCtx);
                         }
                     }

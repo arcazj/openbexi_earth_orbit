@@ -17,7 +17,7 @@ export function satelliteMenuLoader() {
           <div><span>Server URL</span><strong id="serverStatusUrl">http://127.0.0.1:8000</strong></div>
           <div><span>Connection</span><strong id="serverStatusState">Checking</strong></div>
           <div><span>Data source</span><strong id="serverDataSource">Local files</strong></div>
-          <div><span>App version</span><strong id="serverAppVersion">1.5.22</strong></div>
+          <div><span>App version</span><strong id="serverAppVersion">1.5.23</strong></div>
           <div><span>API version</span><strong id="serverApiVersion">Unavailable</strong></div>
           <div><span>Last data load</span><strong id="serverLastSync">Never</strong></div>
           <button id="serverReconnectButton" type="button" class="menu-secondary-action server-reconnect-button">Reconnect / Refresh</button>
@@ -158,10 +158,11 @@ export function satelliteMenuLoader() {
         </h3>
         <div id="otherSelectionsContent" class="collapsible-content other-selections-panel collapsed" aria-labelledby="otherAccordionHeader">
           <label for="otherSelection" class="section-subtitle">Other Selections:</label>
-          <div class="menu-helper">Switch the observer context between Earth and Moon without changing the app mode.</div>
+          <div class="menu-helper">Switch the observer context between Earth, Moon, and Mars without changing the app mode.</div>
           <select id="otherSelection">
             <option value="Earth">Earth</option>
             <option value="Moon">Moon</option>
+            <option value="Mars">Mars</option>
           </select>
         </div>
       </section>

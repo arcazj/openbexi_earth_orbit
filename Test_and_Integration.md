@@ -62,6 +62,8 @@ Version 1.5.21 makes the right-side selected-satellite data and TLE details inde
 
 Version 1.5.22 keeps the Earth-centered scene frame fixed, disables OrbitControls panning, keeps Earth mode targeted at `(0, 0, 0)`, keeps Moon mode targeted at `moon.position` without moving the Moon object to the origin, and preserves selected-satellite target priority. It allows Earth zoom to approximately 100 km above the surface, uses a large finite maximum zoom and far clipping plane, replaces spherical helper math with WGS84 geodetic/ECF calculations, distinguishes GEO/MEO/LEO/HEO/Other orbit classes without treating every slow object as GEO, filters invalid propagated positions out of visible sprites/paths, and makes Mercator markers, ground tracks, footprints, coverage overlays, and day/night shading use one Web Mercator helper. OB3/O3b satellites use the standard satellite icon/sprite in the main app and do not automatically load the OB3/O3b detailed model. Selected detailed model roots remain fixed to the canonical propagated satellite scene coordinate, model centering is applied only to child geometry, hidden selected sprites are synchronized with the same propagated coordinate, and `orbitAlignDebug` can log orbit alignment diagnostics. It documents that `satellite.js` returns TEME-like coordinates and the app treats them as ECI-like visualization coordinates unless a higher-fidelity transform is implemented later.
 
+Version 1.5.23 adds `Mars` to `Other Selections`. Mars mode displays a Mars globe using the local texture `textures/March.jpg`, targets `mars.position` for orbit/zoom controls like Moon mode, preserves the Earth-centered frame, does not move Earth/Moon/Mars to `(0, 0, 0)`, and documents that the Mars texture is local project-provided with exact source/license to be confirmed.
+
 ## Test Environment
 
 - Run from the repository root.
@@ -138,6 +140,9 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test OrbitControls panning is disabled or constrained so mouse movement cannot pan Earth away from center.
 - Test Moon mode keeps the Moon visually centered by using `controls.target = moon.position`.
 - Test Moon mode does not move the Moon object to `(0, 0, 0)`.
+- Test Mars mode keeps Mars visually centered by using `controls.target = mars.position`.
+- Test Mars mode does not move Earth, Moon, or Mars to `(0, 0, 0)`.
+- Test Mars uses the local texture asset `textures/March.jpg`.
 - Test selected-satellite target priority still works while Earth/Moon target enforcement is active.
 - Test Earth minimum zoom is `EARTH_SCENE_RADIUS + metersToSceneUnits(100000)`.
 - Test maximum zoom is finite and very large.
@@ -189,6 +194,14 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test Moon distance stays within the documented expected range.
 - If the Moon model is approximate, test and document that approximation explicitly.
 - Test Moon coordinates use the same scene transform convention as the rest of the 3D scene.
+
+### Mars Positioning
+
+- Test Mars position returns finite scene coordinates.
+- Test Mars distance stays within a plausible simplified Earth-to-Mars range.
+- Test Mars uses `textures/March.jpg` and does not fetch remote textures at runtime.
+- Test Mars mode targets `mars.position` and preserves Earth-centered scene coordinates.
+- Document that the Mars position and texture provenance are approximate/local unless later replaced with a verified source.
 
 ### Satellite Model Scaling
 
@@ -309,7 +322,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 ### Server Data Path
 
 - Test `/api/health` returns status `ok` and version metadata.
-- Test `/api/version` returns app/API version `1.5.22` and release date `2026-06-06`.
+- Test `/api/version` returns app/API version `1.5.23` and release date `2026-06-07`.
 - Test `/api/tle` and `/api/satellites` return valid TLE records with `norad_id`, `tle_line1`, and `tle_line2`.
 - Test `/api/satellite-metadata` lists known metadata files.
 - Test `/api/satellite-metadata/starlink_V1.json` returns one known metadata payload.
@@ -404,7 +417,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm the ISS shortcut shows `ISS unavailable` if no ISS target can be resolved.
 - Confirm `Other Selections` appears immediately after `Filters - Satellites Found`.
 - Confirm `Share` appears immediately after `Timelines` and immediately before `Help`.
-- Confirm `Close`, `Version 1.5.22 - hosted at GitHub Repo`, and the server status icon/text are aligned on one compact row on desktop.
+- Confirm `Close`, `Version 1.5.23 - hosted at GitHub Repo`, and the server status icon/text are aligned on one compact row on desktop.
 - Confirm the version/GitHub text is centered in the menu header.
 - Confirm the server status indicator appears above the accordion menu and does not shift layout when changing between checking, offline, connected, and error states.
 - Confirm connected status uses `power_green.png` and offline/error status uses `power_red.png`.
@@ -467,7 +480,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm the active-filter summary updates after each filter change.
 - Choose a filter combination with zero results and confirm the empty state appears with a reset shortcut.
 - Confirm `Other Selections` is blue-styled and collapsible.
-- Confirm changing `Earth`/`Moon` is not reset by collapsing or expanding accordion sections.
+- Confirm changing `Earth`/`Moon`/`Mars` is not reset by collapsing or expanding accordion sections.
 
 ## Satellite Search Regression
 
@@ -597,6 +610,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Toggle `Show orbit` off and confirm the 3D orbit is removed and the Mercator ground track stops drawing.
 - Select a satellite in Mercator-only mode, turn the 3D globe back on, and confirm the selected-satellite close framing is applied.
 - Use `Other Selections` to switch to `Moon`, then back to `Earth`; confirm filters return to the default startup state.
+- Use `Other Selections` to switch to `Mars`, then back to `Earth`; confirm filters return to the default startup state.
 - Open and close the launch timeline.
 - Open and close the re-entry timeline.
 - Select a satellite from a timeline and confirm the app resets filters broadly enough to reveal that satellite.
@@ -623,6 +637,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
   - High Def. is not forced off if it was already enabled.
 - Confirm the Sun/day-night terminator changes as simulation time advances.
 - Confirm the Moon appears at the documented distance and follows the documented model.
+- Confirm Mars appears with `textures/March.jpg`, remains visually centered in Mars mode, and follows the documented simplified model.
 
 ## Visual Regression
 
@@ -1124,6 +1139,30 @@ Checks to perform for this release:
 - Run JavaScript syntax checks.
 - Run Python syntax checks.
 - Run Python server smoke checks for API, Swagger docs, and static app routes.
+
+## Release 1.5.23 Verification Log
+
+Checks performed for this Version 1.5.23 implementation session:
+
+- `PROMPT_History.md` contains the latest `Release Date: 2026-06-07 Version 1.5.23` entry at the top.
+- `index.html`, `js/serverConnection.js`, `js/SatelliteMenuLoader.js`, and `server.py` use version `1.5.23`.
+- `Other Selections` includes `Mars`.
+- Mars uses the local texture path `textures/March.jpg`.
+- Mars texture loading does not show a visible progress bar on initial `index.html` launch while Earth is active.
+- Selecting Mars shows a progress bar labeled `Loading Mars map/texture...` in the middle of the canvas, remains visible long enough for cached/local loads, shows a short confirmation state if the texture already loaded silently before selection, and reports fallback color use on texture load failure.
+- Mars mode targets `mars.position` and does not move Earth, Moon, or Mars to `(0, 0, 0)`.
+- Mars observer fly-to starts close to the Mars globe while preserving orbit/zoom controls.
+- Mars Mercator uses `textures/March.jpg` instead of the Earth map and suppresses Earth-specific satellite markers, footprints, ground tracks, and day/night shading.
+- Mars position uses a documented simplified circular heliocentric Earth-to-Mars relative visual model.
+- The local Mars texture source/license status is documented as to be confirmed.
+
+Remaining manual verification:
+
+- Browser-confirm selecting Mars shows the textured Mars globe.
+- Browser-confirm the Mars progress bar is not visible during default Earth launch.
+- Browser-confirm the Mars texture progress bar is centered on the canvas, visible during load, and hidden after completion.
+- Browser-confirm Mars + Mercator shows the Mars map, not Earth.
+- Browser-confirm mouse orbit and zoom remain centered on Mars and leaving Mars restores Earth-centered target behavior.
 
 ## Release 1.5.22 Verification Log
 

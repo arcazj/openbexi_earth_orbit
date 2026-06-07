@@ -254,6 +254,71 @@ canvas {
     background-size: contain !important;
 }
 
+.mapBackground[data-map-body="Mars"].fallback-css {
+    background: #321b14
+    url('https://placehold.co/400x200/6b2c1f/ffd0b5?text=Mars+Map+Load+Error')
+    no-repeat center center !important;
+    background-size: contain !important;
+}
+
+#mercatorContainer.fullscreen .mapBackground[data-map-body="Mars"].fallback-css {
+    background: #321b14
+    url('https://placehold.co/1920x1080/6b2c1f/ffd0b5?text=Mars+Map+Load+Error')
+    no-repeat center center !important;
+    background-size: contain !important;
+}
+
+.planet-texture-loading {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: min(320px, calc(100vw - 36px));
+    padding: 12px 14px;
+    border: 1px solid rgba(255, 165, 120, 0.45);
+    border-radius: 12px;
+    background: linear-gradient(145deg, rgba(42, 21, 14, 0.94), rgba(82, 40, 26, 0.88));
+    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.42);
+    color: #ffe1d1;
+    z-index: 3200;
+    pointer-events: none;
+}
+
+.planet-texture-loading[hidden] {
+    display: none !important;
+}
+
+.planet-texture-loading.is-error {
+    border-color: rgba(255, 76, 76, 0.65);
+    background: linear-gradient(145deg, rgba(64, 15, 15, 0.94), rgba(90, 30, 24, 0.9));
+}
+
+.planet-texture-loading-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+}
+
+.planet-texture-progress-track {
+    height: 8px;
+    margin-top: 9px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(255, 235, 220, 0.16);
+}
+
+.planet-texture-progress-fill {
+    width: 0%;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #ff6d3a, #ffd08a);
+    transition: width 0.18s ease;
+}
+
 /* Styles for 3D Overlay Labels (ECEF Axes, North Pole, Equator, Meridian) */
 .axis-label {
     position: absolute;
