@@ -295,6 +295,9 @@ function run() {
   assert(css.includes('.solar-system-options[hidden]'), 'Solar System sub-controls are hidden by default through CSS');
   assert(css.includes('.solar-system-selection-summary'), 'Solar System selection summary has dedicated CSS');
   assert(css.includes('.solar-system-planet-hud'), 'Solar System selected planet HUD has dedicated CSS');
+  assert(css.includes('.solar-system-hud-body'), 'Solar System selected planet HUD body has dedicated clock-aligned CSS');
+  assert(css.includes('.solar-system-hud-row'), 'Solar System selected planet HUD rows have dedicated layout CSS');
+  assert(css.includes('font-family: "SF Mono", "Roboto Mono", "Fira Mono", Menlo, Consolas, monospace;'), 'Solar System HUD uses the UTC clock monospace font family');
   assert(css.includes('.stars-milky-way-options[hidden]'), 'Stars & Milky Way sub-controls are hidden by default through CSS');
   assert(css.includes('.star-catalog-summary'), 'bundled star catalog summary has dedicated CSS');
   assert(!css.includes('.star-magnitude-control'), 'removed Magnitude limit control CSS is gone');
@@ -313,11 +316,15 @@ function run() {
   assert(indexHtml.includes('id="selectedSatelliteDetailPanel"'), 'index defines the selected satellite detail panel');
   assert(indexHtml.includes('updateSelectedSatelliteDetailPanel'), 'index updates the right-side selected satellite detail panel');
   assert(indexHtml.includes('syncSelectedSatelliteDetailPanelWidth'), 'index syncs the selected detail panel width to the UTC clock');
-  assert(indexHtml.includes('selectedSatelliteDetailPanel.style.width'), 'selected detail panel width is assigned from the clock measurement');
+  assert(indexHtml.includes("solarSystemPlanetHudElement || document.getElementById('solarSystemPlanetHud')"), 'index syncs the Solar System HUD width to the UTC clock');
+  assert(indexHtml.includes('panel.style.width = `${clockWidth}px`'), 'right-side panels are assigned the clock measurement width');
+  assert(indexHtml.includes('panel.style.right = `${clockRight}px`'), 'right-side panels align horizontally with the UTC clock');
+  assert(indexHtml.includes('panel.style.top = `${panelTop}px`'), 'right-side panels align directly below the UTC clock');
   assert(indexHtml.includes('SELECTED_DETAIL_DUPLICATE_KEYS'), 'index excludes duplicated selected-detail fields from the metadata table');
   assert(indexHtml.includes("'tle_line1'"), 'TLE line 1 is excluded from duplicate metadata rows');
   assert(indexHtml.includes("'tle_line2'"), 'TLE line 2 is excluded from duplicate metadata rows');
   assert(indexHtml.includes('selected-satellite-tle-block'), 'selected satellite detail panel includes TLE details');
+  assert(indexHtml.includes('solar-system-hud-row'), 'Solar System HUD uses compact row layout');
   assert(indexHtml.includes('<details class="selected-satellite-detail-section selected-satellite-data-section" open>'), 'selected satellite data section is expanded by default');
   assert(indexHtml.includes('<details class="selected-satellite-detail-section selected-satellite-tle-section" open>'), 'selected satellite TLE section is expanded by default');
   assert(indexHtml.includes('<span>Satellite data</span>'), 'selected satellite data section has a visible toggle label');

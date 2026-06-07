@@ -593,10 +593,65 @@ canvas {
 .solar-system-planet-hud {
     border-color: rgba(255, 211, 107, 0.38);
     background: linear-gradient(180deg, rgba(20, 15, 5, 0.74), rgba(3, 8, 16, 0.54));
+    font-family: "SF Mono", "Roboto Mono", "Fira Mono", Menlo, Consolas, monospace;
+    font-size: 13px;
+    letter-spacing: 0.04em;
 }
 
 .solar-system-planet-hud .selected-satellite-detail-header strong {
     color: #ffe58a;
+}
+
+.solar-system-planet-hud .selected-satellite-detail-header {
+    padding: 8px 12px 7px;
+}
+
+.solar-system-planet-hud .selected-satellite-detail-header span,
+.solar-system-planet-hud .selected-satellite-detail-header strong {
+    font-family: inherit;
+}
+
+.solar-system-hud-body {
+    display: grid;
+    gap: 6px;
+    padding: 8px 12px 10px;
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1.28;
+}
+
+.solar-system-hud-row {
+    display: grid;
+    grid-template-columns: minmax(74px, 0.86fr) minmax(0, 1.14fr);
+    gap: 8px;
+    align-items: start;
+}
+
+.solar-system-hud-row span {
+    color: #8ecbff;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+}
+
+.solar-system-hud-row strong {
+    min-width: 0;
+    color: #fff5b9;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    overflow-wrap: anywhere;
+    text-align: right;
+}
+
+.solar-system-hud-row-wrap {
+    grid-template-columns: 1fr;
+    gap: 3px;
+}
+
+.solar-system-hud-row-wrap strong {
+    text-align: left;
+    white-space: normal;
 }
 
 .selected-satellite-detail-header {

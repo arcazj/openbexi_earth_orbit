@@ -251,7 +251,7 @@
       <span>Frame</span><strong>Heliocentric visual</strong>
       <span>Planets</span><strong id="planetCount">0</strong>
       <span>Scale</span><strong>compressed AU</strong>
-      <span>Ephemeris</span><strong>approximate Kepler</strong>
+      <span>Ephemeris</span><strong id="ephemerisStatus">loading local JPL-derived data</strong>
     </div>
 
     <div id="planetLegend" aria-label="Planet color legend"></div>
@@ -262,15 +262,31 @@
 
   <div class="footer-note">Standalone page. Not integrated into index.html release flow.</div>
 
-  <script type="module">
+    <script type="module">
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { SOLAR_SYSTEM_TEXTURE_PATHS } from './js/solarSystemOverviewLoader.js';
+    import {
+      createSolarSystemEphemerisState,
+      loadSolarSystemEphemeris,
+      solarSystemEphemerisStatusText,
+      solarSystemScenePositionForBody
+    } from './js/solarSystemEphemeris.js';
 
     const MILKY_WAY_TEXTURE_URL = 'obj/Textures/starmap-4k.jpg';
     const AU_VISUAL_SCALE = 16;
     const ORBIT_SEGMENTS = 512;
     const SKY_RADIUS = 430;
-    const LABEL_SCALE = 7.5;
+    const SOLAR_SYSTEM_LABEL_MIN_SCREEN_PX = 18;
+    const SOLAR_SYSTEM_LABEL_PREFERRED_SCREEN_PX = 28;
+    const SOLAR_SYSTEM_LABEL_MAX_SCREEN_PX = 42;
+    const LABEL_BASE_SCALE = new THREE.Vector3(12.8, 4.0, 1);
+    const LABEL_MIN_WORLD_SCALE = 0.01;
+    const LABEL_MAX_DISTANCE_SCALE = 5.2;
+    const LABEL_PIN_CENTER_X = 42 / 512;
+    const LABEL_PIN_CENTER_Y = (160 - 122) / 160;
+    const DEFAULT_LABEL_VIEWPORT_HEIGHT = 800;
+    const DEFAULT_LABEL_CAMERA_FOV_DEG = 52;
     const J2000_UTC_MS = Date.UTC(2000, 0, 1, 12, 0, 0);
     const DAY_MS = 86400000;
     const BASE_DATE = new Date();
@@ -278,6 +294,7 @@
     const PLANETS = [
       {
         name: 'Mercury',
+        key: 'mercury',
         semiMajorAu: 0.387,
         eccentricity: 0.2056,
         inclinationDeg: 7.0,
@@ -285,10 +302,12 @@
         phaseDeg: 75,
         radius: 0.68,
         color: 0xd8c5a5,
-        orbitColor: 0xd0c098
+        orbitColor: 0xd0c098,
+        textureUrl: SOLAR_SYSTEM_TEXTURE_PATHS.mercury
       },
       {
         name: 'Venus',
+        key: 'venus',
         semiMajorAu: 0.723,
         eccentricity: 0.0068,
         inclinationDeg: 3.39,
@@ -296,10 +315,12 @@
         phaseDeg: 112,
         radius: 0.95,
         color: 0xe2d1aa,
-        orbitColor: 0xc9b779
+        orbitColor: 0xc9b779,
+        textureUrl: SOLAR_SYSTEM_TEXTURE_PATHS.venus
       },
       {
         name: 'Earth',
+        key: 'earth',
         semiMajorAu: 1.0,
         eccentricity: 0.0167,
         inclinationDeg: 0.0,
@@ -307,10 +328,12 @@
         phaseDeg: 0,
         radius: 1.05,
         color: 0x4fa7ff,
-        orbitColor: 0x4aa5ff
+        orbitColor: 0x4aa5ff,
+        textureUrl: SOLAR_SYSTEM_TEXTURE_PATHS.earth
       },
       {
         name: 'Moon',
+        key: 'moon',
         parentName: 'Earth',
         orbitRadiusVisual: 3.25,
         eccentricity: 0.0549,
@@ -319,10 +342,12 @@
         phaseDeg: 186,
         radius: 0.34,
         color: 0xd8d8ce,
-        orbitColor: 0xbfc7d5
+        orbitColor: 0xbfc7d5,
+        textureUrl: SOLAR_SYSTEM_TEXTURE_PATHS.moon
       },
       {
         name: 'Mars',
+        key: 'mars',
         semiMajorAu: 1.524,
         eccentricity: 0.0934,
         inclinationDeg: 1.85,
@@ -330,10 +355,12 @@
         phaseDeg: 42,
         radius: 0.86,
         color: 0xff4b3d,
-        orbitColor: 0xff7259
+        orbitColor: 0xff7259,
+        textureUrl: SOLAR_SYSTEM_TEXTURE_PATHS.mars
       },
       {
         name: 'Jupiter',
+        key: 'jupiter',
         semiMajorAu: 5.203,
         eccentricity: 0.0489,
         inclinationDeg: 1.3,
@@ -341,10 +368,12 @@
         phaseDeg: 212,
         radius: 2.1,
         color: 0xff8a2d,
-        orbitColor: 0xd8c38e
+        orbitColor: 0xd8c38e,
+        textureUrl: SOLAR_SYSTEM_TEXTURE_PATHS.jupiter
       },
       {
         name: 'Saturn',
+        key: 'saturn',
         semiMajorAu: 9.537,
         eccentricity: 0.0565,
         inclinationDeg: 2.49,
@@ -353,10 +382,12 @@
         radius: 1.85,
         color: 0xffd829,
         orbitColor: 0xdbc155,
+        textureUrl: SOLAR_SYSTEM_TEXTURE_PATHS.saturn,
         hasRing: true
       },
       {
         name: 'Uranus',
+        key: 'uranus',
         semiMajorAu: 19.191,
         eccentricity: 0.0472,
         inclinationDeg: 0.77,
@@ -364,7 +395,8 @@
         phaseDeg: 154,
         radius: 1.45,
         color: 0x2fd7c4,
-        orbitColor: 0x55d6d6
+        orbitColor: 0x55d6d6,
+        textureUrl: SOLAR_SYSTEM_TEXTURE_PATHS.uranus
       }
     ];
 
@@ -378,6 +410,7 @@
     const planetLegend = document.getElementById('planetLegend');
     const planetCount = document.getElementById('planetCount');
     const resetCameraButton = document.getElementById('resetCamera');
+    const ephemerisStatus = document.getElementById('ephemerisStatus');
 
     let scene;
     let camera;
@@ -389,6 +422,9 @@
     let planetObjects = [];
     let orbitObjects = [];
     let currentSimDate = new Date(BASE_DATE);
+    let simClock;
+    const ephemerisState = createSolarSystemEphemerisState();
+    const labelWorldPosition = new THREE.Vector3();
 
     init();
     animate();
@@ -407,6 +443,7 @@
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.05;
       document.body.appendChild(renderer.domElement);
+      simClock = new THREE.Clock();
 
       controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
@@ -425,6 +462,9 @@
       createPlanetsAndOrbits();
       updateLegend();
       updateUiState();
+      loadSolarSystemEphemeris(ephemerisState)
+        .then(() => updateLayerVisibility())
+        .catch(() => updateLayerVisibility());
 
       timeSpeedSlider.addEventListener('input', updateUiState);
       [toggleLabels, toggleOrbits, toggleStars, toggleGlow].forEach((control) => {
@@ -469,17 +509,19 @@
         scene.add(orbit);
         orbitObjects.push(orbit);
 
-        const marker = new THREE.Mesh(
-          new THREE.SphereGeometry(planet.radius, 32, 16),
-          new THREE.MeshStandardMaterial({
+        const fallbackMaterial = new THREE.MeshStandardMaterial({
             color: planet.color,
             emissive: planet.color,
             emissiveIntensity: planet.name === 'Mercury' ? 0.05 : 0.12,
             roughness: 0.72,
             metalness: 0.02
-          })
+        });
+        const marker = new THREE.Mesh(
+          new THREE.SphereGeometry(planet.radius, 32, 16),
+          fallbackMaterial
         );
         marker.name = `Planet ${planet.name}`;
+        loadPlanetTexture(planet, marker, fallbackMaterial);
 
         const label = createPlanetLabel(planet.name, planet.color);
         label.name = `Planet Label ${planet.name}`;
@@ -536,26 +578,74 @@
       return ring;
     }
 
+    function loadPlanetTexture(planet, marker, fallbackMaterial) {
+      if (!planet.textureUrl) return;
+      const loader = new THREE.TextureLoader();
+      loader.load(
+        planet.textureUrl,
+        (texture) => {
+          texture.colorSpace = THREE.SRGBColorSpace;
+          texture.anisotropy = renderer.capabilities.getMaxAnisotropy?.() || 1;
+          marker.material = new THREE.MeshStandardMaterial({
+            map: texture,
+            color: 0xffffff,
+            roughness: 0.78,
+            metalness: 0.02
+          });
+        },
+        undefined,
+        () => {
+          marker.material = fallbackMaterial;
+        }
+      );
+    }
+
     function createPlanetLabel(text, color) {
       const canvas = document.createElement('canvas');
       canvas.width = 512;
-      canvas.height = 128;
+      canvas.height = 160;
       const ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = 'rgba(3, 7, 14, 0.64)';
-      roundRect(ctx, 0, 20, canvas.width, 78, 22);
-      ctx.fill();
-      ctx.font = 'bold 46px Trebuchet MS, Segoe UI, sans-serif';
-      ctx.textBaseline = 'middle';
-      ctx.lineWidth = 9;
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.92)';
-      ctx.strokeText(text, 22, 61);
-      ctx.fillStyle = '#eef8ff';
-      ctx.fillText(text, 22, 61);
-      ctx.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
+
+      const colorHex = `#${color.toString(16).padStart(6, '0')}`;
+      ctx.font = '700 38px Trebuchet MS, Segoe UI, sans-serif';
+      const labelWidth = Math.min(330, Math.ceil(ctx.measureText(text).width) + 64);
+      const labelX = 122;
+      const labelY = 46;
+      const labelHeight = 58;
+
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = 'rgba(235, 246, 255, 0.72)';
+      ctx.lineWidth = 4;
       ctx.beginPath();
-      ctx.arc(canvas.width - 38, 60, 13, 0, Math.PI * 2);
+      ctx.moveTo(42, 122);
+      ctx.lineTo(88, 96);
+      ctx.lineTo(labelX, labelY + labelHeight / 2);
+      ctx.stroke();
+
+      ctx.fillStyle = colorHex;
+      ctx.beginPath();
+      ctx.arc(42, 122, 9, 0, Math.PI * 2);
       ctx.fill();
+
+      ctx.strokeStyle = 'rgba(245, 250, 255, 0.85)';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(4, 10, 18, 0.56)';
+      roundRect(ctx, labelX, labelY, labelWidth, labelHeight, 22);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(225, 239, 255, 0.42)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.textBaseline = 'middle';
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.78)';
+      ctx.strokeText(text, labelX + 22, labelY + labelHeight / 2 + 1);
+      ctx.fillStyle = '#eef8ff';
+      ctx.fillText(text, labelX + 22, labelY + labelHeight / 2 + 1);
 
       const texture = new THREE.CanvasTexture(canvas);
       texture.colorSpace = THREE.SRGBColorSpace;
@@ -567,10 +657,12 @@
         map: texture,
         transparent: true,
         depthWrite: false,
-        depthTest: true
+        depthTest: false
       });
       const sprite = new THREE.Sprite(material);
-      sprite.scale.set(LABEL_SCALE * 4, LABEL_SCALE, 1);
+      sprite.center.set(LABEL_PIN_CENTER_X, LABEL_PIN_CENTER_Y);
+      sprite.userData.baseScale = LABEL_BASE_SCALE.clone();
+      sprite.scale.copy(LABEL_BASE_SCALE);
       return sprite;
     }
 
@@ -658,11 +750,61 @@
           const parent = PLANETS.find((item) => item.name === orbit.userData.parentName);
           if (parent) orbit.position.copy(planetPositionAtDate(parent, simDate));
         }
-        label.position.set(planet.radius + 4.4, planet.radius + 2.5, 0);
+        updatePlanetLabelCallout({ planet, group, label });
       });
     }
 
+    function updatePlanetLabelCallout(entry) {
+      const { planet, group, label } = entry || {};
+      if (!planet || !group || !label) return;
+      const pinOffset = Math.max(planet.radius * 1.05, 0.38);
+      label.position.set(planet.radius * 0.15, pinOffset, 0);
+      const baseScale = label.userData.baseScale || LABEL_BASE_SCALE;
+      if (!camera) {
+        label.scale.copy(baseScale);
+        return;
+      }
+      group.updateMatrixWorld(true);
+      labelWorldPosition.setFromMatrixPosition(group.matrixWorld);
+      const distance = camera.position.distanceTo(labelWorldPosition);
+      const scaleFactor = solarSystemLabelScaleFactorForDistance(distance, {
+        fovDeg: camera.fov,
+        viewportHeight: renderer?.domElement?.clientHeight || renderer?.domElement?.height || DEFAULT_LABEL_VIEWPORT_HEIGHT
+      });
+      label.scale.set(baseScale.x * scaleFactor, baseScale.y * scaleFactor, 1);
+    }
+
+    function solarSystemLabelScaleFactorForDistance(distance, {
+      fovDeg = DEFAULT_LABEL_CAMERA_FOV_DEG,
+      viewportHeight = DEFAULT_LABEL_VIEWPORT_HEIGHT,
+      baseWorldHeight = LABEL_BASE_SCALE.y
+    } = {}) {
+      const safeDistance = Number.isFinite(distance) && distance > 0 ? distance : 1;
+      const safeFov = Number.isFinite(fovDeg) && fovDeg > 0 ? fovDeg : DEFAULT_LABEL_CAMERA_FOV_DEG;
+      const safeViewportHeight = Number.isFinite(viewportHeight) && viewportHeight > 0 ? viewportHeight : DEFAULT_LABEL_VIEWPORT_HEIGHT;
+      const safeBaseWorldHeight = Number.isFinite(baseWorldHeight) && baseWorldHeight > 0 ? baseWorldHeight : LABEL_BASE_SCALE.y;
+      const perspectiveHeightAtDistance = 2 * safeDistance * Math.tan(THREE.MathUtils.degToRad(safeFov) / 2);
+      const preferredScale = SOLAR_SYSTEM_LABEL_PREFERRED_SCREEN_PX * perspectiveHeightAtDistance /
+        (safeViewportHeight * safeBaseWorldHeight);
+      const maxScreenScale = SOLAR_SYSTEM_LABEL_MAX_SCREEN_PX * perspectiveHeightAtDistance /
+        (safeViewportHeight * safeBaseWorldHeight);
+      return clampNumber(
+        preferredScale,
+        LABEL_MIN_WORLD_SCALE,
+        Math.min(LABEL_MAX_DISTANCE_SCALE, Math.max(LABEL_MIN_WORLD_SCALE, maxScreenScale))
+      );
+    }
+
+    function clampNumber(value, min, max) {
+      return Math.min(Math.max(value, min), max);
+    }
+
     function planetPositionAtDate(planet, simDate) {
+      if (ephemerisState.status === 'ready' && ephemerisState.data) {
+        const result = solarSystemScenePositionForBody(ephemerisState.data, planet.key, simDate);
+        updateEphemerisRuntimeStatus(result, planet.key);
+        if (result.status === 'ok' && result.position) return result.position;
+      }
       if (planet.parentName) {
         const parent = PLANETS.find((item) => item.name === planet.parentName);
         const parentPosition = parent ? planetPositionAtDate(parent, simDate) : new THREE.Vector3();
@@ -678,6 +820,17 @@
         Math.sqrt(1 - planet.eccentricity) * Math.cos(eccentricAnomaly / 2)
       );
       return planetPositionFromTrueAnomaly(planet, trueAnomaly);
+    }
+
+    function updateEphemerisRuntimeStatus(result, bodyKey) {
+      if (ephemerisState.status !== 'ready') return;
+      if (result.status === 'ok') {
+        ephemerisState.lastMode = 'JPL-derived ephemeris';
+        ephemerisState.lastWarning = '';
+        return;
+      }
+      ephemerisState.lastMode = 'approximate visual fallback';
+      ephemerisState.lastWarning = result.warning || `No JPL-derived ephemeris position for ${bodyKey}`;
     }
 
     function planetPositionFromTrueAnomaly(planet, trueAnomaly) {
@@ -754,6 +907,9 @@
       sunGlowSprites.forEach((sprite) => {
         sprite.visible = showGlow;
       });
+      if (ephemerisStatus) {
+        ephemerisStatus.textContent = solarSystemEphemerisStatusText(ephemerisState);
+      }
     }
 
     function updateClock() {
@@ -783,9 +939,11 @@
     function animate() {
       requestAnimationFrame(animate);
       const speed = Number(timeSpeedSlider.value) || 0;
-      currentSimDate = new Date(BASE_DATE.getTime() + performance.now() * speed * 20);
+      const dtReal = simClock.getDelta();
+      currentSimDate = new Date(currentSimDate.getTime() + dtReal * 1000 * 60 * speed);
       updatePlanetPositions(currentSimDate);
       updateClock();
+      updateLayerVisibility();
       controls.update();
       renderer.render(scene, camera);
     }

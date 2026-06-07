@@ -1,5 +1,141 @@
 # Prompt History
 
+## Release Date: 2026-06-07  Version 1.7
+
+Implement Version `1.7` as a Solar System texture and JPL-derived ephemeris upgrade.
+
+This release builds on Version `1.6.2`. Preserve all existing Earth, Moon, Mars, satellite, Mercator, server, Help, Share, timeline, selected-satellite, orbit, footprint, model-loading, Stars & Milky Way, Solar System menu, and `Time x` behavior unless explicitly changed below.
+
+Do not break legacy behavior. Existing features from Versions `1.5.x`, `1.6`, `1.6.1`, and `1.6.2` must continue to work unless this prompt explicitly changes them.
+
+Requirements:
+
+1. Versioning
+   - Update visible app version to `1.7`.
+   - Update `js/serverConnection.js`, `js/SatelliteMenuLoader.js`, and `server.py` to report version `1.7`.
+
+2. Planet Textures
+   - Use `textures/mercury.png` for Mercury.
+   - Use `textures/venus.png` for Venus.
+   - Use `textures/jupiter.jpg` for Jupiter.
+   - Keep Earth using `textures/earthmap1k.jpg`.
+   - Keep Moon using `textures/moon_map2.jpg`.
+   - Keep Mars using `textures/March_8k.jpg`.
+   - Keep Saturn, Uranus, Sun, and Saturn rings using existing local texture paths.
+   - Do not fetch any planet texture remotely at runtime.
+   - Apply `THREE.SRGBColorSpace` and anisotropy where available.
+   - Keep fallback colored materials if any texture fails to load.
+   - Tests must fail if Mercury, Venus, or Jupiter texture files are missing or exceed browser-safe dimensions.
+   - Support JPEG and PNG dimension checks in tests.
+   - Document texture provenance/license as local project-provided unless exact source is known.
+   - Ensure `SolarSystemOverview.html` and `js/solarSystemOverviewLoader.js` use matching Mercury, Venus, and Jupiter texture paths.
+
+3. Ephemeris Approach
+   - Use bundled precomputed JPL Horizons-derived ephemeris tables under `data/ephemeris/`.
+   - Do not implement remote JPL/Horizons fetch at runtime.
+   - Do not silently use arbitrary phase angles or decorative visual orbits as if they were ephemeris.
+   - Label the implementation as `JPL-derived ephemeris`, not operational, unless the full source/toolchain justifies operational wording.
+   - Keep approximate fallback only as a clearly labeled `approximate visual fallback`.
+
+4. Ephemeris Data Requirements
+   - Include local ephemeris records for Mercury, Venus, Earth, Moon, Mars, Jupiter, Saturn, and Uranus.
+   - Document source, generation date, supported date range, sample cadence, reference frame, time scale, origin, units, interpolation method, and license.
+   - Date range: `2020-01-01` through `2035-12-31`.
+   - Sample cadence: 6-hour samples.
+   - Interpolation: linear interpolation between 6-hour Horizons samples.
+   - Source vectors use ICRF/ecliptic, Sun-centered Horizons center `500@10`, kilometers and kilometers-per-second units.
+   - Moon must be computed from authoritative Moon and Earth vectors, not from a decorative circular orbit.
+   - Define scene conversion from ephemeris kilometers to Solar System scene units.
+   - Do not close an ephemeris orbit path unless the bundled ephemeris covers at least one full orbital period for that body.
+   - Keep Saturn, Uranus, Moon, and any other incomplete-range body on clean analytical orbit guides to avoid diagonal chords across the Solar System view.
+
+5. Time Behavior
+   - Integrated Solar System mode must compute body positions from shared app `SIM_DATE`.
+   - On Solar System startup, all body positions initialize from the current shared `SIM_DATE`.
+   - `Time x = 0` must be a true zero-speed freeze of `SIM_DATE`; all Solar System body positions remain fixed.
+   - Higher `Time x` values advance `SIM_DATE`; all Solar System bodies move according to the ephemeris.
+   - Integrated Solar System mode must not use `Date.now()` or `performance.now()` to drive body positions.
+   - The Solar System HUD/UTC display must use the same simulation date as the main app UTC clock.
+
+6. Loading and Error UI
+   - Ephemeris data must load locally and asynchronously without blocking initial Earth/satellite startup.
+   - Show a clear Solar System ephemeris loading state when Solar System mode is enabled and ephemeris data is still loading.
+   - Show ephemeris source and supported date range in the Solar System HUD or selection summary.
+   - If ephemeris data is missing, invalid, or outside the supported date range, show a clear warning.
+   - Do not silently fall back to approximate data.
+   - If approximate fallback is used, label it visibly as `approximate visual fallback`.
+   - Planet names in Solar System mode must use discreet compact callouts with a pin/arrow pointer.
+   - The callout sprite anchor must be the actual pin point, and the pin must sit on or near the planet edge.
+   - Planet labels must use projected screen-space sizing with a minimum visible text height near `18 px`, preferred size near `28 px`, and maximum near `42 px`.
+   - Planet labels must reduce scale at close camera zoom so text does not dominate or cover the planets.
+   - Planet labels must increase scale within a capped range for distant planets so names remain readable far from the Sun.
+   - Avoid large opaque black text panels behind planet names.
+   - The Solar System planet HUD must match the UTC clock/horloge width, right alignment, monospace font family, and compact font sizing.
+   - The Solar System planet HUD must sit directly under the UTC clock and wrap long ephemeris text cleanly inside the clock width.
+
+7. Legacy Behavior Preservation
+   - Preserve `Other Selections` removal from Version `1.6.2`.
+   - Preserve Earth, Moon, and Mars reachability through Solar System selection.
+   - Preserve Earth selection returning to normal Globe mode.
+   - Preserve Moon selection returning to the existing Moon-centered mode.
+   - Preserve Mars selection returning to the existing Mars mode with Mars texture/progress behavior.
+   - Preserve `Displaying 46 bundled reference stars` visibility rule: show it only when `Stars & Milky Way` and `Bright Labels` are both checked.
+   - Preserve the top/canvas `Time x` slider as the only simulation-speed control.
+   - Preserve local/server satellite loading, server status, silent local fallback, Globe, Mercator bottom-right overlay, High Def Earth, ECEF axes, Day/Night/Sun lighting, satellite search portal, Starlink/ISS shortcuts, show-only-selected mode, right-side selected-satellite data/TLE/source panel, orbit display and occlusion, footprints, LVLH frame, Yaw/Pitch/Roll and ISS yaw/pitch swap, detailed model loading, SSL 1300 IS-18/IS-20 restriction, OB3/O3b sprite-only behavior, timeline exclusivity, Share, Help, menu order/default state, and startup/deferred loading behavior.
+
+8. Validation and Tests
+   - Add tests confirming Mercury uses `textures/mercury.png`.
+   - Add tests confirming Venus uses `textures/venus.png`.
+   - Add tests confirming Jupiter uses `textures/jupiter.jpg`.
+   - Add tests confirming all planet texture paths are local.
+   - Add tests confirming PNG and JPEG texture dimensions are validated.
+   - Add tests confirming integrated and standalone Solar System texture paths match.
+   - Add tests confirming ephemeris metadata exists and documents source, date range, cadence, frame, time scale, origin, units, interpolation, and license.
+   - Add tests comparing bundled JPL-derived ephemeris vectors against reference sample vectors for multiple dates and all supported bodies.
+   - Define acceptable kilometer error thresholds:
+     - Inner planets and Moon: target less than `5,000 km`.
+     - Outer planets: target less than `50,000 km`.
+   - Add tests confirming Moon position is derived from Moon/Earth ephemeris vectors.
+   - Add tests confirming closed JPL-derived orbit guides are used only when the ephemeris covers a complete orbital period, and incomplete Saturn/Uranus/Moon arcs do not create diagonal chord artifacts.
+   - Add tests confirming planet scene positions change between `2026-06-07T00:00:00Z`, `2026-07-07T00:00:00Z`, and `2030-06-07T00:00:00Z`.
+   - Add tests confirming `Time x = 0` freezes simulation milliseconds and `Time x > 0` advances them.
+   - Add tests confirming Solar System labels satisfy the `18 px` minimum and capped maximum readable screen-height rule.
+   - Add tests confirming the Solar System HUD is width/right/top aligned from the UTC clock measurement and uses clock-compatible typography.
+   - Add tests confirming `SIM_DATE` drives all integrated Solar System positions.
+   - Add tests confirming integrated Solar System code does not use independent `Date.now()` or `performance.now()` for body positions.
+   - Add regression tests proving existing Earth, Moon, Mars, satellite, Mercator, Stars & Milky Way, menu, Share, Help, server, timeline, selected-satellite, model-loading, and `Time x` behavior still passes.
+
+9. Documentation
+   - Update `README.md`.
+   - Update `Test_and_Integration.md`.
+   - Update `PROMPT_History.md`.
+   - Document texture sources/licenses.
+   - Document JPL-derived ephemeris source and limitations.
+   - Document date range, interpolation method, expected error thresholds, and fallback behavior.
+   - Document that this is a visualization using JPL-derived ephemeris data and is not a certified flight-dynamics or navigation system unless independently validated.
+
+Acceptance Criteria:
+
+- App version is `1.7`.
+- Mercury renders with `textures/mercury.png`.
+- Venus renders with `textures/venus.png`.
+- Jupiter renders with `textures/jupiter.jpg`.
+- Earth, Moon, Mars, Saturn, Uranus, Sun, and Saturn rings keep their local texture behavior.
+- No planet texture or ephemeris data is fetched remotely at runtime.
+- Solar System positions are computed from documented local JPL-derived ephemeris data.
+- Moon position is derived from Earth/Moon ephemeris vectors.
+- Orbit paths do not show diagonal closing chords for incomplete ephemeris arcs.
+- Solar System motion follows the existing top/canvas `Time x` slider through shared `SIM_DATE`.
+- `Time x = 0` freezes Solar System body positions.
+- UI displays ephemeris source and supported date range.
+- UI warns clearly if ephemeris is unavailable, invalid, outside range, or fallback mode is active.
+- Planet labels remain compact when zooming, use discreet pin/arrow callouts instead of large billboard text, keep the pin anchored on the planet edge, and stay readable for planets far from the Sun.
+- Solar System planet HUD aligns with the UTC clock width, right edge, font, and directly-under-clock placement.
+- `Other Selections` remains removed.
+- Earth, Moon, and Mars remain reachable through Solar System selection.
+- Existing Earth, Moon, Mars, satellite, Mercator, Stars & Milky Way, filters, selected-satellite details, timelines, Share, Help, server, model-loading, and menu behavior remains functional.
+- Automated tests pass.
+
 ## Release Date: 2026-06-07  Version 1.6.2
 
 Integrate Solar System Overview into the main OpenBEXI Earth Orbit app.

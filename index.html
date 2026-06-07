@@ -128,6 +128,7 @@
     } from './js/starSkyUtils.js';
     import {
         SOLAR_SYSTEM_PLANETS,
+        advanceSolarSystemSimulationMillis,
         createSolarSystemOverview,
         updateSolarSystemOverview,
         setSolarSystemOverviewVisible,
@@ -136,7 +137,8 @@
         setSolarSystemSelectedPlanet,
         focusSolarSystemPlanet,
         resetSolarSystemOverviewCamera,
-        solarSystemPlanetSummary
+        solarSystemPlanetSummary,
+        solarSystemEphemerisSummary
     } from './js/solarSystemOverviewLoader.js';
 
     import { initTimeline } from './js/ganttTimelineLoader.js';
@@ -189,7 +191,7 @@
     })();
     startupPerf.mark('module-loaded');
 
-    const versionNumber = "1.6.2";
+    const versionNumber = "1.7";
     if (versionNumber !== APP_VERSION) {
         console.warn(`Version mismatch: index ${versionNumber}, server module ${APP_VERSION}`);
     }
@@ -1202,11 +1204,20 @@
     }
 
     function syncSelectedSatelliteDetailPanelWidth() {
-        if (!selectedSatelliteDetailPanel) return;
         const clockEl = document.getElementById("utcClockDisplay");
-        const clockWidth = Math.ceil(clockEl?.getBoundingClientRect?.().width || 0);
+        const clockRect = clockEl?.getBoundingClientRect?.();
+        const clockWidth = Math.ceil(clockRect?.width || 0);
+        const clockRight = clockRect ? Math.max(0, Math.ceil(window.innerWidth - clockRect.right)) : 16;
+        const panelTop = clockRect ? Math.ceil(clockRect.bottom + 14) : 52;
         if (clockWidth > 0) {
-            selectedSatelliteDetailPanel.style.width = `${clockWidth}px`;
+            [
+                selectedSatelliteDetailPanel,
+                solarSystemPlanetHudElement || document.getElementById('solarSystemPlanetHud')
+            ].filter(Boolean).forEach((panel) => {
+                panel.style.width = `${clockWidth}px`;
+                panel.style.right = `${clockRight}px`;
+                panel.style.top = `${panelTop}px`;
+            });
         }
     }
 
@@ -1672,7 +1683,7 @@
     }
 
     // Time-warp UI
-    simParams.timeWarp = 1 / 60;
+    simParams.timeWarp = 0;
     simParams.simDate = new Date();
     simMillis = simParams.simDate.getTime();
 
@@ -1690,15 +1701,15 @@
 
     function sliderValueToTimeWarp(value) {
         const parsed = parseInt(value, 10);
-        return Number.isFinite(parsed) && parsed >= 1 ? parsed : 1 / 60;
+        return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
     }
 
     function timeWarpToSliderValue(value) {
-        return value < 1 ? '0' : `${Math.round(value)}`;
+        return `${Math.max(0, Math.round(value))}`;
     }
 
     function formatTimeWarpLabel(value) {
-        return value < 1 ? '0' : `${Math.round(value)}`;
+        return `${Math.max(0, Math.round(value))}`;
     }
 
     function updateTimeWarpControls() {
@@ -2179,23 +2190,27 @@
 
     function updateSolarSystemSelectionUi() {
         const planet = SOLAR_SYSTEM_PLANETS.find(item => item.name === simParams.solarSystemFocusedPlanet);
+        const ephemerisSummary = solarSystemEphemerisSummary(solarSystemOverview);
         const summary = planet
-            ? solarSystemPlanetSummary(planet)
-            : 'Solar System overview mode';
+            ? solarSystemPlanetSummary(planet, solarSystemOverview)
+            : `Solar System overview mode | ${ephemerisSummary}`;
         if (solarSystemSelectionSummaryElement) solarSystemSelectionSummaryElement.textContent = summary;
         if (solarSystemPlanetHudElement) {
             if (simParams.solarSystemOverview && planet) {
+                const distanceText = planet.parentName ? `${planet.parentName}-relative` : `${planet.semiMajorAu.toFixed(3)} AU`;
+                const periodText = Number.isFinite(planet.periodDays) ? `${Math.round(planet.periodDays)} days` : 'N/A';
                 solarSystemPlanetHudElement.innerHTML = `
                     <div class="selected-satellite-detail-header">
                         <span>Solar System Planet</span>
                         <strong>${planet.name}</strong>
                     </div>
-                    <div class="selected-satellite-detail-body">
-                        <div><span>Distance from Sun</span><strong>${planet.semiMajorAu.toFixed(3)} AU</strong></div>
-                        <div><span>Orbital period</span><strong>${Math.round(planet.periodDays)} days</strong></div>
-                        <div><span>Ephemeris</span><strong>Approximate visual Kepler model</strong></div>
+                    <div class="selected-satellite-detail-body solar-system-hud-body">
+                        <div class="solar-system-hud-row"><span>Distance</span><strong>${distanceText}</strong></div>
+                        <div class="solar-system-hud-row"><span>Period</span><strong>${periodText}</strong></div>
+                        <div class="solar-system-hud-row solar-system-hud-row-wrap"><span>Status</span><strong>${ephemerisSummary}</strong></div>
                     </div>`;
                 solarSystemPlanetHudElement.hidden = false;
+                syncSelectedSatelliteDetailPanelWidth();
             } else {
                 solarSystemPlanetHudElement.hidden = true;
                 solarSystemPlanetHudElement.innerHTML = '';
@@ -2544,7 +2559,7 @@
         camera.updateProjectionMatrix();
 
         /* Solar System Overview (created hidden; toggled from Views & Time) */
-        solarSystemOverview = createSolarSystemOverview(scene, { renderer, camera, controls });
+        solarSystemOverview = createSolarSystemOverview(scene, { renderer, camera, controls, initialDate: SIM_DATE });
         setSolarSystemOverviewVisible(solarSystemOverview, false);
         renderer.domElement.addEventListener('pointermove', handleSolarSystemPointerMove);
         renderer.domElement.addEventListener('click', handleSolarSystemPointerClick);
@@ -4241,11 +4256,12 @@
 
         /* Simulation clock: minutes * timeWarp per second */
         const dtReal = clock.getDelta();
-        simMillis += dtReal * 1000 * 60 * simParams.timeWarp;
+        simMillis = advanceSolarSystemSimulationMillis(simMillis, dtReal, simParams.timeWarp);
         SIM_DATE.setTime(simMillis);
         simParams.simDate = SIM_DATE; // keep external readers happy
         if (simParams.solarSystemOverview) {
             updateSolarSystemOverview(solarSystemOverview, SIM_DATE);
+            updateSolarSystemSelectionUi();
             setSolarSystemEarthLayerVisibility(true);
         }
 

@@ -70,6 +70,8 @@ Version 1.6.1 removes the integrated `Magnitude limit` slider from the main app 
 
 Version 1.6.2 integrates Solar System Overview into the main app while keeping `SolarSystemOverview.html` as a standalone debug page. `Views & Time` removes the menu Time x slider and keeps the top/canvas Time x slider as the single simulation-speed control. The new layout is row 1: `Solar System`, `Stars & Milky Way`; row 2: `Globe`, `High Def.`, `ECEF Axes`; row 3: `Mercator`, `Day/Night`. Solar System mode is off by default, stores the previous Earth/satellite state, hides Earth-specific satellite layers while active, and restores state on exit. It renders textured Mercury, Venus, Earth, Moon, Mars, Jupiter, Saturn, and Uranus with local textures, orbit paths, labels, Sun glow, Saturn rings, selected-body HUD/highlight, and approximate Kepler/visual positions. Earth selection exits to normal Globe mode, Moon selection exits to existing Moon-centered mode, Mars selection exits to existing Mars mode, and other planet selections focus inside Solar System mode. The old `Other Selections` menu section is removed; Earth/Moon/Mars context switching is preserved through Solar System selection. The `Displaying 46 bundled reference stars` summary appears only when both `Stars & Milky Way` and `Bright Labels` are checked.
 
+Version 1.7 upgrades Solar System textures and adds bundled JPL-derived ephemeris data. Mercury uses `textures/mercury.png`, Venus uses `textures/venus.png`, and Jupiter uses `textures/jupiter.jpg`. Integrated Solar System mode loads local `data/ephemeris/solar_system_jpl_horizons_2020_2035_6h.json`, uses shared `SIM_DATE`, shows ephemeris source/range in the UI, and labels fallback clearly if data is missing, loading, invalid, or out of range. Moon is derived from Earth/Moon ephemeris vectors. Existing Version 1.6.2 menu behavior, removed `Other Selections`, Earth/Moon/Mars reachability through Solar System selection, and legacy satellite/Mercator/Stars/Share/Help behavior must remain intact.
+
 ## Test Environment
 
 - Run from the repository root.
@@ -217,10 +219,15 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 
 ### Solar System Overview Integration
 
-- Test Version 1.6.2 `Views & Time` row order and defaults: `Solar System` unchecked, `Stars & Milky Way` unchecked; `Globe` checked, `High Def.` unchecked, `ECEF Axes` unchecked; `Mercator` unchecked, `Day/Night` checked.
+- Test Version 1.7 `Views & Time` row order and defaults: `Solar System` unchecked, `Stars & Milky Way` unchecked; `Globe` checked, `High Def.` unchecked, `ECEF Axes` unchecked; `Mercator` unchecked, `Day/Night` checked.
 - Test the menu Time x slider is removed and the top/canvas Time x slider remains functional.
 - Test `js/solarSystemOverviewLoader.js` defines Mercury, Venus, Earth, Moon, Mars, Jupiter, Saturn, and Uranus.
 - Test every integrated planet has a local texture path, no remote runtime URL, fallback material, SRGB color space handling, anisotropy handling, and browser-safe dimensions.
+- Test Mercury uses `textures/mercury.png`, Venus uses `textures/venus.png`, and Jupiter uses `textures/jupiter.jpg`.
+- Test `data/ephemeris/solar_system_jpl_horizons_2020_2035_6h.json` exists, is local runtime data, covers `2020-01-01` through `2035-12-31`, uses 6-hour cadence, and documents source/frame/time/origin/units/license.
+- Test ephemeris interpolation against off-grid Horizons reference samples, with less than `5,000 km` error for Mercury, Venus, Earth, Moon, and Mars, and less than `50,000 km` for Jupiter, Saturn, and Uranus.
+- Test Moon scene position is derived from Moon minus Earth ephemeris vectors.
+- Test closed JPL-derived orbit guides are used only when the bundled ephemeris covers at least one complete orbital period; Saturn, Uranus, Moon, and other incomplete-range bodies must not show diagonal chord artifacts.
 - Test `Other Selections` is absent from the menu and from default accordion collapse state.
 - Test the `Displaying 46 bundled reference stars` summary is hidden by default and appears only when `Stars & Milky Way` and `Bright Labels` are both checked.
 - Test Solar System mode is off on startup and normal Earth satellite view remains active.
@@ -230,7 +237,14 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test selecting Moon from Solar System mode exits to existing Moon-centered mode and targets `moon.position`.
 - Test selecting Mars from Solar System mode exits to existing Mars mode and preserves Mars progress/target behavior.
 - Test selecting Mercury, Venus, Jupiter, Saturn, or Uranus keeps Solar System mode active, focuses the selected planet, shows a HUD, and can return to overview.
+- Test Solar System planet names render as discreet compact pin/arrow callouts, pin anchors sit on or near the planet edge, labels stay readable for planets far from the Sun, and labels shrink at close zoom so they do not cover planets or orbit paths.
 - Test Solar System body motion is driven from shared `SIM_DATE`, which is advanced by the top/canvas `Time x` slider through `simParams.timeWarp`.
+- Test `Time x = 0` maps to true zero simulation advance and freezes Solar System positions.
+- Test `Time x > 0` advances simulation milliseconds and changes Solar System positions.
+- Test inner planets move between `2026-06-07T00:00:00Z` and `2026-07-07T00:00:00Z`.
+- Test Jupiter, Saturn, and Uranus move between `2026-06-07T00:00:00Z` and `2030-06-07T00:00:00Z`.
+- Test integrated Solar System body positions are not driven by independent `Date.now()` or `performance.now()` code in the Solar System modules.
+- Test Solar System UI reports JPL-derived ephemeris source/range or a clear fallback/loading warning.
 - Test Escape exits selected-planet focus or Solar System mode where practical.
 - Test Version 1.6.1 Stars & Milky Way behavior remains: no integrated magnitude slider, 46 bundled stars, readable Bright Labels.
 
@@ -302,7 +316,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test the filter menu does not contain an `Active` button/control.
 - Test generated company/tag chips exclude `Active`, not only the static markup.
 - Test the `Views & Time` section has one collapsible container containing Solar System, Stars & Milky Way, Globe, Mercator, High Def., ECEF Axes, Day/Night controls, and mode-specific sub-controls, with no menu `Time x` slider.
-- Test the top/canvas `Time x` slider updates the shared simulation-speed state after the Version 1.6.2 menu layout change.
+- Test the top/canvas `Time x` slider updates the shared simulation-speed state after the Version 1.7 Solar System ephemeris integration.
 - Test menu CSS keeps the narrowed menu width, legacy colored accordion headers, and scrollable long panels.
 - Test the vertical tab rail is removed and the menu uses stacked accordion sections.
 - Test accordion section order is `Views & Time`, `Satellite Selection`, `Filters - Satellites Found`, `Timelines`, `Share`, `Help`.
@@ -363,7 +377,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 ### Server Data Path
 
 - Test `/api/health` returns status `ok` and version metadata.
-- Test `/api/version` returns app/API version `1.6.2` and release date `2026-06-07`.
+- Test `/api/version` returns app/API version `1.7` and release date `2026-06-07`.
 - Test `/api/tle` and `/api/satellites` return valid TLE records with `norad_id`, `tle_line1`, and `tle_line2`.
 - Test `/api/satellite-metadata` lists known metadata files.
 - Test `/api/satellite-metadata/starlink_V1.json` returns one known metadata payload.
@@ -446,6 +460,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm the satellite search result dropdown remains visible above the rest of the menu while open and does not get clipped by the accordion panel.
 - Confirm Satellite Selection does not show the detailed selected-satellite metadata/TLE table after selection.
 - Confirm the right-side selected-satellite detail panel appears under the UTC clock after selection, has a transparent background, matches the UTC clock width, shows independently expandable Satellite data and TLE details sections expanded by default using `<details open>`, shows metadata plus TLE line 1 and line 2 exactly once, and hides again when the selection is cleared.
+- Confirm the Solar System planet HUD appears directly under the UTC clock after selecting a planet, exactly matches the UTC clock width and right edge, uses clock-compatible monospace typography, and wraps long ephemeris text inside the clock width.
 - Select a Starlink model and confirm an expanded `Source detail` section appears after `TLE details` with bold red text: `Model downloaded from https://sketchfab.com/malacodart, license: CC Attribution / Creative Commons Attribution.`
 - Select an ISS model and confirm an expanded `Source detail` section appears after `TLE details` with bold red text: `Model downloaded from https://github.com/nasa/NASA-3D-Resources, courtesy: NASA (National Aeronautics and Space Administration).`
 - Select another model without explicit attribution and confirm no `Source detail` section is shown.
@@ -458,7 +473,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm the ISS shortcut shows `ISS unavailable` if no ISS target can be resolved.
 - Confirm `Timelines` appears immediately after `Filters - Satellites Found`.
 - Confirm `Share` appears immediately after `Timelines` and immediately before `Help`.
-- Confirm `Close`, `Version 1.6.2 - hosted at GitHub Repo`, and the server status icon/text are aligned on one compact row on desktop.
+- Confirm `Close`, `Version 1.7 - hosted at GitHub Repo`, and the server status icon/text are aligned on one compact row on desktop.
 - Confirm the version/GitHub text is centered in the menu header.
 - Confirm the server status indicator appears above the accordion menu and does not shift layout when changing between checking, offline, connected, and error states.
 - Confirm connected status uses `power_green.png` and offline/error status uses `power_red.png`.
@@ -1180,6 +1195,29 @@ Checks to perform for this release:
 - Run JavaScript syntax checks.
 - Run Python syntax checks.
 - Run Python server smoke checks for API, Swagger docs, and static app routes.
+
+## Release 1.7 Verification Log
+
+Checks performed for this Version 1.7 implementation session:
+
+- `PROMPT_History.md` contains the latest `Release Date: 2026-06-07 Version 1.7` entry at the top.
+- `index.html`, `js/serverConnection.js`, `js/SatelliteMenuLoader.js`, and `server.py` use version `1.7`.
+- Mercury uses `textures/mercury.png`, Venus uses `textures/venus.png`, and Jupiter uses `textures/jupiter.jpg`.
+- The local JPL-derived ephemeris dataset is stored at `data/ephemeris/solar_system_jpl_horizons_2020_2035_6h.json`.
+- The ephemeris metadata documents source, date range, cadence, reference frame, reference plane, origin, units, time handling, interpolation, thresholds, and license.
+- Off-grid reference samples validate interpolation error below the documented thresholds.
+- Moon position is derived from Moon and Earth ephemeris vectors.
+- Integrated Solar System mode initializes and updates from shared `SIM_DATE`.
+- Solar System UI reports ephemeris source/range or fallback/loading status.
+- `Other Selections` remains removed, and Earth/Moon/Mars remain reachable through Solar System selection.
+- Version 1.6.2 Stars & Milky Way and menu behaviors remain preserved.
+
+Remaining manual verification:
+
+- Browser-confirm enabling Solar System mode loads local ephemeris status and shows textured Mercury, Venus, and Jupiter.
+- Browser-confirm `Time x = 0` freezes Solar System body positions and higher `Time x` values advance body motion.
+- Browser-confirm Earth, Moon, and Mars selection paths still switch to their legacy views.
+- Browser-confirm existing Globe, Mercator, Moon, Mars, satellite search, orbit, footprint, timelines, Share, and Help behavior remains unchanged.
 
 ## Release 1.6.2 Verification Log
 

@@ -17,7 +17,7 @@ export function satelliteMenuLoader() {
           <div><span>Server URL</span><strong id="serverStatusUrl">http://127.0.0.1:8000</strong></div>
           <div><span>Connection</span><strong id="serverStatusState">Checking</strong></div>
           <div><span>Data source</span><strong id="serverDataSource">Local files</strong></div>
-          <div><span>App version</span><strong id="serverAppVersion">1.6.2</strong></div>
+          <div><span>App version</span><strong id="serverAppVersion">1.7</strong></div>
           <div><span>API version</span><strong id="serverApiVersion">Unavailable</strong></div>
           <div><span>Last data load</span><strong id="serverLastSync">Never</strong></div>
           <button id="serverReconnectButton" type="button" class="menu-secondary-action server-reconnect-button">Reconnect / Refresh</button>

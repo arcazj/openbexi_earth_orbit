@@ -2,15 +2,21 @@
 // Standalone and integrated helpers for the OpenBEXI heliocentric visual overview.
 
 import * as THREE from 'three';
+import {
+    createSolarSystemEphemerisState,
+    loadSolarSystemEphemeris,
+    solarSystemEphemerisStatusText,
+    solarSystemScenePositionForBody
+} from './solarSystemEphemeris.js';
 
 export const SOLAR_SYSTEM_TEXTURE_PATHS = {
     sun: 'textures/planets/sun.jpg',
-    mercury: 'textures/planets/mercury.jpg',
-    venus: 'textures/planets/venus.jpg',
+    mercury: 'textures/mercury.png',
+    venus: 'textures/venus.png',
     earth: 'textures/earthmap1k.jpg',
     moon: 'textures/moon_map2.jpg',
     mars: 'textures/March_8k.jpg',
-    jupiter: 'textures/planets/jupiter.jpg',
+    jupiter: 'textures/jupiter.jpg',
     saturn: 'textures/planets/saturn.jpg',
     saturnRing: 'textures/planets/saturn_ring.png',
     uranus: 'textures/planets/uranus.jpg',
@@ -128,7 +134,8 @@ export const SOLAR_SYSTEM_PLANETS = [
 ];
 
 export const SOLAR_SYSTEM_TEXTURE_ATTRIBUTIONS = [
-    'textures/planets/*.jpg and saturn_ring.png are project-generated procedural visual maps for OpenBEXI.',
+    'textures/mercury.png, textures/venus.png, and textures/jupiter.jpg are local project-provided planet texture assets.',
+    'textures/planets/*.jpg and saturn_ring.png are project-generated procedural visual maps for OpenBEXI unless replaced by verified source assets.',
     'textures/earthmap1k.jpg is the existing OpenBEXI Earth runtime texture.',
     'textures/moon_map2.jpg is the existing OpenBEXI Moon runtime texture.',
     'textures/March_8k.jpg is the optimized OpenBEXI Mars runtime texture generated from textures/March.jpg.'
@@ -136,18 +143,31 @@ export const SOLAR_SYSTEM_TEXTURE_ATTRIBUTIONS = [
 
 const AU_VISUAL_SCALE = 16;
 const ORBIT_SEGMENTS = 512;
+const EPHEMERIS_ORBIT_MIN_FRACTION = 0.95;
 const SKY_RADIUS = 430;
-const LABEL_SCALE = 7.5;
+export const SOLAR_SYSTEM_LABEL_MIN_SCREEN_PX = 18;
+export const SOLAR_SYSTEM_LABEL_PREFERRED_SCREEN_PX = 28;
+export const SOLAR_SYSTEM_LABEL_MAX_SCREEN_PX = 42;
+const LABEL_BASE_SCALE = new THREE.Vector3(12.8, 4.0, 1);
+const LABEL_MIN_WORLD_SCALE = 0.01;
+const LABEL_MAX_DISTANCE_SCALE = 5.2;
+const LABEL_PIN_CENTER_X = 42 / 512;
+const LABEL_PIN_CENTER_Y = (160 - 122) / 160;
+const DEFAULT_LABEL_VIEWPORT_HEIGHT = 800;
+const DEFAULT_LABEL_CAMERA_FOV_DEG = 52;
 const J2000_UTC_MS = Date.UTC(2000, 0, 1, 12, 0, 0);
 const DAY_MS = 86400000;
 
 let raycaster = null;
 let pointerNdc = null;
+const labelWorldPosition = new THREE.Vector3();
 
 export function createSolarSystemOverview(scene, {
     renderer = null,
     camera = null,
-    controls = null
+    controls = null,
+    initialDate = null,
+    autoLoadEphemeris = true
 } = {}) {
     const root = new THREE.Group();
     root.name = 'Solar System Overview Root';
@@ -168,6 +188,10 @@ export function createSolarSystemOverview(scene, {
         starGroup: new THREE.Group(),
         selectedPlanet: null,
         selectedHighlight: null,
+        ephemerisState: createSolarSystemEphemerisState(),
+        ephemerisRuntimeMode: 'approximate visual fallback',
+        ephemerisWarning: 'JPL-derived ephemeris has not loaded yet.',
+        ephemerisOrbitPathsBuilt: false,
         options: {
             planetLabels: true,
             orbitPaths: true,
@@ -186,23 +210,50 @@ export function createSolarSystemOverview(scene, {
     createSun(overview, textureLoader);
     createPlanets(overview, textureLoader);
     createSelectedHighlight(overview);
-    updateSolarSystemOverview(overview, new Date());
+    if (initialDate) updateSolarSystemOverview(overview, initialDate);
+    if (autoLoadEphemeris) {
+        loadSolarSystemEphemeris(overview.ephemerisState)
+            .then(() => rebuildOrbitPathsFromEphemeris(overview))
+            .catch(() => {});
+    }
     setSolarSystemOverviewOptions(overview, overview.options);
     return overview;
 }
 
-export function updateSolarSystemOverview(overview, simDate = new Date()) {
+export function advanceSolarSystemSimulationMillis(currentMillis, dtSeconds, timeWarp) {
+    const baseMillis = Number.isFinite(currentMillis) ? currentMillis : 0;
+    const dt = Number.isFinite(dtSeconds) && dtSeconds > 0 ? dtSeconds : 0;
+    const warp = Number.isFinite(timeWarp) && timeWarp > 0 ? timeWarp : 0;
+    if (!dt || !warp) return baseMillis;
+    return baseMillis + dt * 1000 * 60 * warp;
+}
+
+export function updateSolarSystemOverview(overview, simDate) {
     if (!overview) return;
+    let usedFallback = false;
+    let warning = '';
     overview.planets.forEach((entry) => {
-        const position = planetPositionAtDate(entry.planet, simDate);
+        const position = planetPositionAtDate(entry.planet, simDate, overview.ephemerisState);
+        if (overview.ephemerisState?.status !== 'ready') {
+            usedFallback = true;
+            warning = overview.ephemerisState?.lastWarning || 'JPL-derived ephemeris is unavailable';
+        }
         entry.group.position.copy(position);
         if (entry.orbit?.userData?.parentName) {
             const parent = SOLAR_SYSTEM_PLANETS.find(item => item.name === entry.orbit.userData.parentName);
-            if (parent) entry.orbit.position.copy(planetPositionAtDate(parent, simDate));
+            if (parent) entry.orbit.position.copy(planetPositionAtDate(parent, simDate, overview.ephemerisState));
         }
         entry.marker.rotation.y += 0.0025;
-        entry.label.position.set(entry.planet.visualRadius + 4.4, entry.planet.visualRadius + 2.5, 0);
+        updatePlanetLabelCallout(entry, overview);
     });
+    if (overview.ephemerisState?.status === 'ready') {
+        if (!overview.ephemerisOrbitPathsBuilt) rebuildOrbitPathsFromEphemeris(overview);
+        overview.ephemerisRuntimeMode = usedFallback ? 'approximate visual fallback' : 'JPL-derived ephemeris';
+        overview.ephemerisWarning = warning;
+    } else {
+        overview.ephemerisRuntimeMode = 'approximate visual fallback';
+        overview.ephemerisWarning = warning || overview.ephemerisState?.lastWarning || 'JPL-derived ephemeris is unavailable';
+    }
     updateSelectedHighlight(overview);
 }
 
@@ -278,15 +329,26 @@ export function resetSolarSystemOverviewCamera(overview, camera = overview?.came
     controls.update();
 }
 
-export function solarSystemPlanetSummary(planet) {
+export function solarSystemPlanetSummary(planet, overview = null) {
     if (!planet) return '';
+    const ephemerisText = overview ? ` | ${solarSystemEphemerisStatusText(overview.ephemerisState)}` : '';
     if (planet.parentName) {
-        return `${planet.name}: ${Math.round(planet.periodDays)} day visual orbit around ${planet.parentName}, approximate visual ephemeris`;
+        return `${planet.name}: Earth-relative JPL-derived Moon vector when ephemeris is available${ephemerisText}`;
     }
-    return `${planet.name}: ${planet.semiMajorAu.toFixed(3)} AU, orbital period ${Math.round(planet.periodDays)} days, approximate visual ephemeris`;
+    return `${planet.name}: ${planet.semiMajorAu.toFixed(3)} AU, orbital period ${Math.round(planet.periodDays)} days${ephemerisText}`;
 }
 
-export function planetPositionAtDate(planet, simDate) {
+export function solarSystemEphemerisSummary(overview) {
+    return solarSystemEphemerisStatusText(overview?.ephemerisState);
+}
+
+export function planetPositionAtDate(planet, simDate, ephemerisStateOrData = null) {
+    const ephemerisData = ephemerisStateOrData?.data || ephemerisStateOrData;
+    if (ephemerisData?.bodies?.[planet.key]) {
+        const result = solarSystemScenePositionForBody(ephemerisData, planet.key, simDate);
+        updateEphemerisRuntimeStatus(ephemerisStateOrData, result, planet.key);
+        if (result.status === 'ok' && result.position) return result.position;
+    }
     if (planet.parentName) {
         const parent = SOLAR_SYSTEM_PLANETS.find(item => item.name === planet.parentName);
         const parentPosition = parent ? planetPositionAtDate(parent, simDate) : new THREE.Vector3();
@@ -302,6 +364,18 @@ export function planetPositionAtDate(planet, simDate) {
         Math.sqrt(1 - planet.eccentricity) * Math.cos(eccentricAnomaly / 2)
     );
     return planetPositionFromTrueAnomaly(planet, trueAnomaly);
+}
+
+function updateEphemerisRuntimeStatus(ephemerisStateOrData, result, bodyKey) {
+    const state = ephemerisStateOrData?.data ? ephemerisStateOrData : null;
+    if (!state || state.status !== 'ready') return;
+    if (result.status === 'ok') {
+        state.lastMode = 'JPL-derived ephemeris';
+        state.lastWarning = '';
+        return;
+    }
+    state.lastMode = 'approximate visual fallback';
+    state.lastWarning = result.warning || `No JPL-derived ephemeris position for ${bodyKey}`;
 }
 
 function createSun(overview, textureLoader) {
@@ -432,6 +506,34 @@ function createOrbitPath(planet) {
     return orbit;
 }
 
+function rebuildOrbitPathsFromEphemeris(overview) {
+    const data = overview?.ephemerisState?.data;
+    if (!data?.times?.length) return;
+    overview.planets.forEach((entry) => {
+        if (!shouldUseEphemerisOrbitPath(entry.planet, data)) return;
+        const startMs = data.timeMs[0];
+        const oneOrbitTimeMs = entry.planet.periodDays * DAY_MS;
+        const points = [];
+        for (let i = 0; i < ORBIT_SEGMENTS; i += 1) {
+            const orbitFraction = i / ORBIT_SEGMENTS;
+            const position = planetPositionAtDate(entry.planet, new Date(startMs + oneOrbitTimeMs * orbitFraction), data);
+            if (position) points.push(position);
+        }
+        if (points.length < 3) return;
+        entry.orbit.geometry.dispose();
+        entry.orbit.geometry = new THREE.BufferGeometry().setFromPoints(points);
+        entry.orbit.name = `${entry.planet.name} JPL-derived Orbit Path`;
+    });
+    overview.ephemerisOrbitPathsBuilt = true;
+}
+
+export function shouldUseEphemerisOrbitPath(planet, ephemerisData) {
+    if (!planet || planet.parentName || !Number.isFinite(planet.periodDays)) return false;
+    if (!ephemerisData?.timeMs || ephemerisData.timeMs.length < 2) return false;
+    const coverageDays = (ephemerisData.timeMs[ephemerisData.timeMs.length - 1] - ephemerisData.timeMs[0]) / DAY_MS;
+    return coverageDays >= planet.periodDays * EPHEMERIS_ORBIT_MIN_FRACTION;
+}
+
 function createSaturnRing(planet, textureLoader, renderer) {
     const geometry = new THREE.RingGeometry(planet.visualRadius * 1.45, planet.visualRadius * 2.2, 96);
     const material = new THREE.MeshBasicMaterial({
@@ -460,23 +562,49 @@ function createSaturnRing(planet, textureLoader, renderer) {
 function createPlanetLabel(text, color) {
     const canvas = document.createElement('canvas');
     canvas.width = 512;
-    canvas.height = 128;
+    canvas.height = 160;
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = 'rgba(3, 7, 14, 0.64)';
-    roundRect(ctx, 0, 20, canvas.width, 78, 22);
-    ctx.fill();
-    ctx.font = 'bold 46px Trebuchet MS, Segoe UI, sans-serif';
-    ctx.textBaseline = 'middle';
-    ctx.lineWidth = 9;
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.92)';
-    ctx.strokeText(text, 22, 61);
-    ctx.fillStyle = '#eef8ff';
-    ctx.fillText(text, 22, 61);
-    ctx.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
+
+    const colorHex = `#${color.toString(16).padStart(6, '0')}`;
+    ctx.font = '700 38px Trebuchet MS, Segoe UI, sans-serif';
+    const labelWidth = Math.min(330, Math.ceil(ctx.measureText(text).width) + 64);
+    const labelX = 122;
+    const labelY = 46;
+    const labelHeight = 58;
+
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(235, 246, 255, 0.72)';
+    ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.arc(canvas.width - 38, 60, 13, 0, Math.PI * 2);
+    ctx.moveTo(42, 122);
+    ctx.lineTo(88, 96);
+    ctx.lineTo(labelX, labelY + labelHeight / 2);
+    ctx.stroke();
+
+    ctx.fillStyle = colorHex;
+    ctx.beginPath();
+    ctx.arc(42, 122, 9, 0, Math.PI * 2);
     ctx.fill();
+
+    ctx.strokeStyle = 'rgba(245, 250, 255, 0.85)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(4, 10, 18, 0.56)';
+    roundRect(ctx, labelX, labelY, labelWidth, labelHeight, 22);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(225, 239, 255, 0.42)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.78)';
+    ctx.strokeText(text, labelX + 22, labelY + labelHeight / 2 + 1);
+    ctx.fillStyle = '#eef8ff';
+    ctx.fillText(text, labelX + 22, labelY + labelHeight / 2 + 1);
 
     const texture = new THREE.CanvasTexture(canvas);
     prepareColorTexture(texture);
@@ -489,11 +617,79 @@ function createPlanetLabel(text, color) {
         transparent: true,
         opacity: 1,
         depthWrite: false,
-        depthTest: true
+        depthTest: false
     });
     const sprite = new THREE.Sprite(material);
-    sprite.scale.set(LABEL_SCALE * 4, LABEL_SCALE, 1);
+    sprite.center.set(LABEL_PIN_CENTER_X, LABEL_PIN_CENTER_Y);
+    sprite.userData.baseScale = LABEL_BASE_SCALE.clone();
+    sprite.scale.copy(LABEL_BASE_SCALE);
     return sprite;
+}
+
+function updatePlanetLabelCallout(entry, overviewOrCamera) {
+    const label = entry?.label;
+    const planet = entry?.planet;
+    if (!label || !planet) return;
+    const pinOffset = Math.max(planet.visualRadius * 1.05, 0.38);
+    label.position.set(planet.visualRadius * 0.15, pinOffset, 0);
+    const baseScale = label.userData.baseScale || LABEL_BASE_SCALE;
+    const camera = overviewOrCamera?.camera || overviewOrCamera;
+    if (!camera || !entry.group) {
+        label.scale.copy(baseScale);
+        return;
+    }
+    entry.group.updateMatrixWorld(true);
+    labelWorldPosition.setFromMatrixPosition(entry.group.matrixWorld);
+    const distance = camera.position.distanceTo(labelWorldPosition);
+    const scaleFactor = solarSystemLabelScaleFactorForDistance(distance, {
+        fovDeg: camera.fov,
+        viewportHeight: solarSystemLabelViewportHeight(overviewOrCamera?.renderer)
+    });
+    label.scale.set(baseScale.x * scaleFactor, baseScale.y * scaleFactor, 1);
+}
+
+export function solarSystemLabelScaleFactorForDistance(distance, {
+    fovDeg = DEFAULT_LABEL_CAMERA_FOV_DEG,
+    viewportHeight = DEFAULT_LABEL_VIEWPORT_HEIGHT,
+    baseWorldHeight = LABEL_BASE_SCALE.y
+} = {}) {
+    const safeDistance = Number.isFinite(distance) && distance > 0 ? distance : 1;
+    const safeFov = Number.isFinite(fovDeg) && fovDeg > 0 ? fovDeg : DEFAULT_LABEL_CAMERA_FOV_DEG;
+    const safeViewportHeight = Number.isFinite(viewportHeight) && viewportHeight > 0 ? viewportHeight : DEFAULT_LABEL_VIEWPORT_HEIGHT;
+    const safeBaseWorldHeight = Number.isFinite(baseWorldHeight) && baseWorldHeight > 0 ? baseWorldHeight : LABEL_BASE_SCALE.y;
+    const perspectiveHeightAtDistance = 2 * safeDistance * Math.tan(THREE.MathUtils.degToRad(safeFov) / 2);
+    const preferredScale = SOLAR_SYSTEM_LABEL_PREFERRED_SCREEN_PX * perspectiveHeightAtDistance /
+        (safeViewportHeight * safeBaseWorldHeight);
+    const maxScreenScale = SOLAR_SYSTEM_LABEL_MAX_SCREEN_PX * perspectiveHeightAtDistance /
+        (safeViewportHeight * safeBaseWorldHeight);
+    return clampNumber(
+        preferredScale,
+        LABEL_MIN_WORLD_SCALE,
+        Math.min(LABEL_MAX_DISTANCE_SCALE, Math.max(LABEL_MIN_WORLD_SCALE, maxScreenScale))
+    );
+}
+
+export function solarSystemLabelScreenHeightPxForScale(scaleFactor, distance, {
+    fovDeg = DEFAULT_LABEL_CAMERA_FOV_DEG,
+    viewportHeight = DEFAULT_LABEL_VIEWPORT_HEIGHT,
+    baseWorldHeight = LABEL_BASE_SCALE.y
+} = {}) {
+    const safeDistance = Number.isFinite(distance) && distance > 0 ? distance : 1;
+    const safeFov = Number.isFinite(fovDeg) && fovDeg > 0 ? fovDeg : DEFAULT_LABEL_CAMERA_FOV_DEG;
+    const safeViewportHeight = Number.isFinite(viewportHeight) && viewportHeight > 0 ? viewportHeight : DEFAULT_LABEL_VIEWPORT_HEIGHT;
+    const safeBaseWorldHeight = Number.isFinite(baseWorldHeight) && baseWorldHeight > 0 ? baseWorldHeight : LABEL_BASE_SCALE.y;
+    const perspectiveHeightAtDistance = 2 * safeDistance * Math.tan(THREE.MathUtils.degToRad(safeFov) / 2);
+    return scaleFactor * safeBaseWorldHeight * safeViewportHeight / perspectiveHeightAtDistance;
+}
+
+function solarSystemLabelViewportHeight(renderer) {
+    return renderer?.domElement?.clientHeight ||
+        renderer?.domElement?.height ||
+        DEFAULT_LABEL_VIEWPORT_HEIGHT;
+}
+
+function clampNumber(value, min, max) {
+    return Math.min(Math.max(value, min), max);
 }
 
 function createSelectedHighlight(overview) {
