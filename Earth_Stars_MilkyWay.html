@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenBEXI Earth Stars Milky Way</title>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.184.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.184.0/examples/jsm/"
+      }
+    }
+  </script>
+  <style>
+    :root {
+      --panel-bg: rgba(5, 12, 24, 0.78);
+      --panel-border: rgba(130, 183, 255, 0.28);
+      --accent: #8fd0ff;
+      --warm: #ffd39a;
+      --text: #edf7ff;
+      --muted: #9fb5c9;
+    }
+
+    html,
+    body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      background: #020611;
+      color: var(--text);
+      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    #hud {
+      position: fixed;
+      top: 14px;
+      left: 14px;
+      width: min(360px, calc(100vw - 28px));
+      max-height: calc(100vh - 28px);
+      overflow-y: auto;
+      padding: 14px;
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
+      background:
+        radial-gradient(circle at 20% 0%, rgba(80, 130, 190, 0.24), transparent 34%),
+        linear-gradient(155deg, rgba(8, 20, 38, 0.9), var(--panel-bg));
+      box-shadow: 0 18px 42px rgba(0, 0, 0, 0.42);
+      backdrop-filter: blur(12px);
+      z-index: 10;
+    }
+
+    h1 {
+      margin: 0 0 4px;
+      font-size: 18px;
+      letter-spacing: 0.02em;
+    }
+
+    .subtitle {
+      margin: 0 0 12px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .control-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin: 12px 0;
+    }
+
+    label.toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 28px;
+      padding: 7px 9px;
+      border: 1px solid rgba(143, 208, 255, 0.16);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.055);
+      font-size: 12px;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    select,
+    button {
+      border: 1px solid rgba(143, 208, 255, 0.28);
+      border-radius: 10px;
+      background: rgba(8, 18, 34, 0.86);
+      color: var(--text);
+      padding: 8px 10px;
+      font-weight: 700;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    .range-row,
+    .select-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+      margin: 10px 0;
+      font-size: 12px;
+    }
+
+    .select-row {
+      grid-template-columns: 94px 1fr;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .stat {
+      padding: 8px;
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.26);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .stat strong {
+      display: block;
+      color: var(--warm);
+      font-size: 15px;
+    }
+
+    .stat span {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    details {
+      margin-top: 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.12);
+      padding-top: 10px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    details strong {
+      color: var(--text);
+    }
+
+    .warning {
+      color: #ffbf8f;
+      font-weight: 800;
+    }
+
+    #loading {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: min(360px, calc(100vw - 40px));
+      padding: 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(143, 208, 255, 0.32);
+      background: rgba(7, 16, 30, 0.92);
+      color: var(--text);
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.42);
+      z-index: 20;
+    }
+
+    #loading[hidden] {
+      display: none;
+    }
+
+    .bar {
+      height: 8px;
+      margin-top: 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.12);
+      overflow: hidden;
+    }
+
+    #loadingFill {
+      width: 8%;
+      height: 100%;
+      background: linear-gradient(90deg, #57b6ff, #fff3b0);
+      transition: width 0.2s ease;
+    }
+
+    @media (max-width: 720px) {
+      #hud {
+        width: min(320px, calc(100vw - 20px));
+        top: 10px;
+        left: 10px;
+        padding: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+<section id="hud" aria-label="Earth stars and Milky Way controls">
+  <h1>Earth, Stars, Milky Way</h1>
+  <p class="subtitle">Standalone Three.js sky sphere using real RA/Dec star positions. Default magnitude limit is &lt;10; browser slider max is &lt;11.5.</p>
+
+  <div class="control-grid">
+    <label class="toggle"><input id="toggleEarth" type="checkbox" checked> Earth</label>
+    <label class="toggle"><input id="toggleMilkyWay" type="checkbox" checked> Milky Way</label>
+    <label class="toggle"><input id="toggleStars" type="checkbox" checked> Stars</label>
+    <label class="toggle"><input id="toggleGrid" type="checkbox" checked> RA/Dec grid</label>
+    <label class="toggle"><input id="toggleLabels" type="checkbox" checked> Bright labels</label>
+    <label class="toggle"><input id="toggleAtmosphere" type="checkbox" checked> Atmosphere</label>
+  </div>
+
+  <div class="range-row">
+    <label for="magnitudeSlider">Magnitude limit</label>
+    <strong id="magnitudeValue">&lt;10.0</strong>
+  </div>
+  <input id="magnitudeSlider" type="range" min="4" max="11.5" value="10" step="0.1">
+
+  <div class="select-row">
+    <label for="colorMode">Color</label>
+    <select id="colorMode">
+      <option value="color">B-V / temperature</option>
+      <option value="white">White stars</option>
+    </select>
+  </div>
+
+  <button id="resetCamera">Reset camera</button>
+
+  <div class="stats">
+    <div class="stat"><strong id="starCount">0</strong><span>visible stars</span></div>
+    <div class="stat"><strong id="catalogCount">0</strong><span>loaded catalog rows</span></div>
+    <div class="stat"><strong id="catalogMode">demo</strong><span>catalog mode</span></div>
+    <div class="stat"><strong id="skyTextureStatus">procedural</strong><span>sky texture</span></div>
+  </div>
+
+  <details open>
+    <summary><strong>Data and limitations</strong></summary>
+    <p>
+      Bundled demo stars use real J2000/ICRS-style RA/Dec, magnitude, and B-V color-index values for bright and selected nearby stars.
+      The demo is intentionally small so this page runs offline from the repo.
+    </p>
+    <p>
+      <span class="warning">Magnitude &lt;18 is not loaded directly.</span>
+      Gaia DR3 contains about 1.8 billion sources; a browser page must use external tiled/LOD/binary chunks for that depth.
+      For a practical local browser view, use magnitude &lt;10 by default and Tycho-2-like data up to about &lt;11.5.
+    </p>
+    <p>
+      The page attempts to load <code>obj/Textures/starmap-4k.jpg</code> as a local Milky Way sky texture.
+      If unavailable, it creates a procedural equirectangular Milky Way texture. For production, replace it with a documented CC/public-domain sky map.
+    </p>
+    <p>
+      Useful source references:
+      <a href="https://www.cosmos.esa.int/web/gaia/dr3" target="_blank" rel="noopener noreferrer">ESA Gaia DR3</a>,
+      <a href="https://heasarc.gsfc.nasa.gov/W3Browse/all/tycho2.html" target="_blank" rel="noopener noreferrer">NASA HEASARC Tycho-2</a>,
+      and the optional
+      <a href="https://commons.wikimedia.org/wiki/File:Solarsystemscope_texture_2k_stars_milky_way.jpg" target="_blank" rel="noopener noreferrer">Solar System Scope / Wikimedia Milky Way texture</a>
+      licensed CC BY 4.0.
+    </p>
+    <p>
+      Coordinate conversion is fixed-sphere J2000/ICRS RA/Dec. Proper motion, parallax, precession, nutation, and observer topocentric corrections are not applied here.
+      Add <code>astronomy-engine</code> only if epoch/time transforms are later required.
+    </p>
+  </details>
+</section>
+
+<div id="loading" role="status" aria-live="polite">
+  <strong id="loadingText">Loading Earth and star field...</strong>
+  <div class="bar"><div id="loadingFill"></div></div>
+</div>
+
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  import { BRIGHT_STARS_DEMO } from './data/stars/bright-stars-demo.js';
+  import {
+    DEFAULT_STAR_MAGNITUDE_LIMIT,
+    MAX_BROWSER_STAR_MAGNITUDE_LIMIT,
+    buildStarBufferData,
+    filterStarsByMagnitude,
+    raDecToCartesian
+  } from './js/starSkyUtils.js';
+
+  const EARTH_RADIUS = 1;
+  const SKY_RADIUS = 120;
+  const LABEL_RADIUS = SKY_RADIUS * 0.992;
+  const STAR_CATALOG = BRIGHT_STARS_DEMO;
+  const OPTIONAL_LOCAL_MILKY_WAY_TEXTURE = 'obj/Textures/starmap-4k.jpg';
+
+  let scene, camera, renderer, controls;
+  let earthGroup, earthMesh, atmosphereMesh, milkyWayMesh, starPoints, gridGroup, labelGroup;
+  let starMaterial;
+
+  const ui = {
+    toggleEarth: document.getElementById('toggleEarth'),
+    toggleMilkyWay: document.getElementById('toggleMilkyWay'),
+    toggleStars: document.getElementById('toggleStars'),
+    toggleGrid: document.getElementById('toggleGrid'),
+    toggleLabels: document.getElementById('toggleLabels'),
+    toggleAtmosphere: document.getElementById('toggleAtmosphere'),
+    magnitudeSlider: document.getElementById('magnitudeSlider'),
+    magnitudeValue: document.getElementById('magnitudeValue'),
+    colorMode: document.getElementById('colorMode'),
+    resetCamera: document.getElementById('resetCamera'),
+    starCount: document.getElementById('starCount'),
+    catalogCount: document.getElementById('catalogCount'),
+    catalogMode: document.getElementById('catalogMode'),
+    skyTextureStatus: document.getElementById('skyTextureStatus'),
+    loading: document.getElementById('loading'),
+    loadingText: document.getElementById('loadingText'),
+    loadingFill: document.getElementById('loadingFill')
+  };
+
+  function setLoading(text, pct) {
+    ui.loading.hidden = false;
+    ui.loadingText.textContent = text;
+    ui.loadingFill.style.width = `${Math.max(8, Math.min(100, pct))}%`;
+  }
+
+  function finishLoading() {
+    ui.loadingFill.style.width = '100%';
+    setTimeout(() => {
+      ui.loading.hidden = true;
+    }, 500);
+  }
+
+  function makeEarthTextureFallback() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    const ocean = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    ocean.addColorStop(0, '#10224d');
+    ocean.addColorStop(0.5, '#174b82');
+    ocean.addColorStop(1, '#0b1635');
+    ctx.fillStyle = ocean;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = 'rgba(42, 132, 77, 0.78)';
+    for (let i = 0; i < 34; i++) {
+      const x = (i * 197) % canvas.width;
+      const y = (i * 83) % canvas.height;
+      ctx.beginPath();
+      ctx.ellipse(x, y, 38 + (i % 5) * 17, 14 + (i % 7) * 7, (i % 6) * 0.42, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+  }
+
+  function makeMilkyWayFallbackTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 2048;
+    canvas.height = 1024;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#02040c';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    for (let i = 0; i < 9000; i++) {
+      const x = (Math.sin(i * 12.9898) * 43758.5453) % 1;
+      const y = (Math.sin(i * 78.233) * 23454.123) % 1;
+      const px = Math.abs(x) * canvas.width;
+      const py = Math.abs(y) * canvas.height;
+      const alpha = 0.08 + ((i % 19) / 19) * 0.35;
+      ctx.fillStyle = `rgba(220, 235, 255, ${alpha})`;
+      ctx.fillRect(px, py, 1, 1);
+    }
+
+    ctx.save();
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate(-0.16);
+    for (let band = 0; band < 10; band++) {
+      const width = 60 + band * 26;
+      const alpha = 0.12 - band * 0.008;
+      const gradient = ctx.createLinearGradient(-canvas.width / 2, -width, canvas.width / 2, width);
+      gradient.addColorStop(0, `rgba(74, 112, 170, ${alpha * 0.4})`);
+      gradient.addColorStop(0.45, `rgba(205, 220, 255, ${alpha})`);
+      gradient.addColorStop(0.55, `rgba(255, 218, 166, ${alpha * 0.76})`);
+      gradient.addColorStop(1, `rgba(54, 80, 140, ${alpha * 0.4})`);
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, canvas.width * 0.58, width, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    return texture;
+  }
+
+  function createEarth() {
+    earthGroup = new THREE.Group();
+    const earthTexture = makeEarthTextureFallback();
+    const earthMaterial = new THREE.MeshPhongMaterial({
+      color: 0xffffff,
+      map: earthTexture,
+      shininess: 18
+    });
+    earthMesh = new THREE.Mesh(new THREE.SphereGeometry(EARTH_RADIUS, 96, 64), earthMaterial);
+    earthGroup.add(earthMesh);
+
+    const loader = new THREE.TextureLoader();
+    loader.load('textures/earthmap1k.jpg', texture => {
+      texture.colorSpace = THREE.SRGBColorSpace;
+      earthMaterial.map = texture;
+      earthMaterial.needsUpdate = true;
+    });
+
+    const atmosphereMaterial = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      side: THREE.BackSide,
+      blending: THREE.AdditiveBlending,
+      uniforms: {
+        glowColor: { value: new THREE.Color(0x78c7ff) }
+      },
+      vertexShader: `
+        varying vec3 vNormal;
+        void main() {
+          vNormal = normalize(normalMatrix * normal);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 glowColor;
+        varying vec3 vNormal;
+        void main() {
+          float intensity = pow(0.62 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.4);
+          gl_FragColor = vec4(glowColor, clamp(intensity, 0.0, 0.55));
+        }
+      `
+    });
+    atmosphereMesh = new THREE.Mesh(new THREE.SphereGeometry(EARTH_RADIUS * 1.045, 96, 64), atmosphereMaterial);
+    earthGroup.add(atmosphereMesh);
+    scene.add(earthGroup);
+  }
+
+  function createMilkyWay() {
+    const material = new THREE.MeshBasicMaterial({
+      map: makeMilkyWayFallbackTexture(),
+      side: THREE.BackSide,
+      transparent: true,
+      opacity: 0.86,
+      depthWrite: false
+    });
+    milkyWayMesh = new THREE.Mesh(new THREE.SphereGeometry(SKY_RADIUS * 1.08, 96, 64), material);
+    milkyWayMesh.name = 'Milky Way celestial sphere';
+    scene.add(milkyWayMesh);
+
+    const loader = new THREE.TextureLoader();
+    loader.load(
+      OPTIONAL_LOCAL_MILKY_WAY_TEXTURE,
+      texture => {
+        texture.colorSpace = THREE.SRGBColorSpace;
+        material.map = texture;
+        material.needsUpdate = true;
+        ui.skyTextureStatus.textContent = 'local texture';
+      },
+      undefined,
+      () => {
+        ui.skyTextureStatus.textContent = 'procedural';
+      }
+    );
+  }
+
+  function createStarMaterial() {
+    return new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      depthTest: false,
+      blending: THREE.AdditiveBlending,
+      vertexColors: true,
+      uniforms: {
+        opacityScale: { value: 1.0 }
+      },
+      vertexShader: `
+        attribute float pointSize;
+        attribute float alpha;
+        varying vec3 vColor;
+        varying float vAlpha;
+        void main() {
+          vColor = color;
+          vAlpha = alpha;
+          gl_PointSize = pointSize;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float opacityScale;
+        varying vec3 vColor;
+        varying float vAlpha;
+        void main() {
+          vec2 uv = gl_PointCoord - vec2(0.5);
+          float d = length(uv);
+          float alpha = smoothstep(0.5, 0.0, d) * vAlpha * opacityScale;
+          gl_FragColor = vec4(vColor, alpha);
+        }
+      `
+    });
+  }
+
+  function updateStars() {
+    const magnitudeLimit = parseFloat(ui.magnitudeSlider.value);
+    ui.magnitudeValue.textContent = `<${magnitudeLimit.toFixed(1)}`;
+    ui.catalogCount.textContent = STAR_CATALOG.length.toLocaleString();
+    ui.catalogMode.textContent = 'demo';
+
+    const starData = buildStarBufferData(STAR_CATALOG, {
+      radius: SKY_RADIUS,
+      magnitudeLimit,
+      colorMode: ui.colorMode.value
+    });
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(starData.positions, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(starData.colors, 3));
+    geometry.setAttribute('pointSize', new THREE.BufferAttribute(starData.sizes, 1));
+    geometry.setAttribute('alpha', new THREE.BufferAttribute(starData.alphas, 1));
+
+    if (!starMaterial) starMaterial = createStarMaterial();
+    if (starPoints) {
+      starPoints.geometry.dispose();
+      starPoints.geometry = geometry;
+    } else {
+      starPoints = new THREE.Points(geometry, starMaterial);
+      starPoints.name = 'Real RA Dec star field';
+      scene.add(starPoints);
+    }
+    ui.starCount.textContent = starData.stars.length.toLocaleString();
+    updateLabels(starData.stars);
+  }
+
+  function makeTextSprite(text) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'rgba(3, 8, 18, 0.55)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.font = 'bold 24px Trebuchet MS, sans-serif';
+    ctx.fillStyle = '#dff4ff';
+    ctx.fillText(text, 12, 40);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthWrite: false,
+      depthTest: false
+    });
+    const sprite = new THREE.Sprite(material);
+    sprite.scale.set(5.8, 1.45, 1);
+    return sprite;
+  }
+
+  function updateLabels(stars) {
+    if (labelGroup) {
+      labelGroup.traverse(obj => {
+        if (obj.material?.map) obj.material.map.dispose();
+        if (obj.material) obj.material.dispose();
+      });
+      scene.remove(labelGroup);
+    }
+    labelGroup = new THREE.Group();
+    stars
+      .filter(star => star.mag < 2.1)
+      .forEach(star => {
+        const p = raDecToCartesian({ raHours: star.raHours, raDeg: star.raDeg, decDeg: star.decDeg, radius: LABEL_RADIUS });
+        const sprite = makeTextSprite(star.name);
+        sprite.position.set(p.x, p.y, p.z);
+        labelGroup.add(sprite);
+      });
+    scene.add(labelGroup);
+    labelGroup.visible = ui.toggleLabels.checked;
+  }
+
+  function makeGridLine(points, color = 0x476f9c) {
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    const material = new THREE.LineBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.28,
+      depthWrite: false,
+      depthTest: false
+    });
+    return new THREE.Line(geometry, material);
+  }
+
+  function createRaDecGrid() {
+    gridGroup = new THREE.Group();
+    const r = SKY_RADIUS * 0.985;
+    for (let dec = -60; dec <= 60; dec += 30) {
+      const points = [];
+      for (let ra = 0; ra <= 360; ra += 3) {
+        const p = raDecToCartesian({ raDeg: ra, decDeg: dec, radius: r });
+        points.push(new THREE.Vector3(p.x, p.y, p.z));
+      }
+      gridGroup.add(makeGridLine(points, dec === 0 ? 0x77a8d8 : 0x476f9c));
+    }
+    for (let ra = 0; ra < 360; ra += 30) {
+      const points = [];
+      for (let dec = -90; dec <= 90; dec += 3) {
+        const p = raDecToCartesian({ raDeg: ra, decDeg: dec, radius: r });
+        points.push(new THREE.Vector3(p.x, p.y, p.z));
+      }
+      gridGroup.add(makeGridLine(points));
+    }
+    scene.add(gridGroup);
+  }
+
+  function applyToggles() {
+    earthGroup.visible = ui.toggleEarth.checked;
+    atmosphereMesh.visible = ui.toggleAtmosphere.checked;
+    milkyWayMesh.visible = ui.toggleMilkyWay.checked;
+    if (starPoints) starPoints.visible = ui.toggleStars.checked;
+    if (gridGroup) gridGroup.visible = ui.toggleGrid.checked;
+    if (labelGroup) labelGroup.visible = ui.toggleLabels.checked;
+  }
+
+  function resetCamera() {
+    camera.position.set(0, 1.35, 4.2);
+    controls.target.set(0, 0, 0);
+    controls.update();
+  }
+
+  function init() {
+    setLoading('Creating Earth...', 18);
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.01, 500);
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 0.82;
+    document.body.appendChild(renderer.domElement);
+
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.enablePan = false;
+    controls.minDistance = 1.45;
+    controls.maxDistance = 48;
+    controls.target.set(0, 0, 0);
+
+    scene.add(new THREE.AmbientLight(0x223355, 0.42));
+    const sun = new THREE.DirectionalLight(0xffffff, 3.2);
+    sun.position.set(5, 2, 4);
+    scene.add(sun);
+
+    createEarth();
+    setLoading('Creating Milky Way sphere...', 42);
+    createMilkyWay();
+    setLoading('Projecting real RA/Dec stars...', 68);
+    updateStars();
+    createRaDecGrid();
+    resetCamera();
+    applyToggles();
+    finishLoading();
+  }
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    earthMesh.rotation.y += 0.0007;
+    renderer.render(scene, camera);
+  }
+
+  [ui.toggleEarth, ui.toggleMilkyWay, ui.toggleStars, ui.toggleGrid, ui.toggleLabels, ui.toggleAtmosphere]
+    .forEach(control => control.addEventListener('change', applyToggles));
+  ui.magnitudeSlider.addEventListener('input', () => {
+    const value = Math.min(MAX_BROWSER_STAR_MAGNITUDE_LIMIT, Math.max(4, parseFloat(ui.magnitudeSlider.value)));
+    ui.magnitudeSlider.value = value.toFixed(1);
+    updateStars();
+    applyToggles();
+  });
+  ui.colorMode.addEventListener('change', () => {
+    updateStars();
+    applyToggles();
+  });
+  ui.resetCamera.addEventListener('click', resetCamera);
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  ui.magnitudeSlider.value = DEFAULT_STAR_MAGNITUDE_LIMIT;
+  init();
+  animate();
+</script>
+</body>
+</html>

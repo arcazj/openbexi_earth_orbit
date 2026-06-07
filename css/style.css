@@ -1080,6 +1080,54 @@ canvas {
     font-size: 12px;
 }
 
+.view-primary-row label,
+.star-view-control-row label {
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.stars-milky-way-options {
+    display: grid;
+    gap: 7px;
+    margin-top: 7px;
+    padding: 8px;
+    border: 1px solid rgba(143, 208, 255, 0.22);
+    border-radius: 8px;
+    background: linear-gradient(135deg, rgba(22, 40, 75, 0.34), rgba(6, 14, 28, 0.22));
+}
+
+.stars-milky-way-options[hidden] {
+    display: none !important;
+}
+
+.star-magnitude-control {
+    display: grid;
+    gap: 5px;
+    color: #e8f5ff;
+}
+
+.star-magnitude-control label {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 0 !important;
+    color: #d7ecff !important;
+    font-size: 13px !important;
+    font-weight: 800 !important;
+}
+
+.star-magnitude-control input[type="range"] {
+    width: 100%;
+    min-width: 0;
+    accent-color: #8fd0ff;
+}
+
+#starMagnitudeLimitValue {
+    color: #ffe58a;
+    white-space: nowrap;
+}
+
 .satellite-shortcut-button {
     border: 1px solid rgba(53, 185, 169, 0.55);
     border-radius: 6px;

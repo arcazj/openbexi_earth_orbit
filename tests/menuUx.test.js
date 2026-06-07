@@ -58,21 +58,36 @@ function run() {
   const menuTimeWarpSlider = indexOfOrFail(html, 'id="menuTimeWarpSlider"', 'menu Time x slider exists');
   const globeToggle = indexOfOrFail(html, 'id="view3DToggle"', 'Globe toggle exists');
   const mercatorToggle = indexOfOrFail(html, 'id="viewMercatorToggle"', 'Mercator toggle exists');
+  const starsMilkyWayToggle = indexOfOrFail(html, 'id="starsMilkyWayToggle"', 'Stars & Milky Way toggle exists');
   const highDefToggle = indexOfOrFail(html, 'id="highDefToggle"', 'High Def toggle exists');
   const axesToggle = indexOfOrFail(html, 'id="showECEFAxesToggle"', 'ECEF Axes toggle exists');
   const dayNightToggle = indexOfOrFail(html, 'id="showDayNightToggle"', 'Day/Night toggle exists');
+  const starOptions = indexOfOrFail(html, 'id="starsMilkyWayOptions"', 'Stars & Milky Way options container exists');
+  const raDecGridToggle = indexOfOrFail(html, 'id="showRaDecGridToggle"', 'RA/Dec Grid toggle exists');
+  const brightStarLabelsToggle = indexOfOrFail(html, 'id="showBrightStarLabelsToggle"', 'Bright Labels toggle exists');
+  const starAtmosphereToggle = indexOfOrFail(html, 'id="showStarAtmosphereToggle"', 'Atmosphere toggle exists');
+  const starMagnitudeSlider = indexOfOrFail(html, 'id="starMagnitudeLimitSlider"', 'Magnitude limit slider exists');
   assert(
     viewContent < menuTimeWarpSlider && menuTimeWarpSlider < globeToggle && globeToggle < mercatorToggle &&
-      mercatorToggle < highDefToggle && highDefToggle < axesToggle &&
-      axesToggle < dayNightToggle,
-    'Views & Time menu order is menu Time x slider, Globe/Mercator, then High Def/ECEF/Day-Night'
+      mercatorToggle < starsMilkyWayToggle && starsMilkyWayToggle < highDefToggle && highDefToggle < axesToggle &&
+      axesToggle < dayNightToggle && dayNightToggle < starOptions && starOptions < raDecGridToggle &&
+      raDecGridToggle < brightStarLabelsToggle && brightStarLabelsToggle < starAtmosphereToggle &&
+      starAtmosphereToggle < starMagnitudeSlider,
+    'Views & Time menu order is menu Time x slider, Globe/Mercator/Stars, High Def/ECEF/Day-Night, then star sub-controls'
   );
   assert(!html.includes('Use the time slider at the top of the screen to control simulation speed.'), 'old Views & Time slider guidance is removed');
   assert(html.includes('class="menu-time-warp-control"'), 'Views & Time contains a compact menu time slider control');
   assert(html.includes('for="menuTimeWarpSlider">Time x</label>'), 'menu time slider uses the Time x label');
   assert(html.includes('id="menuTimeWarpVal"'), 'menu time slider has a synchronized value display');
-  assert(html.includes('view-control-row view-control-row-two'), 'View menu has a two-item first row');
-  assert(html.includes('view-control-row view-control-row-three'), 'View menu has a three-item second row');
+  assert(html.includes('view-control-row view-control-row-three view-primary-row'), 'View menu has a three-item first row');
+  assert(html.includes('<label><input type="checkbox" id="starsMilkyWayToggle">Stars &amp; Milky Way</label>'), 'Stars & Milky Way is unchecked by default');
+  assert(html.includes('id="starsMilkyWayOptions" class="stars-milky-way-options" hidden aria-hidden="true"'), 'Stars & Milky Way sub-controls are hidden by default');
+  assert(html.includes('<label><input type="checkbox" id="showRaDecGridToggle">RA/Dec Grid</label>'), 'RA/Dec Grid is unchecked by default');
+  assert(html.includes('<label><input type="checkbox" id="showBrightStarLabelsToggle">Bright Labels</label>'), 'Bright Labels is unchecked by default');
+  assert(html.includes('<label><input type="checkbox" id="showStarAtmosphereToggle">Atmosphere</label>'), 'Atmosphere is unchecked by default');
+  assert(html.includes('id="starMagnitudeLimitSlider" min="4" max="13" step="0.1" value="10"'), 'Magnitude limit defaults to <10 and caps at <13');
+  assert(html.includes('id="starMagnitudeLimitValue">&lt;10.0</span>'), 'Magnitude limit visible value defaults to <10.0');
+  assert(html.includes('view-control-row view-control-row-three'), 'View menu keeps a three-item second row');
   assert(!html.includes('view-control-row view-shortcut-row'), 'View menu no longer has a satellite shortcut row');
   assert(html.includes('class="satellite-shortcut-row"'), 'Satellite Selection has a shortcut button row');
   assert(html.includes('aria-label="Starlink shortcut unavailable"'), 'Starlink shortcut has unavailable accessible text before TLE load');
@@ -259,8 +274,11 @@ function run() {
   assert(css.includes('.filter-chip input[type="checkbox"]:checked + span'), 'selected tag chips have a distinct active style');
   assert(css.includes(':focus-visible'), 'menu controls have visible focus styling');
   assert(css.includes('@media (max-width: 560px)'), 'menu has narrow viewport behavior');
-  assert(css.includes('.view-control-row-two'), 'View first row has dedicated CSS');
-  assert(css.includes('.view-control-row-three'), 'View second row has dedicated CSS');
+  assert(css.includes('.view-primary-row'), 'View first row has dedicated Stars & Milky Way CSS');
+  assert(css.includes('.view-control-row-three'), 'View rows keep three-column CSS');
+  assert(css.includes('.stars-milky-way-options[hidden]'), 'Stars & Milky Way sub-controls are hidden by default through CSS');
+  assert(css.includes('.star-magnitude-control'), 'Magnitude limit control has dedicated CSS');
+  assert(css.includes('font-size: 13px'), 'Stars & Milky Way controls use readable menu text');
   assert(css.includes('.satellite-shortcut-row'), 'Satellite shortcut row has dedicated CSS');
   assert(css.includes('.satellite-shortcut-button'), 'Satellite shortcut buttons have dedicated CSS');
 
@@ -398,6 +416,27 @@ function run() {
   assert(indexHtml.includes("simParams.otherSelection === 'Mars'"), 'index handles Mars in Other Selections');
   assert(indexHtml.includes('if (mars) updateMars(mars, SIM_DATE)'), 'index updates Mars each frame');
   assert(indexHtml.includes('updateMars(mars, SIM_DATE);'), 'index initializes Mars position before the first selectable frame');
+  assert(indexHtml.includes("import { BRIGHT_STARS_DEMO } from './data/stars/bright-stars-demo.js';"), 'index imports the real RA/Dec demo star catalog');
+  assert(indexHtml.includes('MAX_INTEGRATED_STAR_MAGNITUDE_LIMIT'), 'index imports the integrated magnitude limit cap');
+  assert(indexHtml.includes('showStarsMilkyWay: false'), 'Stars & Milky Way is disabled by default in simParams');
+  assert(indexHtml.includes('showRaDecGrid: false'), 'RA/Dec Grid is disabled by default in simParams');
+  assert(indexHtml.includes('showBrightStarLabels: false'), 'Bright Labels is disabled by default in simParams');
+  assert(indexHtml.includes('showStarAtmosphere: false'), 'Atmosphere is disabled by default in simParams');
+  assert(indexHtml.includes('starMagnitudeLimit: DEFAULT_STAR_MAGNITUDE_LIMIT'), 'main app star magnitude limit defaults to <10');
+  assert(indexHtml.includes('const MILKY_WAY_TEXTURE_URL = \'obj/Textures/starmap-4k.jpg\''), 'main app uses the local Milky Way texture path');
+  assert(indexHtml.includes('function initStarsMilkyWayLayer()'), 'index initializes the optional Stars & Milky Way layer');
+  assert(indexHtml.includes('new THREE.Points(geometry, starMaterial)'), 'Stars are rendered as a single THREE.Points layer');
+  assert(indexHtml.includes('new THREE.SphereGeometry(STAR_SKY_RADIUS * 1.02'), 'Milky Way renders as a celestial sphere');
+  assert(indexHtml.includes('buildStarBufferData(BRIGHT_STARS_DEMO'), 'star field uses the real RA/Dec demo catalog');
+  assert(indexHtml.includes('function syncStarsMilkyWayControlsVisibility()'), 'index hides/shows star sub-controls');
+  assert(indexHtml.includes('starsMilkyWayOptionsElement.hidden = !visible'), 'star sub-controls are hidden when Stars & Milky Way is off');
+  assert(indexHtml.includes('starMagnitudeLimitSliderElement?.addEventListener(\'input\''), 'magnitude limit updates the star field without app reload');
+  assert(indexHtml.includes('MAX_INTEGRATED_STAR_MAGNITUDE_LIMIT'), 'magnitude limit is capped for the integrated main view');
+  assert(indexHtml.includes('milkyWaySphere.visible = showSky'), 'Milky Way is visible only when Stars & Milky Way is enabled');
+  assert(indexHtml.includes('starPoints.visible = showSky'), 'Star points are visible only when Stars & Milky Way is enabled');
+  assert(indexHtml.includes('raDecGrid.visible = showSky && !!simParams.showRaDecGrid'), 'RA/Dec grid depends on Stars & Milky Way and its checkbox');
+  assert(indexHtml.includes('brightStarLabelGroup.visible = showSky && !!simParams.showBrightStarLabels'), 'Bright labels depend on Stars & Milky Way and its checkbox');
+  assert(indexHtml.includes('starAtmosphereMesh.visible = showSky && !!simParams.showStarAtmosphere'), 'Atmosphere depends on Stars & Milky Way and its checkbox');
   assert(indexHtml.includes('controls.target.set(0, 0, 0)'), 'Earth mode targets the Earth center');
   assert(!indexHtml.includes('moon.position.set(0, 0, 0)'), 'Moon mode does not move the Moon object to scene origin');
   assert(!indexHtml.includes('mars.position.set(0, 0, 0)'), 'Mars mode does not move the Mars object to scene origin');

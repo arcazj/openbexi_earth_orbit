@@ -64,6 +64,8 @@ Version 1.5.22 keeps the Earth-centered scene frame fixed, disables OrbitControl
 
 Version 1.5.23 adds `Mars` to `Other Selections`. Mars mode displays a Mars globe using the local texture `textures/March.jpg`, targets `mars.position` for orbit/zoom controls like Moon mode, preserves the Earth-centered frame, does not move Earth/Moon/Mars to `(0, 0, 0)`, and documents that the Mars texture is local project-provided with exact source/license to be confirmed.
 
+Version 1.6 adds the optional `Stars & Milky Way` view layer to the main `index.html` app. `Stars & Milky Way` is placed in Views & Time beside `Globe` and `Mercator`, remains unchecked by default, and reveals `RA/Dec Grid`, `Bright Labels`, `Atmosphere`, and `Magnitude limit` controls only while enabled. The integrated magnitude limit defaults to `<10.0`, can increase to `<13.0`, uses the bundled real RA/Dec demo catalog, and keeps magnitude `<18` as external Gaia DR3 tiled/LOD/binary future work only. Regression checks must confirm existing Earth, Moon, Mars, satellite, Mercator, server, Help, Share, timeline, selected-satellite, orbit, footprint, and model-loading behavior remains unchanged.
+
 ## Test Environment
 
 - Run from the repository root.
@@ -200,6 +202,11 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test Mars position returns finite scene coordinates.
 - Test Mars distance stays within a plausible simplified Earth-to-Mars range.
 - Test Mars uses `textures/March.jpg` and does not fetch remote textures at runtime.
+- Test Version 1.6 Stars & Milky Way controls are added without changing existing Views & Time control order except the explicit new checkbox beside Globe and Mercator.
+- Test Stars & Milky Way is unchecked by default and its RA/Dec Grid, Bright Labels, Atmosphere, and Magnitude limit controls are hidden by default.
+- Test checking Stars & Milky Way reveals the sub-controls, keeps them unchecked by default, and renders the star field/Milky Way only when enabled.
+- Test integrated Magnitude limit defaults to `<10.0`, caps at `<13.0`, and updates the star field without app reload.
+- Test magnitude `<18` is documented as external Gaia DR3 tiled/LOD/binary future work only.
 - Test Mars mode targets `mars.position` and preserves Earth-centered scene coordinates.
 - Document that the Mars position and texture provenance are approximate/local unless later replaced with a verified source.
 
@@ -322,7 +329,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 ### Server Data Path
 
 - Test `/api/health` returns status `ok` and version metadata.
-- Test `/api/version` returns app/API version `1.5.23` and release date `2026-06-07`.
+- Test `/api/version` returns app/API version `1.6` and release date `2026-06-07`.
 - Test `/api/tle` and `/api/satellites` return valid TLE records with `norad_id`, `tle_line1`, and `tle_line2`.
 - Test `/api/satellite-metadata` lists known metadata files.
 - Test `/api/satellite-metadata/starlink_V1.json` returns one known metadata payload.
@@ -417,7 +424,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm the ISS shortcut shows `ISS unavailable` if no ISS target can be resolved.
 - Confirm `Other Selections` appears immediately after `Filters - Satellites Found`.
 - Confirm `Share` appears immediately after `Timelines` and immediately before `Help`.
-- Confirm `Close`, `Version 1.5.23 - hosted at GitHub Repo`, and the server status icon/text are aligned on one compact row on desktop.
+- Confirm `Close`, `Version 1.6 - hosted at GitHub Repo`, and the server status icon/text are aligned on one compact row on desktop.
 - Confirm the version/GitHub text is centered in the menu header.
 - Confirm the server status indicator appears above the accordion menu and does not shift layout when changing between checking, offline, connected, and error states.
 - Confirm connected status uses `power_green.png` and offline/error status uses `power_red.png`.
@@ -1139,6 +1146,27 @@ Checks to perform for this release:
 - Run JavaScript syntax checks.
 - Run Python syntax checks.
 - Run Python server smoke checks for API, Swagger docs, and static app routes.
+
+## Release 1.6 Verification Log
+
+Checks performed for this Version 1.6 implementation session:
+
+- `PROMPT_History.md` contains the latest `Release Date: 2026-06-07 Version 1.6` entry at the top.
+- `index.html`, `js/serverConnection.js`, `js/SatelliteMenuLoader.js`, and `server.py` use version `1.6`.
+- `Views & Time` contains `Globe`, `Mercator`, and unchecked `Stars & Milky Way` on the same row.
+- `RA/Dec Grid`, `Bright Labels`, `Atmosphere`, and `Magnitude limit` are hidden by default and visible only when `Stars & Milky Way` is checked.
+- `RA/Dec Grid`, `Bright Labels`, and `Atmosphere` are unchecked by default.
+- Integrated `Magnitude limit` defaults to `<10.0`, caps at `<13.0`, and updates the star field without app reload.
+- The star layer uses the bundled real RA/Dec demo catalog and `THREE.Points` / `BufferGeometry`.
+- The Milky Way layer uses `obj/Textures/starmap-4k.jpg` when available and a procedural fallback otherwise.
+- Magnitude `<18` remains documented as external Gaia DR3 tiled/LOD/binary future work only.
+- Static regression checks confirm existing menu order, satellite selection, Mercator overlay, Mars behavior, selected-satellite panel, timelines, Share, Help, and server fallback hooks remain present.
+
+Remaining manual verification:
+
+- Browser-confirm enabling `Stars & Milky Way` displays the star field and Milky Way behind Earth without hiding satellites.
+- Browser-confirm toggling RA/Dec Grid, Bright Labels, Atmosphere, and Magnitude limit works visually on desktop and mobile.
+- Browser-confirm existing Globe, Mercator, Moon, Mars, satellite search, orbit, footprint, timelines, Share, and Help behavior remains unchanged.
 
 ## Release 1.5.23 Verification Log
 

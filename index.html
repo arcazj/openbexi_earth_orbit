@@ -120,6 +120,13 @@
 
     import { createMoon, updateMoon } from './js/MoonFrameLoader.js';
     import { createMars, updateMars } from './js/MarsFrameLoader.js';
+    import { BRIGHT_STARS_DEMO } from './data/stars/bright-stars-demo.js';
+    import {
+        DEFAULT_STAR_MAGNITUDE_LIMIT,
+        MAX_INTEGRATED_STAR_MAGNITUDE_LIMIT,
+        buildStarBufferData,
+        raDecToCartesian
+    } from './js/starSkyUtils.js';
 
     import { initTimeline } from './js/ganttTimelineLoader.js';
     import { computeDecayEstimates, loadConfirmedDecays } from './js/decayPredictor.js';
@@ -171,7 +178,7 @@
     })();
     startupPerf.mark('module-loaded');
 
-    const versionNumber = "1.5.23";
+    const versionNumber = "1.6";
     if (versionNumber !== APP_VERSION) {
         console.warn(`Version mismatch: index ${versionNumber}, server module ${APP_VERSION}`);
     }
@@ -209,6 +216,10 @@
     const MARS_CAMERA_DISTANCE_MULTIPLIER = 1.45;
     const MARS_CAMERA_MIN_CONTEXT_DISTANCE = EARTH_SCENE_RADIUS * 0.18;
     const MARS_TEXTURE_LOADING_MIN_VISIBLE_MS = 1600;
+    const STAR_SKY_RADIUS = SAFE_MAX_CONTROL_DISTANCE * 1.1;
+    const STAR_LABEL_RADIUS = STAR_SKY_RADIUS * 0.995;
+    const MILKY_WAY_TEXTURE_URL = 'obj/Textures/starmap-4k.jpg';
+    const STAR_LABEL_MAGNITUDE_LIMIT = 2.1;
     const STARLINK_MODEL_ASSET_ID = 'starlink_V1';
     const STARLINK_MODEL_CALIBRATION_YAW_DEG = 0;
     const ISS_NORAD_ID = '25544';
@@ -307,6 +318,12 @@
     let selectedModelEarthAlbedoTarget = null;
     let selectedModelTracking = null;
     let yprFrame;
+    let milkyWaySphere = null;
+    let starPoints = null;
+    let starMaterial = null;
+    let raDecGrid = null;
+    let brightStarLabelGroup = null;
+    let starAtmosphereMesh = null;
 
     const ALL_COMPANY_OPTION = "ALL COMPANY";
     const ORBIT_ALL_OPTION = "ALL";
@@ -363,7 +380,12 @@
         timeWarp: 1,
         showFootprint: false,
         showOnlySelectedSatellite: false,
-        otherSelection: 'Earth'
+        otherSelection: 'Earth',
+        showStarsMilkyWay: false,
+        showRaDecGrid: false,
+        showBrightStarLabels: false,
+        showStarAtmosphere: false,
+        starMagnitudeLimit: DEFAULT_STAR_MAGNITUDE_LIMIT
     };
     const pendingShareState = parseShareStateFromSearch(window.location.search);
     let pendingShareStateApplied = false;
@@ -371,6 +393,8 @@
     let orbitTypeFilterSelect, companyFilterSelect, debrisFilterSelect, satelliteCountDisplay;
     let view3DToggle, viewMercatorToggle, showOrbitToggle, showOrbitFrameToggle;
     let highDefToggleElement, showECEFAxesToggleElement, showOrbitFrameToggleElement;
+    let starsMilkyWayToggleElement, starsMilkyWayOptionsElement, showRaDecGridToggleElement;
+    let showBrightStarLabelsToggleElement, showStarAtmosphereToggleElement, starMagnitudeLimitSliderElement, starMagnitudeLimitValueElement;
     let satelliteSelectDropdown;
     let satelliteSearchInput, satelliteSearchResults, satelliteSearchClearButton, satelliteSearchEmpty;
     let selectFirstStarlinkButton, selectIssButton, showOnlySelectedSatelliteCheckbox, selectedSatelliteControls;
@@ -1808,6 +1832,291 @@
         );
     }
 
+    function createMilkyWayFallbackTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 2048;
+        canvas.height = 1024;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#02040c';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        for (let i = 0; i < 7200; i++) {
+            const x = Math.abs((Math.sin(i * 12.9898) * 43758.5453) % 1) * canvas.width;
+            const y = Math.abs((Math.sin(i * 78.233) * 23454.123) % 1) * canvas.height;
+            const alpha = 0.07 + ((i % 17) / 17) * 0.28;
+            ctx.fillStyle = `rgba(220, 235, 255, ${alpha})`;
+            ctx.fillRect(x, y, 1, 1);
+        }
+
+        ctx.save();
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate(-0.16);
+        for (let band = 0; band < 10; band++) {
+            const width = 70 + band * 28;
+            const alpha = 0.13 - band * 0.008;
+            const gradient = ctx.createLinearGradient(-canvas.width / 2, -width, canvas.width / 2, width);
+            gradient.addColorStop(0, `rgba(74, 112, 170, ${alpha * 0.38})`);
+            gradient.addColorStop(0.45, `rgba(205, 220, 255, ${alpha})`);
+            gradient.addColorStop(0.55, `rgba(255, 218, 166, ${alpha * 0.72})`);
+            gradient.addColorStop(1, `rgba(54, 80, 140, ${alpha * 0.38})`);
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, canvas.width * 0.58, width, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
+
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.ClampToEdgeWrapping;
+        return texture;
+    }
+
+    function createIntegratedStarMaterial() {
+        return new THREE.ShaderMaterial({
+            transparent: true,
+            depthWrite: false,
+            depthTest: true,
+            blending: THREE.AdditiveBlending,
+            vertexColors: true,
+            uniforms: {
+                opacityScale: { value: 1.0 }
+            },
+            vertexShader: `
+                attribute float pointSize;
+                attribute float alpha;
+                varying vec3 vColor;
+                varying float vAlpha;
+                void main() {
+                    vColor = color;
+                    vAlpha = alpha;
+                    gl_PointSize = pointSize;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform float opacityScale;
+                varying vec3 vColor;
+                varying float vAlpha;
+                void main() {
+                    vec2 uv = gl_PointCoord - vec2(0.5);
+                    float d = length(uv);
+                    float alpha = smoothstep(0.5, 0.0, d) * vAlpha * opacityScale;
+                    gl_FragColor = vec4(vColor, alpha);
+                }
+            `
+        });
+    }
+
+    function createStarTextSprite(text) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 64;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = 'rgba(3, 8, 18, 0.58)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.font = 'bold 24px Trebuchet MS, Segoe UI, sans-serif';
+        ctx.fillStyle = '#dff4ff';
+        ctx.fillText(text, 12, 40);
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        const material = new THREE.SpriteMaterial({
+            map: texture,
+            transparent: true,
+            depthWrite: false,
+            depthTest: true
+        });
+        const sprite = new THREE.Sprite(material);
+        sprite.scale.set(STAR_SKY_RADIUS * 0.045, STAR_SKY_RADIUS * 0.011, 1);
+        return sprite;
+    }
+
+    function updateBrightStarLabels() {
+        if (brightStarLabelGroup) {
+            brightStarLabelGroup.traverse(obj => {
+                if (obj.material?.map) obj.material.map.dispose();
+                if (obj.material) obj.material.dispose();
+            });
+            scene.remove(brightStarLabelGroup);
+        }
+
+        brightStarLabelGroup = new THREE.Group();
+        BRIGHT_STARS_DEMO
+            .filter(star => star.mag < STAR_LABEL_MAGNITUDE_LIMIT && star.mag < simParams.starMagnitudeLimit)
+            .forEach(star => {
+                const p = raDecToCartesian({
+                    raHours: star.raHours,
+                    raDeg: star.raDeg,
+                    decDeg: star.decDeg,
+                    radius: STAR_LABEL_RADIUS
+                });
+                const sprite = createStarTextSprite(star.name);
+                sprite.position.set(p.x, p.y, p.z);
+                brightStarLabelGroup.add(sprite);
+            });
+        brightStarLabelGroup.name = 'Bright Star Labels';
+        scene.add(brightStarLabelGroup);
+        updateStarSkyVisibility();
+    }
+
+    function updateIntegratedStarField() {
+        if (!scene) return;
+        const magnitudeLimit = Math.min(
+            MAX_INTEGRATED_STAR_MAGNITUDE_LIMIT,
+            Math.max(4, Number(simParams.starMagnitudeLimit) || DEFAULT_STAR_MAGNITUDE_LIMIT)
+        );
+        simParams.starMagnitudeLimit = magnitudeLimit;
+        if (starMagnitudeLimitSliderElement) starMagnitudeLimitSliderElement.value = magnitudeLimit.toFixed(1);
+        if (starMagnitudeLimitValueElement) starMagnitudeLimitValueElement.textContent = `<${magnitudeLimit.toFixed(1)}`;
+
+        const starData = buildStarBufferData(BRIGHT_STARS_DEMO, {
+            radius: STAR_SKY_RADIUS,
+            magnitudeLimit,
+            colorMode: 'color'
+        });
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(starData.positions, 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(starData.colors, 3));
+        geometry.setAttribute('pointSize', new THREE.BufferAttribute(starData.sizes, 1));
+        geometry.setAttribute('alpha', new THREE.BufferAttribute(starData.alphas, 1));
+
+        if (!starMaterial) starMaterial = createIntegratedStarMaterial();
+        if (starPoints) {
+            starPoints.geometry.dispose();
+            starPoints.geometry = geometry;
+        } else {
+            starPoints = new THREE.Points(geometry, starMaterial);
+            starPoints.name = 'Stars and Milky Way real RA Dec star field';
+            starPoints.renderOrder = -20;
+            scene.add(starPoints);
+        }
+        starPoints.userData.visibleStarCount = starData.stars.length;
+        updateBrightStarLabels();
+        updateStarSkyVisibility();
+    }
+
+    function makeRaDecGridLine(points, color = 0x476f9c) {
+        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        const material = new THREE.LineBasicMaterial({
+            color,
+            transparent: true,
+            opacity: 0.28,
+            depthWrite: false,
+            depthTest: true
+        });
+        return new THREE.Line(geometry, material);
+    }
+
+    function createRaDecGrid() {
+        raDecGrid = new THREE.Group();
+        raDecGrid.name = 'RA Dec Grid';
+        const radius = STAR_SKY_RADIUS * 0.985;
+        for (let dec = -60; dec <= 60; dec += 30) {
+            const points = [];
+            for (let ra = 0; ra <= 360; ra += 3) {
+                const p = raDecToCartesian({ raDeg: ra, decDeg: dec, radius });
+                points.push(new THREE.Vector3(p.x, p.y, p.z));
+            }
+            raDecGrid.add(makeRaDecGridLine(points, dec === 0 ? 0x77a8d8 : 0x476f9c));
+        }
+        for (let ra = 0; ra < 360; ra += 30) {
+            const points = [];
+            for (let dec = -90; dec <= 90; dec += 3) {
+                const p = raDecToCartesian({ raDeg: ra, decDeg: dec, radius });
+                points.push(new THREE.Vector3(p.x, p.y, p.z));
+            }
+            raDecGrid.add(makeRaDecGridLine(points));
+        }
+        scene.add(raDecGrid);
+    }
+
+    function createStarAtmosphere() {
+        const material = new THREE.ShaderMaterial({
+            transparent: true,
+            depthWrite: false,
+            side: THREE.BackSide,
+            blending: THREE.AdditiveBlending,
+            uniforms: {
+                glowColor: { value: new THREE.Color(0x78c7ff) }
+            },
+            vertexShader: `
+                varying vec3 vNormal;
+                void main() {
+                    vNormal = normalize(normalMatrix * normal);
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 glowColor;
+                varying vec3 vNormal;
+                void main() {
+                    float intensity = pow(0.62 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.4);
+                    gl_FragColor = vec4(glowColor, clamp(intensity, 0.0, 0.48));
+                }
+            `
+        });
+        starAtmosphereMesh = new THREE.Mesh(
+            new THREE.SphereGeometry(EARTH_SCENE_RADIUS * 1.045, 96, 64),
+            material
+        );
+        starAtmosphereMesh.name = 'Stars and Milky Way optional atmosphere';
+        scene.add(starAtmosphereMesh);
+    }
+
+    function initStarsMilkyWayLayer() {
+        const milkyWayMaterial = new THREE.MeshBasicMaterial({
+            map: createMilkyWayFallbackTexture(),
+            side: THREE.BackSide,
+            transparent: true,
+            opacity: 0.76,
+            depthWrite: false,
+            depthTest: true
+        });
+        milkyWaySphere = new THREE.Mesh(
+            new THREE.SphereGeometry(STAR_SKY_RADIUS * 1.02, 96, 64),
+            milkyWayMaterial
+        );
+        milkyWaySphere.name = 'Stars and Milky Way celestial sphere';
+        milkyWaySphere.renderOrder = -30;
+        scene.add(milkyWaySphere);
+
+        textureLoader.load(
+            MILKY_WAY_TEXTURE_URL,
+            texture => {
+                texture.colorSpace = THREE.SRGBColorSpace;
+                milkyWayMaterial.map = texture;
+                milkyWayMaterial.needsUpdate = true;
+            },
+            undefined,
+            () => {
+                milkyWayMaterial.needsUpdate = true;
+            }
+        );
+
+        createRaDecGrid();
+        createStarAtmosphere();
+        updateIntegratedStarField();
+        updateStarSkyVisibility();
+    }
+
+    function syncStarsMilkyWayControlsVisibility() {
+        if (!starsMilkyWayOptionsElement) return;
+        const visible = !!simParams.showStarsMilkyWay;
+        starsMilkyWayOptionsElement.hidden = !visible;
+        starsMilkyWayOptionsElement.setAttribute('aria-hidden', visible ? 'false' : 'true');
+    }
+
+    function updateStarSkyVisibility() {
+        const showSky = !!simParams.showStarsMilkyWay;
+        if (milkyWaySphere) milkyWaySphere.visible = showSky;
+        if (starPoints) starPoints.visible = showSky;
+        if (raDecGrid) raDecGrid.visible = showSky && !!simParams.showRaDecGrid;
+        if (brightStarLabelGroup) brightStarLabelGroup.visible = showSky && !!simParams.showBrightStarLabels;
+        if (starAtmosphereMesh) starAtmosphereMesh.visible = showSky && !!simParams.showStarAtmosphere;
+        syncStarsMilkyWayControlsVisibility();
+    }
+
     function init3D() {
         /* Scene, Camera, Renderer */
         scene = new THREE.Scene();
@@ -1908,6 +2217,9 @@
             onTextureLoadError: () => recordMarsTextureLoadState('error', 100)
         });
         updateMars(mars, SIM_DATE);
+
+        /* Stars & Milky Way (created hidden; toggled from Views & Time) */
+        initStarsMilkyWayLayer();
 
         /* Controls */
         controls = new OrbitControls(camera, renderer.domElement);
@@ -2014,6 +2326,13 @@
         highDefToggleElement = document.getElementById('highDefToggle');
         showECEFAxesToggleElement = document.getElementById('showECEFAxesToggle');
         showOrbitFrameToggleElement = document.getElementById('showOrbitFrameToggle');
+        starsMilkyWayToggleElement = document.getElementById('starsMilkyWayToggle');
+        starsMilkyWayOptionsElement = document.getElementById('starsMilkyWayOptions');
+        showRaDecGridToggleElement = document.getElementById('showRaDecGridToggle');
+        showBrightStarLabelsToggleElement = document.getElementById('showBrightStarLabelsToggle');
+        showStarAtmosphereToggleElement = document.getElementById('showStarAtmosphereToggle');
+        starMagnitudeLimitSliderElement = document.getElementById('starMagnitudeLimitSlider');
+        starMagnitudeLimitValueElement = document.getElementById('starMagnitudeLimitValue');
         showOrbitToggle = document.getElementById('showOrbitToggle');
         selectFirstStarlinkButton = document.getElementById('selectFirstStarlinkButton');
         selectIssButton = document.getElementById('selectIssButton');
@@ -2058,6 +2377,14 @@
         viewMercatorToggle.checked = simParams.viewMercator;
         if (highDefToggleElement) highDefToggleElement.checked = simParams.useHighDefTexture;
         if (showECEFAxesToggleElement) showECEFAxesToggleElement.checked = simParams.showECEFAxes;
+        if (starsMilkyWayToggleElement) starsMilkyWayToggleElement.checked = simParams.showStarsMilkyWay;
+        if (showRaDecGridToggleElement) showRaDecGridToggleElement.checked = simParams.showRaDecGrid;
+        if (showBrightStarLabelsToggleElement) showBrightStarLabelsToggleElement.checked = simParams.showBrightStarLabels;
+        if (showStarAtmosphereToggleElement) showStarAtmosphereToggleElement.checked = simParams.showStarAtmosphere;
+        if (starMagnitudeLimitSliderElement) starMagnitudeLimitSliderElement.value = simParams.starMagnitudeLimit.toFixed(1);
+        if (starMagnitudeLimitValueElement) starMagnitudeLimitValueElement.textContent = `<${simParams.starMagnitudeLimit.toFixed(1)}`;
+        syncStarsMilkyWayControlsVisibility();
+        updateStarSkyVisibility();
         if (showOrbitFrameToggleElement) showOrbitFrameToggleElement.checked = simParams.showOrbitFrame;
         showOrbitToggle.checked = simParams.showOrbit;
 
@@ -2156,6 +2483,30 @@
             }
         });
         viewMercatorToggle.addEventListener('change', (e) => simParams.viewMercator = e.target.checked);
+
+        starsMilkyWayToggleElement?.addEventListener('change', (e) => {
+            simParams.showStarsMilkyWay = e.target.checked;
+            updateStarSkyVisibility();
+        });
+        showRaDecGridToggleElement?.addEventListener('change', (e) => {
+            simParams.showRaDecGrid = e.target.checked;
+            updateStarSkyVisibility();
+        });
+        showBrightStarLabelsToggleElement?.addEventListener('change', (e) => {
+            simParams.showBrightStarLabels = e.target.checked;
+            updateStarSkyVisibility();
+        });
+        showStarAtmosphereToggleElement?.addEventListener('change', (e) => {
+            simParams.showStarAtmosphere = e.target.checked;
+            updateStarSkyVisibility();
+        });
+        starMagnitudeLimitSliderElement?.addEventListener('input', (e) => {
+            simParams.starMagnitudeLimit = Math.min(
+                MAX_INTEGRATED_STAR_MAGNITUDE_LIMIT,
+                Math.max(4, parseFloat(e.target.value) || DEFAULT_STAR_MAGNITUDE_LIMIT)
+            );
+            updateIntegratedStarField();
+        });
 
         if (highDefToggleElement) {
             highDefToggleElement.addEventListener('change', (e) => {

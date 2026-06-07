@@ -1,5 +1,50 @@
 # Prompt History
 
+## Release Date: 2026-06-07  Version 1.6
+
+Implement a major Version `1.6` release that integrates the optional Stars & Milky Way view layer into the main `index.html` app.
+
+This release builds on Version 1.5.23. Preserve all existing Earth, Moon, Mars, satellite, Mercator, server, Help, Share, timeline, selected-satellite, orbit, footprint, model-loading, and menu behavior unless explicitly changed below.
+
+Requirements:
+
+1. Keep the release date and version exactly `Release Date: 2026-06-07  Version 1.6`.
+2. Update the visible application, JavaScript, menu server panel, and Python server version to `1.6`.
+3. In `Views & Time`, place a new unchecked `Stars & Milky Way` checkbox on the same row as `Globe` and `Mercator`.
+4. When `Stars & Milky Way` is unchecked, do not show stars, Milky Way, RA/Dec grid, bright labels, atmosphere, or magnitude controls.
+5. When `Stars & Milky Way` is checked, show a star field and Milky Way celestial sphere while keeping Earth and satellites in the existing Earth-centered scene.
+6. Under the existing `High Def.`, `ECEF Axes`, and `Day/Night` row, add a hidden-by-default star-options row visible only when `Stars & Milky Way` is checked.
+7. The star-options row must contain three unchecked checkboxes: `RA/Dec Grid`, `Bright Labels`, and `Atmosphere`.
+8. Make the new checkbox text large enough to read clearly in the menu.
+9. Add a `Magnitude limit` slider directly under the star-options row, visible only when `Stars & Milky Way` is checked.
+10. Default the magnitude limit to `<10.0`.
+11. Allow the integrated main-app magnitude limit to increase up to `<13.0`.
+12. Changing `Magnitude limit` must update the visible star field without reloading the app.
+13. Use real RA/Dec star positions from the bundled demo catalog for the integrated view.
+14. Use efficient `THREE.BufferGeometry` / `THREE.Points`; do not create one mesh per star.
+15. Use a Milky Way celestial sphere with local texture `obj/Textures/starmap-4k.jpg` when available and a procedural fallback when not available.
+16. Do not attempt magnitude `<18` in the main app. Document magnitude `<18` as a future external Gaia DR3 tiled/LOD/binary dataset only.
+17. Document that full realism above the bundled demo catalog requires a larger licensed/preprocessed catalog.
+18. Ensure all existing features from Versions 1.5.1 through 1.5.23 remain functional and are not broken by Version 1.6.
+19. Preserve and regression-test at minimum: local/server satellite loading, server status, silent local fallback, Globe, Mercator and bottom-right overlay, High Def Earth, ECEF axes, Day/Night/Sun lighting, Moon/Mars selections, Mars texture progress behavior, satellite search portal, Starlink/ISS shortcuts, show-only-selected mode, right-side satellite data/TLE/source panel, orbit display and occlusion, footprints, LVLH frame, Yaw/Pitch/Roll and ISS yaw/pitch swap, detailed model loading, SSL 1300 IS-18/IS-20 restriction, OB3/O3b sprite-only behavior, timeline exclusivity, Share, Help, menu order/default state, synchronized Time x sliders, and startup/deferred loading behavior.
+20. Add automated/static regression checks proving the new Stars & Milky Way UI does not reorder, remove, rename, or disable existing controls unless explicitly required.
+21. Update `README.md`, `Test_and_Integration.md`, and automated tests for Version `1.6`.
+
+Acceptance Criteria:
+
+- Latest release is `Release Date: 2026-06-07  Version 1.6`.
+- `index.html` displays `Version 1.6 - hosted at GitHub Repo`.
+- `js/serverConnection.js`, `js/SatelliteMenuLoader.js`, and `server.py` report app/API/server version `1.6`.
+- `Views & Time` row contains `Globe`, `Mercator`, and `Stars & Milky Way`.
+- `Stars & Milky Way` is unchecked by default.
+- `RA/Dec Grid`, `Bright Labels`, `Atmosphere`, and `Magnitude limit` are hidden by default.
+- Those controls appear only when `Stars & Milky Way` is checked.
+- `RA/Dec Grid`, `Bright Labels`, and `Atmosphere` are unchecked by default.
+- `Magnitude limit` defaults to `<10.0` and can increase to `<13.0`.
+- Star field and Milky Way render only when enabled.
+- Existing Earth/Moon/Mars/satellite/Mercator behavior remains unchanged.
+- Full automated test suite passes.
+
 ## Release Date: 2026-06-07  Version 1.5.23
 
 Implement a Mars planet option in `Other Selections`, similar to the existing Moon option.

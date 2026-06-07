@@ -2,6 +2,7 @@ const DEG_TO_RAD = Math.PI / 180;
 
 export const DEFAULT_STAR_MAGNITUDE_LIMIT = 10;
 export const MAX_BROWSER_STAR_MAGNITUDE_LIMIT = 11.5;
+export const MAX_INTEGRATED_STAR_MAGNITUDE_LIMIT = 13;
 export const GAIA_EXTERNAL_ONLY_MAGNITUDE_LIMIT = 18;
 
 export function normalizeRaDeg(raDeg) {

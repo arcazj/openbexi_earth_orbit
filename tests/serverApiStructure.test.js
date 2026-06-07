@@ -22,7 +22,7 @@ function run() {
 
   assert(serverPy.includes('Access-Control-Allow-Origin'), 'server.py sends CORS headers');
   assert(serverPy.includes('ThreadingHTTPServer'), 'server.py uses a local threaded HTTP server');
-  assert(serverPy.includes('APP_VERSION = "1.5.23"'), 'server.py version matches latest release');
+  assert(serverPy.includes('APP_VERSION = "1.6"'), 'server.py version matches latest release');
   assert(serverPy.includes('SwaggerUIBundle'), 'server docs page initializes Swagger UI when CDN is available');
   assert(serverPy.includes('.swagger-ui .opblock .opblock-summary-path'), 'server docs override Swagger route text contrast');
   assert(serverPy.includes('color: #ffffff !important'), 'server docs include high-contrast route/method text');
@@ -46,6 +46,8 @@ function run() {
   assert(readme.includes('Version 1.5.21 makes the right-side selected-satellite data and TLE sections collapsible'), 'README documents Version 1.5.21 UI changes');
   assert(readme.includes('Version 1.5.22 keeps the Earth-centered scene frame fixed'), 'README documents Version 1.5.22 Earth/Moon camera changes');
   assert(readme.includes('Version 1.5.23 adds `Mars` to `Other Selections`'), 'README documents Version 1.5.23 Mars changes');
+  assert(readme.includes('Version 1.6 adds an optional `Stars & Milky Way` checkbox'), 'README documents Version 1.6 Stars & Milky Way changes');
+  assert(readme.includes('integrated magnitude limit defaults to `<10.0` and can increase to `<13.0`'), 'README documents the integrated magnitude limit');
   assert(readme.includes('textures/March.jpg'), 'README documents the local Mars texture path');
   assert(readme.includes('Mars texture loading is silent during initial `index.html` launch while Earth is active'), 'README documents silent Mars texture loading on launch');
   assert(readme.includes('the app shows a centered progress bar labeled `Loading Mars map/texture...`'), 'README documents centered Mars texture loading progress after selection');
@@ -66,6 +68,8 @@ function run() {
   assert(integration.includes('Version 1.5.21'), 'integration plan covers Version 1.5.21');
   assert(integration.includes('Version 1.5.22'), 'integration plan covers Version 1.5.22');
   assert(integration.includes('Version 1.5.23'), 'integration plan covers Version 1.5.23');
+  assert(integration.includes('Version 1.6 adds the optional `Stars & Milky Way` view layer'), 'integration plan covers Version 1.6');
+  assert(integration.includes('controls only while enabled'), 'integration plan covers hidden Stars & Milky Way sub-controls');
   assert(integration.includes('Test Mars mode keeps Mars visually centered'), 'integration plan covers Mars target checks');
   assert(integration.includes('Mars texture loading does not show a visible progress bar on initial `index.html` launch'), 'integration plan covers silent Mars launch behavior');
   assert(integration.includes('Selecting Mars shows a progress bar'), 'integration plan covers Mars texture progress checks');

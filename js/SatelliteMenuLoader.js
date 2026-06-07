@@ -17,7 +17,7 @@ export function satelliteMenuLoader() {
           <div><span>Server URL</span><strong id="serverStatusUrl">http://127.0.0.1:8000</strong></div>
           <div><span>Connection</span><strong id="serverStatusState">Checking</strong></div>
           <div><span>Data source</span><strong id="serverDataSource">Local files</strong></div>
-          <div><span>App version</span><strong id="serverAppVersion">1.5.23</strong></div>
+          <div><span>App version</span><strong id="serverAppVersion">1.6</strong></div>
           <div><span>API version</span><strong id="serverApiVersion">Unavailable</strong></div>
           <div><span>Last data load</span><strong id="serverLastSync">Never</strong></div>
           <button id="serverReconnectButton" type="button" class="menu-secondary-action server-reconnect-button">Reconnect / Refresh</button>
@@ -38,14 +38,26 @@ export function satelliteMenuLoader() {
             <input type="range" id="menuTimeWarpSlider" min="0" max="60" step="1" value="0" aria-label="Time speed multiplier" title="Time speed multiplier">
             <span id="menuTimeWarpVal">0</span><span aria-hidden="true">x</span>
           </div>
-          <div class="view-control-row view-control-row-two">
+          <div class="view-control-row view-control-row-three view-primary-row">
             <label><input type="checkbox" id="view3DToggle" checked>Globe</label>
             <label><input type="checkbox" id="viewMercatorToggle">Mercator</label>
+            <label><input type="checkbox" id="starsMilkyWayToggle">Stars &amp; Milky Way</label>
           </div>
           <div class="view-control-row view-control-row-three">
             <label><input type="checkbox" id="highDefToggle"> High Def.</label>
             <label><input type="checkbox" id="showECEFAxesToggle"> ECEF Axes</label>
             <label><input type="checkbox" id="showDayNightToggle" checked> Day/Night</label>
+          </div>
+          <div id="starsMilkyWayOptions" class="stars-milky-way-options" hidden aria-hidden="true">
+            <div class="view-control-row view-control-row-three star-view-control-row">
+              <label><input type="checkbox" id="showRaDecGridToggle">RA/Dec Grid</label>
+              <label><input type="checkbox" id="showBrightStarLabelsToggle">Bright Labels</label>
+              <label><input type="checkbox" id="showStarAtmosphereToggle">Atmosphere</label>
+            </div>
+            <div class="star-magnitude-control" aria-label="Stars and Milky Way magnitude limit">
+              <label for="starMagnitudeLimitSlider">Magnitude limit <span id="starMagnitudeLimitValue">&lt;10.0</span></label>
+              <input type="range" id="starMagnitudeLimitSlider" min="4" max="13" step="0.1" value="10" aria-label="Magnitude limit for Stars and Milky Way">
+            </div>
           </div>
         </div>
       </section>

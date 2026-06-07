@@ -37,6 +37,7 @@ OpenBEXI Earth Orbit is a browser-based satellite visualization app built with p
 - 2D/Mercator selected-satellite UX: selection is highlighted with a clear marker ring instead of applying 3D-only camera-distance behavior.
 - Mercator selected-satellite state uses the selected NORAD ID, so ground tracks and marker rings still render when a detailed 3D model hides the selected sprite.
 - High-definition Earth texture toggle, ECEF axes, Moon/Mars view, launch timeline, and re-entry timeline.
+- Optional Stars & Milky Way view layer in Views & Time, with real RA/Dec demo stars, Milky Way sphere, RA/Dec grid, bright labels, atmosphere, and integrated magnitude limit up to `<13`.
 - Selecting non-MEO/GEO satellites automatically enables the high-definition Earth texture while MEO/GEO selections never force it off.
 - Satellite Selection shortcuts can select the first loaded Starlink satellite or ISS/ZARYA through the same camera/model path as the normal satellite selector. The Starlink shortcut displays the resolved NORAD ID as `Starlink (<NORAD ID>)`.
 - Help menu actions provide quick access to the GitHub project, rendered README Markdown, rendered Releases History Markdown, a Markdown license page, and Swagger/API pages that open separately even if the Python server still needs to be started.
@@ -86,6 +87,8 @@ Version 1.5.22 keeps the Earth-centered scene frame fixed: the Earth mesh and EC
 
 Version 1.5.23 adds `Mars` to `Other Selections`. Selecting Mars displays a Mars globe, uses the local texture asset `textures/March.jpg`, targets `mars.position` for orbit/zoom controls like Moon mode, starts the observer close to the Mars globe, and preserves the Earth-centered scene frame without moving Earth, Moon, or Mars to the origin. Mars texture loading is silent during initial `index.html` launch while Earth is active. When the user selects Mars, the app shows a centered progress bar labeled `Loading Mars map/texture...`, keeps it visible long enough for fast cached/local loads to be seen, shows a short confirmation state if the texture already loaded silently before selection, hides it after successful load, and reports a fallback message if the texture fails. Mars context also switches the Mercator background to `textures/March.jpg` and suppresses Earth-specific satellite markers, footprints, ground tracks, and day/night shading on the Mars map. The Mars position is an approximate visual model using simplified circular heliocentric Earth-to-Mars relative motion. `textures/March.jpg` is treated as a local project-provided Mars texture; its exact source and license still need to be confirmed.
 
+Version 1.6 adds an optional `Stars & Milky Way` checkbox to the `Views & Time` row beside `Globe` and `Mercator`. It is unchecked by default. When enabled, the main app displays a Milky Way celestial sphere and real RA/Dec demo-star field without changing the Earth-centered scene, satellites, Moon/Mars behavior, Mercator, orbit, footprint, selected-satellite, timeline, Share, or Help flows. The `RA/Dec Grid`, `Bright Labels`, `Atmosphere`, and `Magnitude limit` controls are visible only while `Stars & Milky Way` is checked. The integrated magnitude limit defaults to `<10.0` and can increase to `<13.0`; magnitude `<18` remains a future external Gaia DR3 tiled/LOD/binary dataset only, not an inline browser dataset.
+
 The selected satellite model axis convention is:
 
 ```text
@@ -134,6 +137,16 @@ http://127.0.0.1:8000/display_satellite.html
 The viewer reads `json/display_satellite_models.json` and lists the configured standalone viewer models under `obj/`, including Starlink, Generic, O3b, scale-tuned O3b mPOWER HD, ISS, the extra ISS GLB, ISS High Definition components, SSL 1300, and the Hubble Space Telescope GLBs. It provides search, reload, reset, auto-fit, axes/grid, wireframe, background, and copyable diagnostics controls. The diagnostics panel reports the active asset path, required files, loaded textures, mesh/material counts, triangles, bounds, and loader warnings.
 
 Custom entries still support newly added local assets without code changes. Use examples such as `ISS.glb`, `starlink_V1`, or `generic.obj, generic.mtl` to load from `obj/`. The viewer centers the model, adds inspection lighting, repairs weak/invisible materials where possible, normalizes extremely small or large assets such as `SSL_1300.glb` to an inspectable display size, and fits the camera to the model bounds. If a model is visible in `display_satellite.html` but not after selecting a matching satellite in `index.html`, the issue is in the selected-satellite scene integration rather than the local model asset.
+
+## Earth Stars Milky Way Viewer
+
+Use `Earth_Stars_MilkyWay.html` for a standalone Three.js Earth and celestial-sphere view:
+
+```text
+http://127.0.0.1:8000/Earth_Stars_MilkyWay.html
+```
+
+The viewer keeps Earth centered, renders a Milky Way sky sphere, and places stars from real RA/Dec catalog rows using a reusable J2000/ICRS fixed-sphere conversion. The default magnitude limit is `<10`, and the browser slider is capped at `<11.5`. Magnitude `<18` is documented as external-only because Gaia DR3-scale data requires tiled/LOD/binary preprocessing rather than inline HTML. The bundled demo catalog is intentionally small; use `tools/preprocess_star_catalog.py` to convert licensed Tycho-2-style or Gaia-derived CSV exports into browser-friendly RA tiles.
 
 ## Requirements
 
@@ -253,6 +266,7 @@ The Help section opens Swagger and API documentation in separate pages using the
 
 - `index.html`: Main browser app and integration point for rendering, controls, selection, and animation.
 - `display_satellite.html`: Manifest-backed isolated local OBJ/MTL and GLB viewer for direct satellite model visibility checks.
+- `Earth_Stars_MilkyWay.html`: Standalone Three.js Earth, Milky Way, and real RA/Dec star-field viewer.
 - `markdown_viewer.html`: Static rendered Markdown viewer used by Help for README and Releases History.
 - `css/`: Styling for the app, menu, filters, labels, and map layout.
 - `js/`: Browser modules for coordinates, satellite loading, models, menu, footprints, frames, day/night, Moon/Mars, timelines, and map rendering.
@@ -261,6 +275,7 @@ The Help section opens Swagger and API documentation in separate pages using the
 - `json/tle/`: TLE source data.
 - `json/satellites/`: Satellite metadata and model configuration.
 - `json/display_satellite_models.json`: Model manifest used by `display_satellite.html`.
+- `data/stars/`: Small real-star demo catalog and optional preprocessed star tiles.
 - `textures/`: Earth, Moon, Mars, satellite, and material textures.
 - `icons/`: Satellite and UI icon assets.
 - `obj/`: OBJ, MTL, and GLB satellite model assets.
