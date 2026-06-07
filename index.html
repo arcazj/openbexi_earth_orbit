@@ -3063,11 +3063,12 @@
             }
         }
         if (!q) {
+            const fallbackBias = selectedSatelliteOrientationBias(isIssModel);
             q = nadirPointingQuaternion(Q_TMP1, satPos, {
                 earthFacingAxis: isIssModel ? ISS_MODEL_EARTH_FACING_AXIS : SELECTED_SATELLITE_EARTH_FACING_AXIS,
-                yawDeg: simParams.yawDeg,
-                pitchDeg: simParams.pitchDeg,
-                rollDeg: simParams.rollDeg
+                yawDeg: fallbackBias.yawDeg,
+                pitchDeg: fallbackBias.pitchDeg,
+                rollDeg: fallbackBias.rollDeg
             });
         }
         if (!q) return null;
