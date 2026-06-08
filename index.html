@@ -154,6 +154,7 @@
         issShortcutState,
         starlinkShortcutState
     } from './js/satelliteShortcutLabels.js';
+    import { buildSatelliteSearchMatches } from './js/satelliteSearchUtils.js';
     import {
         APP_VERSION,
         checkServerConnection,
@@ -898,15 +899,6 @@
         }
     }
 
-    function satelliteSearchText(satData) {
-        return [
-            satData?.satellite_name,
-            satData?.norad_id,
-            satData?.orbitType,
-            satData?.company
-        ].filter(Boolean).join(' ').toLowerCase();
-    }
-
     function satelliteSearchLabel(satData) {
         return satData?.satellite_name || `NORAD ${satData?.norad_id || 'unknown'}`;
     }
@@ -950,14 +942,16 @@
         if (!satelliteSearchInput || !satelliteSearchResults) return;
         if (forceOpen) isSatelliteDropdownOpen = true;
 
-        const query = satelliteSearchInput.value.trim().toLowerCase();
-        const matches = query
-            ? filteredTLEs.filter(s => satelliteSearchText(s).includes(query))
-            : filteredTLEs.slice(0, Math.min(12, SATELLITE_SEARCH_LIMIT));
+        const searchState = buildSatelliteSearchMatches(filteredTLEs, satelliteSearchInput.value, {
+            limit: SATELLITE_SEARCH_LIMIT,
+            emptyQueryPreviewLimit: 12
+        });
+        const query = searchState.query;
 
-        currentSearchResults = matches.slice(0, SATELLITE_SEARCH_LIMIT);
+        currentSearchResults = searchState.visibleMatches;
         if (activeSearchResultIndex >= currentSearchResults.length) activeSearchResultIndex = currentSearchResults.length - 1;
         if (activeSearchResultIndex < -1) activeSearchResultIndex = -1;
+        setSatelliteFoundCountLabel(searchState.countLabel);
 
         satelliteSearchResults.innerHTML = '';
         currentSearchResults.forEach((sat, index) => {

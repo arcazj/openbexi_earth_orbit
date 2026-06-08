@@ -40,6 +40,11 @@ Requirements:
    - The hidden legacy `select` options must match the same filtered satellite set used by the visible search dropdown.
    - Multi-check combinations must update the visible count, search dropdown, empty state, satellite visibility, and hidden select from one canonical filtered list.
    - Reset filters must restore default filters and immediately refresh the count, dropdown, hidden select, and visible satellites.
+   - When search text is active, the red bold found count must match the visible search dropdown result count.
+   - If search results are capped for performance, show the count as `visible / total`, for example `40 / 126`, rather than a misleading larger single number.
+   - Clearing the search field must restore the red bold count to the active orbit/tag/debris filtered total.
+   - Keep loading states such as `Loading 300/1200` working before TLE setup finishes.
+   - Add a focused helper such as `buildSatelliteSearchMatches(filteredTLEs, query)` and use it for count/list consistency.
 
 5. Regression Safety
    - Do not change selected-satellite details on the right-side canvas panel.
@@ -56,6 +61,8 @@ Acceptance criteria:
 - `Reset Filters` appears beside `Show`, `Hide`, and `Debris only`.
 - The old helper paragraphs and active summary string are absent.
 - Search results, hidden select options, visible satellite count, and satellite visibility all match active multi-check filters.
+- Search-active found counts match visible dropdown results, or use `visible / total` when capped.
+- Automated tests cover empty search, active search, capped results, no matches, filtered subsets, and clear-search count reset behavior.
 - Existing features from Version `1.7` and earlier still pass their automated tests.
 
 ## Release Date: 2026-06-07  Version 1.7

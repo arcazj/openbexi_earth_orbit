@@ -164,9 +164,11 @@ function run() {
   assert(html.includes('aria-label="Orbit filter"'), 'orbit filter keeps an accessible name');
   assert(indexHtml.includes('function buildFilteredSatellitesBySelection()'), 'index has one canonical filtered satellite builder');
   assert(indexHtml.includes('const filteredTLEs = buildFilteredSatellitesBySelection();'), 'updateSatelliteList uses the canonical filtered satellite set');
+  assert(indexHtml.includes("import { buildSatelliteSearchMatches } from './js/satelliteSearchUtils.js';"), 'index imports shared satellite search matching helper');
   assert(indexHtml.includes('renderSatelliteSearchResults(filteredTLEs, false)'), 'visible search results are rendered from the canonical filtered satellite set');
   assert(indexHtml.includes('filteredTLEs.forEach(s => {'), 'hidden legacy select options are built from the canonical filtered satellite set');
   assert(indexHtml.includes('renderSatelliteSearchResults(buildFilteredSatellitesBySelection(), true)'), 'user search interactions reopen results from active filters');
+  assert(indexHtml.includes('setSatelliteFoundCountLabel(searchState.countLabel)'), 'visible search count is derived from the same search state as dropdown results');
   assert(indexHtml.includes('setSatelliteFoundCountLabel('), 'found count updates use one accessible helper');
 
   const satelliteSelection = indexOfOrFail(html, 'Satellites Selection - Found', 'satellite selection section exists');
@@ -403,7 +405,7 @@ function run() {
   assert(!/yawSlider\.value\s*=\s*0/.test(indexHtml), 'satellite selection does not reset yaw slider value');
   assert(!/pitchSlider\.value\s*=\s*0/.test(indexHtml), 'satellite selection does not reset pitch slider value');
   assert(!/rollSlider\.value\s*=\s*0/.test(indexHtml), 'satellite selection does not reset roll slider value');
-  assert(indexHtml.includes('satelliteSearchText'), 'index implements satellite search matching');
+  assert(indexHtml.includes('buildSatelliteSearchMatches(filteredTLEs, satelliteSearchInput.value'), 'index uses shared satellite search matching');
   assert(indexHtml.includes('resetFiltersToDefaults'), 'index implements filter reset');
   assert(indexHtml.includes('setShowOnlySelectedSatellite(true)'), 'selecting a satellite auto-enables show-only-selected mode');
   assert(indexHtml.includes('setShowOnlySelectedSatellite(false)'), 'clearing a satellite disables show-only-selected mode');

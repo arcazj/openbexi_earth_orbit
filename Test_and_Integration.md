@@ -74,6 +74,7 @@ Version 1.7 upgrades Solar System textures and adds bundled JPL-derived ephemeri
 
 Version 1.7.1 consolidates `Filters - Satellites Found` into `Satellites Selection - Found`. The standalone Filters accordion is removed; orbit, tag, debris, reset, and zero-result controls live inside Satellite Selection; the found count is red/bold in the Satellite Selection heading; `Reset Filters` is on the same row as `Show`, `Hide`, and `Debris only`; the old active summary text and visible helper paragraphs are removed. Multi-check filter combinations must update the found count, hidden select options, and visible search dropdown from the same filtered satellite set.
 The main `Views & Time` checkboxes are aligned in a 3x3 table/grid: `Solar System`, `Stars & Milky Way`, empty; `Globe`, `High Def.`, `ECEF Axes`; `Mercator`, `Day/Night`, empty.
+When search text is active, the red found count must match the visible dropdown result list. If results are capped, the count must show `visible / total`, such as `40 / 126`.
 
 ## Test Environment
 
@@ -329,6 +330,9 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test `Reset Filters` appears on the same row as `Show`, `Hide`, and `Debris only`.
 - Test the found count in `Satellites Selection - Found` is red, bold, and updates its accessible label.
 - Test multi-check filtering in Search satellite: the visible dropdown list of satellites must match the requested orbit/tag/debris filtering exactly, and the hidden legacy select must contain the same filtered satellite set.
+- Test active search text updates the red found count from the same search result state used to render the visible dropdown.
+- Test capped search results show a `visible / total` count instead of a misleading total-only count.
+- Test clearing search restores the red count to the active filter total.
 - Test the Settings accordion section is absent.
 - Test multiple accordion sections can be open simultaneously.
 - Test expanding one accordion section does not collapse another section.
