@@ -6,6 +6,8 @@ function run() {
   const readme = fs.readFileSync('README.md', 'utf8');
   const integration = fs.readFileSync('Test_and_Integration.md', 'utf8');
   const markdownViewer = fs.readFileSync('markdown_viewer.html', 'utf8');
+  const swagger = fs.readFileSync('SWAGGER.md', 'utf8');
+  const swaggerHtml = fs.readFileSync('swagger.html', 'utf8');
 
   [
     '"/api/health"',
@@ -22,16 +24,14 @@ function run() {
 
   assert(serverPy.includes('Access-Control-Allow-Origin'), 'server.py sends CORS headers');
   assert(serverPy.includes('ThreadingHTTPServer'), 'server.py uses a local threaded HTTP server');
-  assert(serverPy.includes('APP_VERSION = "1.7.1"'), 'server.py version matches latest release');
+  assert(serverPy.includes('APP_VERSION = "1.7.2"'), 'server.py version matches latest release');
+  assert(serverPy.includes('RELEASE_DATE = "2026-06-08"'), 'server.py release date matches latest release');
   assert(serverPy.includes('SwaggerUIBundle'), 'server docs page initializes Swagger UI when CDN is available');
   assert(serverPy.includes('.swagger-ui .opblock .opblock-summary-path'), 'server docs override Swagger route text contrast');
   assert(serverPy.includes('color: #ffffff !important'), 'server docs include high-contrast route/method text');
   assert(serverPy.includes('background: #132640 !important'), 'server docs keep endpoint rows in the OpenBEXI dark theme');
   [
-    'icons/server_connected.svg',
-    'icons/server_offline.svg',
-    'icons/server_checking.svg',
-    'icons/server_error.svg'
+    'icons/server_checking.svg'
   ].forEach(iconPath => {
     assert(fs.existsSync(iconPath), `${iconPath} exists`);
     assert(fs.readFileSync(iconPath, 'utf8').includes('<svg'), `${iconPath} is an SVG icon`);
@@ -51,6 +51,10 @@ function run() {
   assert(readme.includes('Version 1.6.2 integrates `Solar System Overview`'), 'README documents Version 1.6.2 Solar System integration');
   assert(readme.includes('Version 1.7 upgrades Solar System textures and uses bundled JPL-derived ephemeris data'), 'README documents Version 1.7 ephemeris and texture changes');
   assert(readme.includes('Version 1.7.1 consolidates satellite filters into `Satellites Selection - Found`'), 'README documents Version 1.7.1 menu consolidation');
+  assert(readme.includes('Version 1.7.2 moves `Debris` into the orbit/category row'), 'README documents Version 1.7.2 menu changes');
+  assert(readme.includes('swagger.html'), 'README documents the local standard Swagger UI page');
+  assert(readme.includes('SWAGGER.md'), 'README documents the local Swagger Markdown companion');
+  assert(readme.includes('markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API'), 'README documents static Swagger Markdown companion rendering');
   assert(readme.includes('displays all 46 bundled reference stars'), 'README documents the bundled star count');
   assert(readme.includes('textures/March.jpg'), 'README documents the local Mars texture path');
   assert(readme.includes('Mars texture loading is silent during initial `index.html` launch while Earth is active'), 'README documents silent Mars texture loading on launch');
@@ -69,8 +73,38 @@ function run() {
   assert(readme.includes('LICENSE.md'), 'README documents the Markdown license file');
   assert(fs.existsSync('LICENSE.md'), 'LICENSE.md exists for the Help Licenses action');
   assert(markdownViewer.includes('ALLOWED_MARKDOWN_SOURCES'), 'Markdown viewer restricts renderable sources');
+  assert(markdownViewer.includes("'SWAGGER.md', 'Swagger API'"), 'Markdown viewer allows the local Swagger Markdown page');
   assert(markdownViewer.includes('safeMarkdownHref'), 'Markdown viewer sanitizes rendered links');
   assert(markdownViewer.includes('renderMarkdown(markdown'), 'Markdown viewer renders Markdown content');
+  assert(swagger.includes('OpenBEXI Earth Orbit Swagger API'), 'SWAGGER.md has a clear title');
+  assert(swagger.includes('The Help `Swagger` action opens `swagger.html`'), 'SWAGGER.md points to the local standard Swagger UI page');
+  assert(swagger.includes('You do not need to run `server.py` to read this Markdown companion'), 'SWAGGER.md documents server-free display');
+  assert(swagger.includes('/api/health'), 'SWAGGER.md documents API health');
+  assert(swagger.includes('/openapi.json'), 'SWAGGER.md documents live OpenAPI JSON');
+  assert(swaggerHtml.includes('OpenBEXI Earth Orbit API'), 'swagger.html has a standard API title');
+  assert(swaggerHtml.includes('class="badge version"'), 'swagger.html displays a version badge');
+  assert(swaggerHtml.includes('class="badge oas"'), 'swagger.html displays an OAS badge');
+  assert(swaggerHtml.includes('Base URL / Schema Source'), 'swagger.html documents base URL/schema context');
+  assert(swaggerHtml.includes('<details class="operation get"'), 'swagger.html uses expandable operation details');
+  assert(swaggerHtml.includes('class="method get"'), 'swagger.html displays GET method badges');
+  assert(swaggerHtml.includes('.method.post'), 'swagger.html defines POST method colors');
+  assert(swaggerHtml.includes('.method.put'), 'swagger.html defines PUT method colors');
+  assert(swaggerHtml.includes('.method.delete'), 'swagger.html defines DELETE method colors');
+  [
+    '/api/health',
+    '/api/version',
+    '/api/tle',
+    '/api/satellites',
+    '/api/satellite-metadata',
+    '/api/satellite-metadata/{file_name}',
+    '/api/decayed',
+    '/openapi.json',
+    '/docs'
+  ].forEach(route => {
+    assert(swaggerHtml.includes(route), `swagger.html documents ${route}`);
+  });
+  assert(!swaggerHtml.includes('https://unpkg.com'), 'swagger.html has no remote Swagger UI CDN dependency');
+  assert(!swaggerHtml.includes('swagger-ui-dist'), 'swagger.html does not require swagger-ui-dist for local display');
   assert(integration.includes('/api/health'), 'integration plan includes API health checks');
   assert(integration.includes('Swagger/API docs'), 'integration plan includes Swagger/API docs checks');
   assert(integration.includes('Version 1.5.21'), 'integration plan covers Version 1.5.21');
@@ -81,6 +115,10 @@ function run() {
   assert(integration.includes('Version 1.6.2 integrates Solar System Overview'), 'integration plan covers Version 1.6.2');
   assert(integration.includes('Version 1.7 upgrades Solar System textures and adds bundled JPL-derived ephemeris data'), 'integration plan covers Version 1.7');
   assert(integration.includes('Version 1.7.1 consolidates `Filters - Satellites Found` into `Satellites Selection - Found`'), 'integration plan covers Version 1.7.1');
+  assert(integration.includes('Version 1.7.2 moves `Debris` into the orbit/category row'), 'integration plan covers Version 1.7.2');
+  assert(integration.includes('Coverage Traceability Audit'), 'integration plan includes a prior-release coverage audit');
+  assert(integration.includes('swagger.html'), 'integration plan covers static standard Swagger UI rendering');
+  assert(integration.includes('markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API'), 'integration plan covers static Swagger Markdown companion rendering');
   assert(integration.includes('controls only while enabled'), 'integration plan covers hidden Stars & Milky Way sub-controls');
   assert(integration.includes('Test Mars mode keeps Mars visually centered'), 'integration plan covers Mars target checks');
   assert(integration.includes('Mars texture loading does not show a visible progress bar on initial `index.html` launch'), 'integration plan covers silent Mars launch behavior');

@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "basePath": "obj/",
+  "models": [
+    {
+      "id": "starlink_V1",
+      "displayName": "Starlink V1",
+      "type": "obj-mtl",
+      "description": "OBJ/MTL Starlink satellite model.",
+      "tags": ["Starlink", "OBJ", "MTL", "LEO"],
+      "files": {
+        "obj": "starlink_V1.obj",
+        "mtl": "starlink_V1.mtl"
+      },
+      "textures": [
+        { "path": "Textures/starlink_BaseColor.png", "required": true },
+        { "path": "Textures/starlink_Checker_Roughness.png", "required": true },
+        { "path": "Textures/starlink_Metallic.png", "required": true },
+        { "path": "Textures/starlink_Normal.png", "required": false }
+      ]
+    },
+    {
+      "id": "o3b",
+      "displayName": "O3b",
+      "type": "obj-mtl",
+      "description": "OBJ/MTL O3b MEO satellite model.",
+      "tags": ["O3b", "OBJ", "MTL", "MEO"],
+      "files": {
+        "obj": "o3b.obj",
+        "mtl": "o3b.mtl"
+      },
+      "textures": []
+    },
+    {
+      "id": "ISS.glb",
+      "displayName": "International Space Station",
+      "type": "glb",
+      "description": "GLB International Space Station model.",
+      "tags": ["ISS", "GLB", "Station", "LEO"],
+      "files": {
+        "glb": "ISS.glb"
+      },
+      "textures": []
+    },
+    {
+      "id": "SSL_1300.glb",
+      "displayName": "SSL 1300",
+      "type": "glb",
+      "description": "GLB SSL 1300 satellite bus model.",
+      "tags": ["SSL", "GLB", "GEO"],
+      "files": {
+        "glb": "SSL_1300.glb"
+      },
+      "textures": []
+    }
+  ]
+}

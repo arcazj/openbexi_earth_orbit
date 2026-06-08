@@ -1,5 +1,93 @@
 # Prompt History
 
+## Release Date: 2026-06-08  Version 1.7.2
+
+Implement Version `1.7.2` as a focused Satellite Selection menu layout refinement.
+
+This release builds on Version `1.7.1`. Preserve all existing Earth, Moon, Mars, satellite, Mercator, server, Help, Share, timeline, selected-satellite, orbit, footprint, model-loading, Stars & Milky Way, Solar System, ephemeris, `Time x`, search, filter-count, and accordion behavior unless explicitly changed below.
+
+Requirements:
+
+1. Versioning
+   - Update visible app version to `1.7.2`.
+   - Update `js/serverConnection.js`, `js/SatelliteMenuLoader.js`, and `server.py` to report version `1.7.2`.
+
+2. Satellite Selection Filter Layout
+   - In the `Satellites Selection - Found <number>` accordion, remove the separate debris control buttons:
+     - `Show`
+     - `Hide`
+     - `Debris only`
+   - Add `Debris` to the same orbit/category filter row as:
+     - `ALL`
+     - `GEO`
+     - `MEO`
+     - `LEO`
+     - `HRO`
+     - `Others`
+   - The final filter order must be:
+     - `ALL`, `GEO`, `MEO`, `LEO`, `HRO`, `Debris`, `Others`
+   - The new `Debris` filter must replace the old `Debris only` button behavior and show only debris objects when active.
+   - Keep accessible names and keyboard behavior for all filter controls.
+
+3. Search Row Layout
+   - Move `Reset Filters` onto the same row as the satellite search controls.
+   - The search row order must be:
+     - search satellite input/dropdown
+     - `Clear`
+     - `Reset Filters`
+   - `Reset Filters` must appear immediately after `Clear`.
+   - Reset behavior must remain unchanged: it restores default filters, clears active search text, refreshes the found count, updates the visible dropdown, updates the hidden legacy select, and restores default satellite visibility.
+
+4. Local Standard Swagger Documentation UI
+   - When the user selects `Swagger` from Help or documentation navigation, display a standard Swagger/OpenAPI-style documentation page similar to the attached Swagger Petstore reference.
+   - The Swagger page must look and behave like a Swagger UI documentation screen, not like a plain Markdown page.
+   - The page must include a prominent API title, version badge, OpenAPI/OAS badge, base URL or local schema source, a short API description, and grouped endpoint sections.
+   - Endpoint rows must use standard Swagger-style method badges and colors such as `GET` blue, `POST` green, `PUT` orange, and `DELETE` red where applicable.
+   - Endpoint rows must show the route path, summary, and expandable/collapsible details for descriptions, parameters, response examples, and request/response schema notes.
+   - The local Swagger display must work from static files without requiring `server.py` or the Python server to be running.
+   - Do not depend on remote CDN assets for the local Swagger display. If using Swagger UI behavior, vendor or implement the required local assets/scripts/styles in the repository.
+   - Add or update `SWAGGER.md` as the readable Markdown companion/reference for the same API/server endpoints, request/response examples, and local Swagger/OpenAPI usage notes.
+   - Add or update a local static Swagger HTML page, for example `swagger.html`, or equivalent local renderer, and link the Help `Swagger` action to that standard Swagger-style page.
+   - Live server-only routes such as `/docs` and `/openapi.json` may remain available, but they must be labeled as optional live server links and must not be the only way to view Swagger documentation.
+   - Update `README.md` and `Test_and_Integration.md` to reference both the standard local Swagger display page and the `SWAGGER.md` Markdown reference, including how to display them locally without starting the Python server.
+
+5. Test and Integration Coverage Audit
+   - Revisit `Test_and_Integration.md` in depth before delivery.
+   - Ensure `Test_and_Integration.md` covers every behavior change, regression risk, and verification step introduced by this release and by all previous releases documented in `PROMPT_History.md`.
+   - Add or expand test cases for prior-release features where coverage is missing, shallow, outdated, or no longer matches the implemented behavior.
+   - Cover both automated tests and manual/integration checks for menu behavior, filters, search, satellite visibility, server/API docs, Markdown documentation, Help links, Share, timelines, Solar System, Stars & Milky Way, ephemeris, selected-satellite details, orbit rendering, Mercator rendering, model loading, and `Time x` behavior.
+   - Organize the coverage so each release-level feature can be traced to at least one automated test, manual check, or documented verification limitation.
+   - Do not treat the release as complete until `Test_and_Integration.md` is current, comprehensive, and aligned with the actual implementation.
+
+6. Regression Safety
+   - Do not reintroduce the standalone `Filters - Satellites Found` accordion section.
+   - Do not reintroduce removed helper text or active summary text from Version `1.7.1`.
+   - Do not change selected-satellite details on the right-side canvas panel.
+   - Do not change Starlink/ISS shortcuts, model loading, selected-satellite tracking, orbit rendering, Mercator rendering, Share, Help, server status, Stars & Milky Way, Solar System, ephemeris, or `Time x` behavior.
+   - Add or update tests for the new orbit/category row order, removal of the old debris buttons, search row order, local Swagger Markdown display path, and unchanged reset behavior.
+   - Run the full automated test suite and fix regressions before delivery.
+
+Acceptance criteria:
+
+- Visible app version and reported backend/menu versions are `1.7.2`.
+- `Show`, `Hide`, and `Debris only` no longer appear as separate debris filter buttons in Satellite Selection.
+- The orbit/category filter row appears as `ALL`, `GEO`, `MEO`, `LEO`, `HRO`, `Debris`, `Others`.
+- `Debris` appears immediately before `Others`.
+- Activating `Debris` filters the satellite list to debris objects only.
+- `Reset Filters` appears on the same row as the search satellite control and `Clear`.
+- `Reset Filters` appears immediately after `Clear`.
+- Reset filters, search filtering, found-count updates, visible dropdown options, hidden select options, and satellite visibility remain consistent.
+- A local standard Swagger-style documentation page exists and is opened by the Help `Swagger` action.
+- Selecting `Swagger` displays a Swagger UI-like page with API title, version/OAS badges, base URL or local schema source, endpoint groups, method-color rows, route summaries, and expandable operation details.
+- The standard Swagger-style page can be displayed locally without starting `server.py` and without remote CDN dependencies.
+- A local `SWAGGER.md` companion page exists and documents app API/server endpoints plus Swagger/OpenAPI usage notes.
+- Help or documentation links that expose Swagger documentation use a static local standard Swagger page for `Swagger`; live `/docs` or `/openapi.json` links are optional and clearly labeled as requiring the Python server.
+- `README.md` and `Test_and_Integration.md` explain the local Swagger UI-style display workflow and the companion Swagger Markdown workflow.
+- `Test_and_Integration.md` has been audited against every release entry in `PROMPT_History.md`.
+- Every release-level behavior change has traceable automated coverage, manual/integration coverage, or an explicit documented limitation.
+- Outdated, shallow, or missing test cases in `Test_and_Integration.md` have been corrected before release completion.
+- Automated tests cover the updated layout and preserve Version `1.7.1` filter/search behavior.
+
 ## Release Date: 2026-06-07  Version 1.7.1
 
 Implement Version `1.7.1` as a menu consolidation and satellite filtering maintenance release.

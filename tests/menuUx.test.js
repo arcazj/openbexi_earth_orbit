@@ -13,6 +13,7 @@ function run() {
   const css = fs.readFileSync('css/style.css', 'utf8');
   const indexHtml = fs.readFileSync('index.html', 'utf8');
   const markdownViewerHtml = fs.readFileSync('markdown_viewer.html', 'utf8');
+  const swaggerHtml = fs.readFileSync('swagger.html', 'utf8');
   const launchTimeline = fs.readFileSync('js/ganttTimelineLoader.js', 'utf8');
   const reentryTimeline = fs.readFileSync('js/reentryTimeline.js', 'utf8');
   const marsFrameLoader = fs.readFileSync('js/MarsFrameLoader.js', 'utf8');
@@ -151,6 +152,9 @@ function run() {
   assert(html.includes('Satellites Selection - Found'), 'Satellite Selection heading includes found-count text');
   assert(html.includes('id="satelliteCountDisplay" class="satellite-found-count" aria-live="polite" aria-label="Satellites found: 0"'), 'found count is in the Satellite Selection heading with live accessible text');
   assert(html.includes('id="resetFiltersButton"'), 'reset filters action is present');
+  assert(!html.includes('id="debrisFilter"'), 'old standalone debris filter group is removed');
+  assert(!html.includes('data-debris-filter'), 'old debris filter buttons are removed');
+  assert(!html.includes('Debris only'), 'old Debris only button is removed');
   assert(!html.includes('id="filterStatusSummary"'), 'active filter summary is removed');
   assert(!html.includes('MEO + All tags + Debris shown'), 'old filter summary text is removed');
   assert(html.includes('id="filterEmptyState"'), 'filter empty state is present');
@@ -162,6 +166,21 @@ function run() {
   assert(!html.includes('Show all objects, hide debris, or inspect debris only.'), 'old debris helper text is removed');
   assert(html.includes('id="orbitTypeFilter"'), 'orbit filter controls remain present');
   assert(html.includes('aria-label="Orbit filter"'), 'orbit filter keeps an accessible name');
+  const orbitAllButton = indexOfOrFail(html, 'data-orbit-filter="ALL"', 'ALL orbit filter exists');
+  const orbitGeoButton = indexOfOrFail(html, 'data-orbit-filter="GEO"', 'GEO orbit filter exists');
+  const orbitMeoButton = indexOfOrFail(html, 'data-orbit-filter="MEO"', 'MEO orbit filter exists');
+  const orbitLeoButton = indexOfOrFail(html, 'data-orbit-filter="LEO"', 'LEO orbit filter exists');
+  const orbitHroButton = indexOfOrFail(html, '>HRO</button>', 'HRO orbit label exists');
+  const orbitDebrisButton = indexOfOrFail(html, 'data-orbit-filter="DEBRIS"', 'Debris orbit/category filter exists');
+  const orbitOthersButton = indexOfOrFail(html, '>Others</button>', 'Others orbit label exists');
+  assert(
+    orbitAllButton < orbitGeoButton && orbitGeoButton < orbitMeoButton && orbitMeoButton < orbitLeoButton &&
+      orbitLeoButton < orbitHroButton && orbitHroButton < orbitDebrisButton && orbitDebrisButton < orbitOthersButton,
+    'orbit/category row order is ALL, GEO, MEO, LEO, HRO, Debris, Others'
+  );
+  assert(indexHtml.includes('const ORBIT_DEBRIS_OPTION = "DEBRIS"'), 'index defines Debris as a visible orbit/category option');
+  assert(indexHtml.includes('return isDebrisSatellite(satData);'), 'Debris orbit/category option filters to debris candidates only');
+  assert(indexHtml.includes('value !== ORBIT_DEBRIS_OPTION'), 'normal orbit clicks switch away from the exclusive Debris filter');
   assert(indexHtml.includes('function buildFilteredSatellitesBySelection()'), 'index has one canonical filtered satellite builder');
   assert(indexHtml.includes('const filteredTLEs = buildFilteredSatellitesBySelection();'), 'updateSatelliteList uses the canonical filtered satellite set');
   assert(indexHtml.includes("import { buildSatelliteSearchMatches } from './js/satelliteSearchUtils.js';"), 'index imports shared satellite search matching helper');
@@ -173,23 +192,22 @@ function run() {
 
   const satelliteSelection = indexOfOrFail(html, 'Satellites Selection - Found', 'satellite selection section exists');
   const searchInput = indexOfOrFail(html, 'id="satelliteSearchInput"', 'search input exists');
+  const clearSearch = indexOfOrFail(html, 'id="satelliteSearchClear"', 'clear search exists');
+  const resetFilters = indexOfOrFail(html, 'id="resetFiltersButton"', 'reset filters exists');
   const satelliteShortcutRow = indexOfOrFail(html, 'class="satellite-shortcut-row"', 'satellite shortcut row exists');
   const starlinkShortcut = indexOfOrFail(html, 'id="selectFirstStarlinkButton"', 'Starlink shortcut exists');
   const issShortcut = indexOfOrFail(html, 'id="selectIssButton"', 'ISS shortcut exists');
   const satelliteFilterPanel = indexOfOrFail(html, 'class="satellite-filter-panel filters-panel"', 'filter panel is inside Satellite Selection');
   const orbitFilter = indexOfOrFail(html, 'id="orbitTypeFilter"', 'orbit filter exists');
   const companyFilter = indexOfOrFail(html, 'id="companyFilter"', 'tag filter exists');
-  const debrisFilter = indexOfOrFail(html, 'id="debrisFilter"', 'debris filter exists');
-  const resetFilters = indexOfOrFail(html, 'id="resetFiltersButton"', 'reset filters exists');
-  const debrisResetRow = indexOfOrFail(html, 'class="debris-reset-row"', 'reset filters shares the debris row');
   const selectedControls = indexOfOrFail(html, 'id="selectedSatelliteControls"', 'selected satellite controls exist');
   const firstSatelliteCheckbox = indexOfOrFail(html, 'id="showYPRToggle"', 'satellite-specific checkboxes exist');
   assert(
-    satelliteSelection < searchInput && searchInput < satelliteShortcutRow && satelliteShortcutRow < starlinkShortcut &&
+    satelliteSelection < searchInput && searchInput < clearSearch && clearSearch < resetFilters &&
+      resetFilters < satelliteShortcutRow && satelliteShortcutRow < starlinkShortcut &&
       starlinkShortcut < issShortcut && issShortcut < satelliteFilterPanel && satelliteFilterPanel < orbitFilter &&
-      orbitFilter < companyFilter && companyFilter < debrisResetRow && debrisResetRow < debrisFilter &&
-      debrisFilter < resetFilters && resetFilters < selectedControls && selectedControls < firstSatelliteCheckbox,
-    'search, shortcuts, filters, and selected-satellite controls appear inside Satellite Selection in the required order'
+      orbitFilter < companyFilter && companyFilter < selectedControls && selectedControls < firstSatelliteCheckbox,
+    'search, Clear, Reset Filters, shortcuts, filters, and selected-satellite controls appear inside Satellite Selection in the required order'
   );
   assert(html.includes('id="selectedSatelliteControls" class="satellite-option-grid" aria-label="Selected satellite options" aria-hidden="true" hidden'), 'satellite-specific controls are hidden until selection');
   assert(html.includes('id="showFootprintCheckbox"><span>Show Footprint</span>'), 'Show Footprint checkbox exists and is unchecked by default');
@@ -244,9 +262,36 @@ function run() {
   assert(!html.includes('Swagger / API Documentation'), 'old Swagger/API heading is removed');
   assert(html.includes('Developer Docs'), 'Help includes developer documentation section');
   assert(html.includes('id="swaggerDocsLink"'), 'Help includes Swagger UI link hook');
+  assert(html.includes('id="swaggerMarkdownLink"'), 'Help includes Swagger Markdown companion link hook');
   assert(html.includes('id="openApiSchemaLink"'), 'Help includes OpenAPI schema link hook');
-  assert(html.includes('href="http://127.0.0.1:8000/docs"'), 'Swagger link opens the default docs page');
+  assert(html.includes('href="swagger.html"'), 'Swagger link opens local standard Swagger UI page');
+  assert(html.includes('href="markdown_viewer.html?source=SWAGGER.md&amp;title=Swagger%20API"'), 'Swagger MD link opens local Markdown documentation');
   assert(html.includes('href="http://127.0.0.1:8000/openapi.json"'), 'API link opens the default OpenAPI page');
+  assert(markdownViewerHtml.includes("'SWAGGER.md', 'Swagger API'"), 'Markdown viewer can render local Swagger Markdown');
+  assert(swaggerHtml.includes('OpenBEXI Earth Orbit API'), 'local Swagger page has the API title');
+  assert(swaggerHtml.includes('1.7.2'), 'local Swagger page displays the release version');
+  assert(swaggerHtml.includes('OAS 3.0.3'), 'local Swagger page displays the OpenAPI version badge');
+  assert(swaggerHtml.includes('Base URL / Schema Source'), 'local Swagger page displays base URL/schema context');
+  assert(swaggerHtml.includes('<details class="operation get"'), 'local Swagger page has expandable GET operation rows');
+  assert(swaggerHtml.includes('class="method get"'), 'local Swagger page has blue GET method badge markup');
+  assert(swaggerHtml.includes('.method.post'), 'local Swagger page defines POST method color');
+  assert(swaggerHtml.includes('.method.put'), 'local Swagger page defines PUT method color');
+  assert(swaggerHtml.includes('.method.delete'), 'local Swagger page defines DELETE method color');
+  [
+    '/api/health',
+    '/api/version',
+    '/api/tle',
+    '/api/satellites',
+    '/api/satellite-metadata',
+    '/api/satellite-metadata/{file_name}',
+    '/api/decayed',
+    '/openapi.json',
+    '/docs'
+  ].forEach(route => {
+    assert(swaggerHtml.includes(route), `local Swagger page documents ${route}`);
+  });
+  assert(!swaggerHtml.includes('https://unpkg.com'), 'local Swagger page does not load Swagger UI from a CDN');
+  assert(!swaggerHtml.includes('swagger-ui-dist'), 'local Swagger page does not require swagger-ui-dist for display');
   assert(!html.includes('Swagger and OpenAPI documentation are available from the connected Python server.'), 'prohibited Swagger/API sentence is absent from Help markup');
   assert(html.includes('for visualization, educational, and experimental purposes only'), 'Help includes legal disclaimer');
   assert(html.includes('satellite.js'), 'Help disclaimer mentions satellite.js limitations');
@@ -264,7 +309,9 @@ function run() {
   assert(css.includes('#satelliteCountDisplay'), 'satellite count has a dedicated style hook');
   assert(css.includes('.satellite-found-count'), 'satellite count has a heading-specific style hook');
   assert(css.includes('.satellite-filter-panel'), 'embedded Satellite Selection filters have dedicated CSS');
-  assert(css.includes('.debris-reset-row'), 'Reset Filters is styled in the debris row');
+  assert(!css.includes('.debris-reset-row'), 'obsolete debris reset row CSS is removed');
+  assert(css.includes('grid-template-columns: repeat(7, minmax(0, 1fr))'), 'orbit/category row is styled as one seven-button row');
+  assert(css.includes('grid-template-columns: minmax(0, 1fr) auto auto'), 'search row styles search, Clear, and Reset Filters on one row');
   assert(css.includes('.reset-filters-inline-button'), 'inline Reset Filters button has dedicated CSS');
   assert(!css.includes('.filter-status-summary'), 'removed filter summary CSS is gone');
   assert(css.includes('color: #ff2a2a !important;'), 'satellite count is styled red');
@@ -399,7 +446,9 @@ function run() {
   assert(indexHtml.includes('navigator.canShare({ files: [imageFile] })'), 'Native Share includes image only when canShare supports it');
   assert(indexHtml.includes('applyPendingShareStateAfterSatelliteLoad'), 'index restores share state after satellite data loads');
   assert(indexHtml.includes('updateApiDocsState'), 'index updates Swagger/API docs links');
-  assert(indexHtml.includes('Swagger and API links still open in a separate page'), 'offline API docs remain clickable with separate-page guidance');
+  assert(indexHtml.includes("const swaggerUiUrl = 'swagger.html'"), 'index routes Swagger docs to the local static UI page');
+  assert(indexHtml.includes('swaggerMarkdownLink'), 'index preserves the Swagger Markdown companion link');
+  assert(indexHtml.includes('Swagger UI opens locally without the Python server'), 'offline Swagger UI docs remain available without the Python server');
   assert(!indexHtml.includes('Swagger and OpenAPI documentation are available from the connected Python server.'), 'prohibited Swagger/API status sentence is not emitted');
   assert(indexHtml.includes('ensureYPRControlsVisibleForSelection'), 'index preserves YPR controls after satellite selection');
   assert(!/yawSlider\.value\s*=\s*0/.test(indexHtml), 'satellite selection does not reset yaw slider value');

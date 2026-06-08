@@ -1,0 +1,809 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>OpenBEXI Earth Orbit API</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root {
+      --bg: #f4f6f9;
+      --panel: #ffffff;
+      --ink: #17202a;
+      --muted: #58677a;
+      --line: #d7dde6;
+      --get: #61affe;
+      --post: #49cc90;
+      --put: #fca130;
+      --delete: #f93e3e;
+      --code-bg: #1f2937;
+      --code-ink: #e8eef8;
+      --shadow: 0 18px 48px rgba(31, 45, 61, 0.12);
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at top left, rgba(97, 175, 254, 0.22), transparent 32rem),
+        linear-gradient(180deg, #ffffff 0%, var(--bg) 24rem);
+      color: var(--ink);
+    }
+
+    a {
+      color: #0b66c3;
+      text-decoration: none;
+      font-weight: 700;
+    }
+
+    a:hover,
+    a:focus-visible {
+      text-decoration: underline;
+    }
+
+    .swagger-shell {
+      width: min(1180px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 28px 0 48px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #25313f;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .brand-mark {
+      width: 34px;
+      height: 34px;
+      display: inline-grid;
+      place-items: center;
+      border-radius: 10px;
+      background: #17202a;
+      color: #ffffff;
+      box-shadow: var(--shadow);
+    }
+
+    .doc-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .doc-actions a,
+    .doc-actions button {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #ffffff;
+      color: #203040;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 800;
+      padding: 8px 12px;
+      cursor: pointer;
+      box-shadow: 0 8px 22px rgba(31, 45, 61, 0.08);
+    }
+
+    .doc-actions a:hover,
+    .doc-actions button:hover,
+    .doc-actions a:focus-visible,
+    .doc-actions button:focus-visible {
+      border-color: #8abff4;
+      text-decoration: none;
+      transform: translateY(-1px);
+    }
+
+    .hero {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.94);
+      box-shadow: var(--shadow);
+      padding: 26px;
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      margin: 0 0 10px;
+      font-size: clamp(28px, 5vw, 46px);
+      line-height: 1.05;
+      letter-spacing: -0.045em;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.04em;
+      color: #ffffff;
+      background: #8792a2;
+      white-space: nowrap;
+    }
+
+    .badge.version {
+      background: #17202a;
+    }
+
+    .badge.oas {
+      background: #49a078;
+    }
+
+    .description {
+      max-width: 860px;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.55;
+    }
+
+    .server-box {
+      display: grid;
+      gap: 6px;
+      margin-top: 18px;
+      padding: 14px;
+      border: 1px solid #cbd6e5;
+      border-radius: 12px;
+      background: #f8fbff;
+    }
+
+    .server-label {
+      color: #3f5369;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    code,
+    .server-url {
+      font-family: Consolas, "Courier New", monospace;
+    }
+
+    .server-url {
+      color: #10243b;
+      font-size: 15px;
+      font-weight: 800;
+      word-break: break-word;
+    }
+
+    .notice-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .notice {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 14px;
+      min-height: 108px;
+    }
+
+    .notice strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 13px;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+
+    .notice p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .tag-section {
+      margin-top: 18px;
+    }
+
+    .tag-title {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      margin: 0 0 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--line);
+      font-size: 22px;
+      letter-spacing: -0.025em;
+    }
+
+    .tag-title span {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0;
+    }
+
+    .operation {
+      margin: 10px 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      overflow: hidden;
+      box-shadow: 0 6px 18px rgba(31, 45, 61, 0.06);
+    }
+
+    .operation.get {
+      border-color: rgba(97, 175, 254, 0.62);
+      background: rgba(97, 175, 254, 0.08);
+    }
+
+    .operation.post {
+      border-color: rgba(73, 204, 144, 0.66);
+      background: rgba(73, 204, 144, 0.08);
+    }
+
+    .operation.put {
+      border-color: rgba(252, 161, 48, 0.68);
+      background: rgba(252, 161, 48, 0.08);
+    }
+
+    .operation.delete {
+      border-color: rgba(249, 62, 62, 0.64);
+      background: rgba(249, 62, 62, 0.08);
+    }
+
+    .operation summary {
+      display: grid;
+      grid-template-columns: 82px minmax(190px, 0.9fr) minmax(0, 1.6fr);
+      gap: 12px;
+      align-items: center;
+      min-height: 56px;
+      padding: 10px 14px;
+      cursor: pointer;
+      list-style: none;
+    }
+
+    .operation summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .operation summary::after {
+      content: "+";
+      justify-self: end;
+      color: #44566c;
+      font-size: 20px;
+      font-weight: 900;
+    }
+
+    .operation[open] summary::after {
+      content: "-";
+    }
+
+    .method {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 66px;
+      border-radius: 4px;
+      padding: 7px 9px;
+      color: #ffffff;
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      text-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+    }
+
+    .method.get {
+      background: var(--get);
+    }
+
+    .method.post {
+      background: var(--post);
+    }
+
+    .method.put {
+      background: var(--put);
+    }
+
+    .method.delete {
+      background: var(--delete);
+    }
+
+    .path {
+      color: #1b2c3f;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 15px;
+      font-weight: 900;
+      word-break: break-word;
+    }
+
+    .summary-text {
+      color: #3f5369;
+      font-size: 14px;
+      line-height: 1.35;
+    }
+
+    .operation-body {
+      border-top: 1px solid rgba(0, 0, 0, 0.08);
+      background: #ffffff;
+      padding: 16px;
+    }
+
+    .operation-body h3 {
+      margin: 16px 0 8px;
+      color: #203040;
+      font-size: 15px;
+    }
+
+    .operation-body h3:first-child {
+      margin-top: 0;
+    }
+
+    .operation-body p,
+    .operation-body li {
+      color: #4e6076;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .parameter-table,
+    .response-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 8px 0 14px;
+      font-size: 14px;
+    }
+
+    .parameter-table th,
+    .parameter-table td,
+    .response-table th,
+    .response-table td {
+      border: 1px solid #dce3ec;
+      padding: 9px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .parameter-table th,
+    .response-table th {
+      background: #f3f7fb;
+      color: #2a3b4f;
+      font-size: 12px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    pre {
+      margin: 8px 0 0;
+      border-radius: 8px;
+      background: var(--code-bg);
+      color: var(--code-ink);
+      overflow: auto;
+      padding: 13px;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    pre code {
+      color: inherit;
+    }
+
+    .empty {
+      margin: 8px 0 14px;
+      color: #68788b;
+      font-style: italic;
+    }
+
+    .schema-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    footer {
+      margin-top: 30px;
+      color: #69798b;
+      font-size: 13px;
+      text-align: center;
+    }
+
+    @media (max-width: 760px) {
+      .swagger-shell {
+        width: min(100vw - 18px, 1180px);
+        padding-top: 14px;
+      }
+
+      .topbar,
+      .doc-actions {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .doc-actions {
+        justify-content: flex-start;
+      }
+
+      .doc-actions a,
+      .doc-actions button {
+        width: 100%;
+      }
+
+      .hero {
+        padding: 18px;
+      }
+
+      .notice-grid,
+      .schema-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .operation summary {
+        grid-template-columns: 70px minmax(0, 1fr);
+      }
+
+      .summary-text {
+        grid-column: 1 / -1;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="swagger-shell">
+    <div class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">OB</span>
+        <span>Local API Documentation</span>
+      </div>
+      <div class="doc-actions" aria-label="Documentation actions">
+        <button type="button" id="expandAll">Expand all</button>
+        <button type="button" id="collapseAll">Collapse all</button>
+        <a href="markdown_viewer.html?source=SWAGGER.md&amp;title=Swagger%20API">Swagger Markdown</a>
+        <a href="index.html">Open app</a>
+      </div>
+    </div>
+
+    <header class="hero">
+      <h1>
+        OpenBEXI Earth Orbit API
+        <span class="badge version">1.7.2</span>
+        <span class="badge oas">OAS 3.0.3</span>
+      </h1>
+      <p class="description">
+        Standard Swagger/OpenAPI-style local reference for the optional Python API used by OpenBEXI Earth Orbit.
+        This page is static and self-contained, so it can be displayed without starting <code>server.py</code>.
+        Live requests, Try-it-out behavior, <code>/docs</code>, and <code>/openapi.json</code> require the optional local server.
+      </p>
+      <div class="server-box" aria-label="Server and schema sources">
+        <span class="server-label">Base URL / Schema Source</span>
+        <span class="server-url">Static page: swagger.html</span>
+        <span class="server-url">Optional live API: http://127.0.0.1:8000</span>
+        <span class="server-url">Optional live schema: http://127.0.0.1:8000/openapi.json</span>
+      </div>
+    </header>
+
+    <section class="notice-grid" aria-label="Documentation notes">
+      <article class="notice">
+        <strong>No Python Required</strong>
+        <p>Use this page and the companion Markdown reference from local static files. The optional API server is only needed for live JSON responses.</p>
+      </article>
+      <article class="notice">
+        <strong>Method Colors</strong>
+        <p><span class="method get">GET</span> is blue, <span class="method post">POST</span> is green, <span class="method put">PUT</span> is orange, and <span class="method delete">DELETE</span> is red.</p>
+      </article>
+      <article class="notice">
+        <strong>Local Assets</strong>
+        <p>The styling and behavior are implemented inline. There is no CDN or remote Swagger UI dependency for displaying this page.</p>
+      </article>
+    </section>
+
+    <section class="tag-section" aria-labelledby="system-tag">
+      <h2 id="system-tag" class="tag-title">system <span>Health, version, and local server metadata</span></h2>
+
+      <details class="operation get" open>
+        <summary>
+          <span class="method get">GET</span>
+          <span class="path">/api/health</span>
+          <span class="summary-text">Check server health and release metadata.</span>
+        </summary>
+        <div class="operation-body">
+          <h3>Description</h3>
+          <p>Returns a small JSON payload that confirms the optional local Python API is available.</p>
+          <h3>Parameters</h3>
+          <p class="empty">No parameters.</p>
+          <h3>Responses</h3>
+          <table class="response-table">
+            <thead><tr><th>Status</th><th>Description</th><th>Content type</th></tr></thead>
+            <tbody><tr><td>200</td><td>Server is available.</td><td>application/json</td></tr></tbody>
+          </table>
+          <div class="schema-grid">
+            <div>
+              <h3>Example Response</h3>
+              <pre><code>{
+  "status": "ok",
+  "app": "OpenBEXI Earth Orbit",
+  "version": "1.7.2",
+  "release_date": "2026-06-08"
+}</code></pre>
+            </div>
+            <div>
+              <h3>Schema</h3>
+              <pre><code>{
+  "type": "object",
+  "additionalProperties": true
+}</code></pre>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <details class="operation get">
+        <summary>
+          <span class="method get">GET</span>
+          <span class="path">/api/version</span>
+          <span class="summary-text">Get app and API version information.</span>
+        </summary>
+        <div class="operation-body">
+          <h3>Description</h3>
+          <p>Returns the application version, release date, API version, repository URL, and server identifier.</p>
+          <h3>Parameters</h3>
+          <p class="empty">No parameters.</p>
+          <h3>Responses</h3>
+          <table class="response-table">
+            <thead><tr><th>Status</th><th>Description</th><th>Content type</th></tr></thead>
+            <tbody><tr><td>200</td><td>Version payload.</td><td>application/json</td></tr></tbody>
+          </table>
+          <h3>Example Response</h3>
+          <pre><code>{
+  "app": "OpenBEXI Earth Orbit",
+  "version": "1.7.2",
+  "api_version": "1.0",
+  "release_date": "2026-06-08"
+}</code></pre>
+        </div>
+      </details>
+    </section>
+
+    <section class="tag-section" aria-labelledby="satellites-tag">
+      <h2 id="satellites-tag" class="tag-title">satellites <span>TLE, satellite records, metadata, and decay data</span></h2>
+
+      <details class="operation get">
+        <summary>
+          <span class="method get">GET</span>
+          <span class="path">/api/tle</span>
+          <span class="summary-text">Load the TLE dataset used by the frontend.</span>
+        </summary>
+        <div class="operation-body">
+          <h3>Description</h3>
+          <p>Returns the active satellite TLE array from <code>json/tle/TLE.json</code>. The frontend falls back to local files if this endpoint is unavailable.</p>
+          <h3>Parameters</h3>
+          <p class="empty">No parameters.</p>
+          <h3>Responses</h3>
+          <table class="response-table">
+            <thead><tr><th>Status</th><th>Description</th><th>Content type</th></tr></thead>
+            <tbody><tr><td>200</td><td>TLE satellite records.</td><td>application/json</td></tr></tbody>
+          </table>
+          <h3>Example Response</h3>
+          <pre><code>[
+  {
+    "name": "ISS (ZARYA)",
+    "noradId": 25544,
+    "line1": "1 25544U ...",
+    "line2": "2 25544 ..."
+  }
+]</code></pre>
+          <h3>Schema</h3>
+          <pre><code>{
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": true
+  }
+}</code></pre>
+        </div>
+      </details>
+
+      <details class="operation get">
+        <summary>
+          <span class="method get">GET</span>
+          <span class="path">/api/satellites</span>
+          <span class="summary-text">Alias for the current satellite/TLE dataset.</span>
+        </summary>
+        <div class="operation-body">
+          <h3>Description</h3>
+          <p>Returns the same satellite records as <code>/api/tle</code> for callers that prefer a generic satellite endpoint.</p>
+          <h3>Parameters</h3>
+          <p class="empty">No parameters.</p>
+          <h3>Responses</h3>
+          <table class="response-table">
+            <thead><tr><th>Status</th><th>Description</th><th>Content type</th></tr></thead>
+            <tbody><tr><td>200</td><td>Satellite records.</td><td>application/json</td></tr></tbody>
+          </table>
+          <h3>Schema</h3>
+          <pre><code>{
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": true
+  }
+}</code></pre>
+        </div>
+      </details>
+
+      <details class="operation get">
+        <summary>
+          <span class="method get">GET</span>
+          <span class="path">/api/satellite-metadata</span>
+          <span class="summary-text">List available satellite metadata files.</span>
+        </summary>
+        <div class="operation-body">
+          <h3>Description</h3>
+          <p>Lists safe JSON metadata files available under <code>json/satellites/</code>.</p>
+          <h3>Parameters</h3>
+          <p class="empty">No parameters.</p>
+          <h3>Responses</h3>
+          <table class="response-table">
+            <thead><tr><th>Status</th><th>Description</th><th>Content type</th></tr></thead>
+            <tbody><tr><td>200</td><td>Metadata file index.</td><td>application/json</td></tr></tbody>
+          </table>
+          <h3>Example Response</h3>
+          <pre><code>{
+  "files": [
+    {
+      "name": "starlink_V1.json",
+      "url": "/api/satellite-metadata/starlink_V1.json"
+    }
+  ]
+}</code></pre>
+        </div>
+      </details>
+
+      <details class="operation get">
+        <summary>
+          <span class="method get">GET</span>
+          <span class="path">/api/satellite-metadata/{file_name}</span>
+          <span class="summary-text">Load one known satellite metadata JSON file.</span>
+        </summary>
+        <div class="operation-body">
+          <h3>Description</h3>
+          <p>Returns a single metadata JSON file by safe file name. Unknown or unsafe names return an error.</p>
+          <h3>Parameters</h3>
+          <table class="parameter-table">
+            <thead><tr><th>Name</th><th>In</th><th>Required</th><th>Schema</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>file_name</code></td><td>path</td><td>Yes</td><td>string</td><td>Metadata file name, for example <code>starlink_V1.json</code>.</td></tr>
+            </tbody>
+          </table>
+          <h3>Responses</h3>
+          <table class="response-table">
+            <thead><tr><th>Status</th><th>Description</th><th>Content type</th></tr></thead>
+            <tbody>
+              <tr><td>200</td><td>Satellite metadata JSON.</td><td>application/json</td></tr>
+              <tr><td>404</td><td>Metadata file not found.</td><td>application/json</td></tr>
+            </tbody>
+          </table>
+          <h3>Example Response</h3>
+          <pre><code>{
+  "name": "Starlink V1",
+  "model": "obj/starlink_V1.obj",
+  "texture": "obj/Textures/starlink_BaseColor.png"
+}</code></pre>
+        </div>
+      </details>
+
+      <details class="operation get">
+        <summary>
+          <span class="method get">GET</span>
+          <span class="path">/api/decayed</span>
+          <span class="summary-text">Load confirmed decayed satellite data.</span>
+        </summary>
+        <div class="operation-body">
+          <h3>Description</h3>
+          <p>Returns confirmed decayed satellite records from <code>json/decayed/decayed.json</code>.</p>
+          <h3>Parameters</h3>
+          <p class="empty">No parameters.</p>
+          <h3>Responses</h3>
+          <table class="response-table">
+            <thead><tr><th>Status</th><th>Description</th><th>Content type</th></tr></thead>
+            <tbody><tr><td>200</td><td>Decayed satellite source data.</td><td>application/json</td></tr></tbody>
+          </table>
+          <h3>Schema</h3>
+          <pre><code>{
+  "type": "object",
+  "additionalProperties": true
+}</code></pre>
+        </div>
+      </details>
+    </section>
+
+    <section class="tag-section" aria-labelledby="docs-tag">
+      <h2 id="docs-tag" class="tag-title">docs <span>OpenAPI schema and live Swagger route</span></h2>
+
+      <details class="operation get">
+        <summary>
+          <span class="method get">GET</span>
+          <span class="path">/openapi.json</span>
+          <span class="summary-text">Return the generated OpenAPI 3.0.3 schema.</span>
+        </summary>
+        <div class="operation-body">
+          <h3>Description</h3>
+          <p>Returns the live OpenAPI schema generated by <code>server.py</code>. This static page mirrors that schema structure for offline display.</p>
+          <h3>Parameters</h3>
+          <p class="empty">No parameters.</p>
+          <h3>Responses</h3>
+          <table class="response-table">
+            <thead><tr><th>Status</th><th>Description</th><th>Content type</th></tr></thead>
+            <tbody><tr><td>200</td><td>OpenAPI JSON document.</td><td>application/json</td></tr></tbody>
+          </table>
+          <h3>Example Response</h3>
+          <pre><code>{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "OpenBEXI Earth Orbit API",
+    "version": "1.7.2"
+  },
+  "paths": {
+    "/api/health": {},
+    "/api/tle": {}
+  }
+}</code></pre>
+        </div>
+      </details>
+
+      <details class="operation get">
+        <summary>
+          <span class="method get">GET</span>
+          <span class="path">/docs</span>
+          <span class="summary-text">Serve the live Swagger UI page from the optional Python server.</span>
+        </summary>
+        <div class="operation-body">
+          <h3>Description</h3>
+          <p>Serves the live server-backed Swagger UI route. Use <code>swagger.html</code> when the Python server is not running.</p>
+          <h3>Parameters</h3>
+          <p class="empty">No parameters.</p>
+          <h3>Responses</h3>
+          <table class="response-table">
+            <thead><tr><th>Status</th><th>Description</th><th>Content type</th></tr></thead>
+            <tbody><tr><td>200</td><td>HTML documentation.</td><td>text/html</td></tr></tbody>
+          </table>
+        </div>
+      </details>
+    </section>
+
+    <footer>
+      Static local documentation for OpenBEXI Earth Orbit 1.7.2. Companion Markdown: <a href="markdown_viewer.html?source=SWAGGER.md&amp;title=Swagger%20API">SWAGGER.md</a>.
+    </footer>
+  </main>
+
+  <script>
+    const operations = Array.from(document.querySelectorAll('details.operation'));
+    document.getElementById('expandAll')?.addEventListener('click', () => {
+      operations.forEach((operation) => {
+        operation.open = true;
+      });
+    });
+    document.getElementById('collapseAll')?.addEventListener('click', () => {
+      operations.forEach((operation) => {
+        operation.open = false;
+      });
+    });
+  </script>
+</body>
+</html>

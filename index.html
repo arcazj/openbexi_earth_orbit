@@ -193,7 +193,7 @@
     })();
     startupPerf.mark('module-loaded');
 
-    const versionNumber = "1.7.1";
+    const versionNumber = "1.7.2";
     if (versionNumber !== APP_VERSION) {
         console.warn(`Version mismatch: index ${versionNumber}, server module ${APP_VERSION}`);
     }
@@ -348,12 +348,12 @@
     const ALL_COMPANY_OPTION = "ALL COMPANY";
     const ORBIT_ALL_OPTION = "ALL";
     const ORBIT_OTHER_OPTION = "OTHER";
-    const ORBIT_CATEGORY_OPTIONS = ["GEO", "MEO", "LEO", "HEO", ORBIT_OTHER_OPTION];
-    const ORBIT_FILTER_OPTIONS = [ORBIT_ALL_OPTION, ...ORBIT_CATEGORY_OPTIONS];
+    const ORBIT_DEBRIS_OPTION = "DEBRIS";
+    const ORBIT_STANDARD_CATEGORY_OPTIONS = ["GEO", "MEO", "LEO", "HEO", ORBIT_OTHER_OPTION];
+    const ORBIT_FILTER_OPTIONS = [ORBIT_ALL_OPTION, ...ORBIT_STANDARD_CATEGORY_OPTIONS, ORBIT_DEBRIS_OPTION];
     const DEFAULT_ORBIT_FILTER = ["MEO"];
     const DEFAULT_COMPANY_FILTER = [ALL_COMPANY_OPTION];
     const DEBRIS_FILTER_SHOW = "show";
-    const DEBRIS_FILTER_HIDE = "hide";
     const DEBRIS_FILTER_ONLY = "only";
     const COMPANY_LABEL_OVERRIDES = {
         [ALL_COMPANY_OPTION]: "All tags",
@@ -415,7 +415,7 @@
     const pendingShareState = parseShareStateFromSearch(window.location.search);
     let pendingShareStateApplied = false;
 
-    let orbitTypeFilterSelect, companyFilterSelect, debrisFilterSelect, satelliteCountDisplay;
+    let orbitTypeFilterSelect, companyFilterSelect, satelliteCountDisplay;
     let view3DToggle, viewMercatorToggle, showOrbitToggle, showOrbitFrameToggle;
     let highDefToggleElement, showECEFAxesToggleElement, showOrbitFrameToggleElement;
     let solarSystemOverviewToggleElement, solarSystemOptionsElement, solarSystemPlanetLabelsToggleElement;
@@ -441,7 +441,7 @@
     let reentryTimelineHandle = null;
     let serverStatusButton, serverStatusIcon, serverStatusText, serverStatusPanel, serverStatusUrl;
     let serverStatusStateElement, serverDataSourceElement, serverAppVersionElement, serverApiVersionElement, serverLastSyncElement;
-    let serverReconnectButton, swaggerDocsLink, openApiSchemaLink, apiDocsStatus;
+    let serverReconnectButton, swaggerDocsLink, swaggerMarkdownLink, openApiSchemaLink, apiDocsStatus;
     let copyShareLinkButton, nativeShareButton, shareLinkOutput, shareFeedback, shareStateSummaryElement;
     let previewShareImageButton, downloadShareImageButton, copyShareImageButton, shareImagePreview, shareImagePlaceholder;
     let latestShareImageBlob = null;
@@ -470,16 +470,19 @@
             .map(value => value.toString().trim().toUpperCase());
 
         if (cleaned.includes(ORBIT_ALL_OPTION)) {
-            return [...ORBIT_CATEGORY_OPTIONS];
+            return [...ORBIT_STANDARD_CATEGORY_OPTIONS];
+        }
+        if (cleaned.includes(ORBIT_DEBRIS_OPTION)) {
+            return [ORBIT_DEBRIS_OPTION];
         }
 
-        return Array.from(new Set(cleaned.filter(value => ORBIT_CATEGORY_OPTIONS.includes(value))));
+        return Array.from(new Set(cleaned.filter(value => ORBIT_STANDARD_CATEGORY_OPTIONS.includes(value))));
     }
 
     function isAllOrbitSelection(selection) {
         const normalized = normalizeOrbitSelection(selection);
-        return normalized.length === ORBIT_CATEGORY_OPTIONS.length &&
-            ORBIT_CATEGORY_OPTIONS.every(value => normalized.includes(value));
+        return normalized.length === ORBIT_STANDARD_CATEGORY_OPTIONS.length &&
+            ORBIT_STANDARD_CATEGORY_OPTIONS.every(value => normalized.includes(value));
     }
 
     function getOrbitSelectionFromUI() {
@@ -492,6 +495,9 @@
     function applyOrbitSelectionToUI(selection) {
         const normalized = normalizeOrbitSelection(selection);
         simParams.orbitTypeFilter = normalized;
+        simParams.debrisFilter = normalized.includes(ORBIT_DEBRIS_OPTION)
+            ? DEBRIS_FILTER_ONLY
+            : DEBRIS_FILTER_SHOW;
 
         if (!orbitTypeFilterSelect) return;
         const isAllSelected = isAllOrbitSelection(normalized);
@@ -584,14 +590,22 @@
         return selection.includes(ALL_COMPANY_OPTION) || selection.includes(company);
     }
 
-    function orbitMatchesSelection(orbitType, selection = simParams.orbitTypeFilter) {
+    function orbitMatchesSelection(satDataOrOrbitType, selection = simParams.orbitTypeFilter) {
         const normalized = normalizeOrbitSelection(selection);
         if (normalized.length === 0) return true;
 
+        const satData = typeof satDataOrOrbitType === 'object' && satDataOrOrbitType !== null
+            ? satDataOrOrbitType
+            : null;
+        if (normalized.includes(ORBIT_DEBRIS_OPTION)) {
+            return isDebrisSatellite(satData);
+        }
+
+        const orbitType = satData ? satData.orbitType : satDataOrOrbitType;
         const type = (orbitType || "N/A").toString().trim().toUpperCase();
         if (normalized.includes(type)) return true;
 
-        const isKnownOrbit = ORBIT_CATEGORY_OPTIONS
+        const isKnownOrbit = ORBIT_STANDARD_CATEGORY_OPTIONS
             .filter(value => value !== ORBIT_OTHER_OPTION)
             .includes(type);
         return normalized.includes(ORBIT_OTHER_OPTION) && !isKnownOrbit;
@@ -610,22 +624,16 @@
     }
 
     function debrisMatchesSelection(satData, mode = simParams.debrisFilter) {
-        if (mode === DEBRIS_FILTER_HIDE) return !isDebrisSatellite(satData);
         if (mode === DEBRIS_FILTER_ONLY) return isDebrisSatellite(satData);
         return true;
     }
 
     function applyDebrisFilterToUI(mode) {
-        simParams.debrisFilter = [DEBRIS_FILTER_HIDE, DEBRIS_FILTER_ONLY].includes(mode)
-            ? mode
-            : DEBRIS_FILTER_SHOW;
-
-        if (!debrisFilterSelect) return;
-        debrisFilterSelect.querySelectorAll('button[data-debris-filter]').forEach(button => {
-            const isActive = button.dataset.debrisFilter === simParams.debrisFilter;
-            button.classList.toggle('is-active', isActive);
-            button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
-        });
+        if (mode === DEBRIS_FILTER_ONLY) {
+            applyOrbitSelectionToUI(ORBIT_DEBRIS_OPTION);
+            return;
+        }
+        simParams.debrisFilter = DEBRIS_FILTER_SHOW;
     }
 
     function getCompaniesForOrbitSelection(orbitSelection) {
@@ -633,8 +641,7 @@
 
         return Array.from(new Set(
             satellites
-                .filter(s => orbitMatchesSelection(s.orbitType, orbitSelection) &&
-                    debrisMatchesSelection(s) &&
+                .filter(s => orbitMatchesSelection(s, orbitSelection) &&
                     s.company &&
                     s.company !== "N/A" &&
                     !EXCLUDED_COMPANY_FILTER_OPTIONS.has(s.company.toString().trim().toUpperCase()))
@@ -794,7 +801,7 @@
         const filtered = [];
 
         satellites.forEach((s) => {
-            const matchesOrbit = orbitMatchesSelection(s.orbitType);
+            const matchesOrbit = orbitMatchesSelection(s);
             const matchesCompany = companyMatchesSelection(s.company);
             const matchesDebris = debrisMatchesSelection(s);
 
@@ -1264,26 +1271,43 @@
 
     function updateApiDocsState() {
         const connected = serverConnectionState.state === 'connected';
-        const docsUrl = `${serverConnectionState.baseUrl}/docs`;
+        const swaggerUiUrl = 'swagger.html';
+        const swaggerMarkdownUrl = 'markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API';
         const openApiUrl = `${serverConnectionState.baseUrl}/openapi.json`;
         if (apiDocsStatus) {
             apiDocsStatus.textContent = connected
-                ? 'Swagger and API links open in a separate page from the connected Python server.'
-                : 'Swagger and API links still open in a separate page; start the Python server if the page cannot connect.';
+                ? 'Swagger UI opens locally; Live API JSON opens from the connected Python server.'
+                : 'Swagger UI opens locally without the Python server. Live API JSON requires starting the Python server.';
         }
-        [
-            [swaggerDocsLink, docsUrl, 'Swagger'],
-            [openApiSchemaLink, openApiUrl, 'API']
-        ].forEach(([link, href, label]) => {
-            if (!link) return;
-            link.classList.remove('is-disabled');
-            link.setAttribute('aria-disabled', 'false');
-            link.href = href;
-            link.target = '_blank';
-            link.rel = 'noopener noreferrer';
-            link.tabIndex = 0;
-            link.title = connected ? href : `${label} opens ${href}; start the Python server if it is offline`;
-        });
+        if (swaggerDocsLink) {
+            swaggerDocsLink.classList.remove('is-disabled');
+            swaggerDocsLink.setAttribute('aria-disabled', 'false');
+            swaggerDocsLink.href = swaggerUiUrl;
+            swaggerDocsLink.target = '_blank';
+            swaggerDocsLink.rel = 'noopener noreferrer';
+            swaggerDocsLink.tabIndex = 0;
+            swaggerDocsLink.title = 'Open local Swagger UI documentation without starting the Python server';
+        }
+        if (swaggerMarkdownLink) {
+            swaggerMarkdownLink.classList.remove('is-disabled');
+            swaggerMarkdownLink.setAttribute('aria-disabled', 'false');
+            swaggerMarkdownLink.href = swaggerMarkdownUrl;
+            swaggerMarkdownLink.target = '_blank';
+            swaggerMarkdownLink.rel = 'noopener noreferrer';
+            swaggerMarkdownLink.tabIndex = 0;
+            swaggerMarkdownLink.title = 'Open local Swagger API Markdown companion without starting the Python server';
+        }
+        if (openApiSchemaLink) {
+            openApiSchemaLink.classList.remove('is-disabled');
+            openApiSchemaLink.setAttribute('aria-disabled', 'false');
+            openApiSchemaLink.href = openApiUrl;
+            openApiSchemaLink.target = '_blank';
+            openApiSchemaLink.rel = 'noopener noreferrer';
+            openApiSchemaLink.tabIndex = 0;
+            openApiSchemaLink.title = connected
+                ? openApiUrl
+                : `Live API opens ${openApiUrl}; start the Python server first`;
+        }
     }
 
     function updateServerStatusUI() {
@@ -2577,6 +2601,7 @@
         serverLastSyncElement = document.getElementById('serverLastSync');
         serverReconnectButton = document.getElementById('serverReconnectButton');
         swaggerDocsLink = document.getElementById('swaggerDocsLink');
+        swaggerMarkdownLink = document.getElementById('swaggerMarkdownLink');
         openApiSchemaLink = document.getElementById('openApiSchemaLink');
         apiDocsStatus = document.getElementById('apiDocsStatus');
 
@@ -2630,7 +2655,6 @@
 
         orbitTypeFilterSelect = document.getElementById('orbitTypeFilter');
         companyFilterSelect = document.getElementById('companyFilter');
-        debrisFilterSelect = document.getElementById('debrisFilter');
         satelliteCountDisplay = document.getElementById('satelliteCountDisplay');
 
         view3DToggle = document.getElementById('view3DToggle');
@@ -2748,12 +2772,14 @@
 
             if (changedValue === ORBIT_ALL_OPTION) {
                 applyOrbitSelectionToUI(ORBIT_ALL_OPTION);
+            } else if (changedValue === ORBIT_DEBRIS_OPTION) {
+                applyOrbitSelectionToUI(wasActive ? DEFAULT_ORBIT_FILTER : ORBIT_DEBRIS_OPTION);
             } else {
                 const allWasActive = orbitTypeFilterSelect
                     .querySelector(`button[data-orbit-filter="${ORBIT_ALL_OPTION}"]`)
                     ?.getAttribute('aria-pressed') === 'true';
                 const activeSpecific = getOrbitSelectionFromUI()
-                    .filter(value => value !== ORBIT_ALL_OPTION && value !== changedValue);
+                    .filter(value => value !== ORBIT_ALL_OPTION && value !== ORBIT_DEBRIS_OPTION && value !== changedValue);
                 const nextSelection = allWasActive
                     ? [changedValue]
                     : (!wasActive ? [...activeSpecific, changedValue] : activeSpecific);
@@ -2781,16 +2807,6 @@
         [resetFiltersButton, resetFiltersEmptyButton].forEach(button => {
             button?.addEventListener('click', resetFiltersToDefaults);
         });
-
-        if (debrisFilterSelect) {
-            debrisFilterSelect.addEventListener('click', (event) => {
-                const button = event.target.closest('button[data-debris-filter]');
-                if (!button) return;
-
-                applyDebrisFilterToUI(button.dataset.debrisFilter);
-                refreshFilteredSatelliteView();
-            });
-        }
 
         view3DToggle.addEventListener('change', (e) => {
             simParams.view3D = e.target.checked;

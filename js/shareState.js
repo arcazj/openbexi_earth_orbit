@@ -17,7 +17,14 @@ function safeList(values) {
         .filter(value => !UNSAFE_SHARE_PATTERN.test(value));
 }
 
+function safeDebrisFilter(value, orbitTypeFilter = []) {
+    const orbitSelection = safeList(orbitTypeFilter).map(item => item.toUpperCase());
+    if (orbitSelection.includes('DEBRIS')) return 'only';
+    return value === 'only' ? 'only' : 'show';
+}
+
 export function buildShareState(simParams = {}, selectedSatellite = null) {
+    const orbitTypeFilter = safeList(simParams.orbitTypeFilter);
     return {
         selectedSatelliteNoradId: selectedSatellite?.norad_id?.toString() ||
             simParams.selectedSatelliteNoradId?.toString() ||
@@ -25,9 +32,9 @@ export function buildShareState(simParams = {}, selectedSatellite = null) {
         selectedSatelliteName: selectedSatellite?.satellite_name || simParams.selectedSatelliteName || '',
         view3D: !!simParams.view3D,
         viewMercator: !!simParams.viewMercator,
-        orbitTypeFilter: safeList(simParams.orbitTypeFilter),
+        orbitTypeFilter,
         companyFilter: safeList(simParams.companyFilter),
-        debrisFilter: simParams.debrisFilter || 'show',
+        debrisFilter: safeDebrisFilter(simParams.debrisFilter, orbitTypeFilter),
         simDate: simParams.simDate instanceof Date
             ? simParams.simDate.toISOString()
             : (simParams.simDate ? new Date(simParams.simDate).toISOString() : ''),
@@ -54,7 +61,7 @@ export function encodeShareState(params, state) {
     params.set('mercator', boolValue(state.viewMercator));
     if (state.orbitTypeFilter?.length) params.set('orbit', state.orbitTypeFilter.join(','));
     if (state.companyFilter?.length) params.set('tags', state.companyFilter.join(','));
-    params.set('debris', state.debrisFilter || 'show');
+    params.set('debris', safeDebrisFilter(state.debrisFilter, state.orbitTypeFilter));
     if (state.simDate) params.set('time', state.simDate);
     params.set('showOrbit', boolValue(state.showOrbit));
     params.set('footprint', boolValue(state.showFootprint));
@@ -86,14 +93,15 @@ export function parseShareStateFromSearch(search = '') {
 
     const timeValue = params.get('time') || '';
     const time = timeValue ? new Date(timeValue) : null;
+    const orbitTypeFilter = safeList((params.get('orbit') || '').split(','));
     return {
         selectedSatelliteNoradId: params.get('sat') || '',
         selectedSatelliteName: params.get('satName') || '',
         view3D: parseBool(params.get('view3D')),
         viewMercator: parseBool(params.get('mercator')),
-        orbitTypeFilter: safeList((params.get('orbit') || '').split(',')),
+        orbitTypeFilter,
         companyFilter: safeList((params.get('tags') || '').split(',')),
-        debrisFilter: params.get('debris') || 'show',
+        debrisFilter: safeDebrisFilter(params.get('debris'), orbitTypeFilter),
         simDate: time && !Number.isNaN(time.getTime()) ? time : null,
         showOrbit: parseBool(params.get('showOrbit')),
         showFootprint: parseBool(params.get('footprint')),

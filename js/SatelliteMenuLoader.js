@@ -17,7 +17,7 @@ export function satelliteMenuLoader() {
           <div><span>Server URL</span><strong id="serverStatusUrl">http://127.0.0.1:8000</strong></div>
           <div><span>Connection</span><strong id="serverStatusState">Checking</strong></div>
           <div><span>Data source</span><strong id="serverDataSource">Local files</strong></div>
-          <div><span>App version</span><strong id="serverAppVersion">1.7.1</strong></div>
+          <div><span>App version</span><strong id="serverAppVersion">1.7.2</strong></div>
           <div><span>API version</span><strong id="serverApiVersion">Unavailable</strong></div>
           <div><span>Last data load</span><strong id="serverLastSync">Never</strong></div>
           <button id="serverReconnectButton" type="button" class="menu-secondary-action server-reconnect-button">Reconnect / Refresh</button>
@@ -81,6 +81,7 @@ export function satelliteMenuLoader() {
             <div class="satellite-combobox">
               <input id="satelliteSearchInput" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="satelliteSearchResults" aria-describedby="satelliteSearchHelp" aria-label="Search satellite by name, NORAD ID, orbit type, or tag" placeholder="Search satellite or NORAD ID">
               <button id="satelliteSearchClear" type="button" class="search-clear-button" aria-label="Clear satellite search">Clear</button>
+              <button id="resetFiltersButton" type="button" class="menu-secondary-action reset-filters-inline-button">Reset Filters</button>
               <div id="satelliteSearchHelp" class="sr-only">Use arrow keys to navigate results, Enter to select, and Escape to close results.</div>
               <ul id="satelliteSearchResults" class="satellite-search-results" role="listbox" aria-label="Satellite search results" hidden></ul>
             </div>
@@ -104,8 +105,9 @@ export function satelliteMenuLoader() {
                 <button type="button" class="segmented-option" data-orbit-filter="GEO" aria-pressed="false">GEO</button>
                 <button type="button" class="segmented-option" data-orbit-filter="MEO" aria-pressed="true">MEO</button>
                 <button type="button" class="segmented-option" data-orbit-filter="LEO" aria-pressed="false">LEO</button>
-                <button type="button" class="segmented-option" data-orbit-filter="HEO" aria-pressed="false">HEO</button>
-                <button type="button" class="segmented-option" data-orbit-filter="OTHER" aria-pressed="false">Other</button>
+                <button type="button" class="segmented-option" data-orbit-filter="HEO" aria-label="HRO orbit filter" aria-pressed="false">HRO</button>
+                <button type="button" class="segmented-option" data-orbit-filter="DEBRIS" aria-pressed="false">Debris</button>
+                <button type="button" class="segmented-option" data-orbit-filter="OTHER" aria-pressed="false">Others</button>
               </div>
             </div>
 
@@ -115,17 +117,6 @@ export function satelliteMenuLoader() {
                   <input type="checkbox" value="ALL COMPANY" checked>
                   <span>All tags</span>
                 </label>
-              </div>
-            </div>
-
-            <div class="filter-block debris-filter-block">
-              <div class="debris-reset-row">
-                <div id="debrisFilter" class="segmented-control debris-segmented" role="radiogroup" aria-label="Debris filter">
-                  <button type="button" class="segmented-option" data-debris-filter="show" aria-pressed="true">Show</button>
-                  <button type="button" class="segmented-option" data-debris-filter="hide" aria-pressed="false">Hide</button>
-                  <button type="button" class="segmented-option" data-debris-filter="only" aria-pressed="false">Debris only</button>
-                </div>
-                <button id="resetFiltersButton" type="button" class="menu-secondary-action reset-filters-inline-button">Reset Filters</button>
               </div>
             </div>
           </div>
@@ -233,10 +224,11 @@ export function satelliteMenuLoader() {
           </div>
           <div class="api-docs-panel" aria-label="Developer documentation links">
             <strong>Developer Docs</strong>
-            <div id="apiDocsStatus" class="menu-helper">Swagger and API links open in a separate page. If the Python server is offline, start it and retry the opened page.</div>
+            <div id="apiDocsStatus" class="menu-helper">Swagger UI opens from local static files. Live OpenAPI JSON requires the optional Python server.</div>
             <div class="api-docs-link-list">
-              <a id="swaggerDocsLink" class="api-docs-link" href="http://127.0.0.1:8000/docs" target="_blank" rel="noopener noreferrer" title="Open Swagger UI in a separate page">Swagger</a>
-              <a id="openApiSchemaLink" class="api-docs-link" href="http://127.0.0.1:8000/openapi.json" target="_blank" rel="noopener noreferrer" title="Open OpenAPI schema in a separate page">API</a>
+              <a id="swaggerDocsLink" class="api-docs-link" href="swagger.html" target="_blank" rel="noopener noreferrer" title="Open local Swagger UI documentation">Swagger</a>
+              <a id="swaggerMarkdownLink" class="api-docs-link" href="markdown_viewer.html?source=SWAGGER.md&amp;title=Swagger%20API" target="_blank" rel="noopener noreferrer" title="Open local Swagger API Markdown companion">Swagger MD</a>
+              <a id="openApiSchemaLink" class="api-docs-link" href="http://127.0.0.1:8000/openapi.json" target="_blank" rel="noopener noreferrer" title="Open live OpenAPI schema from the optional Python server">Live API</a>
             </div>
           </div>
           <div class="help-disclaimer" role="note" aria-label="Disclaimer">

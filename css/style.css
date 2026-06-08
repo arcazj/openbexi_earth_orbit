@@ -389,6 +389,19 @@ canvas {
     background-color: #171717;
 }
 
+.orbit-segmented {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    align-self: stretch;
+    width: 100%;
+}
+
+.orbit-segmented .segmented-option {
+    min-width: 0;
+    padding-inline: 4px;
+    font-size: 10.5px;
+}
+
 .segmented-option {
     min-height: 38px;
     padding: 0 11px;
@@ -421,13 +434,6 @@ canvas {
     flex-wrap: wrap;
     gap: 6px;
     align-items: flex-start;
-}
-
-.debris-reset-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    align-items: center;
 }
 
 .reset-filters-inline-button {
@@ -1007,7 +1013,7 @@ canvas {
 .satellite-combobox {
     position: relative;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
     gap: 6px;
     margin-top: 6px;
 }

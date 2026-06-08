@@ -76,6 +76,8 @@ Version 1.7.1 consolidates `Filters - Satellites Found` into `Satellites Selecti
 The main `Views & Time` checkboxes are aligned in a 3x3 table/grid: `Solar System`, `Stars & Milky Way`, empty; `Globe`, `High Def.`, `ECEF Axes`; `Mercator`, `Day/Night`, empty.
 When search text is active, the red found count must match the visible dropdown result list. If results are capped, the count must show `visible / total`, such as `40 / 126`.
 
+Version 1.7.2 moves `Debris` into the orbit/category row as `ALL`, `GEO`, `MEO`, `LEO`, `HRO`, `Debris`, `Others`. The old separate `Show`, `Hide`, and `Debris only` buttons are removed. Selecting `Debris` shows debris objects only. `Reset Filters` moves to the satellite search row immediately after `Clear` and keeps reset/search/count/dropdown/hidden-select behavior consistent. The release adds local standard Swagger/OpenAPI-style static documentation at `swagger.html`, keeps `SWAGGER.md` as the Markdown companion renderable through `markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API`, and requires both local documentation paths to display without starting `server.py`; live Swagger UI and OpenAPI JSON still require the optional Python server.
+
 ## Test Environment
 
 - Run from the repository root.
@@ -316,7 +318,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 
 - Test generated menu markup contains no duplicate IDs.
 - Test generated menu markup and UI source files contain no common mojibake markers.
-- Test the Orbit filter includes `ALL`, `GEO`, `MEO`, `LEO`, `HEO`, and `Other`.
+- Test the Orbit/category filter includes one row ordered as `ALL`, `GEO`, `MEO`, `LEO`, `HRO`, `Debris`, `Others`.
 - Test the filter menu does not contain an `Active` button/control.
 - Test generated company/tag chips exclude `Active`, not only the static markup.
 - Test the `Views & Time` section has one collapsible container containing Solar System, Stars & Milky Way, Globe, Mercator, High Def., ECEF Axes, Day/Night controls, and mode-specific sub-controls, with no menu `Time x` slider.
@@ -326,8 +328,10 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test the vertical tab rail is removed and the menu uses stacked accordion sections.
 - Test accordion section order is `Views & Time`, `Satellites Selection - Found`, `Timelines`, `Share`, `Help`.
 - Test the standalone `Filters - Satellites Found` accordion, `filtersContent`, and active summary text are absent.
-- Test orbit, tag, debris, reset, and zero-result controls are inside `Satellites Selection - Found`.
-- Test `Reset Filters` appears on the same row as `Show`, `Hide`, and `Debris only`.
+- Test orbit/category, tag, reset, and zero-result controls are inside `Satellites Selection - Found`.
+- Test the old separate `Show`, `Hide`, and `Debris only` debris buttons are absent.
+- Test `Debris` appears immediately before `Others` in the orbit/category row and filters to debris objects only.
+- Test `Reset Filters` appears in the search row immediately after `Clear`, with DOM/tab order `Search satellite`, `Clear`, `Reset Filters`.
 - Test the found count in `Satellites Selection - Found` is red, bold, and updates its accessible label.
 - Test multi-check filtering in Search satellite: the visible dropdown list of satellites must match the requested orbit/tag/debris filtering exactly, and the hidden legacy select must contain the same filtered satellite set.
 - Test active search text updates the red found count from the same search result state used to render the visible dropdown.
@@ -390,13 +394,16 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 ### Server Data Path
 
 - Test `/api/health` returns status `ok` and version metadata.
-- Test `/api/version` returns app/API version `1.7.1` and release date `2026-06-07`.
+- Test `/api/version` returns app/API version `1.7.2` and release date `2026-06-08`.
 - Test `/api/tle` and `/api/satellites` return valid TLE records with `norad_id`, `tle_line1`, and `tle_line2`.
 - Test `/api/satellite-metadata` lists known metadata files.
 - Test `/api/satellite-metadata/starlink_V1.json` returns one known metadata payload.
 - Test `/api/decayed` returns the confirmed decay dataset.
-- Test `/docs` serves the Swagger/API documentation page.
+- Test `/docs` serves the live Swagger/API documentation page.
 - Test `/openapi.json` contains OpenAPI paths for all supported API endpoints.
+- Test `swagger.html` exists and displays a standard Swagger/OpenAPI-style local page with API title, version badge, OAS badge, base URL/schema notes, grouped endpoint sections, colored method badges, and expandable endpoint details without starting `server.py`.
+- Test `SWAGGER.md` exists and documents `/api/health`, `/api/version`, `/api/tle`, `/api/satellites`, `/api/satellite-metadata`, `/api/decayed`, `/docs`, and `/openapi.json`.
+- Test `markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API` renders the companion Swagger Markdown without starting `server.py`.
 - Test frontend disconnected mode falls back to local `json/tle/TLE.json`.
 - Test frontend connected mode uses server-provided TLE data.
 - Test malformed server TLE data is rejected and local fallback remains active.
@@ -412,6 +419,13 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test the `index.html` startup structure so first render starts before awaiting TLE setup.
 - Test accordion headers, accessible accordion semantics, searchable satellite selector markup, timeline checkbox toggles, filter reset/status/empty state, and selected tag active styling.
 - Test the menu toggle and time slider use ASCII-safe visible labels.
+
+### Coverage Traceability Audit
+
+- Audit every release entry in `PROMPT_History.md` before delivery and confirm each release-level behavior maps to an automated test, manual/integration check, or explicit limitation.
+- Confirm prior-release coverage includes Version 1.5.21 selected-satellite details/source attribution, Version 1.5.22 Earth-centered frame/orbit math, Version 1.5.23 Mars mode, Version 1.6 Stars & Milky Way, Version 1.6.1 star catalog behavior, Version 1.6.2 integrated Solar System, Version 1.7 JPL-derived ephemeris, Version 1.7.1 filter/search consistency, and Version 1.7.2 Debris/search-row/local Swagger UI and Markdown changes.
+- Expand shallow checks where a release only has a summary but no concrete automated, browser, manual, or server verification step.
+- Document limitations when a behavior cannot be automated in this repository, including external browser rendering, optional live server checks, and unavailable source pages.
 
 ### Startup Performance
 
@@ -435,7 +449,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm the default filter state is:
   - Orbit: `MEO` selected.
   - Tags: `All tags` selected.
-  - Debris: `Show` selected.
+  - Debris category: not selected.
 - Confirm the satellite count and satellite dropdown populate after TLE data loads.
 
 ## Menu UX Regression
@@ -449,7 +463,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm `Timelines`, `Share`, and `Help` start collapsed on every `index.html` load.
 - Confirm the Settings accordion section is not present.
 - Confirm multiple accordion sections can stay open at the same time.
-- Confirm selecting filters, tags, debris modes, timelines, and view toggles does not collapse unrelated accordion sections.
+- Confirm selecting filters, tags, the Debris category, timelines, and view toggles does not collapse unrelated accordion sections.
 - Confirm the accordion order is `Views & Time`, `Satellites Selection - Found`, `Timelines`, `Share`, `Help`.
 - Confirm `Satellite Selection` appears immediately under `Views & Time`.
 - Confirm orbit/tag/debris filters appear inside `Satellites Selection - Found`.
@@ -486,19 +500,20 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm the ISS shortcut shows `ISS unavailable` if no ISS target can be resolved.
 - Confirm `Timelines` appears immediately after `Satellites Selection - Found`.
 - Confirm `Share` appears immediately after `Timelines` and immediately before `Help`.
-- Confirm `Close`, `Version 1.7.1 - hosted at GitHub Repo`, and the server status icon/text are aligned on one compact row on desktop.
+- Confirm `Close`, `Version 1.7.2 - hosted at GitHub Repo`, and the server status icon/text are aligned on one compact row on desktop.
 - Confirm the version/GitHub text is centered in the menu header.
 - Confirm the server status indicator appears above the accordion menu and does not shift layout when changing between checking, offline, connected, and error states.
 - Confirm connected status uses `power_green.png` and offline/error status uses `power_red.png`.
 - Confirm the status panel shows server URL, connection state, data source, version values, last load time, and reconnect/refresh.
 - Confirm `Copy Link` produces a URL that restores supported state after data loads.
 - Confirm native share is enabled only when the browser supports it.
-- Open Help and confirm the `GitHub`, `README`, `Releases History`, `Licenses`, `Swagger`, and `API` actions are readable and clickable.
+- Open Help and confirm the `GitHub`, `README`, `Releases History`, `Licenses`, `Swagger`, `Swagger MD`, and `Live API` actions are readable and clickable.
 - Click `README` and confirm a separate `markdown_viewer.html?source=README.md&title=README` page renders the README as Markdown, not as raw plain text.
 - Click `Releases History` and confirm a separate `markdown_viewer.html?source=PROMPT_History.md&title=Releases%20History` page renders `PROMPT_History.md` as Markdown, not as raw plain text.
 - Confirm no visible Help action uses the old `Prompt History` label.
-- Open Help while the Python server is disconnected and confirm Swagger/API actions still open separate pages using the default local server URLs.
-- Open Help while the Python server is connected and confirm Swagger and API links open the connected server pages.
+- Open Help while the Python server is disconnected and confirm `Swagger` opens `swagger.html` without requiring the server.
+- Open Help while the Python server is disconnected and confirm `Swagger MD` opens `markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API` without requiring the server.
+- Open Help while the Python server is connected and confirm `Live API` opens the connected server `/openapi.json` page.
 - Confirm the GitHub Help link opens in a new tab, README and Releases History use `markdown_viewer.html`, and the license link opens the relative `LICENSE.md` page.
 - Confirm the `Licenses` action opens `LICENSE.md`.
 - Confirm Help does not display the prohibited concatenated Swagger/API sentence.
@@ -614,12 +629,13 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm multiple tags can be selected at the same time.
 - Confirm tag combinations update the satellite count, visible markers, and dropdown.
 
-### Debris Filter
+### Debris Category Filter
 
-- Confirm `Show` displays normal satellites and debris candidates.
-- Confirm `Hide` excludes debris candidates such as names containing `DEB`, `DEBRIS`, `R/B`, `ROCKET BODY`, or `STAGE`.
-- Confirm `Debris only` shows only debris candidates and updates the satellite count and dropdown.
-- Confirm switching debris modes preserves a valid tag selection or safely returns to `All tags` when the selected tag is no longer available.
+- Confirm no standalone debris filter row or `Show`, `Hide`, `Debris only` buttons appear.
+- Confirm the orbit/category row order is `ALL`, `GEO`, `MEO`, `LEO`, `HRO`, `Debris`, `Others`.
+- Confirm selecting `Debris` shows only debris candidates such as names containing `DEB`, `DEBRIS`, `R/B`, `ROCKET BODY`, or `STAGE`.
+- Confirm selecting `Debris` updates the satellite count, visible search dropdown, hidden legacy select, and visible markers from the canonical filtered list.
+- Confirm switching away from `Debris` preserves a valid tag selection or safely returns to `All tags` when the selected tag is no longer available.
 
 ## Cross-Filter Regression
 
@@ -629,7 +645,8 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test `GEO` plus `Intelsat`.
 - Test `MEO` plus `Galileo`.
 - Test multiple orbit selections plus multiple tag selections.
-- Test each of the above with `Show`, `Hide`, and `Debris only`.
+- Test `Debris` alone and after switching from each orbit/tag combination above.
+- Test `Reset Filters` after `Debris`, active search text, and specific tag selections.
 - Confirm no JavaScript errors appear in the browser console.
 
 ## Existing Feature Regression
@@ -739,7 +756,8 @@ py -m http.server 8000 --bind 127.0.0.1
 - Exercise at least these browser interactions:
   - Switch `MEO` to `LEO`.
   - Select `Starlink`.
-  - Switch debris mode to `Debris only`.
+  - Switch orbit/category filter to `Debris`.
+  - Click `Clear`, then `Reset Filters`, and confirm the reset button is immediately after `Clear`.
   - Select one satellite and enable orbit display.
   - Confirm selecting the satellite auto-checks `Show only selected satellite`, leaves only the selected object visible, and keeps the selected satellite active after clearing the search field for a new query.
   - Confirm selecting a LEO/Starlink/ISS satellite auto-checks `High Def.` and selecting MEO/GEO afterward does not force High Def. off.
@@ -750,10 +768,10 @@ py -m http.server 8000 --bind 127.0.0.1
   - Confirm the selected Starlink diagnostics report `observerPlacement: "starlink-oblique-orbital-frame"` and orientation mode `starlink-velocity-nadir-frame`.
   - Confirm the Starlink shortcut label includes the resolved NORAD ID.
   - Select ISS from the shortcut and confirm the selected ISS diagnostics report `orientationMode: "iss-velocity-pitch-nadir-frame"` and the ISS model keeps local `+Y`/pitch pointed to Earth while local `+X` follows velocity.
-  - Open Help and confirm GitHub, README, Releases History, Licenses, Swagger, API, and the disclaimer are present.
+  - Open Help and confirm GitHub, README, Releases History, Licenses, Swagger, Swagger MD, Live API, and the disclaimer are present.
   - Click README and Releases History and confirm each document renders as Markdown in the Help panel.
   - Open Share and confirm Copy Link creates a safe share URL.
-  - Open Help and confirm Swagger/API docs open separate pages even when the Python server is not running.
+  - Open Help and confirm local Swagger UI and companion Swagger Markdown docs open separate pages even when the Python server is not running.
   - Confirm mouse orbit shows different faces of the selected model and zoom changes observer distance without losing centering.
   - Select a satellite without a model mapping and confirm the selected sprite stays visible.
   - Rapidly select two different satellites and confirm stale model loads do not attach to the scene.
@@ -782,6 +800,8 @@ http://127.0.0.1:8000/api/tle
 http://127.0.0.1:8000/docs
 http://127.0.0.1:8000/openapi.json
 http://127.0.0.1:8000/index.html
+markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API
+swagger.html
 ```
 
 Expected:
@@ -789,7 +809,7 @@ Expected:
 - `index.html` loads from the Python server.
 - The status icon changes from checking to connected.
 - Satellite data source shows live server.
-- Swagger/API docs links open separate documentation pages from Help.
+- Swagger/API docs links open separate local UI, local Markdown companion, and live API documentation pages from Help.
 - If the server is stopped and the page is refreshed, the app returns to local/offline data behavior.
 
 ## Isolated Model Viewer Check
@@ -808,7 +828,7 @@ py -m http.server 8000 --bind 127.0.0.1
 http://127.0.0.1:8000/display_satellite.html
 ```
 
-- Confirm the manifest-backed list loads from `json/display_satellite_models.json` and includes the configured standalone viewer models under `obj/`: Starlink, Generic, O3b, scale-tuned O3b mPOWER HD, ISS, the extra ISS GLB, ISS High Definition components, SSL 1300, and the Hubble Space Telescope GLBs.
+- Confirm the manifest-backed list loads from `json/display_satellite_models.json` and includes the configured standalone viewer models under `obj/`: Starlink V1, O3b, ISS, and SSL 1300.
 - Confirm the default `obj/starlink_V1.obj` loads with either its MTL material or fallback material.
 - Use search to filter the model list, then load at least one OBJ/MTL model and one GLB model from `obj/`.
 - Confirm diagnostics update with asset path, required files, texture count, mesh/material count, triangle count, bounds, diameter, and load warnings.
@@ -1449,7 +1469,7 @@ Checks performed for this Version 1.5.16 implementation session:
 - Static tests confirm Settings is removed and the order is Views & Time, Filters, Satellite Selection, Other Selections, Timelines, Share, Help.
 - Static tests confirm selected-satellite controls stay hidden until a satellite is selected.
 - Static tests confirm Help shows `README` and `Releases History` actions.
-- Static tests confirm Help includes GitHub, README, Releases History, Licenses, Swagger, API, and a bottom disclaimer.
+- Static tests confirm Help includes GitHub, README, Releases History, Licenses, Swagger, Swagger MD, Live API, and a bottom disclaimer.
 - Static tests confirm `Releases History` targets `PROMPT_History.md` and the old visible `Prompt History` label is not used.
 - Static tests confirm README and Releases History use the in-app Markdown renderer, raw HTML escaping, and sanitized Markdown links.
 - Static tests confirm Close, centered version text, and server status share the header alignment height and server status icon sizing hooks.
@@ -1492,7 +1512,7 @@ Checks not fully performed in this terminal:
 - The Share accordion appears immediately before Help and its UI matches the existing accordion/menu styling.
 - Share links copy and restore supported state without including local filesystem paths, tokens, or private server configuration.
 - Share can preview, download, copy, and natively share the current canvas image when the browser supports those APIs.
-- Help includes Swagger/API documentation links that open separate pages and remain clickable while offline.
+- Help includes Swagger/API documentation links that open separate local UI, Markdown companion, and live API pages, with local docs remaining clickable while offline.
 - Help opens README and Releases History Markdown through `markdown_viewer.html` and keeps `PROMPT_History.md` available through the `Releases History` action.
 - The Views & Time menu uses the Version 1.6.2 Solar System/Stars, Globe/High Def./ECEF, and Mercator/Day-Night rows; First Starlink/ISS shortcuts live in Satellite Selection.
 - The canvas-top Time x slider remains visible and controls the shared simulation-speed state.
@@ -1507,7 +1527,7 @@ Checks not fully performed in this terminal:
 - The ISS shortcut displays `ISS` when resolved and `ISS unavailable` when unresolved.
 - ISS selected-model orientation maps `+X` to velocity, `+Y`/pitch to nadir/Earth, and `+Z` to the right-handed negative cross-track complement.
 - ISS orientation diagnostics include `iss-velocity-pitch-nadir-frame`, pitch-axis Earth-facing metadata, and yaw/pitch/roll calibration values.
-- The Help accordion appears after Share and contains GitHub, README, Releases History, Licenses, Swagger, API, and disclaimer content.
+- The Help accordion appears after Share and contains GitHub, README, Releases History, Licenses, Swagger, Swagger MD, Live API, and disclaimer content.
 - The satellite search field clears the prior selected label on the next search interaction without clearing the active selected satellite.
 - Selected-satellite camera metadata confirms Earth remains visible behind the selected satellite.
 - The generated tag/company filter never exposes an `Active` chip.
@@ -1525,3 +1545,31 @@ Checks not fully performed in this terminal:
 - Deep automated tests pass through `npm test`.
 - Browser smoke testing over HTTP passes.
 - The full checklist in this file has been followed, and any pre-existing unrelated failures or intentional approximations are documented.
+
+## Release 1.7.2 Verification Log
+
+Checks performed for this Version 1.7.2 implementation session:
+
+- `PROMPT_History.md` contains the latest `Release Date: 2026-06-08 Version 1.7.2` entry at the top.
+- `index.html`, `js/serverConnection.js`, `js/SatelliteMenuLoader.js`, and `server.py` use version `1.7.2`.
+- `server.py` and `js/serverConnection.js` use release date `2026-06-08`.
+- Static menu tests confirm the orbit/category row order is `ALL`, `GEO`, `MEO`, `LEO`, `HRO`, `Debris`, `Others`.
+- Static menu tests confirm the old separate `Show`, `Hide`, and `Debris only` buttons are absent from generated Satellite Selection markup.
+- Static menu tests confirm `Reset Filters` appears in DOM/tab order immediately after `Clear` in the satellite search row.
+- Static filter tests confirm the `Debris` category uses the canonical filtered-list path and switches away cleanly when a normal orbit category is clicked.
+- Static Help tests confirm `Swagger` opens `swagger.html`, `Swagger MD` opens `markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API`, and `Live API` remains the server-backed `/openapi.json` link.
+- `swagger.html` exists and displays the local standard Swagger/OpenAPI-style page with API title, version badge, OAS badge, base URL/schema notes, colored method badges, grouped endpoints, and expandable endpoint details without starting `server.py`.
+- `SWAGGER.md` exists as the Markdown companion and documents local display without starting `server.py`, plus live API endpoint usage when the optional server is running.
+- `markdown_viewer.html` allowlists `SWAGGER.md` for local static rendering.
+- `README.md` documents Version 1.7.2, the local Swagger UI and Markdown workflow, and the repository documentation index including `swagger.html` and `SWAGGER.md`.
+- Coverage audit updates add traceability requirements for all prior release entries in `PROMPT_History.md`.
+- `json/display_satellite_models.json` now exists and matches the available local standalone viewer assets.
+- `display_satellite.html` fallback model manifest and custom model examples no longer advertise missing generic, O3b mPOWER HD, extra ISS, ISS High Definition, or Hubble assets.
+- `npm test`: passed, 23 test files.
+- `python -m py_compile server.py`: not run because `python` is not on PATH in this shell.
+- `py -m py_compile server.py`: passed.
+
+Manual checks not performed in this terminal:
+
+- Full visible-browser confirmation of desktop/mobile row wrapping, satellite marker visibility, and Help link clicks remains manual.
+- Live Python server endpoint smoke checks remain manual; static server structure tests and Python syntax checks passed.

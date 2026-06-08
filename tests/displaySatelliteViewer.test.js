@@ -17,19 +17,13 @@ function run() {
   assert.strictEqual(manifest.schemaVersion, 1, 'display satellite manifest schema version is 1');
   assert.strictEqual(manifest.basePath, 'obj/', 'display satellite manifest uses obj/ as the base path');
   assert(Array.isArray(manifest.models), 'display satellite manifest models is an array');
-  assert(manifest.models.length >= 6, 'display satellite manifest includes the configured model set');
+  assert(manifest.models.length >= 4, 'display satellite manifest includes the configured model set');
 
   const expectedIds = [
     'starlink_V1',
-    'generic',
     'o3b',
-    'o3b_mpower_hd',
     'ISS.glb',
-    'International Space Station (ISS) (A).glb',
-    'ISS_High_definition',
-    'SSL_1300.glb',
-    'Hubble Space Telescope (A).glb',
-    'Hubble Space Telescope (B).glb'
+    'SSL_1300.glb'
   ];
   const modelIds = new Set(manifest.models.map((model) => model.id));
   expectedIds.forEach((id) => assert(modelIds.has(id), `manifest includes ${id}`));
@@ -118,23 +112,15 @@ function run() {
     assert(html.includes(needle), `display_satellite.html includes ${needle}`);
   });
 
-  const mpowerObj = read(path.join(manifest.basePath, 'o3b_mpower_hd.obj'));
-  const mpowerMtl = read(path.join(manifest.basePath, 'o3b_mpower_hd.mtl'));
-  assert(mpowerObj.includes('mtllib o3b_mpower_hd.mtl'), 'O3b mPOWER HD OBJ links its material library');
-  assert(mpowerObj.includes('g BroadTriangularYokePlate_'), 'O3b mPOWER HD OBJ includes broad triangular yoke plates');
-  assert(mpowerObj.includes('g YokeCutoutLongSlot_'), 'O3b mPOWER HD OBJ includes apparent yoke cutouts');
-  assert(mpowerObj.includes('g GoldKaBandDish_'), 'O3b mPOWER HD OBJ includes gold antenna dishes');
-  assert(mpowerObj.includes('g SolarCellLongGrid_'), 'O3b mPOWER HD OBJ includes solar cell grid detail');
-  assert(mpowerObj.includes('g LongSideCylinderAssembly_'), 'O3b mPOWER HD OBJ includes long side cylinder assemblies');
-  assert(mpowerObj.includes('g SideBlackRadiatorPanel'), 'O3b mPOWER HD OBJ includes the black side radiator panel');
-  assert(mpowerObj.includes('g EdgeTileStrip_'), 'O3b mPOWER HD OBJ includes edge tile strip detail');
-  assert(mpowerObj.includes('g UndersideDiagonalTruss_'), 'O3b mPOWER HD OBJ includes underside truss detail');
-  assert(mpowerMtl.includes('newmtl gold_antenna'), 'O3b mPOWER HD MTL includes gold antenna material');
-  assert(mpowerMtl.includes('newmtl negative_cutout'), 'O3b mPOWER HD MTL includes yoke cutout material');
-  assert(mpowerMtl.includes('newmtl edge_tile_warm'), 'O3b mPOWER HD MTL includes edge tile materials');
-  assert(mpowerMtl.includes('newmtl solar_orange_bright'), 'O3b mPOWER HD MTL includes orange solar-grid material');
-
   [
+    'generic.obj',
+    'generic.mtl',
+    'o3b_mpower_hd.obj',
+    'o3b_mpower_hd.mtl',
+    'International Space Station (ISS) (A).glb',
+    'ISS_High_definition',
+    'Hubble Space Telescope (A).glb',
+    'Hubble Space Telescope (B).glb',
     'starlink_spacex_satellite.glb',
     'international_space_station_iss.glb',
     'Landsat8.glb',

@@ -13,9 +13,9 @@ function run() {
     selectedSatelliteName: 'ISS (ZARYA)',
     view3D: true,
     viewMercator: true,
-    orbitTypeFilter: ['LEO', 'MEO'],
+    orbitTypeFilter: ['LEO', 'DEBRIS'],
     companyFilter: ['STARLINK', 'STATIONS'],
-    debrisFilter: 'hide',
+    debrisFilter: 'show',
     simDate: new Date('2026-06-04T12:00:00.000Z'),
     showOrbit: true,
     showFootprint: true,
@@ -37,15 +37,17 @@ function run() {
   const url = new URL(shareUrl);
   assert.strictEqual(url.searchParams.get('share'), '1', 'share URL has share flag');
   assert.strictEqual(url.searchParams.get('sat'), '25544', 'share URL includes selected NORAD');
-  assert.strictEqual(url.searchParams.get('orbit'), 'LEO,MEO', 'share URL includes orbit filters');
+  assert.strictEqual(url.searchParams.get('orbit'), 'LEO,DEBRIS', 'share URL includes orbit filters');
   assert.strictEqual(url.searchParams.get('tags'), 'STARLINK,STATIONS', 'share URL includes tag filters');
+  assert.strictEqual(url.searchParams.get('debris'), 'only', 'Debris orbit filter shares as debris only');
   assert.strictEqual(url.searchParams.has('apiBase'), false, 'share URL removes local API base configuration');
   assert.strictEqual(url.searchParams.has('server'), false, 'share URL removes server configuration');
   assert.strictEqual(shareUrlContainsUnsafeLocalData(shareUrl), false, 'normal share URL contains no unsafe local data');
 
   const parsed = parseShareStateFromSearch(url.search);
   assert.strictEqual(parsed.selectedSatelliteNoradId, '25544', 'share parse restores selected NORAD');
-  assert.deepStrictEqual(parsed.orbitTypeFilter, ['LEO', 'MEO'], 'share parse restores orbit filters');
+  assert.deepStrictEqual(parsed.orbitTypeFilter, ['LEO', 'DEBRIS'], 'share parse restores orbit filters');
+  assert.strictEqual(parsed.debrisFilter, 'only', 'share parse maps Debris orbit to debris-only state');
   assert.deepStrictEqual(parsed.companyFilter, ['STARLINK', 'STATIONS'], 'share parse restores tag filters');
   assert.strictEqual(parsed.view3D, true, 'share parse restores 3D view');
   assert.strictEqual(parsed.viewMercator, true, 'share parse restores Mercator view');
@@ -61,6 +63,11 @@ function run() {
   });
   assert.deepStrictEqual(state.orbitTypeFilter, ['LEO'], 'share state strips unsafe local file paths');
   assert.deepStrictEqual(state.companyFilter, ['STARLINK'], 'share state strips unsafe token-like values');
+  assert.strictEqual(
+    parseShareStateFromSearch('?share=1&debris=hide').debrisFilter,
+    'show',
+    'legacy hidden debris mode is not restored without a visible control'
+  );
   assert(shareStateSummary(parsed).includes('NORAD 25544'), 'share summary includes selected satellite');
   assert.strictEqual(
     shareUrlContainsUnsafeLocalData('http://example.test/index.html?path=file:///C:/secret'),

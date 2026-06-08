@@ -386,7 +386,7 @@
             <div id="modelList" class="model-list" aria-label="Available satellite models"></div>
 
             <div class="custom-row">
-                <input id="customModelInput" type="text" placeholder="Custom: ISS.glb or generic.obj, generic.mtl">
+                <input id="customModelInput" type="text" placeholder="Custom: ISS.glb or starlink_V1.obj, starlink_V1.mtl">
                 <button id="loadCustomBtn" type="button" class="primary">Load Custom</button>
             </div>
             <p class="hint">Custom models load from <code>./obj</code>. Use comma or pipe to specify a custom MTL for OBJ files.</p>
@@ -447,32 +447,12 @@
                 ]
             },
             {
-                id: 'generic',
-                displayName: 'Generic Satellite',
-                type: 'obj-mtl',
-                description: 'OBJ/MTL generic satellite model.',
-                tags: ['Generic', 'OBJ', 'MTL'],
-                files: { obj: 'generic.obj', mtl: 'generic.mtl' },
-                textures: [
-                    { path: 'Textures/generic.jpg', required: true }
-                ]
-            },
-            {
                 id: 'o3b',
                 displayName: 'O3b',
                 type: 'obj-mtl',
                 description: 'OBJ/MTL O3b MEO satellite model.',
                 tags: ['O3b', 'OBJ', 'MTL', 'MEO'],
                 files: { obj: 'o3b.obj', mtl: 'o3b.mtl' },
-                textures: []
-            },
-            {
-                id: 'o3b_mpower_hd',
-                displayName: 'Satellite O3b mPOWER HD',
-                type: 'obj-mtl',
-                description: 'Stylized high-detail O3b mPOWER satellite OBJ rebuilt from the expanded reference set with scale-tuned long solar arrays and side-cylinder detail.',
-                tags: ['O3b', 'OB3', 'mPOWER', 'OBJ', 'MTL', 'High detail', 'Scale tuned', 'MEO'],
-                files: { obj: 'o3b_mpower_hd.obj', mtl: 'o3b_mpower_hd.mtl' },
                 textures: []
             },
             {
@@ -485,67 +465,12 @@
                 textures: []
             },
             {
-                id: 'International Space Station (ISS) (A).glb',
-                displayName: 'International Space Station (A)',
-                type: 'glb',
-                description: 'Additional top-level ISS GLB model discovered in obj/.',
-                tags: ['ISS', 'GLB', 'Station', 'LEO', 'New'],
-                files: { glb: 'International Space Station (ISS) (A).glb' },
-                textures: []
-            },
-            {
-                id: 'ISS_High_definition',
-                displayName: 'ISS High Definition Components',
-                type: 'glb-group',
-                description: 'Converted GLB components from the ISS high-definition source folder.',
-                tags: ['ISS', 'High definition', 'GLB', 'Components'],
-                files: {
-                    glbs: [
-                        'ISS_High_definition/Objects/Modules/fgb/fgb-ext.glb',
-                        'ISS_High_definition/Objects/Modules/fgb/fgb-ext_closed.glb',
-                        'ISS_High_definition/Objects/Modules/fgb/fgb-ext_layers.glb',
-                        'ISS_High_definition/Objects/Modules/express ELC/ELC1.glb',
-                        'ISS_High_definition/Objects/Modules/express ELC/ELC2.glb',
-                        'ISS_High_definition/Objects/Modules/express ELC/ELC3.glb',
-                        'ISS_High_definition/Objects/Modules/express ELC/ELC4.glb',
-                        'ISS_High_definition/Objects/Modules/esp3/ESP3.glb',
-                        'ISS_High_definition/Objects/Modules/esp2/esp2_lo.glb',
-                        'ISS_High_definition/Objects/Modules/esp1/ESP1.glb',
-                        'ISS_High_definition/Objects/Modules/cupola/cupola_open.glb',
-                        'ISS_High_definition/Objects/Modules/atv/ATV_temp.glb',
-                        'ISS_High_definition/Objects/Modules/ams/AMS2.glb',
-                        'ISS_High_definition/Objects/Modules/al/al-ext.glb',
-                        'ISS_High_definition/Objects/Modules/htv/HTV_temp.glb',
-                        'ISS_High_definition/Objects/Modules/columbus/columbus.glb'
-                    ]
-                },
-                textures: []
-            },
-            {
                 id: 'SSL_1300.glb',
                 displayName: 'SSL 1300',
                 type: 'glb',
                 description: 'GLB SSL 1300 satellite bus model.',
                 tags: ['SSL', 'GLB', 'GEO'],
                 files: { glb: 'SSL_1300.glb' },
-                textures: []
-            },
-            {
-                id: 'Hubble Space Telescope (A).glb',
-                displayName: 'Hubble Space Telescope (A)',
-                type: 'glb',
-                description: 'Top-level Hubble Space Telescope GLB model discovered in obj/.',
-                tags: ['Hubble', 'Space Telescope', 'GLB', 'New'],
-                files: { glb: 'Hubble Space Telescope (A).glb' },
-                textures: []
-            },
-            {
-                id: 'Hubble Space Telescope (B).glb',
-                displayName: 'Hubble Space Telescope (B)',
-                type: 'glb',
-                description: 'Top-level Hubble Space Telescope GLB model discovered in obj/.',
-                tags: ['Hubble', 'Space Telescope', 'GLB', 'New'],
-                files: { glb: 'Hubble Space Telescope (B).glb' },
                 textures: []
             }
         ]
@@ -1121,7 +1046,7 @@
     function loadCustomModel() {
         const entry = catalogEntryFromCustom(dom.customModelInput.value);
         if (!entry) {
-            setStatus('warning', 'Input', 'Enter a model such as <code>ISS.glb</code>, <code>generic.obj</code>, or <code>generic.obj, generic.mtl</code>.');
+            setStatus('warning', 'Input', 'Enter a model such as <code>ISS.glb</code>, <code>starlink_V1.obj</code>, or <code>starlink_V1.obj, starlink_V1.mtl</code>.');
             return;
         }
         loadModel(entry).catch(error => {

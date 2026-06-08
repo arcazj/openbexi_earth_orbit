@@ -12,9 +12,9 @@ OpenBEXI Earth Orbit is a browser-based satellite visualization app built with p
 - 3D orbit paths with explicit camera-aware Earth occlusion and Mercator ground tracks that reject invalid, non-finite, decayed, or below-Earth propagation samples before drawing.
 - 2D Mercator map with satellite labels, selected-satellite highlighting, selected ground tracks, and day/night overlay.
 - When Globe and Mercator are both enabled, the Mercator map appears as a bottom-right canvas overlay instead of being hidden by the left menu.
-- Multi-select orbit filters for `ALL`, `GEO`, `MEO`, `LEO`, `HEO`, and `Other`.
+- Multi-select orbit/category filters for `ALL`, `GEO`, `MEO`, `LEO`, `HRO`, `Debris`, and `Others`.
 - Multi-select tag/operator filters such as `Starlink`, `One Web`, `SES`, `Intelsat`, `Weather`, and `Iridium`.
-- Debris filtering modes: show all, hide debris, or debris only.
+- Debris filtering through the `Debris` category button in the orbit/category row.
 - Accordion-style menu sections ordered as Views & Time, Satellites Selection - Found, Timelines, Share, and Help, preserving the legacy colored section accents with section-matched metallic expanded backgrounds.
 - Deterministic launch defaults: Views & Time and Satellites Selection - Found start expanded, while Timelines, Share, and Help start collapsed.
 - Optional Python server integration for live local API-backed TLE/satellite metadata loading, with automatic local-file fallback when the server is unavailable and no launch-time offline banner.
@@ -40,7 +40,7 @@ OpenBEXI Earth Orbit is a browser-based satellite visualization app built with p
 - Optional Stars & Milky Way view layer in Views & Time, with 46 bundled real RA/Dec reference stars, Milky Way sphere, RA/Dec grid, bright labels, and atmosphere.
 - Selecting non-MEO/GEO satellites automatically enables the high-definition Earth texture while MEO/GEO selections never force it off.
 - Satellite Selection shortcuts can select the first loaded Starlink satellite or ISS/ZARYA through the same camera/model path as the normal satellite selector. The Starlink shortcut displays the resolved NORAD ID as `Starlink (<NORAD ID>)`.
-- Help menu actions provide quick access to the GitHub project, rendered README Markdown, rendered Releases History Markdown, a Markdown license page, and Swagger/API pages that open separately even if the Python server still needs to be started.
+- Help menu actions provide quick access to the GitHub project, rendered README Markdown, rendered Releases History Markdown, a Markdown license page, local standard Swagger UI, local rendered Swagger Markdown, and live API JSON when the optional Python server is running.
 - Timeline checkboxes are mutually exclusive: enabling the launch timeline hides the re-entry timeline, and enabling the re-entry timeline hides the launch timeline.
 - Faster initial startup path: the globe and core controls render before the full TLE sprite pass, while timelines and decay estimates are prepared as deferred work.
 - Optional startup timing diagnostics through `?perf=1` or `localStorage.openbexiStartupPerf = "1"`.
@@ -97,6 +97,8 @@ Version 1.7 upgrades Solar System textures and uses bundled JPL-derived ephemeri
 
 Version 1.7.1 consolidates satellite filters into `Satellites Selection - Found`. The standalone `Filters - Satellites Found` accordion is removed, the found count is red and bold in the Satellite Selection heading, orbit/tag/debris filters live directly inside Satellite Selection, `Reset Filters` is on the same row as `Show`, `Hide`, and `Debris only`, and obsolete filter helper text plus the old active summary string are removed. The main `Views & Time` checkboxes use a stable 3x3 table/grid so `Solar System`, `Stars & Milky Way`, `Globe`, `High Def.`, `ECEF Axes`, `Mercator`, and `Day/Night` stay aligned. The satellite search dropdown and hidden legacy select are populated from the same filtered satellite set, so multi-check filter results, visible count, and selectable results stay synchronized. When search text is active, the red count follows the visible dropdown result list; capped search results display as `visible / total`, such as `40 / 126`, instead of showing a misleading single total.
 
+Version 1.7.2 moves `Debris` into the orbit/category row as `ALL`, `GEO`, `MEO`, `LEO`, `HRO`, `Debris`, `Others`. The old separate `Show`, `Hide`, and `Debris only` buttons are removed. Selecting `Debris` shows debris objects only, while `Reset Filters` now sits in the satellite search row immediately after `Clear`. The release also adds `swagger.html` as a local standard Swagger/OpenAPI-style static page and keeps `SWAGGER.md` as the Markdown companion, available through `markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API`; neither local documentation page requires starting `server.py`, while live `/docs` and `/openapi.json` still require the optional Python server.
+
 The selected satellite model axis convention is:
 
 ```text
@@ -143,7 +145,7 @@ Use `display_satellite.html` to verify local satellite model assets independentl
 http://127.0.0.1:8000/display_satellite.html
 ```
 
-The viewer reads `json/display_satellite_models.json` and lists the configured standalone viewer models under `obj/`, including Starlink, Generic, O3b, scale-tuned O3b mPOWER HD, ISS, the extra ISS GLB, ISS High Definition components, SSL 1300, and the Hubble Space Telescope GLBs. It provides search, reload, reset, auto-fit, axes/grid, wireframe, background, and copyable diagnostics controls. The diagnostics panel reports the active asset path, required files, loaded textures, mesh/material counts, triangles, bounds, and loader warnings.
+The viewer reads `json/display_satellite_models.json` and lists the configured standalone viewer models under `obj/`, including Starlink V1, O3b, ISS, and SSL 1300. It provides search, reload, reset, auto-fit, axes/grid, wireframe, background, and copyable diagnostics controls. The diagnostics panel reports the active asset path, required files, loaded textures, mesh/material counts, triangles, bounds, and loader warnings.
 
 Custom entries still support newly added local assets without code changes. Use examples such as `ISS.glb`, `starlink_V1`, or `generic.obj, generic.mtl` to load from `obj/`. The viewer centers the model, adds inspection lighting, repairs weak/invisible materials where possible, normalizes extremely small or large assets such as `SSL_1300.glb` to an inspectable display size, and fits the camera to the model bounds. If a model is visible in `display_satellite.html` but not after selecting a matching satellite in `index.html`, the issue is in the selected-satellite scene integration rather than the local model asset.
 
@@ -227,6 +229,13 @@ The Python server uses only the standard library. It serves the existing static 
 - `http://127.0.0.1:8000/docs`
 - `http://127.0.0.1:8000/openapi.json`
 
+Static Swagger/API documentation is also available without the Python server:
+
+```text
+swagger.html
+markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API
+```
+
 The frontend checks the server with a short timeout. If the check fails or server data is malformed, the app continues with `json/tle/TLE.json`, `json/satellites/`, and other local files. Configure a different API base URL with `?apiBase=http://host:port` or `localStorage.setItem('openbexi.apiBaseUrl', 'http://host:port')`.
 
 Do not use `file://` for normal development because ES modules, JSON, textures, and model assets need HTTP-style loading.
@@ -273,7 +282,7 @@ The left menu is organized into compact colored accordion sections. Multiple sec
 - `Satellites Selection - Found`: searchable satellite selector, dynamic found count, Starlink/ISS shortcut buttons, orbit/tag/debris filters, reset action, zero-result empty state, selected-satellite status, and satellite-specific Yaw-Pitch-Roll, footprint, show-only, LVLH frame, and orbit controls that appear only after a satellite is selected. Detailed metadata and TLE lines are not duplicated in the menu.
 - `Timelines`: checkbox toggles for launch and re-entry timelines.
 - `Share`: copy or natively share a safe URL that restores supported app state after satellite data loads, plus preview, download, or copy an image of the current canvas when the browser supports it.
-- `Help`: GitHub, rendered README, rendered Releases History, Markdown Licenses, Swagger, API, and the app disclaimer.
+- `Help`: GitHub, rendered README, rendered Releases History, Markdown Licenses, local Swagger UI, Swagger Markdown companion, Live API, and the app disclaimer.
 
 The satellite selector is searchable. Type part of a satellite name, NORAD ID, orbit type, or tag, then use the mouse or keyboard arrow keys plus Enter to select a result. Selecting a result closes the dropdown immediately; Escape, Tab, or clicking outside the selector also closes the dropdown so it cannot block `Show Orbit`, `Show Footprint`, or other controls below it. The result list renders above the accordion panels so it stays visible while searching in the Satellite Selection section. After a satellite is selected, focusing, clicking, typing, pasting, or pressing `Clear` in the search field removes only the old selected label so a new search can start while the selected satellite remains active. Timeline controls are checkboxes: checked means the timeline is visible; unchecked means it is hidden. Only one timeline can be visible at a time. If Yaw-Pitch-Roll is enabled, selecting or switching satellites keeps the YPR sliders visible and preserves the current yaw, pitch, and roll values.
 
@@ -281,7 +290,7 @@ After a satellite is selected, the right side of the canvas shows a translucent 
 
 The Help section disclaimer is part of the application UI: OpenBEXI Earth Orbit is for visualization, educational, and experimental purposes only. It is not an authoritative source for navigation, safety, mission planning, collision avoidance, or operational satellite decisions.
 
-The Help section opens Swagger and API documentation in separate pages using the best-known local server URLs. If the Python server is offline, start it and refresh the opened page. README and Releases History open through `markdown_viewer.html` as separate rendered Markdown pages for `README.md` and `PROMPT_History.md`. The Licenses action opens `LICENSE.md` as a Markdown page.
+The Help section opens Swagger and API documentation in separate pages. `Swagger` opens the local standard `swagger.html` page without requiring the Python server, `Swagger MD` opens the companion `SWAGGER.md` through `markdown_viewer.html`, and `Live API` opens the connected server `/openapi.json` URL when the optional Python server is running. README and Releases History open through `markdown_viewer.html` as separate rendered Markdown pages for `README.md` and `PROMPT_History.md`. The Licenses action opens `LICENSE.md` as a Markdown page.
 
 ## Project Structure
 
@@ -289,7 +298,8 @@ The Help section opens Swagger and API documentation in separate pages using the
 - `display_satellite.html`: Manifest-backed isolated local OBJ/MTL and GLB viewer for direct satellite model visibility checks.
 - `Earth_Stars_MilkyWay.html`: Standalone Three.js Earth, Milky Way, and real RA/Dec star-field viewer.
 - `SolarSystemOverview.html`: Standalone experimental Three.js heliocentric solar-system overview.
-- `markdown_viewer.html`: Static rendered Markdown viewer used by Help for README and Releases History.
+- `markdown_viewer.html`: Static rendered Markdown viewer used by Help for README, Releases History, and Swagger Markdown companion pages.
+- `swagger.html`: Local standard Swagger/OpenAPI-style static API page that displays without starting `server.py`.
 - `css/`: Styling for the app, menu, filters, labels, and map layout.
 - `js/`: Browser modules for coordinates, satellite loading, models, menu, footprints, frames, day/night, Moon/Mars, timelines, and map rendering.
 - `server.py`: Optional standard-library Python server for static hosting, API endpoints, CORS, Swagger/OpenAPI docs, and server-backed data loading.
@@ -313,6 +323,7 @@ The Help section opens Swagger and API documentation in separate pages using the
 - `PROMPT.md`: General execution prompt only; release-specific content belongs in prompt history.
 - `PROMPT4beamFormingSimulator3DWithMercatorMap_V2.MD`: Supplemental beam-forming/Mercator simulator prompt kept in the workspace when present.
 - `PROMPT_History.md`: Release-specific prompts and implementation requirements by date and version; shown in Help as `Releases History`.
+- `SWAGGER.md`: Local static Swagger/API Markdown companion; render with `markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API` without starting the Python server.
 - `Test_and_Integration.md`: Authoritative automated, browser, manual, domain, visual, and regression acceptance checklist.
 
 ## Development Notes
