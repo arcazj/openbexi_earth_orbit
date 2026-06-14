@@ -17,6 +17,14 @@ export let usingLocalAssets = false;
 let textureLoader = new THREE.TextureLoader();
 const MIN_ORBIT_RADIUS_KM = EARTH_RADIUS_KM;
 const ORBIT_OCCLUSION_RADIUS_PADDING = 0.002;
+const DEFAULT_ORBIT_PERIOD_MINUTES = 96;
+const MIN_VALID_ORBIT_PERIOD_MINUTES = 1;
+const MAX_VALID_ORBIT_PERIOD_MINUTES = 45 * 24 * 60;
+const MIN_ORBIT_SAMPLE_COUNT = 96;
+const MAX_ORBIT_SAMPLE_COUNT = 720;
+const ORBIT_SAMPLE_MINUTES_PER_POINT = 4;
+const MIN_ORBIT_REFRESH_INTERVAL_MS = 60_000;
+const MAX_ORBIT_REFRESH_INTERVAL_MS = 5 * 60_000;
 
 function getSatelliteLib(satelliteLib = globalThis.satellite) {
     if (!satelliteLib?.propagate) {
@@ -37,14 +45,47 @@ export function classifyOrbitByPeriodMinutes(periodMinutes, satrec = null) {
 }
 
 export function getOrbitDurationMinutes(satrec) {
-    const basePeriod = (2 * Math.PI) / satrec.no;
-    const orbitType = classifyOrbitByPeriodMinutes(basePeriod, satrec);
+    const meanMotionRadPerMinute = Number(satrec?.no);
+    const basePeriod = (2 * Math.PI) / meanMotionRadPerMinute;
 
-    if (orbitType === 'GEO') return basePeriod;
-    if (orbitType === 'HEO') return basePeriod;
-    if (orbitType === 'LEO') return (24 * Math.PI) / satrec.no;
-    if (orbitType === 'MEO') return (4 * Math.PI) / satrec.no;
-    return basePeriod;
+    if (
+        Number.isFinite(basePeriod) &&
+        basePeriod >= MIN_VALID_ORBIT_PERIOD_MINUTES &&
+        basePeriod <= MAX_VALID_ORBIT_PERIOD_MINUTES
+    ) {
+        return basePeriod;
+    }
+
+    return DEFAULT_ORBIT_PERIOD_MINUTES;
+}
+
+export function getOrbitSampleCount(periodMinutes, options = {}) {
+    const {
+        minSampleCount = MIN_ORBIT_SAMPLE_COUNT,
+        maxSampleCount = MAX_ORBIT_SAMPLE_COUNT,
+        minutesPerPoint = ORBIT_SAMPLE_MINUTES_PER_POINT
+    } = options;
+
+    if (!Number.isFinite(periodMinutes) || periodMinutes <= 0) {
+        return minSampleCount;
+    }
+
+    return Math.max(
+        minSampleCount,
+        Math.min(maxSampleCount, Math.ceil(periodMinutes / minutesPerPoint))
+    );
+}
+
+export function getOrbitRefreshIntervalMillis(periodMinutes, sampleCount = getOrbitSampleCount(periodMinutes)) {
+    const sampleIntervalMillis = periodMinutes * 60_000 / Math.max(1, sampleCount);
+    if (!Number.isFinite(sampleIntervalMillis) || sampleIntervalMillis <= 0) {
+        return MIN_ORBIT_REFRESH_INTERVAL_MS;
+    }
+
+    return Math.max(
+        MIN_ORBIT_REFRESH_INTERVAL_MS,
+        Math.min(MAX_ORBIT_REFRESH_INTERVAL_MS, sampleIntervalMillis)
+    );
 }
 
 export function isFiniteEciPosition(position) {
@@ -68,13 +109,19 @@ export function generateOrbitScenePointSegments(satrec, simDate = new Date(), op
     if (!satrec) return [];
 
     const {
-        numPoints = 360,
+        numPoints = null,
+        periodMinutes: providedPeriodMinutes = null,
         satelliteLib = globalThis.satellite,
         minRadiusKm = MIN_ORBIT_RADIUS_KM
     } = options;
     const satLib = getSatelliteLib(satelliteLib);
-    const periodMinutes = getOrbitDurationMinutes(satrec);
-    const deltaT = periodMinutes / numPoints;
+    const periodMinutes = Number.isFinite(providedPeriodMinutes) && providedPeriodMinutes > 0
+        ? providedPeriodMinutes
+        : getOrbitDurationMinutes(satrec);
+    const sampleCount = Number.isInteger(numPoints) && numPoints > 0
+        ? numPoints
+        : getOrbitSampleCount(periodMinutes);
+    const deltaT = periodMinutes / sampleCount;
     const startTime = new Date(simDate);
     const segments = [];
     let currentSegment = [];
@@ -86,7 +133,7 @@ export function generateOrbitScenePointSegments(satrec, simDate = new Date(), op
         currentSegment = [];
     };
 
-    for (let i = 0; i <= numPoints; i++) {
+    for (let i = 0; i <= sampleCount; i++) {
         const t = new Date(startTime.getTime() + i * deltaT * 60000);
         const pv = satLib.propagate(satrec, t);
         if (!isUsableOrbitPosition(pv?.position, minRadiusKm)) {
@@ -276,12 +323,26 @@ function clearOrbitLine(scene) {
     }
 }
 
-export function updateOrbitTrajectory(scene, simParams, satData) {
+function orbitSatelliteKey(satData) {
+    return [
+        satData?.norad_id ?? '',
+        satData?.satellite_name ?? ''
+    ].join('|');
+}
+
+export function updateOrbitTrajectory(scene, simParams, satData, options = {}) {
     clearOrbitLine(scene);
 
     if (!simParams.showOrbit || !satData || !satData.satrec) return null;
 
-    const orbitSegments = generateOrbitScenePointSegments(satData.satrec, simParams.simDate || new Date());
+    const simDate = simParams.simDate || new Date();
+    const periodMinutes = getOrbitDurationMinutes(satData.satrec);
+    const sampleCount = getOrbitSampleCount(periodMinutes);
+    const orbitSegments = generateOrbitScenePointSegments(satData.satrec, simDate, {
+        ...options,
+        periodMinutes,
+        numPoints: sampleCount
+    });
     if (orbitSegments.length === 0) return null;
 
     orbitLine = new THREE.Group();
@@ -289,9 +350,36 @@ export function updateOrbitTrajectory(scene, simParams, satData) {
     orbitLine.renderOrder = 0;
     orbitLine.userData.depthOccludedByEarth = true;
     orbitLine.userData.sourceSegments = orbitSegments.map(segment => segment.map(point => point.clone()));
+    orbitLine.userData.satelliteKey = orbitSatelliteKey(satData);
+    orbitLine.userData.startTimeMs = new Date(simDate).getTime();
+    orbitLine.userData.periodMinutes = periodMinutes;
+    orbitLine.userData.sampleCount = sampleCount;
+    orbitLine.userData.refreshIntervalMillis = getOrbitRefreshIntervalMillis(periodMinutes, sampleCount);
     orbitLine.userData.occlusionCameraSignature = '';
 
     scene.add(orbitLine);
+    return orbitLine;
+}
+
+export function refreshOrbitTrajectoryIfNeeded(scene, simParams, satData, options = {}) {
+    if (!simParams?.showOrbit || !satData?.satrec) return orbitLine;
+
+    if (!orbitLine) {
+        return updateOrbitTrajectory(scene, simParams, satData, options);
+    }
+
+    const simTimeMs = new Date(simParams.simDate || new Date()).getTime();
+    const startTimeMs = orbitLine.userData?.startTimeMs;
+    const refreshIntervalMillis = orbitLine.userData?.refreshIntervalMillis || MIN_ORBIT_REFRESH_INTERVAL_MS;
+    const satelliteKey = orbitSatelliteKey(satData);
+    const staleForSatellite = orbitLine.userData?.satelliteKey !== satelliteKey;
+    const staleForTime = !Number.isFinite(startTimeMs) ||
+        Math.abs(simTimeMs - startTimeMs) >= refreshIntervalMillis;
+
+    if (staleForSatellite || staleForTime) {
+        return updateOrbitTrajectory(scene, simParams, satData, options);
+    }
+
     return orbitLine;
 }
 

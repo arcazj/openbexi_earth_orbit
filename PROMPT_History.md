@@ -1,5 +1,154 @@
 # Prompt History
 
+## Release Date: 2026-06-14  Version 1.7.4
+
+Implement Version `1.7.4` as a Python data-maintenance rewrite for the legacy Java `SatelliteDataExporter` and `buildDecayedDB` workflows.
+
+Requirements:
+
+1. Versioning
+   - Update visible app version and related version metadata to `1.7.4`.
+
+2. Python data tool
+   - Add standard-library-only Python code that can run as standalone scripts and can also be imported by `server.py`.
+   - Provide CLI commands for:
+     - `export-tle`
+     - `build-decayed-db`
+     - a server-style scheduled freshness check.
+   - Avoid subprocess use from the server path.
+   - Keep reusable logic in functions with injectable fetchers so tests do not require live network calls.
+
+3. Legacy compatibility
+   - `export-tle --all` must preserve the legacy Java N2YO launch-date refresh, source group order, duplicate group behavior, first-seen NORAD wins behavior, output path `json/tle/TLE.json`, TLE field names, launch-date lookup behavior, orbit metric formulas, and orbit classification rules.
+   - `build-decayed-db --all` must preserve the Java SATCAT CSV input path `json/satcat.csv`, output path `json/decayed/decayed.json`, required columns, `DECAY_DATE` and `OBJECT_TYPE=PAY` filters, field names, and object-name grouping.
+
+4. Incremental/default behavior
+   - Without `--all`, optimize TLE updates instead of querying every legacy group.
+   - Use `json/tle/TLE.meta.json`, existing `json/tle/TLE.json`, TLE epochs, and file timestamps to determine freshness.
+   - Respect a minimum CelesTrak refresh guard of 2 hours unless `--force` is used.
+   - Prefer CelesTrak GP group queries such as `GROUP=active` and `GROUP=last-30-days` for default incremental updates.
+   - If CelesTrak has no reliable since endpoint, compare NORAD IDs and TLE epochs, add missing records, update newer records, and preserve existing records and tags when no newer TLE is available.
+   - Do not run the slow N2YO full launch-date scrape during default incremental updates.
+
+5. Metadata, safety, and fallback
+   - Write TLE and decayed metadata files with successful fetch/build timestamps, mode, source URLs or source paths, counts, and failure status.
+   - Use atomic writes and backups for generated data files.
+   - `--dry-run` must not write generated data, metadata, temporary output, or backups.
+   - If CelesTrak is unavailable, non-200, timed out, or rate-limited, preserve the last-known-good local data and do not overwrite generated files.
+   - Record failed attempts without replacing the last successful timestamp.
+   - Do not automatically use deprecated CelesTrak domains, unverified mirrors, or random third-party TLE sources.
+   - Optional Space-Track fallback may exist only when credentials are explicitly configured and must be disabled by default.
+
+6. Server reuse and scheduling
+   - Add optional server controls for scheduled data refresh:
+     - `--update-data-on-schedule`
+     - `--no-data-update`
+     - `--data-update-interval-hours`, default `24`
+   - Server data updates must be disabled by default.
+   - When enabled, the server must inspect local metadata/freshness first and must not query TLE data on startup unless the 24-hour server rule and the 2-hour CelesTrak guard both allow it.
+   - Scheduled updates must run in the background, must not block normal static/API serving, and must not stop the server on failure.
+   - Use a lock file to prevent overlapping updates.
+   - Server updates must use incremental/default behavior, not `--all`.
+   - Provide a status endpoint or status payload so update state and failures can be inspected.
+
+7. Documentation and tests
+   - Update `README.md`, `Test_and_Integration.md`, and API documentation for the Python data tool, standalone CLI usage, server scheduling flags, default-off server behavior, fallback policy, and metadata files.
+   - Add focused automated tests that use fixtures or mocks, not live CelesTrak/N2YO requests.
+   - Cover legacy-compatible TLE transformation, incremental freshness behavior, CelesTrak failure preserving local data, decayed DB CSV filtering/grouping, importable server API usage, scheduler default-off behavior, and the no-startup-fetch freshness rule.
+
+Acceptance Criteria:
+
+- The latest release is `1.7.4`.
+- A standalone/importable Python data tool exists for TLE export and decayed DB building.
+- `export-tle --all` preserves the legacy Java data transformation and source-order behavior.
+- Default `export-tle` uses incremental freshness logic and avoids the slow full legacy group sweep.
+- `build-decayed-db` produces the same schema as the Java workflow from `json/satcat.csv`.
+- CelesTrak failure preserves last-known-good local data and records failure metadata.
+- Optional Space-Track fallback is disabled unless credentials are explicitly configured.
+- The Python server can reuse the tool directly and exposes opt-in scheduled update controls.
+- Server startup does not fetch TLE data by default, and scheduled mode checks the 24-hour rule plus the 2-hour CelesTrak guard before querying.
+- Scheduled updates do not block normal server serving and use a lock file.
+- Tests pass without live network access, or unavailable checks are clearly documented.
+
+## Release Date: 2026-06-14  Version 1.7.3
+
+Implement Version `1.7.3` as a focused `Show Orbit` correction for the 3D globe view.
+
+Review the existing orbit-rendering code and fix the 3D `Show Orbit` behavior so that enabling `Show Orbit` draws only one complete orbital revolution around Earth for the selected satellite. Also make the main `Stars & Milky Way` view enabled by default on launch.
+
+Requirements:
+
+1. Versioning
+   - Update visible app version and related version metadata to `1.7.3`.
+
+2. 3D Orbit Rendering
+   - When `Show Orbit` is checked in 3D mode, draw exactly one complete orbital revolution for the selected satellite.
+   - Do not draw multiple repeated revolutions, duplicated loops, or long multi-period trails around Earth.
+   - Generate the orbit from the current shared simulation date (`SIM_DATE`), not from real wall-clock time.
+   - Sample the orbit from `SIM_DATE` through `SIM_DATE + one orbital period`, inclusive, so the selected satellite's current propagated position is the first point on the displayed orbit.
+   - Use the selected satellite TLE/SGP4 data to determine the orbital period when possible.
+   - Prefer the satellite mean motion when available: `periodMinutes = (2 * Math.PI) / satrec.no`.
+   - Validate the computed period and use a safe documented fallback only when mean motion is unavailable or invalid.
+   - Use an adaptive but bounded sample count so LEO, MEO, GEO, HEO, and debris orbits are smooth without excessive points.
+   - Render the propagated sampled polyline only. Do not add an extra artificial closing segment between the last and first point.
+   - Preserve invalid-sample handling: skip or split unusable propagation samples, including non-finite, decayed, below-Earth, or otherwise invalid positions.
+   - Do not force-close orbit segments through invalid samples.
+   - If a full valid revolution cannot be generated, display only valid split segments and document the limitation; do not fabricate missing orbit sections.
+   - Preserve existing Earth occlusion behavior so behind-Earth orbit segments remain hidden in 3D.
+   - Do not alter the physical propagated radius or position of the orbit to make it visually fit.
+
+3. `Time x` Synchronization
+   - The displayed one-revolution orbit must stay synchronized with the active `Time x` simulation state.
+   - Changing `Time x` must not cause multiple orbit revolutions, duplicated paths, or accumulated trails.
+   - When `Time x = 0`, the simulation date is frozen and the displayed one-revolution orbit should remain stable for the selected satellite.
+   - When `Time x` advances time, the selected satellite position and displayed one-revolution orbit should remain synchronized with the current simulation date.
+   - Refresh the orbit when the selected satellite, `Show Orbit`, or simulation date changes enough to make the displayed path stale.
+   - If orbit geometry is refreshed while time advances, replace/update the existing one-revolution orbit instead of appending additional revolutions.
+
+4. Stars & Milky Way Default
+   - Make the main `Stars & Milky Way` checkbox checked by default on launch.
+   - Show the Milky Way sphere and bundled star field by default in normal Earth/satellite view.
+   - Keep `RA/Dec Grid`, `Bright Labels`, and `Atmosphere` unchecked by default.
+   - Keep the `Displaying 46 bundled reference stars` summary hidden until `Bright Labels` is checked.
+   - Continue hiding the app-level Stars & Milky Way layer while Solar System mode is active.
+
+5. Regression Safety
+   - Do not change satellite propagation behavior.
+   - Do not change satellite selection, filtering, search, Mercator display, footprints, selected-satellite details, model loading, Solar System, Share, Help, server status, or timeline behavior unless explicitly required above.
+   - GEO, MEO, LEO, HEO, and debris objects should each render one appropriate orbital revolution when valid propagation data is available.
+
+6. Mercator Behavior
+   - Keep existing Mercator ground-track behavior unless the code shares orbit sampling logic and must be adjusted to avoid regressions.
+   - If Mercator is affected, preserve selected ground-track rendering, invalid-sample splitting, and GEO fallback behavior.
+
+7. Tests and Documentation
+   - Add or update automated tests for 3D orbit generation to confirm only one orbital revolution is generated.
+   - Include test coverage for at least one LEO satellite and one GEO or MEO satellite if practical.
+   - Add or update tests confirming orbit updates replace existing geometry instead of accumulating repeated trails.
+   - Add or update tests or documented manual checks for `Time x = 0`, positive `Time x`, and changing `Time x` while `Show Orbit` is enabled.
+   - Add or update tests confirming `Stars & Milky Way` is checked by default while `RA/Dec Grid`, `Bright Labels`, and `Atmosphere` remain unchecked.
+   - Update `Test_and_Integration.md` with verification steps for the corrected `Show Orbit` behavior.
+   - Update `README.md` only if user-facing orbit behavior or known limitations need documentation.
+
+Acceptance Criteria:
+
+- Selecting a satellite and checking `Show Orbit` in 3D displays only one complete orbit around Earth.
+- The orbit does not repeat around Earth multiple times.
+- The orbit is generated from the current shared simulation date.
+- The selected satellite's current propagated position is the first point on the displayed orbit.
+- The displayed orbit is the propagated sampled polyline and does not include an artificial closing segment.
+- The orbit remains synchronized with the current simulation date while `Time x` is running, paused at `0`, or changed by the user.
+- Refreshing orbit geometry replaces the existing one-revolution path instead of accumulating duplicate trails.
+- The orbit remains physically based on propagated TLE data.
+- Invalid propagation samples are skipped or split without drawing through Earth or forcing invalid closure lines.
+- If a full valid revolution cannot be generated, valid partial split segments are shown instead of fabricated missing sections.
+- Earth occlusion still hides orbit segments behind the globe.
+- `Stars & Milky Way` is checked by default and displays the Milky Way/star field on launch.
+- `RA/Dec Grid`, `Bright Labels`, and `Atmosphere` remain unchecked by default.
+- The bundled star catalog summary remains hidden until `Bright Labels` is checked.
+- Existing Mercator, footprint, selection, filter, selected-model, Solar System, Stars & Milky Way, Share, Help, server, and timeline behavior still works.
+- Relevant automated tests pass, or any unavailable checks are clearly documented.
+
 ## Release Date: 2026-06-08  Version 1.7.2
 
 Implement Version `1.7.2` as a focused Satellite Selection menu layout refinement.

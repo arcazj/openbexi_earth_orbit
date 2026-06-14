@@ -17,7 +17,7 @@ export function satelliteMenuLoader() {
           <div><span>Server URL</span><strong id="serverStatusUrl">http://127.0.0.1:8000</strong></div>
           <div><span>Connection</span><strong id="serverStatusState">Checking</strong></div>
           <div><span>Data source</span><strong id="serverDataSource">Local files</strong></div>
-          <div><span>App version</span><strong id="serverAppVersion">1.7.2</strong></div>
+          <div><span>App version</span><strong id="serverAppVersion">1.7.4</strong></div>
           <div><span>API version</span><strong id="serverApiVersion">Unavailable</strong></div>
           <div><span>Last data load</span><strong id="serverLastSync">Never</strong></div>
           <button id="serverReconnectButton" type="button" class="menu-secondary-action server-reconnect-button">Reconnect / Refresh</button>
@@ -35,7 +35,7 @@ export function satelliteMenuLoader() {
         <div id="viewContent" class="collapsible-content view-option-grid" aria-labelledby="viewAccordionHeader">
           <div class="view-checkbox-table" role="group" aria-label="Views and time display controls">
             <div class="view-checkbox-cell"><label><input type="checkbox" id="solarSystemOverviewToggle">Solar System</label></div>
-            <div class="view-checkbox-cell"><label><input type="checkbox" id="starsMilkyWayToggle">Stars &amp; Milky Way</label></div>
+            <div class="view-checkbox-cell"><label><input type="checkbox" id="starsMilkyWayToggle" checked>Stars &amp; Milky Way</label></div>
             <div class="view-checkbox-cell view-checkbox-empty" aria-hidden="true"></div>
             <div class="view-checkbox-cell"><label><input type="checkbox" id="view3DToggle" checked>Globe</label></div>
             <div class="view-checkbox-cell"><label><input type="checkbox" id="highDefToggle"> High Def.</label></div>
@@ -59,7 +59,7 @@ export function satelliteMenuLoader() {
             </div>
             <div id="solarSystemSelectionSummary" class="solar-system-selection-summary" aria-live="polite">Solar System overview mode</div>
           </div>
-          <div id="starsMilkyWayOptions" class="stars-milky-way-options" hidden aria-hidden="true">
+          <div id="starsMilkyWayOptions" class="stars-milky-way-options" aria-hidden="false">
             <div class="view-control-row view-control-row-three star-view-control-row">
               <label><input type="checkbox" id="showRaDecGridToggle">RA/Dec Grid</label>
               <label><input type="checkbox" id="showBrightStarLabelsToggle">Bright Labels</label>

@@ -91,7 +91,7 @@ function run() {
   assert((html.match(/class="view-checkbox-cell"/g) || []).length === 7, 'View checkbox table has seven visible checkbox cells');
   assert((html.match(/class="view-checkbox-cell view-checkbox-empty"/g) || []).length === 2, 'View checkbox table has two empty cells to preserve the 3x3 layout');
   assert(html.includes('<label><input type="checkbox" id="solarSystemOverviewToggle">Solar System</label>'), 'Solar System is unchecked by default');
-  assert(html.includes('<label><input type="checkbox" id="starsMilkyWayToggle">Stars &amp; Milky Way</label>'), 'Stars & Milky Way is unchecked by default');
+  assert(html.includes('<label><input type="checkbox" id="starsMilkyWayToggle" checked>Stars &amp; Milky Way</label>'), 'Stars & Milky Way is checked by default');
   assert(html.includes('<label><input type="checkbox" id="view3DToggle" checked>Globe</label>'), 'Globe remains checked by default');
   assert(html.includes('<label><input type="checkbox" id="highDefToggle"> High Def.</label>'), 'High Def remains unchecked by default');
   assert(html.includes('<label><input type="checkbox" id="showECEFAxesToggle"> ECEF Axes</label>'), 'ECEF Axes remains unchecked by default');
@@ -104,7 +104,7 @@ function run() {
   assert(html.includes('id="solarSystemSunGlowToggle" checked'), 'Solar System sun glow is enabled by default inside mode');
   assert(html.includes('solarSystemBackButton'), 'Solar System has a back-to-overview action');
   assert(html.includes('solarSystemExitButton'), 'Solar System has an exit action');
-  assert(html.includes('id="starsMilkyWayOptions" class="stars-milky-way-options" hidden aria-hidden="true"'), 'Stars & Milky Way sub-controls are hidden by default');
+  assert(html.includes('id="starsMilkyWayOptions" class="stars-milky-way-options" aria-hidden="false"'), 'Stars & Milky Way sub-controls are visible by default');
   assert(html.includes('<label><input type="checkbox" id="showRaDecGridToggle">RA/Dec Grid</label>'), 'RA/Dec Grid is unchecked by default');
   assert(html.includes('<label><input type="checkbox" id="showBrightStarLabelsToggle">Bright Labels</label>'), 'Bright Labels is unchecked by default');
   assert(html.includes('<label><input type="checkbox" id="showStarAtmosphereToggle">Atmosphere</label>'), 'Atmosphere is unchecked by default');
@@ -269,7 +269,7 @@ function run() {
   assert(html.includes('href="http://127.0.0.1:8000/openapi.json"'), 'API link opens the default OpenAPI page');
   assert(markdownViewerHtml.includes("'SWAGGER.md', 'Swagger API'"), 'Markdown viewer can render local Swagger Markdown');
   assert(swaggerHtml.includes('OpenBEXI Earth Orbit API'), 'local Swagger page has the API title');
-  assert(swaggerHtml.includes('1.7.2'), 'local Swagger page displays the release version');
+  assert(swaggerHtml.includes('1.7.4'), 'local Swagger page displays the release version');
   assert(swaggerHtml.includes('OAS 3.0.3'), 'local Swagger page displays the OpenAPI version badge');
   assert(swaggerHtml.includes('Base URL / Schema Source'), 'local Swagger page displays base URL/schema context');
   assert(swaggerHtml.includes('<details class="operation get"'), 'local Swagger page has expandable GET operation rows');
@@ -382,7 +382,7 @@ function run() {
   assert(css.includes('.solar-system-hud-body'), 'Solar System selected planet HUD body has dedicated clock-aligned CSS');
   assert(css.includes('.solar-system-hud-row'), 'Solar System selected planet HUD rows have dedicated layout CSS');
   assert(css.includes('font-family: "SF Mono", "Roboto Mono", "Fira Mono", Menlo, Consolas, monospace;'), 'Solar System HUD uses the UTC clock monospace font family');
-  assert(css.includes('.stars-milky-way-options[hidden]'), 'Stars & Milky Way sub-controls are hidden by default through CSS');
+  assert(css.includes('.stars-milky-way-options[hidden]'), 'Stars & Milky Way sub-controls can be hidden when the parent toggle is off');
   assert(css.includes('.star-catalog-summary'), 'bundled star catalog summary has dedicated CSS');
   assert(!css.includes('.star-magnitude-control'), 'removed Magnitude limit control CSS is gone');
   assert(css.includes('font-size: 13px'), 'Stars & Milky Way controls use readable menu text');
@@ -552,7 +552,7 @@ function run() {
   assert(indexHtml.includes('showSun:  simParams.showDayNight && simParams.view3D && !simParams.solarSystemOverview'), 'Solar System mode suppresses Earth day/night sun layer');
   assert(indexHtml.includes("import { BRIGHT_STARS_DEMO } from './data/stars/bright-stars-demo.js';"), 'index imports the real RA/Dec demo star catalog');
   assert(!indexHtml.includes('MAX_INTEGRATED_STAR_MAGNITUDE_LIMIT'), 'index no longer imports the integrated magnitude limit cap');
-  assert(indexHtml.includes('showStarsMilkyWay: false'), 'Stars & Milky Way is disabled by default in simParams');
+  assert(indexHtml.includes('showStarsMilkyWay: true'), 'Stars & Milky Way is enabled by default in simParams');
   assert(indexHtml.includes('showRaDecGrid: false'), 'RA/Dec Grid is disabled by default in simParams');
   assert(indexHtml.includes('showBrightStarLabels: false'), 'Bright Labels is disabled by default in simParams');
   assert(indexHtml.includes('showStarAtmosphere: false'), 'Atmosphere is disabled by default in simParams');

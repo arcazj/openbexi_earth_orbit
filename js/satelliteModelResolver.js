@@ -1,23 +1,32 @@
 export const LOCAL_MODEL_CATALOG = Object.freeze([
     {
+        assetId: 'starlink_v2.glb',
+        metadataId: 'starlink_v2',
+        kind: 'glb',
+        aliases: ['starlink v2', 'starlink-v2', 'starlink_v2', 'v2 mini', 'v2mini'],
+        starlinkGeneration: 'v2'
+    },
+    {
         assetId: 'starlink_V1',
         metadataId: 'starlink_V1',
         kind: 'obj-mtl',
         aliases: ['starlink', 'spacex', 'starlink v1', 'starlink_v1', 'starlink-v1'],
-        noradIds: ['44713']
+        noradIds: ['44713'],
+        starlinkGeneration: 'v1'
     },
     {
-        assetId: 'starlink_spacex_satellite.glb',
-        metadataId: 'starlink_V1',
+        assetId: 'oneweb.glb',
+        metadataId: 'oneweb',
         kind: 'glb',
-        aliases: ['starlink spacex satellite', 'starlink_spacex_satellite']
-    },
-    {
-        assetId: 'oneweb',
-        metadataId: 'ONEWEB',
-        kind: 'obj-mtl',
         aliases: ['oneweb', 'one web', 'one-web', 'one_web'],
         noradIds: ['44072']
+    },
+    {
+        assetId: 'o3b.glb',
+        metadataId: 'O3b',
+        kind: 'glb',
+        aliases: ['o3b', 'ob3', 'o3b mpower', 'o3b-mpower', 'o3b_mpower'],
+        noradIds: ['39188']
     },
     {
         assetId: 'ISS.glb',
@@ -123,6 +132,43 @@ function satelliteIdentifierFields(sat = {}) {
     ].filter(value => value !== undefined && value !== null);
 }
 
+function starlinkNameNumber(sat = {}) {
+    const name = String(sat.satellite_name || sat.name || sat.object_name || sat.meta?.name || '').toUpperCase();
+    const match = /\bSTARLINK[-\s]?(\d{4,5})\b/.exec(name);
+    return match ? Number(match[1]) : null;
+}
+
+function isStarlinkSatellite(sat = {}) {
+    return textFieldsForSatellite(sat)
+        .map(value => String(value).toLowerCase())
+        .some(value => value.includes('starlink') || value.includes('spacex'));
+}
+
+export function isStarlinkV2Satellite(sat = {}) {
+    if (!isStarlinkSatellite(sat)) return false;
+    const explicitGenerationText = [
+        sat.generation,
+        sat.version,
+        sat.variant,
+        sat.bus,
+        sat.meta?.generation,
+        sat.meta?.version,
+        sat.meta?.variant,
+        sat.meta?.bus,
+        sat.meta?.description
+    ].filter(value => value !== undefined && value !== null)
+        .map(normalizeModelKey)
+        .join(' ');
+    if (
+        explicitGenerationText.includes('starlinkv2') ||
+        explicitGenerationText.includes('v2mini') ||
+        explicitGenerationText.split(/\s+/).includes('v2')
+    ) return true;
+
+    const number = starlinkNameNumber(sat);
+    return Number.isFinite(number) && number >= 30000;
+}
+
 function catalogKeys(entry) {
     return [
         entry.assetId,
@@ -152,6 +198,8 @@ export function resolveSatelliteModel(sat = {}, {
     const normalizedNameFields = nameFieldsForSatellite(sat).map(normalizeModelKey).filter(Boolean);
     const normalizedFields = textFieldsForSatellite(sat).map(normalizeModelKey).filter(Boolean);
     const normalizedText = normalizedFields.join(' ');
+    const starlinkV2Satellite = isStarlinkV2Satellite(sat);
+    const starlinkSatellite = isStarlinkSatellite(sat);
 
     let best = null;
     for (const entry of catalog) {
@@ -161,6 +209,9 @@ export function resolveSatelliteModel(sat = {}, {
             .some(id => normalizedSatelliteIds.includes(id));
         const exactRestrictedName = (entry.exactNames || []).map(normalizeModelKey)
             .some(name => normalizedNameFields.includes(name));
+        const exactStarlinkGeneration = entry.starlinkGeneration === 'v2'
+            ? starlinkV2Satellite
+            : entry.starlinkGeneration === 'v1' && starlinkSatellite && !starlinkV2Satellite;
         if (((entry.satelliteIds || []).length > 0 || (entry.exactNames || []).length > 0) &&
             !exactSatelliteId && !exactRestrictedName) {
             continue;
@@ -176,9 +227,15 @@ export function resolveSatelliteModel(sat = {}, {
         } else if (exactSatelliteId) {
             score = 110;
             reason = `app satellite identifier ${normalizedSatelliteIds.join(', ')} matched model catalog id`;
+        } else if (exactStarlinkGeneration && entry.starlinkGeneration === 'v2') {
+            score = 105;
+            reason = 'Starlink V2 generation matched model catalog';
         } else if (exactNorad) {
             score = 100;
             reason = `NORAD ${sat.norad_id} matched metadata mapping`;
+        } else if (exactStarlinkGeneration && entry.starlinkGeneration === 'v1') {
+            score = 90;
+            reason = 'Starlink V1 generation matched model catalog';
         } else if (exactField) {
             score = 80;
             reason = 'exact normalized satellite field matched model catalog';

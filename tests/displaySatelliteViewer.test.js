@@ -10,8 +10,26 @@ function assertFileExists(filePath, label) {
   assert(fs.existsSync(filePath), `${label} exists: ${filePath}`);
 }
 
+function listFilesRecursive(rootDir) {
+  const files = [];
+  fs.readdirSync(rootDir, { withFileTypes: true }).forEach((entry) => {
+    const entryPath = path.join(rootDir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...listFilesRecursive(entryPath));
+    } else if (entry.isFile()) {
+      files.push(entryPath);
+    }
+  });
+  return files;
+}
+
+function manifestRelativePath(rootDir, filePath) {
+  return path.relative(rootDir, filePath).replace(/\\/g, '/');
+}
+
 function run() {
   const html = read('display_satellite.html');
+  const serverPy = read('server.py');
   const manifest = JSON.parse(read('json/display_satellite_models.json'));
 
   assert.strictEqual(manifest.schemaVersion, 1, 'display satellite manifest schema version is 1');
@@ -21,38 +39,37 @@ function run() {
 
   const expectedIds = [
     'starlink_V1',
-    'o3b',
+    'starlink_v2.glb',
+    'oneweb.glb',
+    'o3b.glb',
     'ISS.glb',
     'SSL_1300.glb'
   ];
   const modelIds = new Set(manifest.models.map((model) => model.id));
   expectedIds.forEach((id) => assert(modelIds.has(id), `manifest includes ${id}`));
 
-  const excludedTopLevelAssets = new Set([
-    'oneweb.obj',
-    'oneweb.mtl'
-  ]);
-  const topLevelObjFiles = fs.readdirSync(manifest.basePath, { withFileTypes: true })
-    .filter((entry) => entry.isFile())
-    .map((entry) => entry.name);
+  assert.strictEqual(modelIds.size, manifest.models.length, 'display satellite manifest IDs are unique');
 
-  topLevelObjFiles
+  const objRoot = manifest.basePath.replace(/\/$/, '');
+  const assetFiles = listFilesRecursive(objRoot).map((filePath) => manifestRelativePath(objRoot, filePath));
+
+  assetFiles
     .filter((file) => file.toLowerCase().endsWith('.glb'))
     .forEach((glbFile) => {
       assert(
         manifest.models.some((model) => model.type === 'glb' && model.files?.glb === glbFile),
-        `manifest includes top-level GLB ${glbFile}`
+        `manifest includes GLB ${glbFile}`
       );
     });
 
-  topLevelObjFiles
-    .filter((file) => file.toLowerCase().endsWith('.obj') && !excludedTopLevelAssets.has(file))
+  assetFiles
+    .filter((file) => file.toLowerCase().endsWith('.obj'))
     .forEach((objFile) => {
       const mtlFile = objFile.replace(/\.obj$/i, '.mtl');
-      assert(topLevelObjFiles.includes(mtlFile), `${objFile} has a matching ${mtlFile}`);
+      assert(assetFiles.includes(mtlFile), `${objFile} has a matching ${mtlFile}`);
       assert(
         manifest.models.some((model) => model.type === 'obj-mtl' && model.files?.obj === objFile && model.files?.mtl === mtlFile),
-        `manifest includes top-level OBJ/MTL ${objFile}`
+        `manifest includes OBJ/MTL ${objFile}`
       );
     });
 
@@ -85,12 +102,16 @@ function run() {
 
   [
     'DISPLAY_MODEL_MANIFEST_URL',
+    'DISPLAY_MODEL_API_URL',
     'loadModelManifest',
+    'fetchModelManifest',
     'renderModelList',
     'updateDiagnostics',
     'collectObjectDiagnostics',
     'fitCameraToObject',
     'normalizeModelForDisplay',
+    'textureHasImage',
+    'removeBrokenTextureMaps',
     'loadGlbGroup',
     'setWireframeMode',
     'createLoadingManager',
@@ -113,26 +134,37 @@ function run() {
   });
 
   [
-    'generic.obj',
-    'generic.mtl',
-    'o3b_mpower_hd.obj',
-    'o3b_mpower_hd.mtl',
-    'International Space Station (ISS) (A).glb',
-    'ISS_High_definition',
-    'Hubble Space Telescope (A).glb',
-    'Hubble Space Telescope (B).glb',
-    'starlink_spacex_satellite.glb',
-    'international_space_station_iss.glb',
-    'Landsat8.glb',
-    'Landsat4and5.glb',
-    'Cloud-Aerosol Lidar and Infrared Pathfinder Satellite (CALIPSO).glb',
+    '/api/display-satellite-models',
+    '_display_satellite_model_manifest',
+    'KNOWN_DISPLAY_MODEL_METADATA',
+    'rglob("*.glb")',
+    'rglob("*.obj")',
+    'with_suffix(".mtl")'
+  ].forEach((needle) => {
+    assert(serverPy.includes(needle), `server.py includes ${needle}`);
+  });
+
+  [
+    'starlink_V1.obj',
+    'starlink_V1.mtl',
+    'starlink_v2.glb',
     'o3b.glb',
-    'oneweb',
-    'Aqua.glb',
-    'Aura.glb'
+    'oneweb.glb',
+    'ISS.glb',
+    'SSL_1300.glb'
+  ].forEach((availableAsset) => {
+    assert(JSON.stringify(manifest).includes(availableAsset), `manifest lists available ${availableAsset}`);
+  });
+
+  [
+    'oneweb.obj',
+    'oneweb.mtl',
+    'o3b.obj',
+    'o3b.mtl',
+    'o3b_mpower_hd.obj',
+    'o3b_mpower_hd.mtl'
   ].forEach((missingAsset) => {
-    assert(!html.includes(missingAsset), `display_satellite.html does not hard-code unavailable ${missingAsset}`);
-    assert(!JSON.stringify(manifest).includes(missingAsset), `manifest does not list unavailable ${missingAsset}`);
+    assert(!JSON.stringify(manifest).includes(missingAsset), `manifest does not list missing ${missingAsset}`);
   });
 
   console.log('displaySatelliteViewer tests passed');

@@ -483,7 +483,7 @@
     <header class="hero">
       <h1>
         OpenBEXI Earth Orbit API
-        <span class="badge version">1.7.2</span>
+        <span class="badge version">1.7.4</span>
         <span class="badge oas">OAS 3.0.3</span>
       </h1>
       <p class="description">
@@ -539,8 +539,8 @@
               <pre><code>{
   "status": "ok",
   "app": "OpenBEXI Earth Orbit",
-  "version": "1.7.2",
-  "release_date": "2026-06-08"
+  "version": "1.7.4",
+  "release_date": "2026-06-14"
 }</code></pre>
             </div>
             <div>
@@ -573,9 +573,9 @@
           <h3>Example Response</h3>
           <pre><code>{
   "app": "OpenBEXI Earth Orbit",
-  "version": "1.7.2",
+  "version": "1.7.4",
   "api_version": "1.0",
-  "release_date": "2026-06-08"
+  "release_date": "2026-06-14"
 }</code></pre>
         </div>
       </details>
@@ -711,6 +711,47 @@
       <details class="operation get">
         <summary>
           <span class="method get">GET</span>
+          <span class="path">/api/display-satellite-models</span>
+          <span class="summary-text">List GLB and OBJ/MTL satellite models under obj.</span>
+        </summary>
+        <div class="operation-body">
+          <h3>Description</h3>
+          <p>Returns a live display-model manifest by scanning <code>obj/</code> recursively for every <code>.glb</code> file and every <code>.obj</code> file with a matching <code>.mtl</code>.</p>
+          <h3>Parameters</h3>
+          <p class="empty">No parameters.</p>
+          <h3>Responses</h3>
+          <table class="response-table">
+            <thead><tr><th>Status</th><th>Description</th><th>Content type</th></tr></thead>
+            <tbody><tr><td>200</td><td>Display satellite model manifest.</td><td>application/json</td></tr></tbody>
+          </table>
+          <h3>Example Response</h3>
+          <pre><code>{
+  "schemaVersion": 1,
+  "basePath": "obj/",
+  "models": [
+    {
+      "id": "starlink_V1",
+      "type": "obj-mtl",
+      "files": {
+        "obj": "starlink_V1.obj",
+        "mtl": "starlink_V1.mtl"
+      }
+    },
+    {
+      "id": "ISS.glb",
+      "type": "glb",
+      "files": {
+        "glb": "ISS.glb"
+      }
+    }
+  ]
+}</code></pre>
+        </div>
+      </details>
+
+      <details class="operation get">
+        <summary>
+          <span class="method get">GET</span>
           <span class="path">/api/decayed</span>
           <span class="summary-text">Load confirmed decayed satellite data.</span>
         </summary>
@@ -728,6 +769,31 @@
           <pre><code>{
   "type": "object",
   "additionalProperties": true
+}</code></pre>
+        </div>
+      </details>
+
+      <details class="operation get">
+        <summary>
+          <span class="method get">GET</span>
+          <span class="path">/api/data-update-status</span>
+          <span class="summary-text">Read optional scheduled data-update status.</span>
+        </summary>
+        <div class="operation-body">
+          <h3>Description</h3>
+          <p>Returns the current background data-update scheduler state. The scheduler is disabled by default and only runs when <code>server.py</code> starts with <code>--update-data-on-schedule</code>.</p>
+          <h3>Parameters</h3>
+          <p class="empty">No parameters.</p>
+          <h3>Responses</h3>
+          <table class="response-table">
+            <thead><tr><th>Status</th><th>Description</th><th>Content type</th></tr></thead>
+            <tbody><tr><td>200</td><td>Scheduler status snapshot.</td><td>application/json</td></tr></tbody>
+          </table>
+          <h3>Example Response</h3>
+          <pre><code>{
+  "enabled": false,
+  "state": "disabled",
+  "interval_hours": 24
 }</code></pre>
         </div>
       </details>
@@ -757,7 +823,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "OpenBEXI Earth Orbit API",
-    "version": "1.7.2"
+    "version": "1.7.4"
   },
   "paths": {
     "/api/health": {},
@@ -788,7 +854,7 @@
     </section>
 
     <footer>
-      Static local documentation for OpenBEXI Earth Orbit 1.7.2. Companion Markdown: <a href="markdown_viewer.html?source=SWAGGER.md&amp;title=Swagger%20API">SWAGGER.md</a>.
+      Static local documentation for OpenBEXI Earth Orbit 1.7.4. Companion Markdown: <a href="markdown_viewer.html?source=SWAGGER.md&amp;title=Swagger%20API">SWAGGER.md</a>.
     </footer>
   </main>
 

@@ -7,27 +7,77 @@
       "displayName": "Starlink V1",
       "type": "obj-mtl",
       "description": "OBJ/MTL Starlink satellite model.",
-      "tags": ["Starlink", "OBJ", "MTL", "LEO"],
+      "tags": [
+        "Starlink",
+        "OBJ",
+        "MTL",
+        "LEO"
+      ],
       "files": {
         "obj": "starlink_V1.obj",
         "mtl": "starlink_V1.mtl"
       },
       "textures": [
-        { "path": "Textures/starlink_BaseColor.png", "required": true },
-        { "path": "Textures/starlink_Checker_Roughness.png", "required": true },
-        { "path": "Textures/starlink_Metallic.png", "required": true },
-        { "path": "Textures/starlink_Normal.png", "required": false }
+        {
+          "path": "Textures/starlink_BaseColor.png",
+          "required": false
+        },
+        {
+          "path": "Textures/starlink_Checker_Roughness.png",
+          "required": false
+        },
+        {
+          "path": "Textures/starlink_Metallic.png",
+          "required": false
+        },
+        {
+          "path": "Textures/starlink_Normal.png",
+          "required": false
+        }
       ]
     },
     {
-      "id": "o3b",
-      "displayName": "O3b",
-      "type": "obj-mtl",
-      "description": "OBJ/MTL O3b MEO satellite model.",
-      "tags": ["O3b", "OBJ", "MTL", "MEO"],
+      "id": "starlink_v2.glb",
+      "displayName": "Starlink V2",
+      "type": "glb",
+      "description": "GLB Starlink V2 satellite model.",
+      "tags": [
+        "Starlink",
+        "GLB",
+        "LEO"
+      ],
       "files": {
-        "obj": "o3b.obj",
-        "mtl": "o3b.mtl"
+        "glb": "starlink_v2.glb"
+      },
+      "textures": []
+    },
+    {
+      "id": "oneweb.glb",
+      "displayName": "OneWeb GLB",
+      "type": "glb",
+      "description": "GLB OneWeb satellite model.",
+      "tags": [
+        "OneWeb",
+        "GLB",
+        "LEO"
+      ],
+      "files": {
+        "glb": "oneweb.glb"
+      },
+      "textures": []
+    },
+    {
+      "id": "o3b.glb",
+      "displayName": "O3b GLB",
+      "type": "glb",
+      "description": "GLB O3b satellite model.",
+      "tags": [
+        "O3b",
+        "GLB",
+        "MEO"
+      ],
+      "files": {
+        "glb": "o3b.glb"
       },
       "textures": []
     },
@@ -36,7 +86,12 @@
       "displayName": "International Space Station",
       "type": "glb",
       "description": "GLB International Space Station model.",
-      "tags": ["ISS", "GLB", "Station", "LEO"],
+      "tags": [
+        "ISS",
+        "GLB",
+        "Station",
+        "LEO"
+      ],
       "files": {
         "glb": "ISS.glb"
       },
@@ -47,7 +102,11 @@
       "displayName": "SSL 1300",
       "type": "glb",
       "description": "GLB SSL 1300 satellite bus model.",
-      "tags": ["SSL", "GLB", "GEO"],
+      "tags": [
+        "SSL",
+        "GLB",
+        "GEO"
+      ],
       "files": {
         "glb": "SSL_1300.glb"
       },

@@ -106,6 +106,7 @@
             color: var(--muted);
             font-size: 13px;
             line-height: 1.45;
+            overflow-wrap: anywhere;
         }
 
         .panel-body {
@@ -217,6 +218,7 @@
             color: var(--muted);
             font-size: 12px;
             line-height: 1.42;
+            overflow-wrap: anywhere;
         }
 
         .model-meta {
@@ -326,15 +328,54 @@
 
         @media (max-width: 900px) {
             body {
-                overflow: auto;
+                overflow-x: hidden;
+                overflow-y: auto;
+            }
+
+            canvas {
+                max-width: 100vw;
             }
 
             .shell {
                 position: relative;
                 inset: auto;
-                grid-template-columns: 1fr;
+                display: block;
+                width: 100vw;
+                max-width: 100vw;
                 padding: 12px;
+                overflow-x: hidden;
                 pointer-events: auto;
+            }
+
+            .panel,
+            .model-card,
+            .diagnostic-item,
+            input,
+            button {
+                min-width: 0;
+            }
+
+            .panel {
+                width: calc(100vw - 24px);
+                max-width: calc(100vw - 24px);
+                margin-bottom: 12px;
+            }
+
+            .model-name {
+                min-width: 0;
+                align-items: center;
+                flex-wrap: wrap;
+            }
+
+            .model-name > span:first-child {
+                min-width: 0;
+                overflow-wrap: anywhere;
+            }
+
+            .pill {
+                max-width: 100%;
+                overflow: hidden;
+                text-overflow: ellipsis;
             }
 
             .model-list {
@@ -426,6 +467,7 @@
     import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
     import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 
+    const DISPLAY_MODEL_API_URL = '/api/display-satellite-models';
     const DISPLAY_MODEL_MANIFEST_URL = 'json/display_satellite_models.json';
     const DEFAULT_MODEL_ID = 'starlink_V1';
     const FALLBACK_MODEL_MANIFEST = Object.freeze({
@@ -440,19 +482,37 @@
                 tags: ['Starlink', 'OBJ', 'MTL', 'LEO'],
                 files: { obj: 'starlink_V1.obj', mtl: 'starlink_V1.mtl' },
                 textures: [
-                    { path: 'Textures/starlink_BaseColor.png', required: true },
-                    { path: 'Textures/starlink_Checker_Roughness.png', required: true },
-                    { path: 'Textures/starlink_Metallic.png', required: true },
+                    { path: 'Textures/starlink_BaseColor.png', required: false },
+                    { path: 'Textures/starlink_Checker_Roughness.png', required: false },
+                    { path: 'Textures/starlink_Metallic.png', required: false },
                     { path: 'Textures/starlink_Normal.png', required: false }
                 ]
             },
             {
-                id: 'o3b',
-                displayName: 'O3b',
-                type: 'obj-mtl',
-                description: 'OBJ/MTL O3b MEO satellite model.',
-                tags: ['O3b', 'OBJ', 'MTL', 'MEO'],
-                files: { obj: 'o3b.obj', mtl: 'o3b.mtl' },
+                id: 'starlink_v2.glb',
+                displayName: 'Starlink V2',
+                type: 'glb',
+                description: 'GLB Starlink V2 satellite model.',
+                tags: ['Starlink', 'GLB', 'LEO'],
+                files: { glb: 'starlink_v2.glb' },
+                textures: []
+            },
+            {
+                id: 'oneweb.glb',
+                displayName: 'OneWeb GLB',
+                type: 'glb',
+                description: 'GLB OneWeb satellite model.',
+                tags: ['OneWeb', 'GLB', 'LEO'],
+                files: { glb: 'oneweb.glb' },
+                textures: []
+            },
+            {
+                id: 'o3b.glb',
+                displayName: 'O3b GLB',
+                type: 'glb',
+                description: 'GLB O3b satellite model.',
+                tags: ['O3b', 'GLB', 'MEO'],
+                files: { glb: 'o3b.glb' },
                 textures: []
             },
             {
@@ -620,24 +680,43 @@
         ].join(' ').toLowerCase();
     }
 
+    async function fetchModelManifest(url) {
+        const response = await fetch(url, { cache: 'no-store' });
+        if (!response.ok) {
+            throw new Error(`${url}: HTTP ${response.status}`);
+        }
+        const manifest = await response.json();
+        return {
+            ...manifest,
+            basePath: manifest.basePath || 'obj/'
+        };
+    }
+
     async function loadModelManifest() {
+        const sources = [
+            { label: 'Model API', url: DISPLAY_MODEL_API_URL },
+            { label: 'Manifest', url: DISPLAY_MODEL_MANIFEST_URL }
+        ];
+        const errors = [];
         try {
-            const response = await fetch(DISPLAY_MODEL_MANIFEST_URL, { cache: 'no-store' });
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
+            for (const source of sources) {
+                try {
+                    state.manifest = await fetchModelManifest(source.url);
+                    setStatus('success', source.label, `Loaded <code>${escapeHtml(source.url)}</code>.`);
+                    state.models = (state.manifest.models || []).map(normalizeManifestEntry);
+                    renderModelList();
+                    return;
+                } catch (error) {
+                    errors.push(error.message);
+                }
             }
-            const manifest = await response.json();
-            state.manifest = {
-                ...manifest,
-                basePath: manifest.basePath || 'obj/'
-            };
-            setStatus('success', 'Manifest', `Loaded <code>${escapeHtml(DISPLAY_MODEL_MANIFEST_URL)}</code>.`);
+            throw new Error(errors.join(' | '));
         } catch (error) {
             state.manifest = FALLBACK_MODEL_MANIFEST;
             setStatus('warning', 'Manifest', `Using embedded fallback manifest. <code>${escapeHtml(error.message)}</code>`);
+            state.models = (state.manifest.models || []).map(normalizeManifestEntry);
+            renderModelList();
         }
-        state.models = (state.manifest.models || []).map(normalizeManifestEntry);
-        renderModelList();
     }
 
     function renderModelList() {
@@ -729,6 +808,43 @@
             && color.b <= 0.02;
     }
 
+    function textureHasImage(texture) {
+        const image = texture?.image || texture?.source?.data;
+        return Boolean(image && (
+            image.data ||
+            image.complete ||
+            (Number.isFinite(image.width) && image.width > 0 && Number.isFinite(image.height) && image.height > 0)
+        ));
+    }
+
+    const MATERIAL_TEXTURE_KEYS = [
+        'map',
+        'alphaMap',
+        'aoMap',
+        'bumpMap',
+        'displacementMap',
+        'emissiveMap',
+        'envMap',
+        'lightMap',
+        'metalnessMap',
+        'normalMap',
+        'roughnessMap',
+        'specularMap'
+    ];
+
+    function removeBrokenTextureMaps(material) {
+        let removed = false;
+        MATERIAL_TEXTURE_KEYS.forEach(key => {
+            const texture = material?.[key];
+            if (texture?.isTexture && !textureHasImage(texture)) {
+                texture.dispose?.();
+                material[key] = null;
+                removed = true;
+            }
+        });
+        return removed;
+    }
+
     function makeMaterialVisible(material) {
         if (!material) {
             return new THREE.MeshStandardMaterial({
@@ -738,11 +854,15 @@
                 side: THREE.DoubleSide
             });
         }
+        const removedBrokenTexture = removeBrokenTextureMaps(material);
         material.visible = true;
         material.side = THREE.DoubleSide;
         if (Number.isFinite(material.opacity) && material.opacity <= 0.05) {
             material.opacity = 1;
             material.transparent = false;
+        }
+        if (removedBrokenTexture && material.color?.set) {
+            material.color.set(0xcfd8ff);
         }
         if (!material.map && material.color?.set && materialColorLooksBlack(material)) {
             material.color.set(0xcfd8ff);

@@ -15,7 +15,9 @@ function run() {
     '"/api/tle"',
     '"/api/satellites"',
     '"/api/satellite-metadata"',
+    '"/api/display-satellite-models"',
     '"/api/decayed"',
+    '"/api/data-update-status"',
     '"/openapi.json"',
     '"/docs"'
   ].forEach(route => {
@@ -24,8 +26,13 @@ function run() {
 
   assert(serverPy.includes('Access-Control-Allow-Origin'), 'server.py sends CORS headers');
   assert(serverPy.includes('ThreadingHTTPServer'), 'server.py uses a local threaded HTTP server');
-  assert(serverPy.includes('APP_VERSION = "1.7.2"'), 'server.py version matches latest release');
-  assert(serverPy.includes('RELEASE_DATE = "2026-06-08"'), 'server.py release date matches latest release');
+  assert(serverPy.includes('APP_VERSION = "1.7.4"'), 'server.py version matches latest release');
+  assert(serverPy.includes('RELEASE_DATE = "2026-06-14"'), 'server.py release date matches latest release');
+  assert(serverPy.includes('--update-data-on-schedule'), 'server.py exposes data update schedule opt-in');
+  assert(serverPy.includes('--no-data-update'), 'server.py exposes data update disable flag');
+  assert(serverPy.includes('--data-update-interval-hours'), 'server.py exposes data update interval flag');
+  assert(serverPy.includes('maybe_update_satellite_data'), 'server.py imports the data tool function directly');
+  assert(serverPy.includes('"state": "disabled"'), 'server.py keeps data updates disabled by default');
   assert(serverPy.includes('SwaggerUIBundle'), 'server docs page initializes Swagger UI when CDN is available');
   assert(serverPy.includes('.swagger-ui .opblock .opblock-summary-path'), 'server docs override Swagger route text contrast');
   assert(serverPy.includes('color: #ffffff !important'), 'server docs include high-contrast route/method text');
@@ -52,6 +59,12 @@ function run() {
   assert(readme.includes('Version 1.7 upgrades Solar System textures and uses bundled JPL-derived ephemeris data'), 'README documents Version 1.7 ephemeris and texture changes');
   assert(readme.includes('Version 1.7.1 consolidates satellite filters into `Satellites Selection - Found`'), 'README documents Version 1.7.1 menu consolidation');
   assert(readme.includes('Version 1.7.2 moves `Debris` into the orbit/category row'), 'README documents Version 1.7.2 menu changes');
+  assert(readme.includes('Version 1.7.3 corrects 3D `Show Orbit`'), 'README documents Version 1.7.3 orbit changes');
+  assert(readme.includes('Version 1.7.4 replaces the legacy Java satellite data maintenance workflows'), 'README documents Version 1.7.4 data tool changes');
+  assert(readme.includes('tools/satellite_data_tools.py'), 'README documents the Python data tool');
+  assert(readme.includes('--update-data-on-schedule'), 'README documents scheduled update opt-in');
+  assert(readme.includes('/api/data-update-status'), 'README documents the data update status API');
+  assert(readme.includes('/api/display-satellite-models'), 'README documents the display satellite model manifest API');
   assert(readme.includes('swagger.html'), 'README documents the local standard Swagger UI page');
   assert(readme.includes('SWAGGER.md'), 'README documents the local Swagger Markdown companion');
   assert(readme.includes('markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API'), 'README documents static Swagger Markdown companion rendering');
@@ -81,8 +94,11 @@ function run() {
   assert(swagger.includes('You do not need to run `server.py` to read this Markdown companion'), 'SWAGGER.md documents server-free display');
   assert(swagger.includes('/api/health'), 'SWAGGER.md documents API health');
   assert(swagger.includes('/openapi.json'), 'SWAGGER.md documents live OpenAPI JSON');
+  assert(swagger.includes('/api/data-update-status'), 'SWAGGER.md documents data update status');
+  assert(swagger.includes('/api/display-satellite-models'), 'SWAGGER.md documents display satellite model manifest');
   assert(swaggerHtml.includes('OpenBEXI Earth Orbit API'), 'swagger.html has a standard API title');
   assert(swaggerHtml.includes('class="badge version"'), 'swagger.html displays a version badge');
+  assert(swaggerHtml.includes('1.7.4'), 'swagger.html displays the release version');
   assert(swaggerHtml.includes('class="badge oas"'), 'swagger.html displays an OAS badge');
   assert(swaggerHtml.includes('Base URL / Schema Source'), 'swagger.html documents base URL/schema context');
   assert(swaggerHtml.includes('<details class="operation get"'), 'swagger.html uses expandable operation details');
@@ -97,7 +113,9 @@ function run() {
     '/api/satellites',
     '/api/satellite-metadata',
     '/api/satellite-metadata/{file_name}',
+    '/api/display-satellite-models',
     '/api/decayed',
+    '/api/data-update-status',
     '/openapi.json',
     '/docs'
   ].forEach(route => {
@@ -116,10 +134,13 @@ function run() {
   assert(integration.includes('Version 1.7 upgrades Solar System textures and adds bundled JPL-derived ephemeris data'), 'integration plan covers Version 1.7');
   assert(integration.includes('Version 1.7.1 consolidates `Filters - Satellites Found` into `Satellites Selection - Found`'), 'integration plan covers Version 1.7.1');
   assert(integration.includes('Version 1.7.2 moves `Debris` into the orbit/category row'), 'integration plan covers Version 1.7.2');
+  assert(integration.includes('Version 1.7.3 corrects 3D `Show Orbit`'), 'integration plan covers Version 1.7.3');
+  assert(integration.includes('Version 1.7.4 replaces legacy Java data maintenance'), 'integration plan covers Version 1.7.4');
+  assert(integration.includes('Data Maintenance Tools'), 'integration plan covers Python data maintenance tools');
   assert(integration.includes('Coverage Traceability Audit'), 'integration plan includes a prior-release coverage audit');
   assert(integration.includes('swagger.html'), 'integration plan covers static standard Swagger UI rendering');
   assert(integration.includes('markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API'), 'integration plan covers static Swagger Markdown companion rendering');
-  assert(integration.includes('controls only while enabled'), 'integration plan covers hidden Stars & Milky Way sub-controls');
+  assert(integration.includes('visible but unchecked by default'), 'integration plan covers default Stars & Milky Way sub-controls');
   assert(integration.includes('Test Mars mode keeps Mars visually centered'), 'integration plan covers Mars target checks');
   assert(integration.includes('Mars texture loading does not show a visible progress bar on initial `index.html` launch'), 'integration plan covers silent Mars launch behavior');
   assert(integration.includes('Selecting Mars shows a progress bar'), 'integration plan covers Mars texture progress checks');

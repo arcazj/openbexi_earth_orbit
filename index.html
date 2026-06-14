@@ -104,6 +104,7 @@
         satellites,
         updateOrbitTrajectory,
         refreshSelectedOrbitOcclusion,
+        refreshOrbitTrajectoryIfNeeded,
         setupTLESatellites,
         removeAllGeometry,
         isUsableOrbitPosition,
@@ -193,7 +194,7 @@
     })();
     startupPerf.mark('module-loaded');
 
-    const versionNumber = "1.7.2";
+    const versionNumber = "1.7.4";
     if (versionNumber !== APP_VERSION) {
         console.warn(`Version mismatch: index ${versionNumber}, server module ${APP_VERSION}`);
     }
@@ -407,7 +408,7 @@
         solarSystemOrbitPaths: true,
         solarSystemPlanetTextures: true,
         solarSystemSunGlow: true,
-        showStarsMilkyWay: false,
+        showStarsMilkyWay: true,
         showRaDecGrid: false,
         showBrightStarLabels: false,
         showStarAtmosphere: false
@@ -4389,6 +4390,7 @@
         if (renderer) renderer.domElement.style.display = show3D ? 'block' : 'none';
         if (show3D) {
             if (simParams.showOrbit && !simParams.solarSystemOverview) {
+                refreshOrbitTrajectoryIfNeeded(scene, simParams, currentSelectedSatellite);
                 refreshSelectedOrbitOcclusion(camera, { earthRadiusScene: EARTH_SCENE_RADIUS });
             }
             renderer.render(scene, camera);

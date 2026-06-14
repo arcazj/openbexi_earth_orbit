@@ -11,16 +11,50 @@ from __future__ import annotations
 import argparse
 import json
 import mimetypes
+import threading
+import time
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import quote, unquote, urlparse
 
 
-APP_VERSION = "1.7.2"
-RELEASE_DATE = "2026-06-08"
+APP_VERSION = "1.7.4"
+RELEASE_DATE = "2026-06-14"
 REPO_URL = "https://github.com/arcazj/openbexi_earth_orbit"
 ROOT = Path(__file__).resolve().parent
+
+try:
+    from tools.satellite_data_tools import (
+        DEFAULT_SERVER_UPDATE_INTERVAL_HOURS,
+        maybe_update_satellite_data,
+    )
+except Exception as exc:  # pragma: no cover - exposed through /api/data-update-status
+    DEFAULT_SERVER_UPDATE_INTERVAL_HOURS = 24.0
+    maybe_update_satellite_data = None
+    DATA_TOOL_IMPORT_ERROR = str(exc)
+else:
+    DATA_TOOL_IMPORT_ERROR = None
+
+
+DATA_UPDATE_STATUS_LOCK = threading.Lock()
+DATA_UPDATE_STATUS: dict[str, object] = {
+    "enabled": False,
+    "state": "disabled",
+    "interval_hours": DEFAULT_SERVER_UPDATE_INTERVAL_HOURS,
+    "last_result": None,
+    "last_error": None,
+}
+
+
+def _set_data_update_status(**updates: object) -> None:
+    with DATA_UPDATE_STATUS_LOCK:
+        DATA_UPDATE_STATUS.update(updates)
+
+
+def _data_update_status_snapshot() -> dict[str, object]:
+    with DATA_UPDATE_STATUS_LOCK:
+        return dict(DATA_UPDATE_STATUS)
 
 
 def _json_bytes(payload: object) -> bytes:
@@ -47,6 +81,205 @@ def _metadata_files() -> list[dict[str, object]]:
             }
         )
     return files
+
+
+KNOWN_DISPLAY_MODEL_METADATA: dict[str, dict[str, object]] = {
+    "starlink_V1.obj": {
+        "id": "starlink_V1",
+        "displayName": "Starlink V1",
+        "description": "OBJ/MTL Starlink satellite model.",
+        "tags": ["Starlink", "OBJ", "MTL", "LEO"],
+        "textures": [
+            {"path": "Textures/starlink_BaseColor.png", "required": False},
+            {"path": "Textures/starlink_Checker_Roughness.png", "required": False},
+            {"path": "Textures/starlink_Metallic.png", "required": False},
+            {"path": "Textures/starlink_Normal.png", "required": False},
+        ],
+    },
+    "o3b_mpower_hd.obj": {
+        "id": "o3b_mpower_hd",
+        "displayName": "O3b mPOWER HD",
+        "description": "OBJ/MTL O3b mPOWER satellite model.",
+        "tags": ["O3b", "mPOWER", "OBJ", "MTL", "MEO"],
+    },
+    "generic.obj": {
+        "id": "generic",
+        "displayName": "Generic Satellite",
+        "description": "Generic OBJ/MTL satellite model.",
+        "tags": ["Generic", "OBJ", "MTL"],
+    },
+    "ISS.glb": {
+        "id": "ISS.glb",
+        "displayName": "International Space Station",
+        "description": "GLB International Space Station model.",
+        "tags": ["ISS", "GLB", "Station", "LEO"],
+    },
+    "International Space Station (ISS) (A).glb": {
+        "displayName": "International Space Station (A)",
+        "description": "GLB International Space Station reference model.",
+        "tags": ["ISS", "GLB", "Station", "LEO"],
+    },
+    "SSL_1300.glb": {
+        "id": "SSL_1300.glb",
+        "displayName": "SSL 1300",
+        "description": "GLB SSL 1300 satellite bus model.",
+        "tags": ["SSL", "GLB", "GEO"],
+    },
+    "starlink_v2.glb": {
+        "displayName": "Starlink V2",
+        "description": "GLB Starlink V2 satellite model.",
+        "tags": ["Starlink", "GLB", "LEO"],
+    },
+    "oneweb.glb": {
+        "displayName": "OneWeb GLB",
+        "description": "GLB OneWeb satellite model.",
+        "tags": ["OneWeb", "GLB", "LEO"],
+    },
+    "o3b.glb": {
+        "displayName": "O3b GLB",
+        "description": "GLB O3b satellite model.",
+        "tags": ["O3b", "GLB", "MEO"],
+    },
+    "Hubble Space Telescope (A).glb": {
+        "displayName": "Hubble Space Telescope (A)",
+        "description": "GLB Hubble Space Telescope reference model.",
+        "tags": ["Hubble", "GLB", "Telescope", "LEO"],
+    },
+    "Hubble Space Telescope (B).glb": {
+        "displayName": "Hubble Space Telescope (B)",
+        "description": "GLB Hubble Space Telescope reference model.",
+        "tags": ["Hubble", "GLB", "Telescope", "LEO"],
+    },
+}
+
+
+DISPLAY_MODEL_PRIORITY = {
+    "starlink_V1": 0,
+    "starlink_v2.glb": 1,
+    "oneweb.glb": 2,
+    "o3b.glb": 3,
+    "o3b_mpower_hd": 4,
+    "ISS.glb": 5,
+    "International Space Station (ISS) (A).glb": 6,
+    "SSL_1300.glb": 7,
+}
+
+
+def _display_model_name(relative_path: str) -> str:
+    stem = Path(relative_path).stem.replace("_", " ").replace("-", " ").strip()
+    if relative_path.startswith("ISS_High_definition/"):
+        parent = Path(relative_path).parent.name.replace("_", " ").replace("-", " ")
+        return f"ISS High Definition / {parent} / {stem}".strip()
+    return stem or relative_path
+
+
+def _display_model_metadata(relative_path: str) -> dict[str, object]:
+    return dict(KNOWN_DISPLAY_MODEL_METADATA.get(relative_path, {}))
+
+
+def _display_satellite_model_manifest() -> dict[str, object]:
+    obj_dir = ROOT / "obj"
+    models: list[dict[str, object]] = []
+
+    for obj_path in sorted(obj_dir.rglob("*.obj"), key=lambda item: item.as_posix().lower()):
+        mtl_path = obj_path.with_suffix(".mtl")
+        if not mtl_path.is_file():
+            continue
+        obj_relative = obj_path.relative_to(obj_dir).as_posix()
+        mtl_relative = mtl_path.relative_to(obj_dir).as_posix()
+        metadata = _display_model_metadata(obj_relative)
+        model_id = str(metadata.pop("id", obj_relative[:-4]))
+        models.append(
+            {
+                "id": model_id,
+                "displayName": metadata.pop("displayName", _display_model_name(obj_relative)),
+                "type": "obj-mtl",
+                "description": metadata.pop("description", "OBJ/MTL satellite model."),
+                "tags": metadata.pop("tags", ["OBJ", "MTL"]),
+                "files": {"obj": obj_relative, "mtl": mtl_relative},
+                "textures": metadata.pop("textures", []),
+                **metadata,
+            }
+        )
+
+    for glb_path in sorted(obj_dir.rglob("*.glb"), key=lambda item: item.as_posix().lower()):
+        glb_relative = glb_path.relative_to(obj_dir).as_posix()
+        metadata = _display_model_metadata(glb_relative)
+        model_id = str(metadata.pop("id", glb_relative))
+        tags = metadata.pop("tags", ["ISS", "GLB", "Module"] if glb_relative.startswith("ISS_High_definition/") else ["GLB"])
+        models.append(
+            {
+                "id": model_id,
+                "displayName": metadata.pop("displayName", _display_model_name(glb_relative)),
+                "type": "glb",
+                "description": metadata.pop("description", "GLB satellite model."),
+                "tags": tags,
+                "files": {"glb": glb_relative},
+                "textures": metadata.pop("textures", []),
+                **metadata,
+            }
+        )
+
+    models.sort(
+        key=lambda model: (
+            DISPLAY_MODEL_PRIORITY.get(str(model["id"]), 100),
+            str(model["displayName"]).lower(),
+            str(model["id"]).lower(),
+        )
+    )
+    return {"schemaVersion": 1, "basePath": "obj/", "models": models}
+
+
+class DataUpdateScheduler:
+    def __init__(self, *, interval_hours: float = DEFAULT_SERVER_UPDATE_INTERVAL_HOURS):
+        self.interval_hours = max(1.0, float(interval_hours))
+        self.stop_event = threading.Event()
+        self.thread = threading.Thread(target=self._run, name="openbexi-data-update", daemon=True)
+
+    def start(self) -> None:
+        _set_data_update_status(
+            enabled=True,
+            state="scheduled",
+            interval_hours=self.interval_hours,
+            tool_available=maybe_update_satellite_data is not None,
+            import_error=DATA_TOOL_IMPORT_ERROR,
+        )
+        self.thread.start()
+
+    def stop(self) -> None:
+        self.stop_event.set()
+        if self.thread.is_alive():
+            self.thread.join(timeout=2.0)
+
+    def _run(self) -> None:
+        if self.stop_event.wait(1.0):
+            return
+        while not self.stop_event.is_set():
+            self.run_once()
+            sleep_seconds = min(3600.0, max(60.0, self.interval_hours * 3600.0 / 4.0))
+            self.stop_event.wait(sleep_seconds)
+
+    def run_once(self) -> None:
+        if maybe_update_satellite_data is None:
+            _set_data_update_status(state="unavailable", last_error=DATA_TOOL_IMPORT_ERROR)
+            return
+        _set_data_update_status(state="checking", last_started_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+        try:
+            result = maybe_update_satellite_data(root=ROOT, interval_hours=self.interval_hours)
+        except Exception as exc:
+            _set_data_update_status(
+                state="failed",
+                last_error=str(exc),
+                last_finished_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            )
+            return
+        state = "skipped" if result.get("skipped") else "succeeded"
+        _set_data_update_status(
+            state=state,
+            last_result=result,
+            last_error=None,
+            last_finished_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        )
 
 
 def _openapi_document(host: str) -> dict[str, object]:
@@ -142,12 +375,34 @@ def _openapi_document(host: str) -> dict[str, object]:
                     },
                 }
             },
+            "/api/display-satellite-models": {
+                "get": {
+                    "summary": "List GLB and OBJ/MTL satellite models available under obj/",
+                    "responses": {
+                        "200": {
+                            "description": "Display satellite model manifest",
+                            "content": {"application/json": {"schema": json_object_schema}},
+                        }
+                    },
+                }
+            },
             "/api/decayed": {
                 "get": {
                     "summary": "Load confirmed decayed satellite data",
                     "responses": {
                         "200": {
                             "description": "Decayed satellite source data",
+                            "content": {"application/json": {"schema": json_object_schema}},
+                        }
+                    },
+                }
+            },
+            "/api/data-update-status": {
+                "get": {
+                    "summary": "Get optional scheduled data-update status",
+                    "responses": {
+                        "200": {
+                            "description": "Data update scheduler status",
                             "content": {"application/json": {"schema": json_object_schema}},
                         }
                     },
@@ -269,7 +524,7 @@ def _docs_html() -> bytes:
 
 
 class OpenBexiHandler(SimpleHTTPRequestHandler):
-    server_version = "OpenBEXIHTTP/1.7.2"
+    server_version = "OpenBEXIHTTP/1.7.4"
 
     def __init__(self, *args, serve_static: bool = True, **kwargs):
         self.serve_static = serve_static
@@ -371,8 +626,14 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
                     return True
                 self._send_json_file(ROOT / "json" / "satellites" / file_name, head_only=head_only)
                 return True
+            if path == "/api/display-satellite-models":
+                self._send_json(_display_satellite_model_manifest(), head_only=head_only)
+                return True
             if path == "/api/decayed":
                 self._send_json_file(ROOT / "json" / "decayed" / "decayed.json", head_only=head_only)
+                return True
+            if path == "/api/data-update-status":
+                self._send_json(_data_update_status_snapshot(), head_only=head_only)
                 return True
             if path == "/openapi.json":
                 self._send_json(_openapi_document(host), head_only=head_only)
@@ -418,21 +679,55 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable serving index.html and static repository files.",
     )
+    parser.add_argument(
+        "--update-data-on-schedule",
+        action="store_true",
+        help="Enable background TLE/decayed-data updates after freshness checks.",
+    )
+    parser.add_argument(
+        "--no-data-update",
+        action="store_true",
+        help="Disable background data updates even if scheduling flags are present.",
+    )
+    parser.add_argument(
+        "--data-update-interval-hours",
+        default=DEFAULT_SERVER_UPDATE_INTERVAL_HOURS,
+        type=float,
+        help="Minimum age before scheduled data updates run. Default: 24.",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
     server = ThreadingHTTPServer((args.host, args.port), make_handler(serve_static=not args.no_static))
+    scheduler = None
+    if args.update_data_on_schedule and not args.no_data_update:
+        scheduler = DataUpdateScheduler(interval_hours=args.data_update_interval_hours)
+        scheduler.start()
+    else:
+        _set_data_update_status(
+            enabled=False,
+            state="disabled",
+            interval_hours=args.data_update_interval_hours,
+            tool_available=maybe_update_satellite_data is not None,
+            import_error=DATA_TOOL_IMPORT_ERROR,
+        )
     url = f"http://{args.host}:{args.port}"
     print(f"OpenBEXI Earth Orbit server {APP_VERSION} listening on {url}")
     print(f"App:  {url}/index.html")
     print(f"Docs: {url}/docs")
+    if scheduler:
+        print(f"Data updates: enabled every {args.data_update_interval_hours:g} hours after freshness checks")
+    else:
+        print("Data updates: disabled")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         print("\nStopping OpenBEXI server.")
     finally:
+        if scheduler:
+            scheduler.stop()
         server.server_close()
 
 

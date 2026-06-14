@@ -1,5 +1,6 @@
 import assert from 'assert';
 import {
+  isStarlinkV2Satellite,
   modelAssetPaths,
   normalizeModelKey,
   resolveSatelliteModel,
@@ -25,27 +26,50 @@ async function run() {
     company: 'STARLINK'
   }, 'starlink_V1', 'Starlink alias');
   assert.deepStrictEqual(modelAssetPaths(starlink.entry), ['obj/starlink_V1.obj', 'obj/starlink_V1.mtl']);
+  assert.strictEqual(isStarlinkV2Satellite({ satellite_name: 'STARLINK-1008', company: 'STARLINK' }), false, 'Starlink 1008 is not classified as V2');
+
+  const starlinkV2 = assertResolved({
+    norad_id: '56287',
+    satellite_name: 'STARLINK-30107',
+    company: 'STARLINK',
+    launch_date: '2023-04-19'
+  }, 'starlink_v2.glb', 'Starlink V2 30xxx series');
+  assert.strictEqual(starlinkV2.metadataId, 'starlink_v2', 'Starlink V2 uses V2 metadata');
+  assert.deepStrictEqual(modelAssetPaths(starlinkV2.entry), ['obj/starlink_v2.glb']);
+  assert.strictEqual(isStarlinkV2Satellite({ satellite_name: 'STARLINK-30107', company: 'STARLINK' }), true, 'Starlink 30xxx is classified as V2');
+
+  assertResolved({
+    norad_id: '56094',
+    satellite_name: 'STARLINK-6109',
+    company: 'STARLINK',
+    launch_date: '2023-03-29'
+  }, 'starlink_V1', 'Starlink non-30xxx remains V1 asset');
+
+  assertResolved({
+    satellite_name: 'STARLINK TEST',
+    company: 'SpaceX',
+    meta: { bus: 'Starlink V2 Mini Bus' }
+  }, 'starlink_v2.glb', 'explicit Starlink V2 metadata');
 
   assertResolved({
     norad_id: '44073',
     satellite_name: 'ONEWEB-0012',
     company: 'ONEWEB'
-  }, 'oneweb', 'OneWeb alias');
+  }, 'oneweb.glb', 'OneWeb alias');
 
-  const o3b = resolveSatelliteModel({
+  const o3b = assertResolved({
     norad_id: '39188',
     satellite_name: 'O3B FM5',
     company: 'O3B'
-  });
-  assert.strictEqual(o3b.found, false, 'O3b satellites use the standard sprite/icon instead of a detailed model');
-  assert.match(o3b.reason, /No local model mapping/);
+  }, 'o3b.glb', 'O3b alias');
+  assert.strictEqual(o3b.metadataId, 'O3b', 'O3b uses existing metadata file');
+  assert.deepStrictEqual(modelAssetPaths(o3b.entry), ['obj/o3b.glb']);
 
-  const ob3Typo = resolveSatelliteModel({
+  assertResolved({
     norad_id: '39188',
     satellite_name: 'OB3 FM5',
     company: 'OB3'
-  });
-  assert.strictEqual(ob3Typo.found, false, 'OB3 typo metadata also falls back to the standard sprite/icon');
+  }, 'o3b.glb', 'OB3 typo alias');
 
   const iss = assertResolved({
     norad_id: '25544',
@@ -117,6 +141,12 @@ async function run() {
 
   const verifiedGlb = await verifyResolvedModelAsset(iss, async path => path === 'obj/ISS.glb');
   assert.strictEqual(verifiedGlb.exists, true, 'GLB resolution requires the GLB asset to exist');
+
+  const verifiedO3b = await verifyResolvedModelAsset(o3b, async path => path === 'obj/o3b.glb');
+  assert.strictEqual(verifiedO3b.exists, true, 'O3b GLB resolution requires the O3b GLB asset');
+
+  const verifiedStarlinkV2 = await verifyResolvedModelAsset(starlinkV2, async path => path === 'obj/starlink_v2.glb');
+  assert.strictEqual(verifiedStarlinkV2.exists, true, 'Starlink V2 GLB resolution requires the V2 GLB asset');
 
   console.log('modelResolver tests passed');
 }

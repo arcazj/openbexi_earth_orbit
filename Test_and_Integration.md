@@ -10,7 +10,7 @@ Version 1.4.1 fixes selected-satellite detailed model resolution. When a selecte
 
 Version 1.4.2 fixed the selected-satellite model visibility regression with close observer targeting and `display_satellite.html` as an isolated local OBJ/MTL and GLB model viewer. Version 1.5.9 supersedes the old fallback-distance behavior by requiring the selected detailed-model observer eye to remain at the exact converted 100 m default distance.
 
-Version 1.4.3 cleans up prompt/release structure and dependency versioning. `PROMPT.md` must contain only the general execution prompt, release history must live in `PROMPT_History.md`, `index.html` must display the latest release version, and all browser import maps must use matching Three.js core/addon versions.
+Version 1.4.3 cleans up prompt/release structure and dependency versioning. `PROMPT_Instructions.md` must contain the general execution prompt and project-compatible execution rules, release history must live in `PROMPT_History.md`, `index.html` must display the latest release version, and all browser import maps must use matching Three.js core/addon versions.
 
 Version 1.4.4 fixes the `Show orbit` regression. 3D orbit geometry must reject non-finite, invalid, decayed, or below-Earth propagated samples before building line vertices. Mercator ground tracks must split across invalid samples and must identify the selected satellite by stable selected NORAD ID even when a detailed 3D model hides the selected sprite.
 
@@ -60,7 +60,7 @@ Version 1.5.20 moves the combined Globe + Mercator overlay to the bottom-right o
 
 Version 1.5.21 makes the right-side selected-satellite data and TLE details independently collapsible and expanded by default whenever a satellite is selected, using `<details open>`. Starlink and ISS selections add an expanded `Source detail` section after TLE details with bold red attribution text for the model source and license/courtesy. ISS selected-model orientation swaps yaw and pitch control inputs so ISS `Yaw` applies the previous pitch behavior and ISS `Pitch` applies the previous yaw behavior, while roll remains unchanged. ISS local `+Y` is the pitch axis and stays pointed toward Earth/nadir as ISS propagates. It also captures the ADCS/attitude visualization layout correction requirements from the screenshot: unclipped title, non-overlapping Attitude table, centered satellite model, readable yaw/pitch/roll labels, aligned headers and units, and responsive layout. The ADCS page-specific correction is blocked in this workspace because no HTML/JS file contains the screenshot's `ADCS`, `Attitude`, `Commanded`, or `CMG Torque` UI text.
 
-Version 1.5.22 keeps the Earth-centered scene frame fixed, disables OrbitControls panning, keeps Earth mode targeted at `(0, 0, 0)`, keeps Moon mode targeted at `moon.position` without moving the Moon object to the origin, and preserves selected-satellite target priority. It allows Earth zoom to approximately 100 km above the surface, uses a large finite maximum zoom and far clipping plane, replaces spherical helper math with WGS84 geodetic/ECF calculations, distinguishes GEO/MEO/LEO/HEO/Other orbit classes without treating every slow object as GEO, filters invalid propagated positions out of visible sprites/paths, and makes Mercator markers, ground tracks, footprints, coverage overlays, and day/night shading use one Web Mercator helper. OB3/O3b satellites use the standard satellite icon/sprite in the main app and do not automatically load the OB3/O3b detailed model. Selected detailed model roots remain fixed to the canonical propagated satellite scene coordinate, model centering is applied only to child geometry, hidden selected sprites are synchronized with the same propagated coordinate, and `orbitAlignDebug` can log orbit alignment diagnostics. It documents that `satellite.js` returns TEME-like coordinates and the app treats them as ECI-like visualization coordinates unless a higher-fidelity transform is implemented later.
+Version 1.5.22 keeps the Earth-centered scene frame fixed, disables OrbitControls panning, keeps Earth mode targeted at `(0, 0, 0)`, keeps Moon mode targeted at `moon.position` without moving the Moon object to the origin, and preserves selected-satellite target priority. It allows Earth zoom to approximately 100 km above the surface, uses a large finite maximum zoom and far clipping plane, replaces spherical helper math with WGS84 geodetic/ECF calculations, distinguishes GEO/MEO/LEO/HEO/Other orbit classes without treating every slow object as GEO, filters invalid propagated positions out of visible sprites/paths, and makes Mercator markers, ground tracks, footprints, coverage overlays, and day/night shading use one Web Mercator helper. The earlier O3b sprite-only fallback is superseded by the local `o3b.glb` mapping. Selected detailed model roots remain fixed to the canonical propagated satellite scene coordinate, model centering is applied only to child geometry, hidden selected sprites are synchronized with the same propagated coordinate, and `orbitAlignDebug` can log orbit alignment diagnostics. It documents that `satellite.js` returns TEME-like coordinates and the app treats them as ECI-like visualization coordinates unless a higher-fidelity transform is implemented later.
 
 Version 1.5.23 adds `Mars` to `Other Selections`. Mars mode displays a Mars globe using the local source texture `textures/March.jpg`, targets `mars.position` for orbit/zoom controls like Moon mode, preserves the Earth-centered frame, does not move Earth/Moon/Mars to `(0, 0, 0)`, and documents that the Mars texture is local project-provided with exact source/license to be confirmed.
 
@@ -77,6 +77,10 @@ The main `Views & Time` checkboxes are aligned in a 3x3 table/grid: `Solar Syste
 When search text is active, the red found count must match the visible dropdown result list. If results are capped, the count must show `visible / total`, such as `40 / 126`.
 
 Version 1.7.2 moves `Debris` into the orbit/category row as `ALL`, `GEO`, `MEO`, `LEO`, `HRO`, `Debris`, `Others`. The old separate `Show`, `Hide`, and `Debris only` buttons are removed. Selecting `Debris` shows debris objects only. `Reset Filters` moves to the satellite search row immediately after `Clear` and keeps reset/search/count/dropdown/hidden-select behavior consistent. The release adds local standard Swagger/OpenAPI-style static documentation at `swagger.html`, keeps `SWAGGER.md` as the Markdown companion renderable through `markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API`, and requires both local documentation paths to display without starting `server.py`; live Swagger UI and OpenAPI JSON still require the optional Python server.
+
+Version 1.7.3 corrects 3D `Show Orbit` so the selected satellite displays exactly one complete propagated orbital revolution from the current shared simulation date. Orbit generation uses validated TLE mean motion when available, samples from `SIM_DATE` through `SIM_DATE + one orbital period`, keeps adaptive bounded sampling, skips/splits invalid samples without artificial closure, preserves Earth occlusion, and refreshes/replaces the existing orbit path as `Time x` advances instead of accumulating duplicate trails. `Stars & Milky Way` is checked by default on launch while `RA/Dec Grid`, `Bright Labels`, and `Atmosphere` remain unchecked.
+
+Version 1.7.4 replaces legacy Java data maintenance with `tools/satellite_data_tools.py`. The Python tool must run standalone and be importable by `server.py`, preserve legacy `export-tle --all` and `build-decayed-db --all` behavior, use incremental default TLE updates with metadata freshness checks, preserve last-known-good data when CelesTrak is unavailable, keep optional Space-Track fallback disabled by default, and expose default-off scheduled server refresh controls that obey the 24-hour server rule and the 2-hour CelesTrak guard before any startup query.
 
 ## Test Environment
 
@@ -115,7 +119,7 @@ npm test
 ```
 
 - Confirm `index.html`, `js/SatelliteMenuLoader.js`, and `css/style.css` contain no obvious malformed tags, missing closing braces, or duplicated filter IDs.
-- Confirm `PROMPT.md` contains only the `General Execution Prompt` section and no release history.
+- Confirm `PROMPT_Instructions.md` contains the `General Execution Prompt` section and no release history.
 - Confirm `PROMPT_History.md` contains the latest release entry.
 - Confirm the visible `index.html` version number matches the latest `PROMPT_History.md` release.
 - Confirm every browser import map uses the same Three.js version for `three` and `three/addons/`.
@@ -128,6 +132,7 @@ npm test
 
 ```powershell
 py -m py_compile server.py
+py -m py_compile tools/satellite_data_tools.py
 ```
 
 - With the optional Python server running, confirm these endpoints return successful responses:
@@ -137,6 +142,7 @@ py -m py_compile server.py
   - `/api/satellites`
   - `/api/satellite-metadata`
   - `/api/decayed`
+  - `/api/data-update-status`
   - `/docs`
   - `/openapi.json`
 
@@ -168,10 +174,15 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 ### Orbit Trail Generation
 
 - Test orbit generation uses the supplied simulation date, not wall-clock `Date.now()`.
+- Test the selected 3D orbit duration is exactly one validated orbital period for LEO, MEO, GEO, and HEO cases.
+- Test generated 3D orbit sampling starts at the supplied simulation date and ends at `SIM_DATE + one orbital period`, inclusive.
+- Test the selected satellite's current propagated scene position matches the first generated 3D orbit point within tolerance.
+- Test adaptive orbit sampling is bounded and does not create excessive vertices for GEO or long-period objects.
 - Test generated orbit paths are finite, non-empty, and in scene units.
 - Test non-finite propagated positions are rejected and never become 3D geometry vertices.
 - Test below-Earth propagated positions split or stop an orbit path instead of creating a line through Earth.
 - Test all-invalid propagated samples create no orbit geometry.
+- Test orbit generation does not add an artificial closing segment from the final sample back to the first sample.
 - Test split orbit paths create separate `THREE.Line` children rather than one connected line.
 - Test orbit line materials keep `depthTest` enabled, use normal render order, and do not force overlay rendering through Earth.
 - Test selected orbit visibility is split against Earth occlusion from the active camera viewpoint.
@@ -182,12 +193,15 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test GEO orbit radius remains plausible and unchanged while rendering fixes are applied.
 - Test orbit generation does not use frame-specific exceptions that make GEO and non-GEO paths incompatible with live satellite positions.
 - Test switching selected satellites removes or replaces previous orbit geometry.
+- Test refreshing selected-orbit geometry while `Time x` advances replaces the existing `selectedOrbitTrajectoryRoot` instead of accumulating duplicate roots.
+- Test `Time x = 0` keeps the displayed selected orbit stable while the simulation date is frozen.
+- Test positive `Time x` advances the simulation date and causes stale selected-orbit geometry to refresh from the updated `SIM_DATE`.
 - Test WGS84 geodetic/ECF conversion at the equator and poles.
 - Test high-latitude WGS84 look geometry.
 - Test GEO, MEO, LEO, HEO, Other, and Unknown classification cases.
 - Test HEO/Molniya-style orbit duration renders a meaningful full orbit.
 - Test invalid, decayed, below-Earth, or non-finite propagated positions are hidden or omitted instead of frozen.
-- Test OB3/O3b satellites do not resolve to an automatic detailed model and remain represented by the standard satellite icon/sprite.
+- Test O3b/OB3 satellites resolve to `o3b.glb` and display the selected detailed model when the local asset exists.
 - Test selected detailed model roots use the same propagated scene coordinate as the selected orbit trajectory.
 - Test model visual centering offsets child geometry only and does not change the detailed model root position.
 - Test selected hidden TLE sprite positions are synchronized with the detailed model root position.
@@ -215,8 +229,8 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test Mars distance stays within a plausible simplified Earth-to-Mars range.
 - Test Mars uses local project textures and does not fetch remote textures at runtime.
 - Test Version 1.6 Stars & Milky Way controls are added without changing existing Views & Time control order except the explicit new checkbox beside Globe and Mercator.
-- Test Stars & Milky Way is unchecked by default and its RA/Dec Grid, Bright Labels, and Atmosphere controls are hidden by default.
-- Test checking Stars & Milky Way reveals the sub-controls, keeps them unchecked by default, and renders the star field/Milky Way only when enabled.
+- Test Stars & Milky Way is checked by default and its RA/Dec Grid, Bright Labels, and Atmosphere controls are visible but unchecked by default.
+- Test unchecking Stars & Milky Way hides the sub-controls and star field, and rechecking it reveals the sub-controls while keeping RA/Dec Grid, Bright Labels, and Atmosphere unchecked.
 - Test Version 1.6.1 removes the integrated Magnitude limit slider and renders all 46 bundled reference stars.
 - Test the star-options panel shows a catalog summary computed from `BRIGHT_STARS_DEMO.length`.
 - Test magnitude `<18` is documented as external Gaia DR3 tiled/LOD/binary future work only.
@@ -225,7 +239,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 
 ### Solar System Overview Integration
 
-- Test Version 1.7 `Views & Time` row order and defaults: `Solar System` unchecked, `Stars & Milky Way` unchecked; `Globe` checked, `High Def.` unchecked, `ECEF Axes` unchecked; `Mercator` unchecked, `Day/Night` checked.
+- Test Version 1.7.3 `Views & Time` row order and defaults: `Solar System` unchecked, `Stars & Milky Way` checked; `Globe` checked, `High Def.` unchecked, `ECEF Axes` unchecked; `Mercator` unchecked, `Day/Night` checked.
 - Test the menu Time x slider is removed and the top/canvas Time x slider remains functional.
 - Test `js/solarSystemOverviewLoader.js` defines Mercury, Venus, Earth, Moon, Mars, Jupiter, Saturn, and Uranus.
 - Test every integrated planet has a local texture path, no remote runtime URL, fallback material, SRGB color space handling, anisotropy handling, and browser-safe dimensions.
@@ -275,7 +289,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test normalized model matching is case-insensitive and ignores spaces, hyphens, underscores, and file extensions.
 - Test Starlink satellites resolve to the local Starlink model assets.
 - Test OneWeb satellites resolve to the local OneWeb OBJ/MTL assets.
-- Test OB3/O3b satellites do not resolve to an automatic detailed model and remain on the selected sprite/icon fallback.
+- Test O3b/OB3 satellites resolve to `o3b.glb` and keep the selected sprite fallback only if the local GLB is missing or fails to load.
 - Test ISS resolves to the local ISS GLB asset.
 - Test GOES/Intelsat/SES-style GEO satellites can resolve to the SSL 1300 fallback asset.
 - Test unknown satellites return no model mapping so the selected sprite remains the visible fallback.
@@ -394,20 +408,39 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 ### Server Data Path
 
 - Test `/api/health` returns status `ok` and version metadata.
-- Test `/api/version` returns app/API version `1.7.2` and release date `2026-06-08`.
+- Test `/api/version` returns app/API version `1.7.4` and release date `2026-06-14`.
 - Test `/api/tle` and `/api/satellites` return valid TLE records with `norad_id`, `tle_line1`, and `tle_line2`.
 - Test `/api/satellite-metadata` lists known metadata files.
 - Test `/api/satellite-metadata/starlink_V1.json` returns one known metadata payload.
 - Test `/api/decayed` returns the confirmed decay dataset.
+- Test `/api/data-update-status` returns scheduler state and reports disabled/default-off behavior unless scheduling is explicitly enabled.
 - Test `/docs` serves the live Swagger/API documentation page.
 - Test `/openapi.json` contains OpenAPI paths for all supported API endpoints.
 - Test `swagger.html` exists and displays a standard Swagger/OpenAPI-style local page with API title, version badge, OAS badge, base URL/schema notes, grouped endpoint sections, colored method badges, and expandable endpoint details without starting `server.py`.
-- Test `SWAGGER.md` exists and documents `/api/health`, `/api/version`, `/api/tle`, `/api/satellites`, `/api/satellite-metadata`, `/api/decayed`, `/docs`, and `/openapi.json`.
+- Test `SWAGGER.md` exists and documents `/api/health`, `/api/version`, `/api/tle`, `/api/satellites`, `/api/satellite-metadata`, `/api/decayed`, `/api/data-update-status`, `/docs`, and `/openapi.json`.
 - Test `markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API` renders the companion Swagger Markdown without starting `server.py`.
 - Test frontend disconnected mode falls back to local `json/tle/TLE.json`.
 - Test frontend connected mode uses server-provided TLE data.
 - Test malformed server TLE data is rejected and local fallback remains active.
 - Test model metadata and decay-data fetches use server routes only when the server is connected and fall back to local paths on failure.
+
+### Data Maintenance Tools
+
+- Test `tools/satellite_data_tools.py` compiles with `py -m py_compile`.
+- Test `export-tle --all` support is present, refreshes N2YO launch dates by default, uses the legacy CelesTrak group source order, and keeps first-seen NORAD behavior.
+- Test default `export-tle` uses incremental source groups such as `active` and `last-30-days`, not the full legacy group sweep.
+- Test TLE transformation preserves frontend fields: `company`, `satellite_name`, `norad_id`, `launch_date`, `type`, `orbit_class`, orbit metric fields, `tle_line1`, and `tle_line2`.
+- Test orbit metric formulas and classification rules match the legacy Java behavior for LEO, MEO, GEO, HEO, and DECAYING cases.
+- Test metadata freshness skips default TLE fetching when the last successful update is newer than the 2-hour CelesTrak guard unless `--force` is used.
+- Test CelesTrak failure preserves existing `json/tle/TLE.json`, records a failed attempt, and does not replace the last successful timestamp.
+- Test optional Space-Track fallback remains disabled unless credentials are explicitly configured.
+- Test normal incremental TLE refresh does not update `satellite_launch_dates.json`; test `export-tle --refresh-launch-dates` and `export-tle --all` do refresh launch dates.
+- Test `refresh-satcat --force` downloads CelesTrak raw SATCAT CSV to `json/satcat.csv` with metadata and preserves the local file on source failure.
+- Test `build-decayed-db --all` reads `json/satcat.csv`, filters `DECAY_DATE` plus `OBJECT_TYPE=PAY`, groups by `OBJECT_NAME`, sorts top-level keys, and writes the Java-compatible schema.
+- Test `build-decayed-db --refresh-satcat --force` refreshes SATCAT before rebuilding `json/decayed/decayed.json`.
+- Test `--dry-run` does not write generated data, metadata, temp files, or backups.
+- Test server scheduling is disabled by default, uses importable Python functions when enabled, runs incremental mode only, refreshes SATCAT before scheduled decayed rebuilds, uses `json/.satellite_data_update.lock`, and does not block static/API serving.
+- Test server startup with scheduling enabled checks the 24-hour freshness rule before any remote TLE query and still respects the 2-hour CelesTrak guard.
 
 ### Regression Coverage
 
@@ -423,7 +456,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 ### Coverage Traceability Audit
 
 - Audit every release entry in `PROMPT_History.md` before delivery and confirm each release-level behavior maps to an automated test, manual/integration check, or explicit limitation.
-- Confirm prior-release coverage includes Version 1.5.21 selected-satellite details/source attribution, Version 1.5.22 Earth-centered frame/orbit math, Version 1.5.23 Mars mode, Version 1.6 Stars & Milky Way, Version 1.6.1 star catalog behavior, Version 1.6.2 integrated Solar System, Version 1.7 JPL-derived ephemeris, Version 1.7.1 filter/search consistency, and Version 1.7.2 Debris/search-row/local Swagger UI and Markdown changes.
+- Confirm prior-release coverage includes Version 1.5.21 selected-satellite details/source attribution, Version 1.5.22 Earth-centered frame/orbit math, Version 1.5.23 Mars mode, Version 1.6 Stars & Milky Way, Version 1.6.1 star catalog behavior, Version 1.6.2 integrated Solar System, Version 1.7 JPL-derived ephemeris, Version 1.7.1 filter/search consistency, Version 1.7.2 Debris/search-row/local Swagger UI and Markdown changes, Version 1.7.3 one-revolution 3D `Show Orbit`/`Time x` synchronization, and Version 1.7.4 Python data maintenance plus scheduled server freshness checks.
 - Expand shallow checks where a release only has a summary but no concrete automated, browser, manual, or server verification step.
 - Document limitations when a behavior cannot be automated in this repository, including external browser rendering, optional live server checks, and unavailable source pages.
 
@@ -500,7 +533,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm the ISS shortcut shows `ISS unavailable` if no ISS target can be resolved.
 - Confirm `Timelines` appears immediately after `Satellites Selection - Found`.
 - Confirm `Share` appears immediately after `Timelines` and immediately before `Help`.
-- Confirm `Close`, `Version 1.7.2 - hosted at GitHub Repo`, and the server status icon/text are aligned on one compact row on desktop.
+- Confirm `Close`, `Version 1.7.4 - hosted at GitHub Repo`, and the server status icon/text are aligned on one compact row on desktop.
 - Confirm the version/GitHub text is centered in the menu header.
 - Confirm the server status indicator appears above the accordion menu and does not shift layout when changing between checking, offline, connected, and error states.
 - Confirm connected status uses `power_green.png` and offline/error status uses `power_red.png`.
@@ -534,6 +567,9 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Search again, click outside the selector, and confirm the dropdown closes.
 - Click `Clear` and confirm search/filter behavior still works.
 - Enable `Show Orbit` for the selected satellite.
+- Confirm only one complete 3D orbit revolution is visible around Earth.
+- Set `Time x = 0` and confirm the selected orbit remains stable without accumulating duplicate trails.
+- Increase `Time x`, wait for the simulation time to advance, and confirm the displayed orbit remains synchronized with the selected satellite and still shows only one revolution.
 - Rotate the 3D camera until part of the selected red orbit should pass behind Earth.
 - Confirm the behind-Earth orbit arc is hidden by Earth.
 - Confirm the front-side selected orbit arc remains visible.
@@ -672,7 +708,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Select representative satellites with known local models and confirm the detailed model appears:
   - A `Starlink` satellite loads the Starlink model from `obj/`, appears centered, and is visually large enough to inspect.
   - A `OneWeb` satellite loads the OneWeb OBJ/MTL model from `obj/`.
-  - An `O3b`/`OB3` satellite remains represented by the standard satellite sprite/icon and does not load an O3b OBJ/MTL model from `obj/`.
+  - An `O3b`/`OB3` satellite loads `obj/o3b.glb` as the detailed model and uses the selected sprite fallback only if the GLB is unavailable.
   - `ISS` loads the ISS GLB model from `obj/` when available in the filtered selection.
   - `ISS` visually uses the corrected orbital orientation: `+X` velocity, `+Y` pitch axis nadir toward Earth, and `+Z` right-handed negative cross-track.
   - ISS selected-model diagnostics report `orientationMode: "iss-velocity-pitch-nadir-frame"` plus yaw, pitch, roll, and pitch-axis Earth-facing calibration values.
@@ -828,14 +864,15 @@ py -m http.server 8000 --bind 127.0.0.1
 http://127.0.0.1:8000/display_satellite.html
 ```
 
-- Confirm the manifest-backed list loads from `json/display_satellite_models.json` and includes the configured standalone viewer models under `obj/`: Starlink V1, O3b, ISS, and SSL 1300.
+- Confirm the manifest-backed list loads from `json/display_satellite_models.json` and includes the configured standalone viewer models under `obj/`: Starlink V1, Starlink V2, OneWeb, O3b, ISS, and SSL 1300.
 - Confirm the default `obj/starlink_V1.obj` loads with either its MTL material or fallback material.
-- Use search to filter the model list, then load at least one OBJ/MTL model and one GLB model from `obj/`.
+- Use search to filter the model list, then load the Starlink OBJ/MTL model and at least one GLB model from `obj/`.
 - Confirm diagnostics update with asset path, required files, texture count, mesh/material count, triangle count, bounds, diameter, and load warnings.
 - Confirm `SSL_1300.glb` is visible after selection and diagnostics show the original diameter plus display scale normalization.
-- Use the custom model field with examples such as `ISS.glb`, `starlink_V1`, or `generic.obj, generic.mtl` and confirm local assets can be loaded without changing code.
+- Use the custom model field with examples such as `ISS.glb`, `starlink_V1`, `starlink_v2.glb`, or `oneweb.glb` and confirm local assets can be loaded without changing code.
 - Confirm each loaded model is centered, lit, nonblank, and orbit/zoom plus reset/auto-fit/wireframe/grid/axes controls work.
 - Compare this isolated view with selecting the matching satellite in `index.html`; both should show a visible model.
+- In `index.html`, select an older Starlink such as `STARLINK-1008` and confirm it resolves to `starlink_V1`; select a 30xxx Starlink such as `STARLINK-30107` and confirm it resolves to `starlink_v2.glb`.
 
 ## Completion Checklist
 
@@ -847,7 +884,7 @@ Before reporting completion, go through this file and record which checks were p
 - Deep automated tests cover the coordinate-frame, orbit, Sun, Moon, scaling, selected-satellite model resolution, selected-satellite framing/orientation, footprint, menu, and URL-helper requirements above.
 - Automated tests cover Starlink OBJ visual bounds, selected camera distance behavior for exact 100 m target framing, deterministic satellite-visibility projection checks, Starlink velocity/nadir orientation, and oblique non-radial observer placement.
 - Browser smoke test over HTTP passes.
-- Isolated `display_satellite.html` local model viewer checks pass for manifest coverage, Starlink default, another OBJ/MTL model, a GLB model, diagnostics, and a custom entry.
+- Isolated `display_satellite.html` local model viewer checks pass for manifest coverage, Starlink OBJ/MTL default, GLB models, diagnostics, and a custom entry.
 - Filter UI regression passes.
 - Existing feature regression passes.
 - Domain regression passes or any intentional approximation is documented.
@@ -898,7 +935,7 @@ Checks not fully performed in this terminal:
 Checks performed on 2026-06-03:
 
 - `npm view three version`: returned `0.184.0`.
-- `PROMPT.md` was reduced to only the `General Execution Prompt` section.
+- `PROMPT_Instructions.md` contains the `General Execution Prompt` section and no release history.
 - `PROMPT_History.md` contains the latest `Release Date: 2026-06-03 Version 1.4.3` entry.
 - `index.html` visible version tag was updated to `1.4.3`.
 - `index.html` import map uses `three@0.184.0` for both `three` and `three/addons/`.
@@ -1168,7 +1205,7 @@ Checks performed on 2026-06-04:
 - Extracted `display_satellite.html` module script plus `node --input-type=module --check`: passed.
 - `git diff --check`: passed with only LF-to-CRLF normalization warnings for edited files.
 - Local HTTP smoke check with `py -m http.server 8882 --bind 127.0.0.1`: `http://127.0.0.1:8882/index.html` returned `HTTP 200`.
-- README Markdown index was checked against repository Markdown files: `PROMPT.md`, `PROMPT_History.md`, `README.md`, and `Test_and_Integration.md`.
+- README Markdown index was checked against repository Markdown files including `PROMPT_Instructions.md`, `PROMPT_History.md`, `README.md`, and `Test_and_Integration.md`.
 
 Checks not fully performed in this terminal:
 
@@ -1191,7 +1228,7 @@ Checks performed on 2026-06-04:
 - Extracted `display_satellite.html` module script plus `node --input-type=module --check`: passed.
 - `git diff --check`: passed with only LF-to-CRLF normalization warnings for edited files.
 - Local HTTP smoke check with `py -m http.server 8883 --bind 127.0.0.1`: `http://127.0.0.1:8883/index.html` returned `HTTP 200`.
-- README Markdown index was checked against repository Markdown files: `PROMPT.md`, `PROMPT_History.md`, `README.md`, and `Test_and_Integration.md`.
+- README Markdown index was checked against repository Markdown files including `PROMPT_Instructions.md`, `PROMPT_History.md`, `README.md`, and `Test_and_Integration.md`.
 
 Checks not fully performed in this terminal:
 
@@ -1340,7 +1377,7 @@ Checks performed for this Version 1.5.22 implementation session:
 - Invalid or below-Earth propagated positions are rejected for orbit generation and hidden/flagged in the 3D sprite update loop.
 - Mercator map, footprints, coverage overlays, and day/night shading use the shared Web Mercator helper.
 - Day/night terminator math is finite near equinox.
-- OB3/O3b satellites are sprite/icon-only in the main app; the resolver no longer maps O3b metadata to `obj/o3b`.
+- O3b/OB3 satellites now resolve to the local `obj/o3b.glb` model in the main app.
 - Selected detailed model roots and hidden selected sprites are synchronized to the same propagated scene coordinate.
 - Model geometry centering preserves the detailed model root position, preventing selected models from drifting away from the selected orbit trajectory.
 
@@ -1503,7 +1540,7 @@ Checks not fully performed in this terminal:
 - Other Selections, Timelines, Share, and Help start collapsed on page load.
 - The accordion order is Views & Time, Satellite Selection, Filters - Satellites Found, Other Selections, Timelines, Share, Help.
 - Settings is not present as an accordion section.
-- The optional Python server exposes `/api/health`, `/api/version`, `/api/tle`, `/api/satellites`, `/api/satellite-metadata`, `/api/decayed`, `/docs`, and `/openapi.json`.
+- The optional Python server exposes `/api/health`, `/api/version`, `/api/tle`, `/api/satellites`, `/api/satellite-metadata`, `/api/decayed`, `/api/data-update-status`, `/docs`, and `/openapi.json`.
 - Connected mode loads TLE data from the Python server and labels the active data source as server-backed.
 - Disconnected, invalid, slow, or unavailable server states fall back to local file loading without breaking existing behavior.
 - The status icon exposes checking, connected, disconnected/offline, and error states with tooltip text and accessible labels.
@@ -1545,6 +1582,62 @@ Checks not fully performed in this terminal:
 - Deep automated tests pass through `npm test`.
 - Browser smoke testing over HTTP passes.
 - The full checklist in this file has been followed, and any pre-existing unrelated failures or intentional approximations are documented.
+
+## Release 1.7.4 Verification Log
+
+Checks performed for this Version 1.7.4 implementation session:
+
+- `PROMPT_History.md` contains the latest `Release Date: 2026-06-14 Version 1.7.4` entry at the top.
+- `index.html`, `js/serverConnection.js`, `js/SatelliteMenuLoader.js`, `server.py`, and `swagger.html` use version `1.7.4`.
+- `tools/satellite_data_tools.py` exists as a standalone and importable standard-library Python data tool.
+- Static and fixture tests confirm legacy TLE transformation fields, first-seen NORAD behavior, incremental freshness skip, CelesTrak failure preservation, and decayed SATCAT filtering/grouping.
+- Static server tests confirm scheduled data updates are disabled by default, server flags exist, and `/api/data-update-status` is documented.
+- `py -m py_compile server.py tools/satellite_data_tools.py`: passed.
+- `node .\tests\satelliteDataTools.test.js`: passed.
+- `node .\tests\serverApiStructure.test.js`: passed.
+- `node .\tests\releaseStructure.test.js`: passed.
+- `node .\tests\serverConnection.test.js`: passed.
+- `node .\tests\menuUx.test.js`: passed.
+- `node .\tests\solarSystemOverview.test.js`: passed.
+- All test files except `displaySatelliteViewer.test.js` were run individually and passed.
+- `Get-ChildItem -File .\js -Filter *.js | ForEach-Object { node --check $_.FullName }`: passed.
+- `Get-ChildItem -File .\tests -Filter *.js | ForEach-Object { node --check $_.FullName }`: passed.
+- `py .\tools\satellite_data_tools.py --help`: passed.
+- `py .\tools\satellite_data_tools.py maybe-update --dry-run --interval-hours 999999`: passed and skipped writes because local data was newer than the configured interval.
+
+Checks not fully performed in this terminal:
+
+- The previous `displaySatelliteViewer.test.js` asset/manifest mismatch has been resolved by aligning `json/display_satellite_models.json` with the current `obj/` contents.
+- Live CelesTrak, N2YO, and optional Space-Track requests were not run; automated coverage uses fixtures/mocks and static checks to avoid live network dependencies.
+- Full visible-browser confirmation and long-running scheduled server refresh behavior remain manual.
+
+## Release 1.7.3 Verification Log
+
+Checks performed for this Version 1.7.3 implementation session:
+
+- `PROMPT_History.md` contains the latest `Release Date: 2026-06-14 Version 1.7.3` entry at the top.
+- `index.html`, `js/serverConnection.js`, `js/SatelliteMenuLoader.js`, and `server.py` use version `1.7.3`.
+- `server.py` and `js/serverConnection.js` use release date `2026-06-14`.
+- Static orbit tests confirm LEO, MEO, GEO, and HEO selected-orbit durations use one orbital period from validated mean motion.
+- Static orbit tests confirm selected-orbit sampling starts at the injected simulation date and ends at `SIM_DATE + one orbital period`.
+- Static orbit tests confirm invalid propagated samples split the orbit path instead of fabricating missing geometry.
+- Static orbit tests confirm `Time x`-driven stale orbit refresh replaces the existing `selectedOrbitTrajectoryRoot` instead of accumulating duplicate orbit roots.
+- Static menu tests confirm `Stars & Milky Way` is checked by default while `RA/Dec Grid`, `Bright Labels`, and `Atmosphere` remain unchecked.
+- `README.md` documents Version 1.7.3 one-revolution 3D `Show Orbit` behavior and `Time x` synchronization.
+- `node .\tests\satelliteOrbitOcclusion.test.js`: passed.
+- `node .\tests\releaseStructure.test.js`: passed.
+- `node .\tests\serverApiStructure.test.js`: passed.
+- `node .\tests\menuUx.test.js`: passed.
+- `node .\tests\serverConnection.test.js`: passed.
+- `node .\tests\solarSystemOverview.test.js`: passed.
+- `Get-ChildItem -File .\js -Filter *.js | ForEach-Object { node --check $_.FullName }`: passed.
+- `py -m py_compile server.py`: passed.
+- All test files except `displaySatelliteViewer.test.js` were run individually and passed.
+
+Manual checks not performed in this terminal:
+
+- Full visible-browser confirmation that representative LEO, MEO, GEO, HEO, and debris selections each show one visible 3D revolution, stay synchronized while `Time x` changes, and preserve camera-aware Earth occlusion remains manual.
+- The previous `displaySatelliteViewer.test.js` asset/manifest mismatch has been resolved by aligning `json/display_satellite_models.json` with the current `obj/` contents.
 
 ## Release 1.7.2 Verification Log
 

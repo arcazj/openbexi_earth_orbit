@@ -42,7 +42,9 @@ http://127.0.0.1:8000
 | `GET` | `/api/satellites` | Yes | Alias for `/api/tle`. |
 | `GET` | `/api/satellite-metadata` | Yes | Lists available metadata JSON files under `json/satellites/`. |
 | `GET` | `/api/satellite-metadata/{file_name}` | Yes | Returns one metadata JSON file by safe file name. |
+| `GET` | `/api/display-satellite-models` | Yes | Returns a live manifest of `.glb` and `.obj`/`.mtl` models under `obj/`. |
 | `GET` | `/api/decayed` | Yes | Returns confirmed decayed satellite data from `json/decayed/decayed.json`. |
+| `GET` | `/api/data-update-status` | Yes | Returns optional background satellite data update scheduler status. |
 | `GET` | `/openapi.json` | Yes | Returns the generated OpenAPI 3.0.3 schema. |
 | `GET` | `/docs` | Yes | Serves the live Swagger UI page. |
 
@@ -61,8 +63,8 @@ Example response:
 {
   "status": "ok",
   "app": "openbexi_earth_orbit",
-  "version": "1.7.2",
-  "release_date": "2026-06-08"
+  "version": "1.7.4",
+  "release_date": "2026-06-14"
 }
 ```
 
@@ -77,11 +79,11 @@ Example response:
 
 ```json
 {
-  "app_version": "1.7.2",
-  "api_version": "1.7.2",
-  "release_date": "2026-06-08",
+  "app_version": "1.7.4",
+  "api_version": "1.7.4",
+  "release_date": "2026-06-14",
   "repository": "https://github.com/arcazj/openbexi_earth_orbit",
-  "server": "OpenBEXIHTTP/1.7.2 Python"
+  "server": "OpenBEXIHTTP/1.7.4 Python"
 }
 ```
 
@@ -127,9 +129,27 @@ Response shape:
 }
 ```
 
+Data update status:
+
+```http
+GET /api/data-update-status HTTP/1.1
+Host: 127.0.0.1:8000
+```
+
+Example response:
+
+```json
+{
+  "enabled": false,
+  "state": "disabled",
+  "interval_hours": 24
+}
+```
+
 ## Notes
 
 - The frontend can run from local static files and falls back to repository JSON when the Python server is offline.
 - The Python server is optional for API access, live Swagger UI, and live OpenAPI JSON.
+- Scheduled TLE/decayed-data updates are disabled by default; start `server.py` with `--update-data-on-schedule` to enable background freshness checks.
 - This Markdown page is intentionally static so Help documentation remains available without the Python server.
 - API responses are local development data for visualization and testing, not operational satellite products.

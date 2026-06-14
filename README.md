@@ -9,7 +9,7 @@ OpenBEXI Earth Orbit is a browser-based satellite visualization app built with p
 ## Features
 
 - 3D Earth globe with satellite markers propagated from TLE data.
-- 3D orbit paths with explicit camera-aware Earth occlusion and Mercator ground tracks that reject invalid, non-finite, decayed, or below-Earth propagation samples before drawing.
+- 3D `Show Orbit` paths draw one propagated revolution for the selected satellite, with explicit camera-aware Earth occlusion and rejection of invalid, non-finite, decayed, or below-Earth propagation samples before drawing.
 - 2D Mercator map with satellite labels, selected-satellite highlighting, selected ground tracks, and day/night overlay.
 - When Globe and Mercator are both enabled, the Mercator map appears as a bottom-right canvas overlay instead of being hidden by the left menu.
 - Multi-select orbit/category filters for `ALL`, `GEO`, `MEO`, `LEO`, `HRO`, `Debris`, and `Others`.
@@ -18,6 +18,7 @@ OpenBEXI Earth Orbit is a browser-based satellite visualization app built with p
 - Accordion-style menu sections ordered as Views & Time, Satellites Selection - Found, Timelines, Share, and Help, preserving the legacy colored section accents with section-matched metallic expanded backgrounds.
 - Deterministic launch defaults: Views & Time and Satellites Selection - Found start expanded, while Timelines, Share, and Help start collapsed.
 - Optional Python server integration for live local API-backed TLE/satellite metadata loading, with automatic local-file fallback when the server is unavailable and no launch-time offline banner.
+- Standard-library Python satellite data maintenance tool for standalone or server-imported TLE and decayed-database updates.
 - Aligned top menu header with Close, version/GitHub link, and server connection status in one compact desktop row.
 - Server status indicator with connected, checking, offline, and error states; connected uses `icons/power_green.png`, offline/error uses `icons/power_red.png`, and the status panel shows server URL, data source, version, last load time, and reconnect/refresh.
 - Share menu section for copying or natively sharing a safe link for the selected satellite, view mode, filters, simulation time, display settings, and a captured canvas image when supported.
@@ -83,7 +84,7 @@ Version 1.5.20 moves the combined Globe + Mercator overlay to the bottom-right o
 
 Version 1.5.21 makes the right-side selected-satellite data and TLE sections collapsible and expanded by default after each satellite selection using `<details open>`. Starlink and ISS selections also add an expanded `Source detail` section after TLE details with bold red attribution text: Starlink cites `https://sketchfab.com/malacodart` with CC Attribution / Creative Commons Attribution, and ISS cites `https://github.com/nasa/NASA-3D-Resources` courtesy of NASA (National Aeronautics and Space Administration). ISS selected-model orientation swaps yaw and pitch control inputs so ISS `Yaw` applies the previous pitch behavior and ISS `Pitch` applies the previous yaw behavior, while roll remains unchanged; ISS local `+Y` is the pitch axis and stays pointed toward Earth/nadir as ISS propagates. Starlink and other models keep the standard mapping. The release also records the ADCS/attitude visualization correction requirements from the attached screenshot, but no repository HTML/JS source file currently contains the ADCS `Attitude`, `Commanded`, or `CMG Torque` UI text, so that page-specific layout correction remains blocked until the source file is added or identified.
 
-Version 1.5.22 keeps the Earth-centered scene frame fixed: the Earth mesh and ECEF axes remain at `(0, 0, 0)`, panning is disabled so mouse interaction cannot shift the active target, Earth mode targets the origin, Moon mode targets `moon.position` without moving the Moon object to the origin, and selected-satellite tracking keeps priority when a satellite/model is selected. Earth zoom can approach about 100 km above the surface, maximum zoom is a very large finite distance, and the camera far plane is widened for Earth, Moon, LEO, MEO, GEO, HEO, and selected-satellite views. Orbit helper math now uses WGS84 geodetic/ECF calculations, orbit classification distinguishes LEO/MEO/GEO/HEO/Other from mean motion plus eccentricity/inclination when metadata is missing, invalid propagated positions are hidden instead of frozen, and Mercator markers, footprints, coverage overlays, ground tracks, and day/night shading share one Web Mercator projection helper. OB3/O3b satellites intentionally use the standard satellite icon/sprite in the main app; the OB3/O3b detailed model assets are not automatically loaded from satellite selection. Selected detailed model roots now stay at the canonical propagated satellite scene coordinate, while model visual centering is applied only to child geometry, so detailed models and sprite fallbacks remain aligned with the selected red orbit trajectory. Add `?orbitAlignDebug=1` to log selected-model orbit alignment diagnostics.
+Version 1.5.22 keeps the Earth-centered scene frame fixed: the Earth mesh and ECEF axes remain at `(0, 0, 0)`, panning is disabled so mouse interaction cannot shift the active target, Earth mode targets the origin, Moon mode targets `moon.position` without moving the Moon object to the origin, and selected-satellite tracking keeps priority when a satellite/model is selected. Earth zoom can approach about 100 km above the surface, maximum zoom is a very large finite distance, and the camera far plane is widened for Earth, Moon, LEO, MEO, GEO, HEO, and selected-satellite views. Orbit helper math now uses WGS84 geodetic/ECF calculations, orbit classification distinguishes LEO/MEO/GEO/HEO/Other from mean motion plus eccentricity/inclination when metadata is missing, invalid propagated positions are hidden instead of frozen, and Mercator markers, footprints, coverage overlays, ground tracks, and day/night shading share one Web Mercator projection helper. The earlier O3b sprite-only fallback has been superseded by the local `o3b.glb` mapping. Selected detailed model roots now stay at the canonical propagated satellite scene coordinate, while model visual centering is applied only to child geometry, so detailed models and sprite fallbacks remain aligned with the selected red orbit trajectory. Add `?orbitAlignDebug=1` to log selected-model orbit alignment diagnostics.
 
 Version 1.5.23 adds `Mars` to `Other Selections`. Selecting Mars displays a Mars globe, uses the local source texture asset `textures/March.jpg`, targets `mars.position` for orbit/zoom controls like Moon mode, starts the observer close to the Mars globe, and preserves the Earth-centered scene frame without moving Earth, Moon, or Mars to the origin. Mars texture loading is silent during initial `index.html` launch while Earth is active. When the user selects Mars, the app shows a centered progress bar labeled `Loading Mars map/texture...`, keeps it visible long enough for fast cached/local loads to be seen, shows a short confirmation state if the texture already loaded silently before selection, hides it after successful load, and reports a fallback message if the texture fails. Mars context also switches the Mercator background to the shared Mars texture and suppresses Earth-specific satellite markers, footprints, ground tracks, and day/night shading on the Mars map. The Mars position is an approximate visual model using simplified circular heliocentric Earth-to-Mars relative motion. `textures/March.jpg` is treated as a local project-provided Mars texture source; its exact source and license still need to be confirmed.
 
@@ -98,6 +99,10 @@ Version 1.7 upgrades Solar System textures and uses bundled JPL-derived ephemeri
 Version 1.7.1 consolidates satellite filters into `Satellites Selection - Found`. The standalone `Filters - Satellites Found` accordion is removed, the found count is red and bold in the Satellite Selection heading, orbit/tag/debris filters live directly inside Satellite Selection, `Reset Filters` is on the same row as `Show`, `Hide`, and `Debris only`, and obsolete filter helper text plus the old active summary string are removed. The main `Views & Time` checkboxes use a stable 3x3 table/grid so `Solar System`, `Stars & Milky Way`, `Globe`, `High Def.`, `ECEF Axes`, `Mercator`, and `Day/Night` stay aligned. The satellite search dropdown and hidden legacy select are populated from the same filtered satellite set, so multi-check filter results, visible count, and selectable results stay synchronized. When search text is active, the red count follows the visible dropdown result list; capped search results display as `visible / total`, such as `40 / 126`, instead of showing a misleading single total.
 
 Version 1.7.2 moves `Debris` into the orbit/category row as `ALL`, `GEO`, `MEO`, `LEO`, `HRO`, `Debris`, `Others`. The old separate `Show`, `Hide`, and `Debris only` buttons are removed. Selecting `Debris` shows debris objects only, while `Reset Filters` now sits in the satellite search row immediately after `Clear`. The release also adds `swagger.html` as a local standard Swagger/OpenAPI-style static page and keeps `SWAGGER.md` as the Markdown companion, available through `markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API`; neither local documentation page requires starting `server.py`, while live `/docs` and `/openapi.json` still require the optional Python server.
+
+Version 1.7.3 corrects 3D `Show Orbit` so the selected satellite displays one complete propagated orbital revolution from the current simulation date instead of multi-period trails. Orbit geometry refreshes from shared simulation time as `Time x` advances, replaces the existing path instead of accumulating duplicates, and keeps invalid-sample splitting plus Earth occlusion behavior. `Stars & Milky Way` is checked by default on launch while `RA/Dec Grid`, `Bright Labels`, and `Atmosphere` remain unchecked.
+
+Version 1.7.4 replaces the legacy Java satellite data maintenance workflows with `tools/satellite_data_tools.py`. The tool can run standalone or be imported by `server.py`, supports legacy-compatible `export-tle --all` and `build-decayed-db --all` modes, and uses incremental default TLE updates with metadata freshness checks, atomic writes, backups, dry-run support, CelesTrak failure preservation, and optional scheduled server refresh that is disabled by default.
 
 The selected satellite model axis convention is:
 
@@ -127,7 +132,7 @@ Model matching is deterministic:
 
 - Exact NORAD/metadata mappings are preferred when available.
 - If exact metadata is unavailable, normalized satellite names, company/operator tags, and constellation aliases are used.
-- Known local fallbacks include Starlink, OneWeb, and ISS. OB3/O3b satellites intentionally stay on the standard sprite/icon fallback in the main app. `SSL_1300.glb` resolves only for `INTELSAT 20 (IS-20)` and `INTELSAT 18 (IS-18)` through exact selected-satellite name metadata, not through generic Intelsat, SSL, GEO, GOES, SES, manufacturer, bus, or alias matching.
+- Known local mappings include Starlink, OneWeb, O3b, and ISS. Starlink 30xxx-series or explicit V2 metadata resolves to `starlink_v2.glb`; older/non-30xxx Starlink records continue to use the Starlink V1 OBJ/MTL model. O3b/OB3 satellite selections resolve to `o3b.glb`. `SSL_1300.glb` resolves only for `INTELSAT 20 (IS-20)` and `INTELSAT 18 (IS-18)` through exact selected-satellite name metadata, not through generic Intelsat, SSL, GEO, GOES, SES, manufacturer, bus, or alias matching.
 - OBJ/MTL assets are loaded as `obj/<asset>.obj` with optional `obj/<asset>.mtl`.
 - GLB assets are loaded directly from `obj/<asset>.glb`.
 
@@ -145,9 +150,9 @@ Use `display_satellite.html` to verify local satellite model assets independentl
 http://127.0.0.1:8000/display_satellite.html
 ```
 
-The viewer reads `json/display_satellite_models.json` and lists the configured standalone viewer models under `obj/`, including Starlink V1, O3b, ISS, and SSL 1300. It provides search, reload, reset, auto-fit, axes/grid, wireframe, background, and copyable diagnostics controls. The diagnostics panel reports the active asset path, required files, loaded textures, mesh/material counts, triangles, bounds, and loader warnings.
+The viewer first asks the optional server for `/api/display-satellite-models`, which scans `obj/` recursively for every `.glb` model and every `.obj` model with a matching `.mtl`. If the server is not running, it falls back to `json/display_satellite_models.json`. It provides search, reload, reset, auto-fit, axes/grid, wireframe, background, and copyable diagnostics controls. The diagnostics panel reports the active asset path, required files, loaded textures, mesh/material counts, triangles, bounds, and loader warnings.
 
-Custom entries still support newly added local assets without code changes. Use examples such as `ISS.glb`, `starlink_V1`, or `generic.obj, generic.mtl` to load from `obj/`. The viewer centers the model, adds inspection lighting, repairs weak/invisible materials where possible, normalizes extremely small or large assets such as `SSL_1300.glb` to an inspectable display size, and fits the camera to the model bounds. If a model is visible in `display_satellite.html` but not after selecting a matching satellite in `index.html`, the issue is in the selected-satellite scene integration rather than the local model asset.
+Custom entries still support newly added local assets without code changes. Use examples such as `ISS.glb`, `starlink_V1`, `starlink_v2.glb`, or `oneweb.glb` to load from `obj/`. The viewer centers the model, adds inspection lighting, repairs weak/invisible materials where possible, normalizes extremely small or large assets such as `SSL_1300.glb` to an inspectable display size, and fits the camera to the model bounds. If a model is visible in `display_satellite.html` but not after selecting a matching satellite in `index.html`, the issue is in the selected-satellite scene integration rather than the local model asset.
 
 ## Earth Stars Milky Way Viewer
 
@@ -225,7 +230,9 @@ The Python server uses only the standard library. It serves the existing static 
 - `http://127.0.0.1:8000/api/tle`
 - `http://127.0.0.1:8000/api/satellites`
 - `http://127.0.0.1:8000/api/satellite-metadata`
+- `http://127.0.0.1:8000/api/display-satellite-models`
 - `http://127.0.0.1:8000/api/decayed`
+- `http://127.0.0.1:8000/api/data-update-status`
 - `http://127.0.0.1:8000/docs`
 - `http://127.0.0.1:8000/openapi.json`
 
@@ -239,6 +246,33 @@ markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API
 The frontend checks the server with a short timeout. If the check fails or server data is malformed, the app continues with `json/tle/TLE.json`, `json/satellites/`, and other local files. Configure a different API base URL with `?apiBase=http://host:port` or `localStorage.setItem('openbexi.apiBaseUrl', 'http://host:port')`.
 
 Do not use `file://` for normal development because ES modules, JSON, textures, and model assets need HTTP-style loading.
+
+## Data Maintenance
+
+Use `tools/satellite_data_tools.py` to update generated satellite data without Java:
+
+```powershell
+py tools/satellite_data_tools.py export-tle --dry-run
+py tools/satellite_data_tools.py export-tle --all
+py tools/satellite_data_tools.py export-tle --refresh-launch-dates --force
+py tools/satellite_data_tools.py refresh-satcat --force
+py tools/satellite_data_tools.py build-decayed-db --refresh-satcat --force
+py tools/satellite_data_tools.py build-decayed-db --all
+```
+
+Default `export-tle` is incremental. It reads `json/tle/TLE.json`, `json/tle/TLE.meta.json`, and existing TLE epochs, respects a 2-hour CelesTrak guard unless `--force` is used, then queries smaller CelesTrak GP groups such as `active` and `last-30-days` to add missing TLEs and update newer records. `export-tle --all` refreshes N2YO launch dates by default, keeps the legacy Java source group order, and keeps first-seen NORAD behavior; use `--skip-launch-dates` only when intentionally reusing the existing local launch-date file. `build-decayed-db` reads `json/satcat.csv` and writes `json/decayed/decayed.json` using the legacy `DECAY_DATE` plus `OBJECT_TYPE=PAY` filter.
+
+`satellite_launch_dates.json` is intentionally not refreshed by a normal incremental `export-tle --force`; use `export-tle --refresh-launch-dates --force` or full `export-tle --all` when launch-date history must be refreshed. Decayed data is separate from TLE updates. Use `refresh-satcat --force` to update `json/satcat.csv` from CelesTrak raw SATCAT CSV, then `build-decayed-db --force`, or combine both with `build-decayed-db --refresh-satcat --force`.
+
+Generated data writes are atomic and create backups; `--dry-run` does not write data, metadata, temp files, or backups. If CelesTrak is unavailable, the tool preserves the last-known-good local JSON files and records failed attempts in metadata without replacing the last successful timestamp. Optional Space-Track fallback is disabled unless credentials are explicitly configured; unverified mirrors are not used automatically.
+
+The server can run the same Python code in a background scheduler:
+
+```powershell
+py server.py --host 127.0.0.1 --port 8000 --update-data-on-schedule
+```
+
+Scheduled updates are disabled by default. When enabled, startup only checks local freshness metadata; it queries remote TLE data only when the configured 24-hour server interval and the 2-hour CelesTrak guard both allow it. Decayed scheduled updates refresh `json/satcat.csv` first, then rebuild `json/decayed/decayed.json`. The scheduler runs in the background, uses `json/.satellite_data_update.lock` to avoid overlap, never uses `--all`, and exposes state at `/api/data-update-status`.
 
 ## Testing
 
@@ -278,7 +312,7 @@ The timing summary includes lifecycle and app-specific marks such as `dom-conten
 
 The left menu is organized into compact colored accordion sections. Multiple sections can stay open at the same time; expanding one section does not collapse any other section. `Views & Time` and `Satellites Selection - Found` start expanded when `index.html` loads; `Timelines`, `Share`, and `Help` start collapsed. Older local accordion state cannot override those launch defaults on refresh. Expanded panels use section-matched metallic gradients, and the live satellite count in the Satellite Selection header is red and bold.
 
-- `Views & Time`: Solar System and Stars & Milky Way controls, Globe/High Def./ECEF Axes, Mercator/Day-Night, plus mode-specific sub-controls. The top/canvas `Time x` slider is the single simulation-speed control.
+- `Views & Time`: Solar System and Stars & Milky Way controls, Globe/High Def./ECEF Axes, Mercator/Day-Night, plus mode-specific sub-controls. Stars & Milky Way is enabled by default; the top/canvas `Time x` slider is the single simulation-speed control.
 - `Satellites Selection - Found`: searchable satellite selector, dynamic found count, Starlink/ISS shortcut buttons, orbit/tag/debris filters, reset action, zero-result empty state, selected-satellite status, and satellite-specific Yaw-Pitch-Roll, footprint, show-only, LVLH frame, and orbit controls that appear only after a satellite is selected. Detailed metadata and TLE lines are not duplicated in the menu.
 - `Timelines`: checkbox toggles for launch and re-entry timelines.
 - `Share`: copy or natively share a safe URL that restores supported app state after satellite data loads, plus preview, download, or copy an image of the current canvas when the browser supports it.
@@ -305,8 +339,11 @@ The Help section opens Swagger and API documentation in separate pages. `Swagger
 - `server.py`: Optional standard-library Python server for static hosting, API endpoints, CORS, Swagger/OpenAPI docs, and server-backed data loading.
 - `js/startupPerformance.js`: Startup timing, deferred scheduling, and chunked-work helpers used to keep the first render responsive.
 - `json/tle/`: TLE source data.
+- `json/tle/TLE.meta.json`: Generated TLE update metadata when the Python data tool runs.
 - `json/satellites/`: Satellite metadata and model configuration.
 - `json/display_satellite_models.json`: Model manifest used by `display_satellite.html`.
+- `json/decayed/decayed.meta.json`: Generated decayed-database update metadata when the Python data tool runs.
+- `json/satcat.meta.json`: Generated SATCAT source metadata when the Python data tool refreshes `json/satcat.csv`.
 - `data/stars/`: Small real-star demo catalog and optional preprocessed star tiles.
 - `textures/`: Earth, Moon, Mars, satellite, and material textures.
 - `data/ephemeris/`: Local JPL Horizons-derived Solar System ephemeris and validation samples.
@@ -314,13 +351,13 @@ The Help section opens Swagger and API documentation in separate pages. `Swagger
 - `icons/`: Satellite and UI icon assets.
 - `obj/`: OBJ, MTL, and GLB satellite model assets.
 - `tests/`: Node-based deterministic regression tests.
-- `tools/`: Utility scripts.
+- `tools/`: Utility scripts, including `satellite_data_tools.py` for TLE and decayed satellite data maintenance.
 
 ## Markdown Files
 
 - `README.md`: Project overview, setup, features, testing commands, and documentation index.
 - `LICENSE.md`: Markdown copy of the MIT license used by the Help Licenses action.
-- `PROMPT.md`: General execution prompt only; release-specific content belongs in prompt history.
+- `PROMPT_Instructions.md`: General execution prompt and project-compatible execution rules; release-specific content belongs in prompt history.
 - `PROMPT4beamFormingSimulator3DWithMercatorMap_V2.MD`: Supplemental beam-forming/Mercator simulator prompt kept in the workspace when present.
 - `PROMPT_History.md`: Release-specific prompts and implementation requirements by date and version; shown in Help as `Releases History`.
 - `SWAGGER.md`: Local static Swagger/API Markdown companion; render with `markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API` without starting the Python server.
@@ -330,7 +367,7 @@ The Help section opens Swagger and API documentation in separate pages. `Swagger
 
 - For each new release in `PROMPT_History.md`, update the visible `index.html` version tag to match the latest release version.
 - Keep browser import maps synchronized: `three` and `three/addons/` must use the same verified Three.js version.
-- Keep `PROMPT.md` limited to the `General Execution Prompt`; put all release history in `PROMPT_History.md`.
+- Keep `PROMPT_Instructions.md` limited to the `General Execution Prompt` and project-compatible execution rules; put all release history in `PROMPT_History.md`.
 - Keep reusable coordinate, scale, orientation, and framing math in `js/sceneFrame.js` when practical so browser behavior and automated tests stay aligned.
 - Keep `Test_and_Integration.md` current whenever features, controls, or accepted verification procedures change.
 - Keep `README.md` current when setup, usage, test commands, features, architecture, or known limitations change.
