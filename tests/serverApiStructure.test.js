@@ -26,7 +26,7 @@ function run() {
 
   assert(serverPy.includes('Access-Control-Allow-Origin'), 'server.py sends CORS headers');
   assert(serverPy.includes('ThreadingHTTPServer'), 'server.py uses a local threaded HTTP server');
-  assert(serverPy.includes('APP_VERSION = "1.7.5"'), 'server.py version matches latest release');
+  assert(serverPy.includes('APP_VERSION = "1.7.6"'), 'server.py version matches latest release');
   assert(serverPy.includes('RELEASE_DATE = "2026-06-15"'), 'server.py release date matches latest release');
   assert(serverPy.includes('--update-data-on-schedule'), 'server.py exposes data update schedule opt-in');
   assert(serverPy.includes('--no-data-update'), 'server.py exposes data update disable flag');
@@ -96,7 +96,7 @@ function run() {
   assert(swagger.includes('/api/display-satellite-models'), 'SWAGGER.md documents display satellite model manifest');
   assert(swaggerHtml.includes('OpenBEXI Earth Orbit API'), 'swagger.html has a standard API title');
   assert(swaggerHtml.includes('class="badge version"'), 'swagger.html displays a version badge');
-  assert(swaggerHtml.includes('1.7.5'), 'swagger.html displays the release version');
+  assert(swaggerHtml.includes('1.7.6'), 'swagger.html displays the release version');
   assert(swaggerHtml.includes('class="badge oas"'), 'swagger.html displays an OAS badge');
   assert(swaggerHtml.includes('Base URL / Schema Source'), 'swagger.html documents base URL/schema context');
   assert(swaggerHtml.includes('<details class="operation get"'), 'swagger.html uses expandable operation details');

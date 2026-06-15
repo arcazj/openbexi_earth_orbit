@@ -269,7 +269,7 @@ function run() {
   assert(html.includes('href="http://127.0.0.1:8000/openapi.json"'), 'API link opens the default OpenAPI page');
   assert(markdownViewerHtml.includes("'SWAGGER.md', 'Swagger API'"), 'Markdown viewer can render local Swagger Markdown');
   assert(swaggerHtml.includes('OpenBEXI Earth Orbit API'), 'local Swagger page has the API title');
-  assert(swaggerHtml.includes('1.7.5'), 'local Swagger page displays the release version');
+  assert(swaggerHtml.includes('1.7.6'), 'local Swagger page displays the release version');
   assert(swaggerHtml.includes('OAS 3.0.3'), 'local Swagger page displays the OpenAPI version badge');
   assert(swaggerHtml.includes('Base URL / Schema Source'), 'local Swagger page displays base URL/schema context');
   assert(swaggerHtml.includes('<details class="operation get"'), 'local Swagger page has expandable GET operation rows');

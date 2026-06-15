@@ -60,12 +60,12 @@ async function run() {
     baseUrl: 'http://127.0.0.1:8000',
     fetchImpl: async (url) => {
       if (url.endsWith('/api/health')) return response(true, { status: 'ok' });
-      if (url.endsWith('/api/version')) return response(true, { api_version: '1.7.5' });
+      if (url.endsWith('/api/version')) return response(true, { api_version: '1.7.6' });
       return response(false, {}, 404);
     }
   });
   assert.strictEqual(connected.state, 'connected', 'health ok marks server connected');
-  assert.strictEqual(connected.version.api_version, '1.7.5', 'version payload is captured');
+  assert.strictEqual(connected.version.api_version, '1.7.6', 'version payload is captured');
 
   const disconnected = await checkServerConnection({
     baseUrl: 'http://127.0.0.1:8000',

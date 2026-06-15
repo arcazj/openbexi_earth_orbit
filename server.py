@@ -19,7 +19,7 @@ from pathlib import Path
 from urllib.parse import quote, unquote, urlparse
 
 
-APP_VERSION = "1.7.5"
+APP_VERSION = "1.7.6"
 RELEASE_DATE = "2026-06-15"
 REPO_URL = "https://github.com/arcazj/openbexi_earth_orbit"
 ROOT = Path(__file__).resolve().parent

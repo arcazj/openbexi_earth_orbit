@@ -1,5 +1,21 @@
 # Prompt History
 
+## Release Date: 2026-06-15  Version 1.7.6
+
+Add Claude Code project guidance and commit previously untracked 1.7.5 assets.
+
+Changes:
+
+1. `CLAUDE.md` — new file providing Claude Code (claude.ai/code) guidance for this repository: common commands (build, test, syntax checks, local server, Python API server, data maintenance, startup perf diagnostics), scene coordinate system (ECI with Three.js Y/Z swap, Earth fixed at origin, all math centralised in `js/sceneFrame.js`), key JS module reference table, entry points, runtime dependency pinning rules (Three.js `0.184.0` import map, satellite.js `6.0.2`), data file locations, and development rules.
+
+2. `README.md` — added one-line reference to `CLAUDE.md` in the Markdown Files index so the `releaseStructure` automated test continues to pass (the test asserts every `.md` file in the project root is documented in `README.md`).
+
+3. `tests/timelineFreshness.test.js` — committed the 1.7.5 timeline freshness test file that was left untracked in the previous release. Tests cover: `parseLaunchDate` rejects future-impossible dates, `buildLaunchTimelineData` keeps only valid dated records, `getLatestLaunchEvent` returns the dataset maximum not wall-clock time, viewport ranges include the latest event, `buildReentryTimelineData` deduplicates confirmed records against active NORAD IDs and tags inactive records `isDecayedTimelineRecord: true`, `getLatestReentryEvent` can resolve a confirmed-decayed-only record, and `index.html` contains the `isDecayedTimelineRecord` guard and the `!activeTleSat` branch.
+
+4. `icons/server_error.svg` and `icons/server_offline.svg` — committed the 1.7.5 server status SVG icons that were left untracked in the previous release.
+
+No application behaviour changes in this release. All 25 automated tests pass.
+
 ## Release Date: 2026-06-15  Version 1.7.5
 
 Implement Version `1.7.5` as a focused timeline freshness update for `Show Launch Timeline` and `Show Re-entry Timeline`.

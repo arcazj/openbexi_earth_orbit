@@ -410,7 +410,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 ### Server Data Path
 
 - Test `/api/health` returns status `ok` and version metadata.
-- Test `/api/version` returns app/API version `1.7.5` and release date `2026-06-15`.
+- Test `/api/version` returns app/API version `1.7.6` and release date `2026-06-15`.
 - Test `/api/tle` and `/api/satellites` return valid TLE records with `norad_id`, `tle_line1`, and `tle_line2`.
 - Test `/api/satellite-metadata` lists known metadata files.
 - Test `/api/satellite-metadata/starlink_V1.json` returns one known metadata payload.
@@ -535,7 +535,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm the ISS shortcut shows `ISS unavailable` if no ISS target can be resolved.
 - Confirm `Timelines` appears immediately after `Satellites Selection - Found`.
 - Confirm `Share` appears immediately after `Timelines` and immediately before `Help`.
-- Confirm `Close`, `Version 1.7.5 - hosted at GitHub Repo`, and the server status icon/text are aligned on one compact row on desktop.
+- Confirm `Close`, `Version 1.7.6 - hosted at GitHub Repo`, and the server status icon/text are aligned on one compact row on desktop.
 - Confirm the version/GitHub text is centered in the menu header.
 - Confirm the server status indicator appears above the accordion menu and does not shift layout when changing between checking, offline, connected, and error states.
 - Confirm connected status uses `power_green.png` and offline/error status uses `power_red.png`.
@@ -1596,6 +1596,18 @@ Checks not fully performed in this terminal:
 - Deep automated tests pass through `npm test`.
 - Browser smoke testing over HTTP passes.
 - The full checklist in this file has been followed, and any pre-existing unrelated failures or intentional approximations are documented.
+
+## Release 1.7.6 Verification Log
+
+Checks performed for this Version 1.7.6 release:
+
+- `PROMPT_History.md` contains the latest `Release Date: 2026-06-15 Version 1.7.6` entry at the top.
+- `index.html`, `js/serverConnection.js`, `js/SatelliteMenuLoader.js`, `server.py`, `swagger.html`, and `SWAGGER.md` use version `1.7.6`.
+- `CLAUDE.md` added to repository root with commands, scene coordinate system, JS module reference, entry points, dependency pinning rules, and development conventions for Claude Code.
+- `README.md` updated to reference `CLAUDE.md` in the Markdown Files index, keeping the `releaseStructure` automated test passing.
+- `tests/timelineFreshness.test.js` and `icons/server_error.svg` / `icons/server_offline.svg` committed (were untracked from 1.7.5).
+- All 25 automated tests pass through `npm test`.
+- No application behaviour changes in this release.
 
 ## Release 1.7.5 Verification Log
 

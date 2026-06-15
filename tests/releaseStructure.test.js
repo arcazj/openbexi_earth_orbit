@@ -31,7 +31,7 @@ function run() {
   assert(promptHistory.startsWith('# Prompt History'), 'PROMPT_History.md starts with Prompt History');
 
   const latestVersion = latestReleaseVersion(promptHistory);
-  assert.strictEqual(latestVersion, '1.7.5', 'latest release is Version 1.7.5');
+  assert.strictEqual(latestVersion, '1.7.6', 'latest release is Version 1.7.6');
 
   const versionMatch = indexHtml.match(/const\s+versionNumber\s*=\s*"([^"]+)"/);
   assert(versionMatch, 'index.html defines a visible version number');
