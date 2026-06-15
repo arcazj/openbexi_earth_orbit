@@ -142,7 +142,10 @@ export function normalizeDecayRecord(raw, warn = () => {}) {
         decayDate: decayParsed.date,
         decayDateIso: decayParsed.iso,
         launchDateIso: launchParsed?.iso || null,
-        objectName: raw?.OBJECT_NAME || raw?.object_name || null
+        objectName: raw?.OBJECT_NAME || raw?.object_name || null,
+        objectId: raw?.OBJECT_ID || raw?.object_id || null,
+        objectType: raw?.OBJECT_TYPE || raw?.object_type || null,
+        launchSite: raw?.LAUNCH_SITE || raw?.launch_site || null
     };
 }
 

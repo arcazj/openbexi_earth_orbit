@@ -512,6 +512,22 @@ canvas {
     display: none;
 }
 
+.timeline-status {
+    color: #f2f6ff;
+    font-size: 11px;
+    line-height: 1.35;
+    padding: 6px 10px 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.timeline-status-reentry {
+    flex: 1;
+    min-width: 0;
+    padding: 0 0 0 8px;
+}
+
 .timeline-canvas {
     width: 100%;
     background: transparent;

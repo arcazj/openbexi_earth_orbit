@@ -63,8 +63,8 @@ Example response:
 {
   "status": "ok",
   "app": "openbexi_earth_orbit",
-  "version": "1.7.4",
-  "release_date": "2026-06-14"
+  "version": "1.7.5",
+  "release_date": "2026-06-15"
 }
 ```
 
@@ -79,11 +79,11 @@ Example response:
 
 ```json
 {
-  "app_version": "1.7.4",
-  "api_version": "1.7.4",
-  "release_date": "2026-06-14",
+  "app_version": "1.7.5",
+  "api_version": "1.7.5",
+  "release_date": "2026-06-15",
   "repository": "https://github.com/arcazj/openbexi_earth_orbit",
-  "server": "OpenBEXIHTTP/1.7.4 Python"
+  "server": "OpenBEXIHTTP/1.7.5 Python"
 }
 ```
 

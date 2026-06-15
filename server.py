@@ -19,8 +19,8 @@ from pathlib import Path
 from urllib.parse import quote, unquote, urlparse
 
 
-APP_VERSION = "1.7.4"
-RELEASE_DATE = "2026-06-14"
+APP_VERSION = "1.7.5"
+RELEASE_DATE = "2026-06-15"
 REPO_URL = "https://github.com/arcazj/openbexi_earth_orbit"
 ROOT = Path(__file__).resolve().parent
 
@@ -524,7 +524,7 @@ def _docs_html() -> bytes:
 
 
 class OpenBexiHandler(SimpleHTTPRequestHandler):
-    server_version = "OpenBEXIHTTP/1.7.4"
+    server_version = "OpenBEXIHTTP/1.7.5"
 
     def __init__(self, *args, serve_static: bool = True, **kwargs):
         self.serve_static = serve_static

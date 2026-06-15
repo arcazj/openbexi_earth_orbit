@@ -26,8 +26,8 @@ function run() {
 
   assert(serverPy.includes('Access-Control-Allow-Origin'), 'server.py sends CORS headers');
   assert(serverPy.includes('ThreadingHTTPServer'), 'server.py uses a local threaded HTTP server');
-  assert(serverPy.includes('APP_VERSION = "1.7.4"'), 'server.py version matches latest release');
-  assert(serverPy.includes('RELEASE_DATE = "2026-06-14"'), 'server.py release date matches latest release');
+  assert(serverPy.includes('APP_VERSION = "1.7.5"'), 'server.py version matches latest release');
+  assert(serverPy.includes('RELEASE_DATE = "2026-06-15"'), 'server.py release date matches latest release');
   assert(serverPy.includes('--update-data-on-schedule'), 'server.py exposes data update schedule opt-in');
   assert(serverPy.includes('--no-data-update'), 'server.py exposes data update disable flag');
   assert(serverPy.includes('--data-update-interval-hours'), 'server.py exposes data update interval flag');
@@ -38,16 +38,13 @@ function run() {
   assert(serverPy.includes('color: #ffffff !important'), 'server docs include high-contrast route/method text');
   assert(serverPy.includes('background: #132640 !important'), 'server docs keep endpoint rows in the OpenBEXI dark theme');
   [
+    'icons/server_connected.svg',
+    'icons/server_offline.svg',
+    'icons/server_error.svg',
     'icons/server_checking.svg'
   ].forEach(iconPath => {
     assert(fs.existsSync(iconPath), `${iconPath} exists`);
     assert(fs.readFileSync(iconPath, 'utf8').includes('<svg'), `${iconPath} is an SVG icon`);
-  });
-  [
-    'icons/power_green.png',
-    'icons/power_red.png'
-  ].forEach(iconPath => {
-    assert(fs.existsSync(iconPath), `${iconPath} exists`);
   });
   assert(readme.includes('py server.py --host 127.0.0.1 --port 8000'), 'README documents Python server startup');
   assert(readme.includes('Version 1.5.21 makes the right-side selected-satellite data and TLE sections collapsible'), 'README documents Version 1.5.21 UI changes');
@@ -61,6 +58,7 @@ function run() {
   assert(readme.includes('Version 1.7.2 moves `Debris` into the orbit/category row'), 'README documents Version 1.7.2 menu changes');
   assert(readme.includes('Version 1.7.3 corrects 3D `Show Orbit`'), 'README documents Version 1.7.3 orbit changes');
   assert(readme.includes('Version 1.7.4 replaces the legacy Java satellite data maintenance workflows'), 'README documents Version 1.7.4 data tool changes');
+  assert(readme.includes('Version 1.7.5 refreshes the Launch and Re-entry timelines'), 'README documents Version 1.7.5 timeline freshness changes');
   assert(readme.includes('tools/satellite_data_tools.py'), 'README documents the Python data tool');
   assert(readme.includes('--update-data-on-schedule'), 'README documents scheduled update opt-in');
   assert(readme.includes('/api/data-update-status'), 'README documents the data update status API');
@@ -98,7 +96,7 @@ function run() {
   assert(swagger.includes('/api/display-satellite-models'), 'SWAGGER.md documents display satellite model manifest');
   assert(swaggerHtml.includes('OpenBEXI Earth Orbit API'), 'swagger.html has a standard API title');
   assert(swaggerHtml.includes('class="badge version"'), 'swagger.html displays a version badge');
-  assert(swaggerHtml.includes('1.7.4'), 'swagger.html displays the release version');
+  assert(swaggerHtml.includes('1.7.5'), 'swagger.html displays the release version');
   assert(swaggerHtml.includes('class="badge oas"'), 'swagger.html displays an OAS badge');
   assert(swaggerHtml.includes('Base URL / Schema Source'), 'swagger.html documents base URL/schema context');
   assert(swaggerHtml.includes('<details class="operation get"'), 'swagger.html uses expandable operation details');
@@ -136,6 +134,7 @@ function run() {
   assert(integration.includes('Version 1.7.2 moves `Debris` into the orbit/category row'), 'integration plan covers Version 1.7.2');
   assert(integration.includes('Version 1.7.3 corrects 3D `Show Orbit`'), 'integration plan covers Version 1.7.3');
   assert(integration.includes('Version 1.7.4 replaces legacy Java data maintenance'), 'integration plan covers Version 1.7.4');
+  assert(integration.includes('Version 1.7.5 makes `Show Launch Timeline` and `Show Re-entry Timeline` data-fresh'), 'integration plan covers Version 1.7.5');
   assert(integration.includes('Data Maintenance Tools'), 'integration plan covers Python data maintenance tools');
   assert(integration.includes('Coverage Traceability Audit'), 'integration plan includes a prior-release coverage audit');
   assert(integration.includes('swagger.html'), 'integration plan covers static standard Swagger UI rendering');

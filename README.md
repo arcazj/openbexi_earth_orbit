@@ -20,7 +20,7 @@ OpenBEXI Earth Orbit is a browser-based satellite visualization app built with p
 - Optional Python server integration for live local API-backed TLE/satellite metadata loading, with automatic local-file fallback when the server is unavailable and no launch-time offline banner.
 - Standard-library Python satellite data maintenance tool for standalone or server-imported TLE and decayed-database updates.
 - Aligned top menu header with Close, version/GitHub link, and server connection status in one compact desktop row.
-- Server status indicator with connected, checking, offline, and error states; connected uses `icons/power_green.png`, offline/error uses `icons/power_red.png`, and the status panel shows server URL, data source, version, last load time, and reconnect/refresh.
+- Server status indicator with connected, checking, offline, and error states backed by `icons/server_*.svg`, and the status panel shows server URL, data source, version, last load time, and reconnect/refresh.
 - Share menu section for copying or natively sharing a safe link for the selected satellite, view mode, filters, simulation time, display settings, and a captured canvas image when supported.
 - Searchable satellite selector with typeahead support for satellite name, NORAD ID, orbit type, and company/tag; the result list is portaled above other menu controls and closes cleanly after mouse, keyboard, Escape, Tab, or outside-click interactions.
 - After selecting a satellite, the selector search field clears the previous selected label on the next search interaction without clearing the active selection.
@@ -37,12 +37,12 @@ OpenBEXI Earth Orbit is a browser-based satellite visualization app built with p
 - Nadir-oriented detailed satellite models: the selected model treats local `+Z` as the Earth-facing axis and points it toward Earth's center before applying yaw/pitch/roll bias.
 - 2D/Mercator selected-satellite UX: selection is highlighted with a clear marker ring instead of applying 3D-only camera-distance behavior.
 - Mercator selected-satellite state uses the selected NORAD ID, so ground tracks and marker rings still render when a detailed 3D model hides the selected sprite.
-- High-definition Earth texture toggle, ECEF axes, Moon/Mars context through Solar System selection, launch timeline, and re-entry timeline.
+- High-definition Earth texture toggle, ECEF axes, Moon/Mars context through Solar System selection, latest-launch timeline, and latest-decay re-entry timeline.
 - Optional Stars & Milky Way view layer in Views & Time, with 46 bundled real RA/Dec reference stars, Milky Way sphere, RA/Dec grid, bright labels, and atmosphere.
 - Selecting non-MEO/GEO satellites automatically enables the high-definition Earth texture while MEO/GEO selections never force it off.
 - Satellite Selection shortcuts can select the first loaded Starlink satellite or ISS/ZARYA through the same camera/model path as the normal satellite selector. The Starlink shortcut displays the resolved NORAD ID as `Starlink (<NORAD ID>)`.
 - Help menu actions provide quick access to the GitHub project, rendered README Markdown, rendered Releases History Markdown, a Markdown license page, local standard Swagger UI, local rendered Swagger Markdown, and live API JSON when the optional Python server is running.
-- Timeline checkboxes are mutually exclusive: enabling the launch timeline hides the re-entry timeline, and enabling the re-entry timeline hides the launch timeline.
+- Timeline checkboxes are mutually exclusive: enabling the launch timeline hides the re-entry timeline, and enabling the re-entry timeline hides the launch timeline. The launch timeline opens on the latest valid launch date in the loaded satellite data, and the re-entry timeline opens on the latest valid confirmed or predicted decay event, including confirmed decayed records that are no longer active TLE satellites.
 - Faster initial startup path: the globe and core controls render before the full TLE sprite pass, while timelines and decay estimates are prepared as deferred work.
 - Optional startup timing diagnostics through `?perf=1` or `localStorage.openbexiStartupPerf = "1"`.
 
@@ -103,6 +103,8 @@ Version 1.7.2 moves `Debris` into the orbit/category row as `ALL`, `GEO`, `MEO`,
 Version 1.7.3 corrects 3D `Show Orbit` so the selected satellite displays one complete propagated orbital revolution from the current simulation date instead of multi-period trails. Orbit geometry refreshes from shared simulation time as `Time x` advances, replaces the existing path instead of accumulating duplicates, and keeps invalid-sample splitting plus Earth occlusion behavior. `Stars & Milky Way` is checked by default on launch while `RA/Dec Grid`, `Bright Labels`, and `Atmosphere` remain unchecked.
 
 Version 1.7.4 replaces the legacy Java satellite data maintenance workflows with `tools/satellite_data_tools.py`. The tool can run standalone or be imported by `server.py`, supports legacy-compatible `export-tle --all` and `build-decayed-db --all` modes, and uses incremental default TLE updates with metadata freshness checks, atomic writes, backups, dry-run support, CelesTrak failure preservation, and optional scheduled server refresh that is disabled by default.
+
+Version 1.7.5 refreshes the Launch and Re-entry timelines around the newest dataset events. `Show Launch Timeline` derives the latest launch from loaded TLE/satellite metadata and anchors the HUD around that event. `Show Re-entry Timeline` merges active-satellite decay estimates with confirmed decayed records from local or server `/api/decayed` data, anchors on the latest valid decay event, highlights it, and allows inactive decayed objects to show details without attempting active TLE propagation.
 
 The selected satellite model axis convention is:
 
@@ -314,7 +316,7 @@ The left menu is organized into compact colored accordion sections. Multiple sec
 
 - `Views & Time`: Solar System and Stars & Milky Way controls, Globe/High Def./ECEF Axes, Mercator/Day-Night, plus mode-specific sub-controls. Stars & Milky Way is enabled by default; the top/canvas `Time x` slider is the single simulation-speed control.
 - `Satellites Selection - Found`: searchable satellite selector, dynamic found count, Starlink/ISS shortcut buttons, orbit/tag/debris filters, reset action, zero-result empty state, selected-satellite status, and satellite-specific Yaw-Pitch-Roll, footprint, show-only, LVLH frame, and orbit controls that appear only after a satellite is selected. Detailed metadata and TLE lines are not duplicated in the menu.
-- `Timelines`: checkbox toggles for launch and re-entry timelines.
+- `Timelines`: checkbox toggles for launch and re-entry timelines. Opening Launch highlights the latest valid launch in the loaded satellite data; opening Re-entry highlights the latest valid confirmed or predicted decay event, including decayed objects no longer present in active TLE data.
 - `Share`: copy or natively share a safe URL that restores supported app state after satellite data loads, plus preview, download, or copy an image of the current canvas when the browser supports it.
 - `Help`: GitHub, rendered README, rendered Releases History, Markdown Licenses, local Swagger UI, Swagger Markdown companion, Live API, and the app disclaimer.
 

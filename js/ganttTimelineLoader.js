@@ -15,15 +15,21 @@ const BRUSH_BORDER = 'rgba(255,255,255,0.35)';
 const SHOW_LABEL = 'Show Launch Timeline';
 const HIDE_LABEL = 'Hide Launch Timeline';
 
-const MS_DAY = 24 * 60 * 60 * 1000 *2;
+const MS_DAY = 24 * 60 * 60 * 1000;
 const MS_YEAR = 365.25 * MS_DAY;
 const OVERVIEW_SPACING_TARGET = 360/2;
 const OVERVIEW_MIN_RANGE = MS_YEAR * 1.5;
+const DETAIL_CONTEXT_RANGE = MS_DAY * 45;
+const FUTURE_LAUNCH_GRACE_DAYS = 7;
 
 function createHudElements() {
     const container = document.createElement('div');
     container.className = 'timeline-hud';
     container.style.display = 'none';
+
+    const status = document.createElement('div');
+    status.className = 'timeline-status timeline-status-launch';
+    container.appendChild(status);
 
     const detailCanvas = document.createElement('canvas');
     detailCanvas.className = 'timeline-canvas timeline-detail';
@@ -35,13 +41,70 @@ function createHudElements() {
 
     document.body.appendChild(container);
 
-    return { container, detailCanvas, overviewCanvas };
+    return { container, status, detailCanvas, overviewCanvas };
 }
 
-function parseLaunchDate(value) {
+export function parseLaunchDate(value, options = {}) {
     if (!value || value === 'N/A') return null;
     const d = new Date(value);
-    return isNaN(d.getTime()) ? null : d;
+    if (isNaN(d.getTime())) return null;
+    if (options.now) {
+        const now = new Date(options.now);
+        const futureGraceMs = (options.futureGraceDays ?? FUTURE_LAUNCH_GRACE_DAYS) * MS_DAY;
+        if (!isNaN(now.getTime()) && d.getTime() > now.getTime() + futureGraceMs) return null;
+    }
+    return d;
+}
+
+export function buildLaunchTimelineData(satellites = [], options = {}) {
+    return (satellites || [])
+        .map((s, idx) => {
+            const launchDate = parseLaunchDate(s.launch_date, options);
+            return launchDate ? { time: launchDate.getTime(), satellite: s, index: idx } : null;
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.time - b.time);
+}
+
+export function getLatestLaunchEvent(timelineData = []) {
+    for (let i = timelineData.length - 1; i >= 0; i -= 1) {
+        const item = timelineData[i];
+        if (Number.isFinite(item?.time)) return item;
+    }
+    return null;
+}
+
+export function getLaunchTimelineRanges(timelineData = [], anchorEvent = getLatestLaunchEvent(timelineData), options = {}) {
+    if (!anchorEvent || !Number.isFinite(anchorEvent.time)) return null;
+    const detailContext = options.detailContextMs ?? DETAIL_CONTEXT_RANGE;
+    const detailStart = anchorEvent.time - detailContext;
+    const detailEnd = anchorEvent.time + detailContext;
+
+    const first = timelineData.find(item => Number.isFinite(item.time));
+    const last = getLatestLaunchEvent(timelineData);
+    let overviewStart = first?.time ?? detailStart;
+    let overviewEnd = last?.time ?? detailEnd;
+    const padding = Math.max(MS_YEAR, (overviewEnd - overviewStart) * 0.05);
+    overviewStart -= padding;
+    overviewEnd += padding;
+    const overviewRange = overviewEnd - overviewStart;
+    if (overviewRange < OVERVIEW_MIN_RANGE) {
+        const center = anchorEvent.time;
+        overviewStart = center - OVERVIEW_MIN_RANGE / 2;
+        overviewEnd = center + OVERVIEW_MIN_RANGE / 2;
+    }
+
+    return { detailStart, detailEnd, overviewStart, overviewEnd, latestEvent: anchorEvent };
+}
+
+function launchStatusText(event, count) {
+    if (!event) return 'No valid launch dates are available in the loaded satellite data.';
+    const sat = event.satellite || {};
+    const name = sat.satellite_name || sat.name || `NORAD ${sat.norad_id || 'unknown'}`;
+    const date = new Date(event.time).toISOString().substring(0, 10);
+    const norad = sat.norad_id ? ` | NORAD ${sat.norad_id}` : '';
+    const tag = sat.company ? ` | ${sat.company}` : '';
+    return `Latest launch: ${date} | ${name}${norad}${tag} | ${count} dated launch records`;
 }
 
 function formatLabel(date, msPerPixel) {
@@ -139,22 +202,21 @@ function sizeCanvas(canvas, height) {
 }
 
 export function initTimeline(satellites, arg2, arg3) {
-    let centerDate = new Date();
+    let centerDate = null;
     let onSelect = null;
     if (typeof arg2 === 'function') {
         onSelect = arg2;
     } else {
-        centerDate = arg2 ? new Date(arg2) : centerDate;
+        centerDate = arg2 ? new Date(arg2) : null;
         if (typeof arg3 === 'function') onSelect = arg3;
     }
 
-    const timelineData = (satellites || [])
-        .map((s, idx) => {
-            const launchDate = parseLaunchDate(s.launch_date);
-            return launchDate ? { time: launchDate.getTime(), satellite: s, index: idx } : null;
-        })
-        .filter(Boolean)
-        .sort((a, b) => a.time - b.time);
+    const timelineData = buildLaunchTimelineData(satellites, { now: new Date() });
+    const latestEvent = getLatestLaunchEvent(timelineData);
+    const anchorEvent = centerDate && !isNaN(centerDate.getTime())
+        ? { time: centerDate.getTime(), satellite: null, index: -1 }
+        : latestEvent;
+    const initialRanges = getLaunchTimelineRanges(timelineData, anchorEvent);
 
     if (!timelineData.length) {
         return {
@@ -167,7 +229,8 @@ export function initTimeline(satellites, arg2, arg3) {
     }
 
     const toggle = document.getElementById('launchTimelineToggle');
-    const { container, detailCanvas, overviewCanvas } = createHudElements();
+    const { container, status, detailCanvas, overviewCanvas } = createHudElements();
+    status.textContent = launchStatusText(latestEvent, timelineData.length);
 
     let isVisible = false;
     const isCheckboxToggle = toggle?.type === 'checkbox';
@@ -205,11 +268,11 @@ export function initTimeline(satellites, arg2, arg3) {
 
     setVisibility(false);
 
-    let detailStart = centerDate.getTime() - MS_DAY * 3.5;
-    let detailEnd = centerDate.getTime() + MS_DAY * 3.5;
+    let detailStart = initialRanges.detailStart;
+    let detailEnd = initialRanges.detailEnd;
 
-    let overviewStart = new Date(centerDate.getUTCFullYear() - 10, 0, 1).getTime();
-    let overviewEnd = new Date(centerDate.getUTCFullYear() + 10, 0, 1).getTime();
+    let overviewStart = initialRanges.overviewStart;
+    let overviewEnd = initialRanges.overviewEnd;
 
     let detailPositions = [];
 
@@ -234,8 +297,10 @@ export function initTimeline(satellites, arg2, arg3) {
     function resize() {
         if (!isVisible) return;
         container.style.height = `${HUD_HEIGHT}px`;
-        const detailHeight = HUD_HEIGHT * DETAIL_RATIO;
-        const overviewHeight = HUD_HEIGHT * (1 - DETAIL_RATIO);
+        const chromeHeight = status.offsetHeight || 24;
+        const availableHeight = Math.max(120, HUD_HEIGHT - chromeHeight);
+        const detailHeight = availableHeight * DETAIL_RATIO;
+        const overviewHeight = availableHeight * (1 - DETAIL_RATIO);
         detailCanvas.style.height = `${detailHeight}px`;
         overviewCanvas.style.height = `${overviewHeight}px`;
         detailCanvas.style.width = overviewCanvas.style.width = '100%';
@@ -299,6 +364,7 @@ export function initTimeline(satellites, arg2, arg3) {
             const x = timeToX(item.time, detailStart, detailEnd, width);
             const label = item.satellite.satellite_name || `NORAD ${item.satellite.norad_id}`;
             const textWidth = ctx.measureText(label).width;
+            const isLatest = item === latestEvent;
             let row = 0;
             while (rowsLastEnd[row] !== undefined && x - rowsLastEnd[row] < textWidth + DOT_RADIUS * 2 + 6) {
                 row += 1;
@@ -306,13 +372,13 @@ export function initTimeline(satellites, arg2, arg3) {
             rowsLastEnd[row] = x + textWidth + DOT_RADIUS * 2 + 6;
             const y = row * ROW_HEIGHT + TOP_PADDING;
             if (y < height - ROW_HEIGHT) {
-                ctx.fillStyle = DOT_COLOR;
+                ctx.fillStyle = isLatest ? '#ffffff' : DOT_COLOR;
                 ctx.beginPath();
-                ctx.arc(x, y, DOT_RADIUS, 0, Math.PI * 2);
+                ctx.arc(x, y, isLatest ? DOT_RADIUS + 3 : DOT_RADIUS, 0, Math.PI * 2);
                 ctx.fill();
 
-                ctx.fillStyle = TEXT_COLOR;
-                ctx.fillText(label, x + DOT_RADIUS + 4, y - DOT_RADIUS - 2 + DOT_RADIUS);
+                ctx.fillStyle = isLatest ? '#ffffff' : TEXT_COLOR;
+                ctx.fillText(isLatest ? `Latest: ${label}` : label, x + DOT_RADIUS + 4, y - DOT_RADIUS - 2 + DOT_RADIUS);
 
                 detailPositions.push({ x, y, item, row, labelWidth: textWidth });
             }
@@ -377,6 +443,15 @@ export function initTimeline(satellites, arg2, arg3) {
             const x = timeToX(item.time, overviewStart, overviewEnd, width);
             ctx.fillRect(x - 0.5, height * 0.6, 1, 1);
         });
+
+        if (latestEvent && latestEvent.time >= overviewStart && latestEvent.time <= overviewEnd) {
+            const x = timeToX(latestEvent.time, overviewStart, overviewEnd, width);
+            ctx.strokeStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.moveTo(x + 0.5, height * 0.52);
+            ctx.lineTo(x + 0.5, height);
+            ctx.stroke();
+        }
 
         // Brush representing detail view
         const brushStartX = timeToX(detailStart, overviewStart, overviewEnd, width);

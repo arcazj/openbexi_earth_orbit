@@ -1,5 +1,70 @@
 # Prompt History
 
+## Release Date: 2026-06-15  Version 1.7.5
+
+Implement Version `1.7.5` as a focused timeline freshness update for `Show Launch Timeline` and `Show Re-entry Timeline`.
+
+The launch and re-entry timeline views must reflect the most recent launch and most recent decayed satellite available in the app's current data, instead of opening on stale, hardcoded, or outdated timeline ranges.
+
+Requirements:
+
+1. Versioning
+   - Update visible app version and related version metadata to `1.7.5`.
+   - Update `index.html`, `js/serverConnection.js`, `js/SatelliteMenuLoader.js`, `server.py`, `swagger.html`, `README.md`, and `Test_and_Integration.md` wherever the current release/version is displayed or documented.
+
+2. Launch timeline latest-event behavior
+   - When `Show Launch Timeline` is enabled, build or refresh the timeline from the current loaded satellite/TLE metadata and launch-date data.
+   - Identify the latest valid launch date in the loaded dataset.
+   - Center, scroll, zoom, or otherwise position the Launch Timeline so the latest launched satellite is immediately visible.
+   - Display enough surrounding timeline context that the user can understand where the latest launch sits relative to nearby launches.
+   - Show the latest launch satellite name, NORAD ID when available, launch date, source tag/category, and any available launch-site metadata in the timeline detail/tooltip/selection panel.
+   - Do not use wall-clock time as a substitute for the latest dataset launch date.
+   - If the latest launch satellite also exists in the active satellite list, selecting its timeline event should select the same satellite in the main viewer without breaking the current filter/search behavior.
+
+3. Re-entry timeline latest-decay behavior
+   - When `Show Re-entry Timeline` is enabled, build or refresh the timeline from the current `json/decayed/decayed.json` data or the live `/api/decayed` data when the optional server is connected.
+   - Identify the latest valid `DECAY_DATE` in the loaded decayed-satellite dataset.
+   - Center, scroll, zoom, or otherwise position the Re-entry Timeline so the latest decayed satellite is immediately visible.
+   - Display enough surrounding timeline context that the user can understand where the latest decay sits relative to nearby decays.
+   - Show the latest decayed satellite name, NORAD catalog ID, object ID, object type, launch date, launch site, and decay date in the timeline detail/tooltip/selection panel.
+   - If the latest decayed satellite does not exist in the active TLE list, keep the re-entry timeline event selectable and show the decayed-record details without trying to propagate or render it as an active satellite.
+
+4. Data freshness and refresh handling
+   - If the optional Python server supplies fresher TLE or decayed data than the local static JSON files, the timelines must use the same freshest data source already chosen by the app.
+   - If the Version `1.7.4` Python data-maintenance tool updates `json/tle/TLE.json`, `json/satcat.csv`, or `json/decayed/decayed.json`, refreshing or reopening the timeline should reflect the newly available latest launch or latest decay.
+   - Do not require a full page reload when the app can safely refresh timeline data in place.
+   - If no valid launch date or decay date is available, show a clear non-blocking message and keep the timeline controls usable.
+   - Invalid, missing, future-impossible, or malformed dates must be ignored safely and must not cause timeline rendering to fail.
+
+5. Timeline UI and interaction preservation
+   - Preserve the existing checkbox behavior for `Show Launch Timeline` and `Show Re-entry Timeline`.
+   - Preserve the rule that only one timeline is visible at a time.
+   - Preserve existing satellite selection, search, filters, 3D/Mercator views, orbit, footprint, Solar System, Stars & Milky Way, Share, Help, server status, and data-update behavior unless a timeline change explicitly requires a small integration adjustment.
+   - Timeline updates must not block the initial app render or make the UTC clock/camera controls unresponsive.
+   - Timeline labels, headers, tooltips, or status text should identify the latest launch or latest decay date currently represented.
+
+6. Tests and documentation
+   - Add or update automated tests for latest launch-date detection, invalid launch-date handling, latest decay-date detection, invalid decay-date handling, and initial timeline viewport/anchor selection.
+   - Add tests confirming the launch timeline uses current loaded data rather than hardcoded ranges.
+   - Add tests confirming the re-entry timeline uses current decayed data rather than hardcoded ranges.
+   - Add tests confirming a decayed event can show details even when the satellite is no longer active in TLE data.
+   - Add regression tests confirming the two timeline checkboxes remain mutually exclusive and do not block other controls.
+   - Update `README.md` and `Test_and_Integration.md` with the new timeline freshness behavior and manual verification steps.
+
+Acceptance Criteria:
+
+- The latest release is `Release Date: 2026-06-15  Version 1.7.5`.
+- `Show Launch Timeline` opens on or clearly highlights the latest valid launched satellite in the current loaded dataset.
+- `Show Re-entry Timeline` opens on or clearly highlights the latest valid decayed satellite in the current decayed dataset.
+- The latest launch and latest decay are derived from dataset dates, not from hardcoded ranges or wall-clock assumptions.
+- Timeline details expose the latest event's satellite name, identifier, date, and available metadata.
+- Decayed satellites that are no longer active can still be inspected in the re-entry timeline without attempting active TLE propagation.
+- Server-backed and local fallback data paths keep timeline behavior consistent.
+- Reopening or refreshing a timeline after a data update reflects the newest available launch or decay data.
+- Invalid or missing dates are skipped safely with a non-blocking message when no valid events exist.
+- Existing timeline checkbox behavior, mutual exclusivity, satellite selection, filters, visualization modes, Share, Help, server status, and Python data-maintenance behavior remain intact.
+- Relevant automated tests pass, and any visual-only timeline positioning checks are documented in `Test_and_Integration.md`.
+
 ## Release Date: 2026-06-14  Version 1.7.4
 
 Implement Version `1.7.4` as a Python data-maintenance rewrite for the legacy Java `SatelliteDataExporter` and `buildDecayedDB` workflows.

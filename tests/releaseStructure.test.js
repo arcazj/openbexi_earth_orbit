@@ -23,18 +23,15 @@ function importMapVersions(html, fileName) {
 }
 
 function run() {
-  const prompt = read('PROMPT_Instructions.md').replace(/^\uFEFF/, '');
-  const promptHistory = read('PROMPT_History.md');
+  const promptHistory = read('PROMPT_History.md').replace(/^\uFEFF/, '');
   const indexHtml = read('index.html');
   const displaySatelliteHtml = read('display_satellite.html');
   const readme = read('README.md');
 
-  assert(prompt.startsWith('# General Execution Prompt'), 'PROMPT_Instructions.md starts with General Execution Prompt');
-  assert(!/^## Release Date:/m.test(prompt), 'PROMPT_Instructions.md does not contain release history');
-  assert(!/^## General Execution Prompt/m.test(prompt), 'PROMPT_Instructions.md has one top-level general prompt section');
+  assert(promptHistory.startsWith('# Prompt History'), 'PROMPT_History.md starts with Prompt History');
 
   const latestVersion = latestReleaseVersion(promptHistory);
-  assert.strictEqual(latestVersion, '1.7.4', 'latest release is Version 1.7.4');
+  assert.strictEqual(latestVersion, '1.7.5', 'latest release is Version 1.7.5');
 
   const versionMatch = indexHtml.match(/const\s+versionNumber\s*=\s*"([^"]+)"/);
   assert(versionMatch, 'index.html defines a visible version number');

@@ -49,6 +49,10 @@ function createHudElements() {
     select.style.fontSize = '11px';
     filterRow.appendChild(select);
 
+    const status = document.createElement('span');
+    status.className = 'timeline-status timeline-status-reentry';
+    filterRow.appendChild(status);
+
     container.appendChild(filterRow);
 
     const detailCanvas = document.createElement('canvas');
@@ -73,7 +77,7 @@ function createHudElements() {
     document.body.appendChild(tooltip);
 
     document.body.appendChild(container);
-    return { container, filterSelect: select, detailCanvas, overviewCanvas, tooltip };
+    return { container, filterSelect: select, status, detailCanvas, overviewCanvas, tooltip };
 }
 
 function getTimelineBounds(data = []) {
@@ -182,20 +186,66 @@ function xToTime(x, start, end, width) {
     return start + (x / width) * (end - start);
 }
 
-function buildTimelineData(rawSatellites = []) {
-    return rawSatellites
+function normalizeConfirmedRecords(confirmedDecays) {
+    if (!confirmedDecays) return [];
+    if (confirmedDecays instanceof Map) return Array.from(confirmedDecays.values());
+    if (Array.isArray(confirmedDecays)) return confirmedDecays;
+    if (typeof confirmedDecays === 'object') return Object.values(confirmedDecays);
+    return [];
+}
+
+function confirmedRecordToSatellite(record) {
+    const noradId = record?.noradId ?? record?.NORAD_CAT_ID ?? record?.norad_id;
+    const decayDateIso = record?.decayDateIso ?? record?.DECAY_DATE ?? record?.decay_date;
+    if (!noradId || !decayDateIso) return null;
+    const objectName = record.objectName ?? record.OBJECT_NAME ?? record.object_name ?? `NORAD ${noradId}`;
+    const objectId = record.objectId ?? record.OBJECT_ID ?? record.object_id ?? null;
+    const objectType = record.objectType ?? record.OBJECT_TYPE ?? record.object_type ?? null;
+    const launchDateIso = record.launchDateIso ?? record.LAUNCH_DATE ?? record.launch_date ?? null;
+    const launchSite = record.launchSite ?? record.LAUNCH_SITE ?? record.launch_site ?? null;
+    return {
+        satellite_name: objectName,
+        norad_id: String(noradId),
+        launch_date: launchDateIso || 'N/A',
+        object_id: objectId,
+        object_type: objectType,
+        launch_site: launchSite,
+        isDecayedTimelineRecord: true,
+        decay: {
+            decay_status: 'CONFIRMED',
+            decay_reason: 'Source: json/decayed/decayed.json',
+            decay_date: decayDateIso,
+            object_name: objectName,
+            object_id: objectId,
+            object_type: objectType,
+            launch_date: launchDateIso,
+            launch_site: launchSite
+        }
+    };
+}
+
+function eventStartTime(item) {
+    return item?.type === 'CONFIRMED' ? item.time : item?.start;
+}
+
+function eventEndTime(item) {
+    return item?.type === 'CONFIRMED' ? item.time : item?.end;
+}
+
+export function buildReentryTimelineData(rawSatellites = [], confirmedDecays = null) {
+    const activeEvents = (rawSatellites || [])
         .map((sat, idx) => {
             const decay = sat.decay || {};
             if (decay.decay_status === 'CONFIRMED' && decay.decay_date) {
                 const t = new Date(decay.decay_date);
-                if (!isNaN(t)) {
+                if (!isNaN(t.getTime())) {
                     return { type: 'CONFIRMED', time: t.getTime(), satellite: sat, index: idx, reason: decay.decay_reason };
                 }
             }
             if (decay.decay_status === 'PREDICTED' && decay.predicted_decay_window) {
                 const start = new Date(decay.predicted_decay_window.start);
                 const end = new Date(decay.predicted_decay_window.end);
-                if (!isNaN(start) && !isNaN(end)) {
+                if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
                     return {
                         type: 'PREDICTED',
                         start: start.getTime(),
@@ -209,26 +259,116 @@ function buildTimelineData(rawSatellites = []) {
             }
             return null;
         })
+        .filter(Boolean);
+
+    const activeNorads = new Set(activeEvents.map(item => item.satellite?.norad_id?.toString()).filter(Boolean));
+    const confirmedEvents = normalizeConfirmedRecords(confirmedDecays)
+        .map(confirmedRecordToSatellite)
         .filter(Boolean)
+        .filter(sat => !activeNorads.has(sat.norad_id?.toString()))
+        .map((sat, idx) => {
+            const t = new Date(sat.decay.decay_date);
+            if (isNaN(t.getTime())) return null;
+            return { type: 'CONFIRMED', time: t.getTime(), satellite: sat, index: rawSatellites.length + idx, reason: sat.decay.decay_reason };
+        })
+        .filter(Boolean);
+
+    return activeEvents
+        .concat(confirmedEvents)
         .sort((a, b) => {
-            const at = a.type === 'CONFIRMED' ? a.time : a.start;
-            const bt = b.type === 'CONFIRMED' ? b.time : b.start;
+            const at = eventStartTime(a);
+            const bt = eventStartTime(b);
             return at - bt;
         });
 }
 
-export function initReentryTimeline(rawSatellites, onSelect) {
+export function getLatestReentryEvent(timelineData = []) {
+    for (let i = timelineData.length - 1; i >= 0; i -= 1) {
+        const item = timelineData[i];
+        const time = eventEndTime(item);
+        if (Number.isFinite(time)) return item;
+    }
+    return null;
+}
+
+export function getReentryTimelineRanges(timelineData = [], anchorEvent = getLatestReentryEvent(timelineData), options = {}) {
+    if (!anchorEvent) return null;
+    const anchorStart = eventStartTime(anchorEvent);
+    const anchorEnd = eventEndTime(anchorEvent);
+    if (!Number.isFinite(anchorStart) || !Number.isFinite(anchorEnd)) return null;
+    const anchor = anchorEvent.type === 'PREDICTED' ? (anchorStart + anchorEnd) / 2 : anchorStart;
+    const detailContext = options.detailContextMs ?? MS_DAY * 120;
+    const detailStart = anchor - detailContext;
+    const detailEnd = anchor + detailContext;
+    const bounds = getTimelineBounds(timelineData);
+    const overviewStart = bounds?.min ?? detailStart - MS_DAY * 180;
+    const overviewEnd = bounds?.max ?? detailEnd + MS_DAY * 180;
+    return { detailStart, detailEnd, overviewStart, overviewEnd, latestEvent: anchorEvent };
+}
+
+function reentryStatusText(event, count) {
+    if (!event) return 'No valid re-entry or decay dates are available.';
+    const sat = event.satellite || {};
+    const date = new Date(eventEndTime(event)).toISOString().substring(0, 10);
+    const name = sat.satellite_name || sat.name || `NORAD ${sat.norad_id || 'unknown'}`;
+    const norad = sat.norad_id ? ` | NORAD ${sat.norad_id}` : '';
+    const source = sat.isDecayedTimelineRecord ? 'confirmed decayed record' : event.type.toLowerCase();
+    return `Latest re-entry: ${date} | ${name}${norad} | ${source} | ${count} events`;
+}
+
+function escapeHtml(value = '') {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function reentryTooltipHtml(item) {
+    const sat = item.satellite || {};
+    const decay = sat.decay || {};
+    let line = '';
+    if (item.type === 'CONFIRMED') {
+        line = `Re-entered: ${formatDateTime(new Date(item.time))}`;
+    } else {
+        line = `Predicted window: ${formatDate(new Date(item.start))} -> ${formatDate(new Date(item.end))}`;
+    }
+    const confidence = decay.predicted_decay_window?.confidence;
+    const metadataRows = [
+        ['NORAD', sat.norad_id || 'N/A'],
+        ['Object ID', decay.object_id || sat.object_id || 'N/A'],
+        ['Object type', decay.object_type || sat.object_type || item.type],
+        ['Launch date', decay.launch_date || sat.launch_date || 'N/A'],
+        ['Launch site', decay.launch_site || sat.launch_site || 'N/A'],
+        ['Status', decay.decay_status || item.type],
+        ['Decay date', decay.decay_date || 'N/A']
+    ];
+    return `
+      <div style="font-weight:bold;">${escapeHtml(sat.satellite_name || sat.norad_id || 'Decayed object')}</div>
+      ${metadataRows.map(([label, value]) => `<div>${escapeHtml(label)}: ${escapeHtml(value)}</div>`).join('')}
+      <div>${escapeHtml(line)}</div>
+      ${confidence !== undefined ? `<div>Confidence: ${escapeHtml((confidence * 100).toFixed(0))}%</div>` : ''}
+      <div style="max-width:260px;">${escapeHtml(decay.decay_reason || item.reason || '')}</div>
+    `;
+}
+
+export function initReentryTimeline(rawSatellites, onSelect, options = {}) {
     const toggle = document.getElementById('reentryTimelineToggle');
-    const { container, filterSelect, detailCanvas, overviewCanvas, tooltip } = createHudElements();
-    let timelineData = buildTimelineData(rawSatellites);
+    const { container, filterSelect, status, detailCanvas, overviewCanvas, tooltip } = createHudElements();
+    let confirmedDecays = options.confirmedDecays || null;
+    let timelineData = buildReentryTimelineData(rawSatellites, confirmedDecays);
+    let latestEvent = getLatestReentryEvent(timelineData);
+    status.textContent = reentryStatusText(latestEvent, timelineData.length);
 
     let isVisible = false;
     let detailPositions = [];
     let overviewPositions = [];
-    let detailStart = Date.now() - MS_DAY * 120;
-    let detailEnd = Date.now() + MS_DAY * 210;
-    let overviewStart = detailStart - MS_DAY * 180;
-    let overviewEnd = detailEnd + MS_DAY * 180;
+    const initialRanges = getReentryTimelineRanges(timelineData, latestEvent);
+    let detailStart = initialRanges?.detailStart ?? Date.now() - MS_DAY * 120;
+    let detailEnd = initialRanges?.detailEnd ?? Date.now() + MS_DAY * 120;
+    let overviewStart = initialRanges?.overviewStart ?? detailStart - MS_DAY * 180;
+    let overviewEnd = initialRanges?.overviewEnd ?? detailEnd + MS_DAY * 180;
     let hasCustomRange = false;
     let needsDraw = true;
     let rafScheduled = false;
@@ -257,16 +397,26 @@ export function initReentryTimeline(rawSatellites, onSelect) {
     };
 
     const resetRangesFromData = () => {
-        const bounds = getTimelineBounds(getFilteredData());
-        if (!bounds) return;
-        detailStart = bounds.min;
-        detailEnd = bounds.max;
-        overviewStart = bounds.min;
-        overviewEnd = bounds.max;
+        latestEvent = getLatestReentryEvent(getFilteredData());
+        const ranges = getReentryTimelineRanges(getFilteredData(), latestEvent);
+        if (!ranges) return;
+        detailStart = ranges.detailStart;
+        detailEnd = ranges.detailEnd;
+        overviewStart = ranges.overviewStart;
+        overviewEnd = ranges.overviewEnd;
     };
 
-    const rebuildData = () => {
-        timelineData = buildTimelineData(rawSatellites);
+    const updateStatusFromFilteredData = () => {
+        const filtered = getFilteredData();
+        latestEvent = getLatestReentryEvent(filtered);
+        status.textContent = reentryStatusText(latestEvent, filtered.length);
+    };
+
+    const rebuildData = (nextConfirmedDecays = confirmedDecays) => {
+        confirmedDecays = nextConfirmedDecays;
+        timelineData = buildReentryTimelineData(rawSatellites, confirmedDecays);
+        latestEvent = getLatestReentryEvent(timelineData);
+        status.textContent = reentryStatusText(latestEvent, timelineData.length);
         if (!hasCustomRange) resetRangesFromData();
         scheduleDraw();
     };
@@ -291,8 +441,10 @@ export function initReentryTimeline(rawSatellites, onSelect) {
     function resize() {
         if (!isVisible) return;
         container.style.height = `${HUD_HEIGHT}px`;
-        const detailHeight = HUD_HEIGHT * DETAIL_RATIO;
-        const overviewHeight = HUD_HEIGHT * (1 - DETAIL_RATIO);
+        const chromeHeight = filterSelect.parentElement?.offsetHeight || 28;
+        const availableHeight = Math.max(120, HUD_HEIGHT - chromeHeight);
+        const detailHeight = availableHeight * DETAIL_RATIO;
+        const overviewHeight = availableHeight * (1 - DETAIL_RATIO);
         detailCanvas.style.height = `${detailHeight}px`;
         overviewCanvas.style.height = `${overviewHeight}px`;
         detailCanvas.style.width = overviewCanvas.style.width = '100%';
@@ -321,7 +473,11 @@ export function initReentryTimeline(rawSatellites, onSelect) {
         });
     }
 
-    filterSelect.addEventListener('change', scheduleDraw);
+    filterSelect.addEventListener('change', () => {
+        updateStatusFromFilteredData();
+        if (!hasCustomRange) resetRangesFromData();
+        scheduleDraw();
+    });
     window.addEventListener('resize', resize);
     setVisibility(false);
 
@@ -376,6 +532,7 @@ export function initReentryTimeline(rawSatellites, onSelect) {
             const xEnd = timeToX(endTime, detailStart, detailEnd, width);
             const label = item.satellite.satellite_name || `NORAD ${item.satellite.norad_id}`;
             const textWidth = ctx.measureText(label).width;
+            const isLatest = item === latestEvent;
             let row = 0;
             while (rowsLastEnd[row] !== undefined && xStart - rowsLastEnd[row] < textWidth + 12) {
                 row += 1;
@@ -385,20 +542,20 @@ export function initReentryTimeline(rawSatellites, onSelect) {
             if (y > height - ROW_HEIGHT) return;
 
             if (item.type === 'PREDICTED') {
-                ctx.fillStyle = PREDICTED_COLOR;
+                ctx.fillStyle = isLatest ? '#ffffff' : PREDICTED_COLOR;
                 ctx.strokeStyle = 'rgba(0,0,0,0.35)';
                 const barWidth = Math.max(2, xEnd - xStart);
                 ctx.fillRect(xStart, y - 6, barWidth, 10);
                 ctx.strokeRect(xStart + 0.5, y - 6.5, barWidth - 1, 11);
             } else {
-                ctx.fillStyle = CONFIRMED_COLOR;
+                ctx.fillStyle = isLatest ? '#ffffff' : CONFIRMED_COLOR;
                 ctx.beginPath();
-                ctx.arc(xStart, y - 2, 3, 0, Math.PI * 2);
+                ctx.arc(xStart, y - 2, isLatest ? 5 : 3, 0, Math.PI * 2);
                 ctx.fill();
             }
 
-            ctx.fillStyle = TEXT_COLOR;
-            ctx.fillText(label, xEnd + 4, y - 9);
+            ctx.fillStyle = isLatest ? '#ffffff' : TEXT_COLOR;
+            ctx.fillText(isLatest ? `Latest: ${label}` : label, xEnd + 4, y - 9);
 
             detailPositions.push({
                 item,
@@ -443,21 +600,22 @@ export function initReentryTimeline(rawSatellites, onSelect) {
         overviewPositions = [];
         const filtered = getFilteredData();
         filtered.forEach((item) => {
+            const isLatest = item === latestEvent;
             if (item.type === 'PREDICTED') {
                 const xStart = timeToX(item.start, overviewStart, overviewEnd, width);
                 const xEnd = timeToX(item.end, overviewStart, overviewEnd, width);
                 const barWidth = Math.max(1, xEnd - xStart);
                 const y = height * 0.55;
-                ctx.fillStyle = `${PREDICTED_COLOR}55`;
+                ctx.fillStyle = isLatest ? '#ffffff99' : `${PREDICTED_COLOR}55`;
                 ctx.fillRect(xStart, y, barWidth, height * 0.35);
                 overviewPositions.push({ item, xStart, xEnd: xStart + barWidth, y, height: height * 0.35 });
             } else {
                 const x = timeToX(item.time, overviewStart, overviewEnd, width);
                 const y = height * 0.6;
                 const barHeight = height * 0.3;
-                ctx.fillStyle = CONFIRMED_COLOR;
-                ctx.fillRect(x - 0.5, y, 2, barHeight);
-                overviewPositions.push({ item, xStart: x - 0.5, xEnd: x + 1.5, y, height: barHeight });
+                ctx.fillStyle = isLatest ? '#ffffff' : CONFIRMED_COLOR;
+                ctx.fillRect(x - (isLatest ? 1.5 : 0.5), y, isLatest ? 4 : 2, barHeight);
+                overviewPositions.push({ item, xStart: x - 1.5, xEnd: x + 2.5, y, height: barHeight });
             }
         });
 
@@ -514,22 +672,7 @@ export function initReentryTimeline(rawSatellites, onSelect) {
 
         const hit = detailPositions.find((p) => x >= p.xStart - 4 && x <= p.xEnd + p.labelWidth + 6 && Math.abs(p.y - y) < ROW_HEIGHT / 1.3);
         if (hit) {
-            const decay = hit.item.satellite.decay || {};
-            let line = '';
-            if (hit.item.type === 'CONFIRMED') {
-                line = `Re-entered: ${formatDateTime(new Date(hit.item.time))}`;
-            } else {
-                line = `Predicted window: ${formatDate(new Date(hit.item.start))} -> ${formatDate(new Date(hit.item.end))}`;
-            }
-            const confidence = decay.predicted_decay_window?.confidence;
-            tooltip.innerHTML = `
-              <div style="font-weight:bold;">${hit.item.satellite.satellite_name || hit.item.satellite.norad_id}</div>
-              <div>NORAD: ${hit.item.satellite.norad_id || 'N/A'}</div>
-              <div>Status: ${decay.decay_status || hit.item.type}</div>
-              <div>${line}</div>
-              ${confidence !== undefined ? `<div>Confidence: ${(confidence * 100).toFixed(0)}%</div>` : ''}
-              <div style="max-width:260px;">${decay.decay_reason || hit.item.reason || ''}</div>
-            `;
+            tooltip.innerHTML = reentryTooltipHtml(hit.item);
             tooltip.style.display = 'block';
             tooltip.style.left = `${e.clientX + 12}px`;
             tooltip.style.top = `${e.clientY + 12}px`;
@@ -635,22 +778,7 @@ export function initReentryTimeline(rawSatellites, onSelect) {
         const y = e.clientY - rect.top;
         const hit = overviewPositions.find((p) => x >= p.xStart - 2 && x <= p.xEnd + 2 && y >= p.y && y <= p.y + p.height);
         if (hit) {
-            const decay = hit.item.satellite.decay || {};
-            let line = '';
-            if (hit.item.type === 'CONFIRMED') {
-                line = `Re-entered: ${formatDateTime(new Date(hit.item.time))}`;
-            } else {
-                line = `Predicted window: ${formatDate(new Date(hit.item.start))} -> ${formatDate(new Date(hit.item.end))}`;
-            }
-            const confidence = decay.predicted_decay_window?.confidence;
-            tooltip.innerHTML = `
-              <div style="font-weight:bold;">${hit.item.satellite.satellite_name || hit.item.satellite.norad_id}</div>
-              <div>NORAD: ${hit.item.satellite.norad_id || 'N/A'}</div>
-              <div>Status: ${decay.decay_status || hit.item.type}</div>
-              <div>${line}</div>
-              ${confidence !== undefined ? `<div>Confidence: ${(confidence * 100).toFixed(0)}%</div>` : ''}
-              <div style="max-width:260px;">${decay.decay_reason || hit.item.reason || ''}</div>
-            `;
+            tooltip.innerHTML = reentryTooltipHtml(hit.item);
             tooltip.style.display = 'block';
             tooltip.style.left = `${e.clientX + 12}px`;
             tooltip.style.top = `${e.clientY + 12}px`;

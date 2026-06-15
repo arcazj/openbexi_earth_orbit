@@ -1,12 +1,12 @@
-export const APP_VERSION = '1.7.4';
-export const RELEASE_DATE = '2026-06-14';
+export const APP_VERSION = '1.7.5';
+export const RELEASE_DATE = '2026-06-15';
 export const DEFAULT_SERVER_TIMEOUT_MS = 800;
 export const API_BASE_STORAGE_KEY = 'openbexi.apiBaseUrl';
 export const SERVER_STATUS_ICONS = {
-    connected: 'icons/power_green.png',
-    disconnected: 'icons/power_red.png',
+    connected: 'icons/server_connected.svg',
+    disconnected: 'icons/server_offline.svg',
     checking: 'icons/server_checking.svg',
-    error: 'icons/power_red.png'
+    error: 'icons/server_error.svg'
 };
 
 export function normalizeApiBaseUrl(value) {

@@ -82,6 +82,8 @@ Version 1.7.3 corrects 3D `Show Orbit` so the selected satellite displays exactl
 
 Version 1.7.4 replaces legacy Java data maintenance with `tools/satellite_data_tools.py`. The Python tool must run standalone and be importable by `server.py`, preserve legacy `export-tle --all` and `build-decayed-db --all` behavior, use incremental default TLE updates with metadata freshness checks, preserve last-known-good data when CelesTrak is unavailable, keep optional Space-Track fallback disabled by default, and expose default-off scheduled server refresh controls that obey the 24-hour server rule and the 2-hour CelesTrak guard before any startup query.
 
+Version 1.7.5 makes `Show Launch Timeline` and `Show Re-entry Timeline` data-fresh. Launch Timeline must derive and highlight the latest valid launch date from currently loaded satellite/TLE data. Re-entry Timeline must derive and highlight the latest valid confirmed or predicted decay event from active satellites plus local/server decayed records, and it must show inactive decayed-record details without attempting active TLE propagation.
+
 ## Test Environment
 
 - Run from the repository root.
@@ -408,7 +410,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 ### Server Data Path
 
 - Test `/api/health` returns status `ok` and version metadata.
-- Test `/api/version` returns app/API version `1.7.4` and release date `2026-06-14`.
+- Test `/api/version` returns app/API version `1.7.5` and release date `2026-06-15`.
 - Test `/api/tle` and `/api/satellites` return valid TLE records with `norad_id`, `tle_line1`, and `tle_line2`.
 - Test `/api/satellite-metadata` lists known metadata files.
 - Test `/api/satellite-metadata/starlink_V1.json` returns one known metadata payload.
@@ -456,7 +458,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 ### Coverage Traceability Audit
 
 - Audit every release entry in `PROMPT_History.md` before delivery and confirm each release-level behavior maps to an automated test, manual/integration check, or explicit limitation.
-- Confirm prior-release coverage includes Version 1.5.21 selected-satellite details/source attribution, Version 1.5.22 Earth-centered frame/orbit math, Version 1.5.23 Mars mode, Version 1.6 Stars & Milky Way, Version 1.6.1 star catalog behavior, Version 1.6.2 integrated Solar System, Version 1.7 JPL-derived ephemeris, Version 1.7.1 filter/search consistency, Version 1.7.2 Debris/search-row/local Swagger UI and Markdown changes, Version 1.7.3 one-revolution 3D `Show Orbit`/`Time x` synchronization, and Version 1.7.4 Python data maintenance plus scheduled server freshness checks.
+- Confirm prior-release coverage includes Version 1.5.21 selected-satellite details/source attribution, Version 1.5.22 Earth-centered frame/orbit math, Version 1.5.23 Mars mode, Version 1.6 Stars & Milky Way, Version 1.6.1 star catalog behavior, Version 1.6.2 integrated Solar System, Version 1.7 JPL-derived ephemeris, Version 1.7.1 filter/search consistency, Version 1.7.2 Debris/search-row/local Swagger UI and Markdown changes, Version 1.7.3 one-revolution 3D `Show Orbit`/`Time x` synchronization, Version 1.7.4 Python data maintenance plus scheduled server freshness checks, and Version 1.7.5 latest launch/re-entry timeline anchoring.
 - Expand shallow checks where a release only has a summary but no concrete automated, browser, manual, or server verification step.
 - Document limitations when a behavior cannot be automated in this repository, including external browser rendering, optional live server checks, and unavailable source pages.
 
@@ -533,7 +535,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm the ISS shortcut shows `ISS unavailable` if no ISS target can be resolved.
 - Confirm `Timelines` appears immediately after `Satellites Selection - Found`.
 - Confirm `Share` appears immediately after `Timelines` and immediately before `Help`.
-- Confirm `Close`, `Version 1.7.4 - hosted at GitHub Repo`, and the server status icon/text are aligned on one compact row on desktop.
+- Confirm `Close`, `Version 1.7.5 - hosted at GitHub Repo`, and the server status icon/text are aligned on one compact row on desktop.
 - Confirm the version/GitHub text is centered in the menu header.
 - Confirm the server status indicator appears above the accordion menu and does not shift layout when changing between checking, offline, connected, and error states.
 - Confirm connected status uses `power_green.png` and offline/error status uses `power_red.png`.
@@ -636,6 +638,18 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm checkbox state always matches HUD visibility.
 - Reload the app and confirm timeline loading/deferred startup states are clear while data is preparing.
 - Confirm disabled timeline checkboxes cannot be toggled while timeline data is not ready.
+
+## Timeline Latest Event Regression
+
+- Check `Show Launch Timeline` and confirm the HUD status identifies the latest valid launch date and satellite from the currently loaded dataset.
+- Confirm the Launch Timeline detail viewport opens around that latest launch and the latest launch marker/label is visibly highlighted.
+- Confirm invalid, missing, `N/A`, or clearly malformed launch dates are skipped without breaking the timeline.
+- Click the highlighted latest launch event and confirm it selects the matching active satellite when that satellite exists in the active TLE list.
+- Check `Show Re-entry Timeline` and confirm the HUD status identifies the latest valid confirmed or predicted decay event from active satellite decay estimates plus local/server decayed records.
+- Confirm the Re-entry Timeline detail viewport opens around that latest decay event and the latest re-entry marker/label is visibly highlighted.
+- Confirm tooltip/details for the latest decayed record include satellite/object name, NORAD catalog ID, object ID, object type, launch date, launch site, and decay date when available.
+- Confirm a decayed record that is no longer present in active TLE data can still be clicked and displayed in the right-side details panel without trying to render, propagate, or show active-satellite controls for it.
+- Run the timeline freshness automated tests to confirm latest-date detection and invalid-date handling do not depend on wall-clock timeline ranges.
 
 ## Filter UI Regression
 
@@ -1582,6 +1596,17 @@ Checks not fully performed in this terminal:
 - Deep automated tests pass through `npm test`.
 - Browser smoke testing over HTTP passes.
 - The full checklist in this file has been followed, and any pre-existing unrelated failures or intentional approximations are documented.
+
+## Release 1.7.5 Verification Log
+
+Checks performed for this Version 1.7.5 implementation session:
+
+- `PROMPT_History.md` contains the latest `Release Date: 2026-06-15 Version 1.7.5` entry at the top.
+- `index.html`, `js/serverConnection.js`, `js/SatelliteMenuLoader.js`, `server.py`, `swagger.html`, and `SWAGGER.md` use version `1.7.5`.
+- Launch timeline tests confirm latest valid launch detection, invalid/future launch-date rejection, and viewport anchoring around the latest dataset launch.
+- Re-entry timeline tests confirm latest confirmed decay detection from decayed data, invalid decay-date rejection, inactive decayed-record metadata preservation, and viewport anchoring around the latest decay event.
+- Static selection tests confirm inactive decayed timeline records are handled as details-only records instead of active propagated TLE satellites.
+- Full visible-browser confirmation of the latest-event timeline highlight remains manual.
 
 ## Release 1.7.4 Verification Log
 
