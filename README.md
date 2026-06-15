@@ -364,6 +364,7 @@ The Help section opens Swagger and API documentation in separate pages. `Swagger
 - `PROMPT_History.md`: Release-specific prompts and implementation requirements by date and version; shown in Help as `Releases History`.
 - `SWAGGER.md`: Local static Swagger/API Markdown companion; render with `markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API` without starting the Python server.
 - `Test_and_Integration.md`: Authoritative automated, browser, manual, domain, visual, and regression acceptance checklist.
+- `CLAUDE.md`: Guidance for Claude Code (claude.ai/code) — commands, architecture overview, and development rules for this repository.
 
 ## Development Notes
 
