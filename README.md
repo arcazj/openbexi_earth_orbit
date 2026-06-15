@@ -106,6 +106,8 @@ Version 1.7.4 replaces the legacy Java satellite data maintenance workflows with
 
 Version 1.7.5 refreshes the Launch and Re-entry timelines around the newest dataset events. `Show Launch Timeline` derives the latest launch from loaded TLE/satellite metadata and anchors the HUD around that event. `Show Re-entry Timeline` merges active-satellite decay estimates with confirmed decayed records from local or server `/api/decayed` data, anchors on the latest valid decay event, highlights it, and allows inactive decayed objects to show details without attempting active TLE propagation.
 
+Version 1.7.6 adds `CLAUDE.md` with Claude Code project guidance covering commands, scene coordinate system, JS module reference, entry points, dependency pinning rules, and development conventions. Previously untracked 1.7.5 assets (`tests/timelineFreshness.test.js`, `icons/server_error.svg`, `icons/server_offline.svg`) are committed. No application behaviour changes.
+
 The selected satellite model axis convention is:
 
 ```text

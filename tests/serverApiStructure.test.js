@@ -59,6 +59,7 @@ function run() {
   assert(readme.includes('Version 1.7.3 corrects 3D `Show Orbit`'), 'README documents Version 1.7.3 orbit changes');
   assert(readme.includes('Version 1.7.4 replaces the legacy Java satellite data maintenance workflows'), 'README documents Version 1.7.4 data tool changes');
   assert(readme.includes('Version 1.7.5 refreshes the Launch and Re-entry timelines'), 'README documents Version 1.7.5 timeline freshness changes');
+  assert(readme.includes('Version 1.7.6 adds `CLAUDE.md`'), 'README documents Version 1.7.6 Claude Code guidance');
   assert(readme.includes('tools/satellite_data_tools.py'), 'README documents the Python data tool');
   assert(readme.includes('--update-data-on-schedule'), 'README documents scheduled update opt-in');
   assert(readme.includes('/api/data-update-status'), 'README documents the data update status API');
