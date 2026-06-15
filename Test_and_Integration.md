@@ -84,6 +84,8 @@ Version 1.7.4 replaces legacy Java data maintenance with `tools/satellite_data_t
 
 Version 1.7.5 makes `Show Launch Timeline` and `Show Re-entry Timeline` data-fresh. Launch Timeline must derive and highlight the latest valid launch date from currently loaded satellite/TLE data. Re-entry Timeline must derive and highlight the latest valid confirmed or predicted decay event from active satellites plus local/server decayed records, and it must show inactive decayed-record details without attempting active TLE propagation.
 
+Version 1.7.6 adds `CLAUDE.md` with Claude Code project guidance and commits previously untracked 1.7.5 assets. `CLAUDE.md` must exist at the repository root and be referenced in `README.md` so the `releaseStructure` automated test continues to pass. `tests/timelineFreshness.test.js`, `icons/server_error.svg`, and `icons/server_offline.svg` must be present and tracked. No application behaviour changes are introduced.
+
 ## Test Environment
 
 - Run from the repository root.
@@ -121,6 +123,7 @@ npm test
 ```
 
 - Confirm `index.html`, `js/SatelliteMenuLoader.js`, and `css/style.css` contain no obvious malformed tags, missing closing braces, or duplicated filter IDs.
+- Confirm `CLAUDE.md` exists at the repository root and is referenced in `README.md`.
 - Confirm `PROMPT_Instructions.md` contains the `General Execution Prompt` section and no release history.
 - Confirm `PROMPT_History.md` contains the latest release entry.
 - Confirm the visible `index.html` version number matches the latest `PROMPT_History.md` release.
@@ -458,7 +461,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 ### Coverage Traceability Audit
 
 - Audit every release entry in `PROMPT_History.md` before delivery and confirm each release-level behavior maps to an automated test, manual/integration check, or explicit limitation.
-- Confirm prior-release coverage includes Version 1.5.21 selected-satellite details/source attribution, Version 1.5.22 Earth-centered frame/orbit math, Version 1.5.23 Mars mode, Version 1.6 Stars & Milky Way, Version 1.6.1 star catalog behavior, Version 1.6.2 integrated Solar System, Version 1.7 JPL-derived ephemeris, Version 1.7.1 filter/search consistency, Version 1.7.2 Debris/search-row/local Swagger UI and Markdown changes, Version 1.7.3 one-revolution 3D `Show Orbit`/`Time x` synchronization, Version 1.7.4 Python data maintenance plus scheduled server freshness checks, and Version 1.7.5 latest launch/re-entry timeline anchoring.
+- Confirm prior-release coverage includes Version 1.5.21 selected-satellite details/source attribution, Version 1.5.22 Earth-centered frame/orbit math, Version 1.5.23 Mars mode, Version 1.6 Stars & Milky Way, Version 1.6.1 star catalog behavior, Version 1.6.2 integrated Solar System, Version 1.7 JPL-derived ephemeris, Version 1.7.1 filter/search consistency, Version 1.7.2 Debris/search-row/local Swagger UI and Markdown changes, Version 1.7.3 one-revolution 3D `Show Orbit`/`Time x` synchronization, Version 1.7.4 Python data maintenance plus scheduled server freshness checks, Version 1.7.5 latest launch/re-entry timeline anchoring, and Version 1.7.6 `CLAUDE.md` addition and previously untracked asset commit.
 - Expand shallow checks where a release only has a summary but no concrete automated, browser, manual, or server verification step.
 - Document limitations when a behavior cannot be automated in this repository, including external browser rendering, optional live server checks, and unavailable source pages.
 
