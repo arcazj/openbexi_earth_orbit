@@ -84,7 +84,7 @@ Version 1.7.4 replaces legacy Java data maintenance with `tools/satellite_data_t
 
 Version 1.7.5 makes `Show Launch Timeline` and `Show Re-entry Timeline` data-fresh. Launch Timeline must derive and highlight the latest valid launch date from currently loaded satellite/TLE data. Re-entry Timeline must derive and highlight the latest valid confirmed or predicted decay event from active satellites plus local/server decayed records, and it must show inactive decayed-record details without attempting active TLE propagation.
 
-Version 1.7.6 fixes timeline data freshness, Re-entry Timeline startup latency, and Python-server startup rendering while keeping the release number unchanged. Incremental TLE refreshes must query bounded CelesTrak groups, merge missing/newer TLE records, and fill launch-date sidecar entries from local SATCAT when available. SATCAT/decayed updates must use conditional `ETag` / `Last-Modified` requests and skip repeated decayed DB rebuilds when unchanged. `Show Re-entry Timeline` must become usable from confirmed decayed records before active decay prediction completes, and prediction must run only for likely decay candidates with daily cache reuse. `index.html` must draw from the static `json/tle/TLE.json` route before checking the optional Python server so `/api/tle` cannot block the first visible server-hosted page.
+Version 1.7.6 fixes timeline data freshness, Re-entry Timeline startup latency, and Python-server startup rendering while keeping the release number unchanged. Incremental TLE refreshes must query bounded CelesTrak groups, merge missing/newer TLE records, and fill launch-date sidecar entries from local SATCAT when available. SATCAT/decayed updates must use conditional `ETag` / `Last-Modified` requests and skip repeated decayed DB rebuilds when unchanged. `Show Re-entry Timeline` must become usable from confirmed decayed records before active decay prediction completes, and prediction must run only for likely decay candidates with daily cache reuse. `index.html` must draw from the static `json/tle/TLE.json` route before checking the optional Python server so `/api/tle` cannot block the first visible server-hosted page. Three.js `0.184.0` and `satellite.js` `6.0.2` must load CDN-first with local `node_modules` fallbacks before the main app module starts.
 
 ## Test Environment
 
@@ -1614,6 +1614,8 @@ Checks performed for this Version 1.7.6 release:
 - Incremental TLE refresh can fill touched launch-date sidecar records from local SATCAT data.
 - `js/serverConnection.js` added a default API base URL and fallback server check so local static/IDE hosts without API routes retry `http://127.0.0.1:8000` before offline mode.
 - `index.html` uses the fallback connection check during startup, and `README.md` documents the retry behavior.
+- `index.html` uses `js/dependencyBootstrap.js` so Three.js `0.184.0` and `satellite.js` `6.0.2` try `unpkg.com` first, then fall back to local `./node_modules/` paths before the main app module starts.
+- `README.md`, `PROMPT_History.md`, and this verification log document the Version `1.7.6` runtime dependency fallback behavior.
 - `tests/serverConnection.test.js` covers the static-host-miss to Python-server-fallback path.
 - All 25 automated tests pass through `npm test`.
 - Live API smoke check confirmed `http://127.0.0.1:8000/api/version` returns Version `1.7.6`.

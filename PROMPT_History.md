@@ -11,6 +11,7 @@ Observed problems:
 3. `Preparing Re-entry Timeline` is very slow because active-satellite decay prediction can run over the full active TLE dataset before the timeline is usable.
 4. The timeline UI can appear to open without making the newest launch or decay event visible.
 5. `http://127.0.0.1:8000/index.html` can show a black screen when initial startup blocks on the live `/api/tle` server path, even though static/standalone loading reaches the UI.
+6. Runtime startup should not depend on remote CDN availability for Three.js or `satellite.js` when matching local `node_modules` packages are available.
 
 Requirements:
 
@@ -70,7 +71,14 @@ Requirements:
    - Do not require a full page reload when the app can safely rebuild timeline data in place.
    - Preserve existing satellite selection, filters, timeline mutual exclusivity, 3D/Mercator views, Solar System, Stars & Milky Way, Share, Help, server status, and server data fallback behavior unless a timeline fix explicitly requires a small integration change.
 
-5. Tests and documentation
+5. Runtime dependency fallback
+   - Keep Three.js core and addons on the same verified version.
+   - Load Three.js CDN-first, then fall back to local `./node_modules/three/build/three.module.js` and `./node_modules/three/examples/jsm/` before the main module starts.
+   - Load `satellite.js@6.0.2` CDN-first, then fall back to local `./node_modules/satellite.js/dist/satellite.min.js` before TLE propagation code runs.
+   - Inject the resolved Three.js import map before running the main module template so addons such as `OrbitControls`, `OBJLoader`, `MTLLoader`, `GLTFLoader`, and `CSS2DRenderer` resolve from the same source.
+   - If both CDN and local dependency sources fail, show a clear startup dependency error instead of leaving a silent black screen.
+
+6. Tests and documentation
    - Add or update automated tests with fixture data containing valid launch dates on or after `2026-06-01`.
    - Add tests for the smart CelesTrak incremental update path: skip when metadata is fresh, query bounded recent groups when stale, merge new NORAD IDs, update newer TLE epochs, preserve unchanged records, update launch-date sidecars for new satellites, and avoid the full legacy source sweep unless explicitly requested.
    - Add tests for the smart decayed-data incremental update path: skip when metadata is fresh, use conditional `ETag` / `Last-Modified` requests when no remote delta query is available, avoid download/rebuild on `304 Not Modified`, merge new decayed NORAD IDs when source data changes, update changed decay dates, preserve unchanged records, and avoid a full SATCAT rebuild unless explicitly requested or local metadata is missing/corrupt.
@@ -97,6 +105,7 @@ Acceptance Criteria:
 - Confirmed decayed satellites that are no longer active can still be inspected in the re-entry timeline without active propagation.
 - Invalid or missing dates are skipped safely and do not hide later valid events.
 - `http://127.0.0.1:8000/index.html` renders the first visible globe/UI from static TLE data before server status checking or live `/api/tle` refresh work.
+- Three.js and `satellite.js` load CDN-first with local `node_modules` fallback paths, and the app reports a dependency startup error if neither source can be used.
 - Server-backed and local fallback data paths remain consistent.
 - Existing timeline checkbox mutual exclusivity and unrelated app behavior remain intact.
 - Relevant automated tests pass, and any visual-only timeline checks are documented in `Test_and_Integration.md`.
