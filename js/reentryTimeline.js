@@ -359,7 +359,12 @@ export function initReentryTimeline(rawSatellites, onSelect, options = {}) {
     let confirmedDecays = options.confirmedDecays || null;
     let timelineData = buildReentryTimelineData(rawSatellites, confirmedDecays);
     let latestEvent = getLatestReentryEvent(timelineData);
-    status.textContent = reentryStatusText(latestEvent, timelineData.length);
+    let statusNote = options.statusNote || '';
+    const statusText = (event, count) => {
+        const base = reentryStatusText(event, count);
+        return statusNote ? `${base} | ${statusNote}` : base;
+    };
+    status.textContent = statusText(latestEvent, timelineData.length);
 
     let isVisible = false;
     let detailPositions = [];
@@ -409,16 +414,21 @@ export function initReentryTimeline(rawSatellites, onSelect, options = {}) {
     const updateStatusFromFilteredData = () => {
         const filtered = getFilteredData();
         latestEvent = getLatestReentryEvent(filtered);
-        status.textContent = reentryStatusText(latestEvent, filtered.length);
+        status.textContent = statusText(latestEvent, filtered.length);
     };
 
     const rebuildData = (nextConfirmedDecays = confirmedDecays) => {
         confirmedDecays = nextConfirmedDecays;
         timelineData = buildReentryTimelineData(rawSatellites, confirmedDecays);
         latestEvent = getLatestReentryEvent(timelineData);
-        status.textContent = reentryStatusText(latestEvent, timelineData.length);
+        updateStatusFromFilteredData();
         if (!hasCustomRange) resetRangesFromData();
         scheduleDraw();
+    };
+
+    const setStatusNote = (note = '') => {
+        statusNote = String(note || '');
+        updateStatusFromFilteredData();
     };
 
     resetRangesFromData();
@@ -827,6 +837,7 @@ export function initReentryTimeline(rawSatellites, onSelect, options = {}) {
             return isVisible;
         },
         requestRedraw: scheduleDraw,
-        refreshData: rebuildData
+        refreshData: rebuildData,
+        setStatusNote
     };
 }

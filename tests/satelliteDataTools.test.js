@@ -59,6 +59,10 @@ function run() {
   assert(tool.includes('return None'), 'Space-Track fallback remains disabled by default');
   assert(tool.includes('fetcher:'), 'tool exposes injectable fetchers for no-network tests');
   assert(tool.includes('atomic_write_json'), 'tool writes generated JSON atomically');
+  assert(tool.includes('If-None-Match'), 'tool sends conditional ETag request headers');
+  assert(tool.includes('If-Modified-Since'), 'tool sends conditional Last-Modified request headers');
+  assert(tool.includes('merge_launch_date_sidecar_from_satcat'), 'incremental TLE updates can fill launch-date sidecars from SATCAT');
+  assert(tool.includes('Decayed DB rebuild skipped; SATCAT source has not changed.'), 'unchanged SATCAT skips decayed rebuilds');
 
   assert(server.includes('--update-data-on-schedule'), 'server exposes scheduled update opt-in flag');
   assert(server.includes('--no-data-update'), 'server exposes scheduled update disable flag');
@@ -71,6 +75,8 @@ function run() {
   assert(readme.includes('py tools/satellite_data_tools.py export-tle --all'), 'README documents standalone export-tle usage');
   assert(readme.includes('py tools/satellite_data_tools.py refresh-satcat --force'), 'README documents SATCAT refresh usage');
   assert(readme.includes('build-decayed-db --refresh-satcat --force'), 'README documents decayed rebuild with SATCAT refresh');
+  assert(readme.includes('fills or updates `json/tle/satellite_launch_dates.json`'), 'README documents incremental launch sidecar updates');
+  assert(readme.includes('If-None-Match'), 'README documents conditional SATCAT requests');
   assert(readme.includes('--update-data-on-schedule'), 'README documents scheduled server updates');
   assert(readme.includes('CelesTrak is unavailable'), 'README documents CelesTrak fallback behavior');
   assert(integration.includes('Data Maintenance Tools'), 'integration plan includes data maintenance tests');
@@ -170,6 +176,41 @@ assert list(decayed_json.keys()) == ["SPUTNIK 1"]
 assert decayed_json["SPUTNIK 1"][0]["OBJECT_TYPE"] == "PAY"
 assert (root / "json" / "decayed" / "decayed.meta.json").exists()
 
+sidecar_root = root / "sidecar"
+(sidecar_root / "json" / "tle").mkdir(parents=True, exist_ok=True)
+sidecar_tle = """FRESH SAT
+1 70001U 26001A   26166.50000000  .00009145  00000+0  16852-2 0  9990
+2 70001  51.6400 135.3804 0003061  72.2548 287.8794 15.48314930362054
+"""
+(sidecar_root / "json" / "tle" / "TLE.json").write_text("[]", encoding="utf-8")
+(sidecar_root / "json" / "tle" / "TLE.meta.json").write_text(json.dumps({"last_success_at":"2026-06-14T00:00:00Z"}), encoding="utf-8")
+(sidecar_root / "json" / "tle" / "satellite_launch_dates.json").write_text("[]", encoding="utf-8")
+(sidecar_root / "json" / "satcat.csv").write_text(
+    "OBJECT_NAME,OBJECT_ID,NORAD_CAT_ID,OBJECT_TYPE,LAUNCH_DATE,LAUNCH_SITE,DECAY_DATE\\n"
+    "FRESH SAT,2026-001A,70001,PAY,2026-06-01,AFETR,\\n",
+    encoding="utf-8",
+)
+tle_fetch_calls = []
+def sidecar_tle_fetcher(url, headers=None):
+    tle_fetch_calls.append((url, headers or {}))
+    return s.FetchResponse(url=url, text=sidecar_tle, status=200, headers={"etag":"tle-etag","last-modified":"Mon, 15 Jun 2026 00:00:00 GMT"})
+
+sidecar_update = s.export_tle_data(
+    root=sidecar_root,
+    mode="incremental",
+    force=True,
+    fetcher=sidecar_tle_fetcher,
+    now=dt.datetime(2026, 6, 15, 12, 30, tzinfo=dt.timezone.utc),
+)
+assert sidecar_update.counts["added"] == 1
+assert sidecar_update.counts["sidecar_added"] == 1
+assert sidecar_update.counts["satellite_launch_dates_updated"] == 1
+sidecar_launch_dates = json.loads((sidecar_root / "json" / "tle" / "satellite_launch_dates.json").read_text(encoding="utf-8"))
+assert sidecar_launch_dates == [{"norad_id":"70001","name":"FRESH SAT","launch_date":"2026-06-01"}]
+sidecar_tle_json = json.loads((sidecar_root / "json" / "tle" / "TLE.json").read_text(encoding="utf-8"))
+assert sidecar_tle_json[0]["launch_date"] == "2026-06-01"
+assert all("GROUP=active" in call[0] or "GROUP=last-30-days" in call[0] for call in tle_fetch_calls)
+
 fresh_root = root / "fresh"
 (fresh_root / "json" / "decayed").mkdir(parents=True, exist_ok=True)
 fresh_satcat = (
@@ -179,7 +220,7 @@ fresh_satcat = (
 refresh_calls = []
 def satcat_fetcher(url, headers=None):
     refresh_calls.append(url)
-    return s.FetchResponse(url=url, text=fresh_satcat, status=200, headers={"etag":"test-etag"})
+    return s.FetchResponse(url=url, text=fresh_satcat, status=200, headers={"etag":"test-etag","last-modified":"Mon, 15 Jun 2026 00:00:00 GMT"})
 
 satcat_refresh = s.refresh_satcat_csv(root=fresh_root, force=True, fetcher=satcat_fetcher)
 assert satcat_refresh.changed is True
@@ -191,6 +232,37 @@ decayed_refresh = s.build_decayed_db(root=fresh_root, mode="incremental", force=
 assert decayed_refresh.counts["records"] == 1
 fresh_decayed = json.loads((fresh_root / "json" / "decayed" / "decayed.json").read_text(encoding="utf-8"))
 assert list(fresh_decayed.keys()) == ["FRESH PAY"]
+
+not_modified_calls = []
+def not_modified_satcat_fetcher(url, headers=None):
+    not_modified_calls.append((url, headers or {}))
+    return s.FetchResponse(
+        url=url,
+        text="",
+        status=304,
+        headers={"etag":"test-etag","last-modified":"Mon, 15 Jun 2026 00:00:00 GMT"},
+        not_modified=True,
+    )
+
+previous_decayed_text = (fresh_root / "json" / "decayed" / "decayed.json").read_text(encoding="utf-8")
+decayed_not_modified = s.build_decayed_db(
+    root=fresh_root,
+    mode="incremental",
+    force=True,
+    refresh_satcat=True,
+    fetcher=not_modified_satcat_fetcher,
+    now=dt.datetime(2026, 6, 15, 13, 30, tzinfo=dt.timezone.utc),
+)
+assert decayed_not_modified.skipped is True
+assert decayed_not_modified.changed is False
+assert decayed_not_modified.message == "Decayed DB rebuild skipped; SATCAT source has not changed."
+assert (fresh_root / "json" / "decayed" / "decayed.json").read_text(encoding="utf-8") == previous_decayed_text
+assert not_modified_calls[0][1]["If-None-Match"] == "test-etag"
+assert not_modified_calls[0][1]["If-Modified-Since"] == "Mon, 15 Jun 2026 00:00:00 GMT"
+decayed_meta = json.loads((fresh_root / "json" / "decayed" / "decayed.meta.json").read_text(encoding="utf-8"))
+assert decayed_meta["last_status"] == "not-modified"
+satcat_meta = json.loads((fresh_root / "json" / "satcat.meta.json").read_text(encoding="utf-8"))
+assert satcat_meta["last_status"] == "not-modified"
 
 print("satellite data tool fixture passed")
 assert s.default_repo_root().name == "openbexi_earth_orbit"

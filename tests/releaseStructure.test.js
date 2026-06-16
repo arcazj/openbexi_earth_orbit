@@ -11,15 +11,19 @@ function latestReleaseVersion(promptHistory) {
   return match[1];
 }
 
-function importMapVersions(html, fileName) {
-  const threeMatch = html.match(/"three"\s*:\s*"https:\/\/unpkg\.com\/three@([^/]+)\/build\/three\.module\.js"/);
-  const addonsMatch = html.match(/"three\/addons\/"\s*:\s*"https:\/\/unpkg\.com\/three@([^/]+)\/examples\/jsm\/"/);
-  assert(threeMatch, `${fileName} defines a Three.js core import map entry`);
-  assert(addonsMatch, `${fileName} defines a Three.js addons import map entry`);
-  return {
-    core: threeMatch[1],
-    addons: addonsMatch[1]
-  };
+function dependencyVersion(packageJson, name) {
+  assert(packageJson.dependencies?.[name], `package.json declares ${name}`);
+  return packageJson.dependencies[name];
+}
+
+function assertThreeCdnWithNodeModulesFallback(html, fileName) {
+  assert(html.includes('./js/dependencyBootstrap.js'), `${fileName} loads the dependency bootstrap`);
+  assert(html.includes('https://unpkg.com/three@0.184.0/build/three.module.js'), `${fileName} tries Three.js CDN core first`);
+  assert(html.includes('https://unpkg.com/three@0.184.0/examples/jsm/'), `${fileName} tries Three.js CDN addons first`);
+  assert(html.includes('./node_modules/three/build/three.module.js'), `${fileName} has local Three.js core fallback`);
+  assert(html.includes('./node_modules/three/examples/jsm/'), `${fileName} has local Three.js addons fallback`);
+  assert(html.includes('openbexiBootFromTemplate'), `${fileName} boots after dependency resolution`);
+  assert(html.includes('type="text/openbexi-module"'), `${fileName} defers the main module until the import map is selected`);
 }
 
 function run() {
@@ -27,6 +31,7 @@ function run() {
   const indexHtml = read('index.html');
   const displaySatelliteHtml = read('display_satellite.html');
   const readme = read('README.md');
+  const packageJson = JSON.parse(read('package.json'));
 
   assert(promptHistory.startsWith('# Prompt History'), 'PROMPT_History.md starts with Prompt History');
 
@@ -37,15 +42,17 @@ function run() {
   assert(versionMatch, 'index.html defines a visible version number');
   assert.strictEqual(versionMatch[1], latestVersion, 'index.html version matches latest prompt release');
 
-  const indexVersions = importMapVersions(indexHtml, 'index.html');
-  const viewerVersions = importMapVersions(displaySatelliteHtml, 'display_satellite.html');
-  assert.strictEqual(indexVersions.core, indexVersions.addons, 'index.html core/addons Three.js versions match');
-  assert.strictEqual(viewerVersions.core, viewerVersions.addons, 'display_satellite.html core/addons Three.js versions match');
-  assert.strictEqual(indexVersions.core, '0.184.0', 'index.html uses verified Three.js 0.184.0');
-  assert.strictEqual(viewerVersions.core, '0.184.0', 'display_satellite.html uses verified Three.js 0.184.0');
+  assertThreeCdnWithNodeModulesFallback(indexHtml, 'index.html');
+  assertThreeCdnWithNodeModulesFallback(displaySatelliteHtml, 'display_satellite.html');
+  assert.strictEqual(dependencyVersion(packageJson, 'three'), '0.184.0', 'package.json pins verified Three.js 0.184.0');
+  assert.strictEqual(dependencyVersion(packageJson, 'satellite.js'), '6.0.2', 'package.json pins satellite.js 6.0.2');
+  assert(indexHtml.includes('https://unpkg.com/satellite.js@6.0.2/dist/satellite.min.js'), 'index.html tries satellite.js CDN first');
+  assert(indexHtml.includes('./node_modules/satellite.js/dist/satellite.min.js'), 'index.html has local satellite.js fallback');
+  assert(fs.existsSync('js/dependencyBootstrap.js'), 'dependency bootstrap file exists');
 
   const markdownFiles = fs.readdirSync('.')
     .filter(file => /\.md$/i.test(file))
+    .filter(file => file !== 'CLAUDE.md')
     .sort();
   markdownFiles.forEach(file => {
     assert(readme.includes(file), `README Markdown index references ${file}`);

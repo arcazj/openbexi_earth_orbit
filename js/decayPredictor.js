@@ -39,8 +39,120 @@ const DEFAULTS = {
 
 const DECAY_SOURCE = 'json/decayed/decayed.json';
 const WARN_LIMIT = 5;
+const PREDICTION_CACHE_STORAGE_KEY = 'openbexiDecayPredictionCacheV1';
+const PREDICTION_CACHE_MAX_RECORDS = 2000;
+const NON_DECAY_ORBIT_CLASSES = new Set(['GEO', 'MEO', 'HEO', 'HRO']);
+const CANDIDATE_DEFAULTS = {
+    lowPerigeeKm: 300,
+    lowAltitudeKm: 300,
+    highDragPerigeeKm: 450,
+    highDragBstar: 0.0015,
+    fastDecayMeanMotionRevPerDay: 15.8,
+    fastDecayMaxPerigeeKm: 500,
+    allowHighOrbitPrediction: false
+};
 let cachedDecayPromise = null;
 let cachedDecayMap = null;
+
+function finiteNumber(value) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+}
+
+export function normalizeNoradId(sat) {
+    const raw = sat?.norad_id ?? sat?.noradId ?? sat?.NORAD_CAT_ID ?? sat?.NORADID;
+    if (raw === undefined || raw === null) return null;
+    const text = String(raw).trim();
+    return text || null;
+}
+
+function normalizeDateBucket(value = new Date()) {
+    const date = value instanceof Date ? value : new Date(value);
+    const safeDate = Number.isNaN(date.getTime()) ? new Date() : date;
+    return safeDate.toISOString().substring(0, 10);
+}
+
+function tleIdentity(sat) {
+    return {
+        noradId: normalizeNoradId(sat),
+        line1: String(sat?.tle_line1 ?? sat?.tleLine1 ?? '').trim(),
+        line2: String(sat?.tle_line2 ?? sat?.tleLine2 ?? '').trim()
+    };
+}
+
+function predictionOptionsIdentity(options = {}) {
+    const merged = { ...DEFAULTS, ...options };
+    return {
+        reentryAltitudeKm: merged.reentryAltitudeKm,
+        coarseAltitudeKm: merged.coarseAltitudeKm,
+        backtrackDays: merged.backtrackDays,
+        predictionHorizonDays: merged.predictionHorizonDays,
+        stepMinutes: merged.stepMinutes,
+        backtrackStepMinutes: merged.backtrackStepMinutes,
+        predictionDate: normalizeDateBucket(options.now)
+    };
+}
+
+export function decayPredictionCacheKey(sat, options = {}) {
+    const identity = tleIdentity(sat);
+    if (!identity.noradId || !identity.line1 || !identity.line2) return null;
+    return JSON.stringify({
+        ...identity,
+        options: predictionOptionsIdentity(options)
+    });
+}
+
+function readPredictionCache() {
+    try {
+        const storage = globalThis.localStorage;
+        if (!storage?.getItem) return { version: 1, entries: {} };
+        const parsed = JSON.parse(storage.getItem(PREDICTION_CACHE_STORAGE_KEY) || '{}');
+        if (!parsed || typeof parsed !== 'object' || typeof parsed.entries !== 'object') {
+            return { version: 1, entries: {} };
+        }
+        return parsed;
+    } catch (err) {
+        return { version: 1, entries: {} };
+    }
+}
+
+function writePredictionCache(cache) {
+    try {
+        const storage = globalThis.localStorage;
+        if (!storage?.setItem) return;
+        const entries = Object.entries(cache.entries || {});
+        if (entries.length > PREDICTION_CACHE_MAX_RECORDS) {
+            entries
+                .sort((a, b) => String(b[1]?.cached_at || '').localeCompare(String(a[1]?.cached_at || '')))
+                .slice(PREDICTION_CACHE_MAX_RECORDS)
+                .forEach(([key]) => {
+                    delete cache.entries[key];
+                });
+        }
+        storage.setItem(PREDICTION_CACHE_STORAGE_KEY, JSON.stringify({ version: 1, entries: cache.entries || {} }));
+    } catch (err) {
+        // Cache misses are acceptable; prediction still runs when storage is unavailable.
+    }
+}
+
+function parseTleExponential(value) {
+    const text = String(value || '').trim();
+    const match = text.match(/^([+-]?)(\d+)([+-]\d+)$/);
+    if (!match) return null;
+    const mantissa = Number(`${match[1] === '-' ? '-' : ''}0.${match[2]}`);
+    const exponent = Number(match[3]);
+    const parsed = mantissa * Math.pow(10, exponent);
+    return Number.isFinite(parsed) ? parsed : null;
+}
+
+function bstarFromSatellite(sat) {
+    const satrecBstar = finiteNumber(sat?.satrec?.bstar);
+    if (satrecBstar !== null) return satrecBstar;
+    const directBstar = finiteNumber(sat?.bstar);
+    if (directBstar !== null) return directBstar;
+    const line1 = String(sat?.tle_line1 ?? sat?.tleLine1 ?? '');
+    return line1.length >= 61 ? parseTleExponential(line1.slice(53, 61)) : null;
+}
 
 function safePropagate(satrec, date) {
     try {
@@ -217,6 +329,95 @@ export async function loadConfirmedDecays() {
     return cachedDecayPromise;
 }
 
+export function applyConfirmedDecayRecord(sat, confirmedDecays) {
+    const satNoradId = normalizeNoradId(sat);
+    if (!sat || !confirmedDecays || !satNoradId || !confirmedDecays.has(satNoradId)) return false;
+    const record = confirmedDecays.get(satNoradId);
+    sat.decay = {
+        decay_status: 'CONFIRMED',
+        decay_reason: 'Source: json/decayed/decayed.json',
+        decay_date: record.decayDateIso,
+        predicted_decay_window: null,
+        object_name: record.objectName || null,
+        object_id: record.objectId || null,
+        object_type: record.objectType || null,
+        launch_date: record.launchDateIso || null,
+        launch_site: record.launchSite || null
+    };
+    return true;
+}
+
+export function isLikelyDecayCandidate(sat, options = {}) {
+    const satNoradId = normalizeNoradId(sat);
+    if (!sat || !satNoradId) return false;
+    if (options.confirmedDecays?.has?.(satNoradId)) return false;
+    if (sat.decay?.decay_status === 'CONFIRMED') return false;
+
+    const merged = { ...CANDIDATE_DEFAULTS, ...options };
+    const orbitClass = String(sat.orbit_class || sat.type || '').trim().toUpperCase();
+    const perigeeKm = finiteNumber(sat.perigee_km);
+    const apogeeKm = finiteNumber(sat.apogee_km);
+    const altitudeKm = finiteNumber(sat.estimated_altitude_km);
+    const meanMotion = finiteNumber(sat.mean_motion_rev_per_day);
+    const bstar = bstarFromSatellite(sat);
+    const statusText = String(sat.decay_status || sat.status || sat.decay_risk || sat.type || '').toUpperCase();
+
+    if (statusText.includes('DECAY') || statusText.includes('RE-ENTRY') || statusText.includes('REENTRY')) {
+        return true;
+    }
+
+    const lowOrbitSignal =
+        (perigeeKm !== null && perigeeKm <= merged.lowPerigeeKm) ||
+        (altitudeKm !== null && altitudeKm <= merged.lowAltitudeKm) ||
+        (apogeeKm !== null && apogeeKm <= merged.lowAltitudeKm);
+    if (lowOrbitSignal) return true;
+
+    if (!merged.allowHighOrbitPrediction && NON_DECAY_ORBIT_CLASSES.has(orbitClass)) {
+        return false;
+    }
+
+    const fastLowOrbit =
+        meanMotion !== null &&
+        meanMotion >= merged.fastDecayMeanMotionRevPerDay &&
+        (perigeeKm === null || perigeeKm <= merged.fastDecayMaxPerigeeKm);
+    if (fastLowOrbit) return true;
+
+    const highDragLowOrbit =
+        bstar !== null &&
+        Math.abs(bstar) >= merged.highDragBstar &&
+        (
+            (perigeeKm !== null && perigeeKm <= merged.highDragPerigeeKm) ||
+            (altitudeKm !== null && altitudeKm <= merged.highDragPerigeeKm) ||
+            (meanMotion !== null && meanMotion >= 15.4)
+        );
+    return highDragLowOrbit;
+}
+
+export function applyCachedDecayPrediction(sat, options = {}) {
+    if (!sat || sat.decay?.decay_status === 'CONFIRMED') return false;
+    const key = decayPredictionCacheKey(sat, options);
+    if (!key) return false;
+    const cache = readPredictionCache();
+    const entry = cache.entries?.[key];
+    if (!entry?.decay || typeof entry.decay !== 'object') return false;
+    sat.decay = { ...entry.decay, decay_cached_at: entry.cached_at || null };
+    return true;
+}
+
+export function cacheDecayPrediction(sat, options = {}) {
+    if (!sat?.decay) return false;
+    const key = decayPredictionCacheKey(sat, options);
+    if (!key) return false;
+    const cache = readPredictionCache();
+    cache.entries = cache.entries || {};
+    cache.entries[key] = {
+        cached_at: new Date().toISOString(),
+        decay: { ...sat.decay }
+    };
+    writePredictionCache(cache);
+    return true;
+}
+
 export function computeDecayEstimates(satellites, options = {}) {
     const {
         reentryAltitudeKm,
@@ -232,16 +433,8 @@ export function computeDecayEstimates(satellites, options = {}) {
 
     (satellites || []).forEach((sat) => {
         const satrec = sat?.satrec;
-        const satNoradId = sat?.norad_id !== undefined && sat?.norad_id !== null ? String(sat.norad_id).trim() : null;
 
-        if (confirmedDecays && satNoradId && confirmedDecays.has(satNoradId)) {
-            const record = confirmedDecays.get(satNoradId);
-            sat.decay = {
-                decay_status: 'CONFIRMED',
-                decay_reason: 'Source: json/decayed/decayed.json',
-                decay_date: record.decayDateIso,
-                predicted_decay_window: null
-            };
+        if (applyConfirmedDecayRecord(sat, confirmedDecays)) {
             return;
         }
         if (!satrec) {

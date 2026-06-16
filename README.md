@@ -106,7 +106,7 @@ Version 1.7.4 replaces the legacy Java satellite data maintenance workflows with
 
 Version 1.7.5 refreshes the Launch and Re-entry timelines around the newest dataset events. `Show Launch Timeline` derives the latest launch from loaded TLE/satellite metadata and anchors the HUD around that event. `Show Re-entry Timeline` merges active-satellite decay estimates with confirmed decayed records from local or server `/api/decayed` data, anchors on the latest valid decay event, highlights it, and allows inactive decayed objects to show details without attempting active TLE propagation.
 
-Version 1.7.6 adds `CLAUDE.md` with Claude Code project guidance covering commands, scene coordinate system, JS module reference, entry points, dependency pinning rules, and development conventions. Previously untracked 1.7.5 assets (`tests/timelineFreshness.test.js`, `icons/server_error.svg`, `icons/server_offline.svg`) are committed. No application behaviour changes.
+Version 1.7.6 fixes timeline data freshness and startup behavior without changing the release number. `Show Launch Timeline` continues to anchor on the newest valid loaded launch date, while the data tool's incremental TLE path queries bounded CelesTrak groups (`active` and `last-30-days`), merges missing or newer TLE epochs, and fills launch-date sidecar entries from local SATCAT data when available. `Show Re-entry Timeline` now becomes usable as soon as confirmed decayed records load, then runs active-satellite decay prediction only for filtered likely-decay candidates and reuses daily cached prediction results. SATCAT refreshes use stored `ETag` / `Last-Modified` metadata and skip repeated decayed DB rebuilds when the source reports unchanged.
 
 The selected satellite model axis convention is:
 
@@ -188,10 +188,10 @@ Solar System ephemeris: Version 1.7 uses local JPL Horizons-derived vectors in `
 - Node.js for automated tests.
 - Python 3 for the optional local API server or another local static HTTP server for browser smoke testing.
 
-Browser runtime dependencies are loaded by `index.html`:
+Browser runtime dependencies are loaded CDN-first, with local `node_modules` fallbacks selected by `js/dependencyBootstrap.js` before the main module starts:
 
-- Three.js `0.184.0` via import map. Keep `three` and `three/addons/` on the same version.
-- satellite.js `6.0.2` via CDN script.
+- Three.js `0.184.0` tries `https://unpkg.com/three@0.184.0/...` first, then falls back to `./node_modules/three/build/three.module.js` and `./node_modules/three/examples/jsm/`.
+- satellite.js `6.0.2` tries `https://unpkg.com/satellite.js@6.0.2/dist/satellite.min.js` first, then falls back to `./node_modules/satellite.js/dist/satellite.min.js`.
 
 Node test dependencies are declared in `package.json`.
 
@@ -247,7 +247,7 @@ swagger.html
 markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API
 ```
 
-The frontend checks the server with a short timeout. If the check fails or server data is malformed, the app continues with `json/tle/TLE.json`, `json/satellites/`, and other local files. Configure a different API base URL with `?apiBase=http://host:port` or `localStorage.setItem('openbexi.apiBaseUrl', 'http://host:port')`.
+The frontend bootstraps satellite rendering from the static `json/tle/TLE.json` route first so `index.html` does not wait on a full live `/api/tle` download before drawing the globe. After the first interactive UI is ready, it checks the Python server with a short timeout and enables live API links when available. The server reconnect action can still reload satellite data from `/api/tle`; if that load fails or the server data is malformed, the app continues with `json/tle/TLE.json`, `json/satellites/`, and other local files. Configure a different API base URL with `?apiBase=http://host:port` or `localStorage.setItem('openbexi.apiBaseUrl', 'http://host:port')`. When `index.html` is opened from a local static/IDE host that has no API routes, the browser also retries the standard Python server URL `http://127.0.0.1:8000` before switching to offline mode.
 
 Do not use `file://` for normal development because ES modules, JSON, textures, and model assets need HTTP-style loading.
 
@@ -264,9 +264,9 @@ py tools/satellite_data_tools.py build-decayed-db --refresh-satcat --force
 py tools/satellite_data_tools.py build-decayed-db --all
 ```
 
-Default `export-tle` is incremental. It reads `json/tle/TLE.json`, `json/tle/TLE.meta.json`, and existing TLE epochs, respects a 2-hour CelesTrak guard unless `--force` is used, then queries smaller CelesTrak GP groups such as `active` and `last-30-days` to add missing TLEs and update newer records. `export-tle --all` refreshes N2YO launch dates by default, keeps the legacy Java source group order, and keeps first-seen NORAD behavior; use `--skip-launch-dates` only when intentionally reusing the existing local launch-date file. `build-decayed-db` reads `json/satcat.csv` and writes `json/decayed/decayed.json` using the legacy `DECAY_DATE` plus `OBJECT_TYPE=PAY` filter.
+Default `export-tle` is incremental. It reads `json/tle/TLE.json`, `json/tle/TLE.meta.json`, and existing TLE epochs, respects a 2-hour CelesTrak guard unless `--force` is used, then queries smaller CelesTrak GP groups such as `active` and `last-30-days` to add missing TLEs and update newer records. When local `json/satcat.csv` contains matching NORAD launch metadata, the same incremental run fills or updates `json/tle/satellite_launch_dates.json` entries for the touched satellites and writes those launch dates back into `TLE.json`. `export-tle --all` refreshes N2YO launch dates by default, keeps the legacy Java source group order, and keeps first-seen NORAD behavior; use `--skip-launch-dates` only when intentionally reusing the existing local launch-date file. `build-decayed-db` reads `json/satcat.csv` and writes `json/decayed/decayed.json` using the legacy `DECAY_DATE` plus `OBJECT_TYPE=PAY` filter.
 
-`satellite_launch_dates.json` is intentionally not refreshed by a normal incremental `export-tle --force`; use `export-tle --refresh-launch-dates --force` or full `export-tle --all` when launch-date history must be refreshed. Decayed data is separate from TLE updates. Use `refresh-satcat --force` to update `json/satcat.csv` from CelesTrak raw SATCAT CSV, then `build-decayed-db --force`, or combine both with `build-decayed-db --refresh-satcat --force`.
+Decayed data is separate from TLE updates. Use `refresh-satcat --force` to update `json/satcat.csv` from CelesTrak raw SATCAT CSV, then `build-decayed-db --force`, or combine both with `build-decayed-db --refresh-satcat --force`. SATCAT refresh metadata stores `ETag` and `Last-Modified` values and sends `If-None-Match` / `If-Modified-Since`; when CelesTrak returns unchanged data, the combined decayed update preserves the existing `json/decayed/decayed.json` and skips the rebuild.
 
 Generated data writes are atomic and create backups; `--dry-run` does not write data, metadata, temp files, or backups. If CelesTrak is unavailable, the tool preserves the last-known-good local JSON files and records failed attempts in metadata without replacing the last successful timestamp. Optional Space-Track fallback is disabled unless credentials are explicitly configured; unverified mirrors are not used automatically.
 
@@ -276,7 +276,7 @@ The server can run the same Python code in a background scheduler:
 py server.py --host 127.0.0.1 --port 8000 --update-data-on-schedule
 ```
 
-Scheduled updates are disabled by default. When enabled, startup only checks local freshness metadata; it queries remote TLE data only when the configured 24-hour server interval and the 2-hour CelesTrak guard both allow it. Decayed scheduled updates refresh `json/satcat.csv` first, then rebuild `json/decayed/decayed.json`. The scheduler runs in the background, uses `json/.satellite_data_update.lock` to avoid overlap, never uses `--all`, and exposes state at `/api/data-update-status`.
+Scheduled updates are disabled by default. When enabled, startup only checks local freshness metadata; it queries remote TLE data only when the configured 24-hour server interval and the 2-hour CelesTrak guard both allow it. Decayed scheduled updates refresh `json/satcat.csv` first, then rebuild `json/decayed/decayed.json` only when the SATCAT source changed or a valid local decayed DB is missing. The scheduler runs in the background, uses `json/.satellite_data_update.lock` to avoid overlap, never uses `--all`, and exposes state at `/api/data-update-status`.
 
 ## Testing
 
@@ -366,7 +366,6 @@ The Help section opens Swagger and API documentation in separate pages. `Swagger
 - `PROMPT_History.md`: Release-specific prompts and implementation requirements by date and version; shown in Help as `Releases History`.
 - `SWAGGER.md`: Local static Swagger/API Markdown companion; render with `markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API` without starting the Python server.
 - `Test_and_Integration.md`: Authoritative automated, browser, manual, domain, visual, and regression acceptance checklist.
-- `CLAUDE.md`: Guidance for Claude Code (claude.ai/code) — commands, architecture overview, and development rules for this repository.
 
 ## Development Notes
 

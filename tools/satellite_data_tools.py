@@ -425,6 +425,110 @@ def load_launch_dates(root: Path | str) -> dict[str, str]:
     return launch_dates
 
 
+def _valid_launch_date(value: object) -> str:
+    text = str(value or "").strip()
+    if not text or text.lower() == "no data":
+        return ""
+    try:
+        dt.date.fromisoformat(text)
+    except ValueError:
+        return ""
+    return text
+
+
+def load_satcat_launch_dates(root: Path | str) -> dict[str, dict[str, str]]:
+    path = repo_path(root, SATCAT_RELATIVE_PATH)
+    if not path.exists():
+        return {}
+    records: dict[str, dict[str, str]] = {}
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        if not reader.fieldnames:
+            return {}
+        for row in reader:
+            norad = str(row.get("NORAD_CAT_ID") or "").strip()
+            launch_date = _valid_launch_date(row.get("LAUNCH_DATE"))
+            if not norad or not launch_date:
+                continue
+            records[norad] = {
+                "norad_id": norad,
+                "name": str(row.get("OBJECT_NAME") or "").strip(),
+                "launch_date": launch_date,
+                "launch_site": str(row.get("LAUNCH_SITE") or "").strip(),
+            }
+    return records
+
+
+def merge_launch_date_sidecar_from_satcat(
+    root: Path | str,
+    satellites: list[dict[str, object]],
+    *,
+    dry_run: bool = False,
+) -> dict[str, int]:
+    satcat_launch_dates = load_satcat_launch_dates(root)
+    if not satcat_launch_dates:
+        return {"sidecar_added": 0, "sidecar_updated": 0, "satellite_launch_dates_updated": 0}
+
+    output_path = repo_path(root, LAUNCH_DATES_RELATIVE_PATH)
+    payload = load_json(output_path, [])
+    existing_items = payload if isinstance(payload, list) else []
+    by_norad: dict[str, dict[str, str]] = {}
+    order: list[str] = []
+    for item in existing_items:
+        if not isinstance(item, dict):
+            continue
+        norad = str(item.get("norad_id") or "").strip()
+        if not norad or norad in by_norad:
+            continue
+        by_norad[norad] = {
+            "norad_id": norad,
+            "name": str(item.get("name") or "").strip(),
+            "launch_date": str(item.get("launch_date") or "").strip(),
+        }
+        order.append(norad)
+
+    added = 0
+    updated = 0
+    satellite_launch_dates_updated = 0
+    for sat in satellites:
+        norad = str(sat.get("norad_id") or "").strip()
+        if not norad:
+            continue
+        satcat_record = satcat_launch_dates.get(norad)
+        launch_date = satcat_record.get("launch_date") if satcat_record else ""
+        if not launch_date:
+            continue
+
+        existing = by_norad.get(norad)
+        if not existing:
+            by_norad[norad] = {
+                "norad_id": norad,
+                "name": satcat_record.get("name") or str(sat.get("satellite_name") or "").strip(),
+                "launch_date": launch_date,
+            }
+            order.append(norad)
+            added += 1
+        elif _valid_launch_date(existing.get("launch_date")) != launch_date:
+            existing["launch_date"] = launch_date
+            if not existing.get("name"):
+                existing["name"] = satcat_record.get("name") or str(sat.get("satellite_name") or "").strip()
+            updated += 1
+
+        if _valid_launch_date(sat.get("launch_date")) != launch_date:
+            sat["launch_date"] = launch_date
+            satellite_launch_dates_updated += 1
+
+    if added or updated:
+        merged = [by_norad[norad] for norad in order if norad in by_norad]
+        atomic_write_json(output_path, merged, dry_run=dry_run, backup=True)
+
+    return {
+        "sidecar_added": added,
+        "sidecar_updated": updated,
+        "satellite_launch_dates_updated": satellite_launch_dates_updated,
+    }
+
+
 def transform_satellite_tle_object(
     company: str,
     name_line: str | None,
@@ -700,7 +804,14 @@ def export_tle_data(
 
     base_records = [] if mode == "all" else [dict(item) for item in existing if isinstance(item, dict)]
     satellites, counts = build_satellites_from_tle_responses(responses, launch_dates, existing=base_records, mode=mode)
-    changed = mode == "all" or counts.get("added", 0) > 0 or counts.get("updated", 0) > 0
+    sidecar_counts = merge_launch_date_sidecar_from_satcat(root_path, satellites, dry_run=dry_run)
+    counts.update(sidecar_counts)
+    changed = (
+        mode == "all" or
+        counts.get("added", 0) > 0 or
+        counts.get("updated", 0) > 0 or
+        counts.get("satellite_launch_dates_updated", 0) > 0
+    )
     if changed:
         atomic_write_json(tle_path, satellites, dry_run=dry_run, backup=True)
     update_tle_success_metadata(
@@ -874,6 +985,10 @@ def refresh_satcat_csv(
     if response.not_modified:
         url_meta = dict(meta.get("urls", {})) if isinstance(meta.get("urls"), dict) else {}
         existing = dict(url_meta.get(CELESTRAK_SATCAT_CSV_URL, {})) if isinstance(url_meta.get(CELESTRAK_SATCAT_CSV_URL), dict) else {}
+        if response.headers.get("etag"):
+            existing["etag"] = response.headers["etag"]
+        if response.headers.get("last-modified"):
+            existing["last_modified"] = response.headers["last-modified"]
         existing["status"] = response.status
         existing["last_attempt_at"] = isoformat_utc(now)
         url_meta[CELESTRAK_SATCAT_CSV_URL] = existing
@@ -984,6 +1099,35 @@ def build_decayed_db(
                 message="SATCAT refresh failed and no local satcat.csv exists; preserved existing decayed DB.",
                 counts={},
                 errors=refresh_result.errors,
+                paths={"decayed": str(output_path), "metadata": str(meta_path), "satcat": str(input_path)},
+            )
+        if (
+            mode != "all" and
+            refresh_result.skipped and
+            "not changed" in refresh_result.message.lower() and
+            output_path.exists()
+        ):
+            existing = load_json(output_path, {})
+            objects = len(existing) if isinstance(existing, dict) else 0
+            record_count = sum(len(records) for records in existing.values()) if isinstance(existing, dict) else 0
+            skipped_meta = dict(meta)
+            skipped_meta.update(
+                {
+                    "mode": mode,
+                    "last_attempt_at": isoformat_utc(now),
+                    "last_status": "not-modified",
+                    "source": str(input_path),
+                    "satcat_refresh": refresh_result.to_dict(),
+                    "counts": {"objects": objects, "records": record_count},
+                }
+            )
+            atomic_write_json(meta_path, skipped_meta, dry_run=dry_run, backup=False, indent=2)
+            return UpdateResult(
+                changed=False,
+                skipped=True,
+                mode=mode,
+                message="Decayed DB rebuild skipped; SATCAT source has not changed.",
+                counts={"objects": objects, "records": record_count},
                 paths={"decayed": str(output_path), "metadata": str(meta_path), "satcat": str(input_path)},
             )
 

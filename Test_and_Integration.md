@@ -84,7 +84,7 @@ Version 1.7.4 replaces legacy Java data maintenance with `tools/satellite_data_t
 
 Version 1.7.5 makes `Show Launch Timeline` and `Show Re-entry Timeline` data-fresh. Launch Timeline must derive and highlight the latest valid launch date from currently loaded satellite/TLE data. Re-entry Timeline must derive and highlight the latest valid confirmed or predicted decay event from active satellites plus local/server decayed records, and it must show inactive decayed-record details without attempting active TLE propagation.
 
-Version 1.7.6 adds `CLAUDE.md` with Claude Code project guidance and commits previously untracked 1.7.5 assets. `CLAUDE.md` must exist at the repository root and be referenced in `README.md` so the `releaseStructure` automated test continues to pass. `tests/timelineFreshness.test.js`, `icons/server_error.svg`, and `icons/server_offline.svg` must be present and tracked. No application behaviour changes are introduced.
+Version 1.7.6 fixes timeline data freshness, Re-entry Timeline startup latency, and Python-server startup rendering while keeping the release number unchanged. Incremental TLE refreshes must query bounded CelesTrak groups, merge missing/newer TLE records, and fill launch-date sidecar entries from local SATCAT when available. SATCAT/decayed updates must use conditional `ETag` / `Last-Modified` requests and skip repeated decayed DB rebuilds when unchanged. `Show Re-entry Timeline` must become usable from confirmed decayed records before active decay prediction completes, and prediction must run only for likely decay candidates with daily cache reuse. `index.html` must draw from the static `json/tle/TLE.json` route before checking the optional Python server so `/api/tle` cannot block the first visible server-hosted page.
 
 ## Test Environment
 
@@ -123,7 +123,6 @@ npm test
 ```
 
 - Confirm `index.html`, `js/SatelliteMenuLoader.js`, and `css/style.css` contain no obvious malformed tags, missing closing braces, or duplicated filter IDs.
-- Confirm `CLAUDE.md` exists at the repository root and is referenced in `README.md`.
 - Confirm `PROMPT_Instructions.md` contains the `General Execution Prompt` section and no release history.
 - Confirm `PROMPT_History.md` contains the latest release entry.
 - Confirm the visible `index.html` version number matches the latest `PROMPT_History.md` release.
@@ -425,7 +424,9 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test `SWAGGER.md` exists and documents `/api/health`, `/api/version`, `/api/tle`, `/api/satellites`, `/api/satellite-metadata`, `/api/decayed`, `/api/data-update-status`, `/docs`, and `/openapi.json`.
 - Test `markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API` renders the companion Swagger Markdown without starting `server.py`.
 - Test frontend disconnected mode falls back to local `json/tle/TLE.json`.
-- Test frontend connected mode uses server-provided TLE data.
+- Test frontend startup retries `http://127.0.0.1:8000` when the initially resolved local static or IDE host has no API routes.
+- Test frontend initial startup uses the static `json/tle/TLE.json` route first, then checks server status after the first interactive satellite UI.
+- Test the reconnect/refresh action can replace the loaded satellite set with validated server-provided `/api/tle` data.
 - Test malformed server TLE data is rejected and local fallback remains active.
 - Test model metadata and decay-data fetches use server routes only when the server is connected and fall back to local paths on failure.
 
@@ -439,10 +440,10 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test metadata freshness skips default TLE fetching when the last successful update is newer than the 2-hour CelesTrak guard unless `--force` is used.
 - Test CelesTrak failure preserves existing `json/tle/TLE.json`, records a failed attempt, and does not replace the last successful timestamp.
 - Test optional Space-Track fallback remains disabled unless credentials are explicitly configured.
-- Test normal incremental TLE refresh does not update `satellite_launch_dates.json`; test `export-tle --refresh-launch-dates` and `export-tle --all` do refresh launch dates.
+- Test normal incremental TLE refresh fills or updates `satellite_launch_dates.json` from local SATCAT data for touched NORAD records when SATCAT launch metadata is available; test `export-tle --refresh-launch-dates` and `export-tle --all` still support full launch-date refreshes.
 - Test `refresh-satcat --force` downloads CelesTrak raw SATCAT CSV to `json/satcat.csv` with metadata and preserves the local file on source failure.
 - Test `build-decayed-db --all` reads `json/satcat.csv`, filters `DECAY_DATE` plus `OBJECT_TYPE=PAY`, groups by `OBJECT_NAME`, sorts top-level keys, and writes the Java-compatible schema.
-- Test `build-decayed-db --refresh-satcat --force` refreshes SATCAT before rebuilding `json/decayed/decayed.json`.
+- Test `build-decayed-db --refresh-satcat --force` sends conditional SATCAT headers from stored metadata, refreshes SATCAT before rebuilding when changed, and skips the decayed rebuild when SATCAT returns unchanged and a valid decayed DB already exists.
 - Test `--dry-run` does not write generated data, metadata, temp files, or backups.
 - Test server scheduling is disabled by default, uses importable Python functions when enabled, runs incremental mode only, refreshes SATCAT before scheduled decayed rebuilds, uses `json/.satellite_data_update.lock`, and does not block static/API serving.
 - Test server startup with scheduling enabled checks the 24-hour freshness rule before any remote TLE query and still respects the 2-hour CelesTrak guard.
@@ -461,7 +462,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 ### Coverage Traceability Audit
 
 - Audit every release entry in `PROMPT_History.md` before delivery and confirm each release-level behavior maps to an automated test, manual/integration check, or explicit limitation.
-- Confirm prior-release coverage includes Version 1.5.21 selected-satellite details/source attribution, Version 1.5.22 Earth-centered frame/orbit math, Version 1.5.23 Mars mode, Version 1.6 Stars & Milky Way, Version 1.6.1 star catalog behavior, Version 1.6.2 integrated Solar System, Version 1.7 JPL-derived ephemeris, Version 1.7.1 filter/search consistency, Version 1.7.2 Debris/search-row/local Swagger UI and Markdown changes, Version 1.7.3 one-revolution 3D `Show Orbit`/`Time x` synchronization, Version 1.7.4 Python data maintenance plus scheduled server freshness checks, Version 1.7.5 latest launch/re-entry timeline anchoring, and Version 1.7.6 `CLAUDE.md` addition and previously untracked asset commit.
+- Confirm prior-release coverage includes Version 1.5.21 selected-satellite details/source attribution, Version 1.5.22 Earth-centered frame/orbit math, Version 1.5.23 Mars mode, Version 1.6 Stars & Milky Way, Version 1.6.1 star catalog behavior, Version 1.6.2 integrated Solar System, Version 1.7 JPL-derived ephemeris, Version 1.7.1 filter/search consistency, Version 1.7.2 Debris/search-row/local Swagger UI and Markdown changes, Version 1.7.3 one-revolution 3D `Show Orbit`/`Time x` synchronization, Version 1.7.4 Python data maintenance plus scheduled server freshness checks, Version 1.7.5 latest launch/re-entry timeline anchoring, and Version 1.7.6 timeline data freshness, conditional data updates, and Re-entry Timeline startup-latency fixes.
 - Expand shallow checks where a release only has a summary but no concrete automated, browser, manual, or server verification step.
 - Document limitations when a behavior cannot be automated in this repository, including external browser rendering, optional live server checks, and unavailable source pages.
 
@@ -861,7 +862,9 @@ Expected:
 
 - `index.html` loads from the Python server.
 - The status icon changes from checking to connected.
-- Satellite data source shows live server.
+- Satellite data source shows local files after initial load because startup bootstraps from the static `json/tle/TLE.json` route before checking the optional server.
+- The reconnect/refresh action loads validated live server data from `/api/tle` and then labels the data source as live server.
+- When `index.html` is served from a different local static or IDE host with no API routes, the status check retries `http://127.0.0.1:8000` and connects to the Python server before switching to offline mode.
 - Swagger/API docs links open separate local UI, local Markdown companion, and live API documentation pages from Help.
 - If the server is stopped and the page is refreshed, the app returns to local/offline data behavior.
 
@@ -955,8 +958,8 @@ Checks performed on 2026-06-03:
 - `PROMPT_Instructions.md` contains the `General Execution Prompt` section and no release history.
 - `PROMPT_History.md` contains the latest `Release Date: 2026-06-03 Version 1.4.3` entry.
 - `index.html` visible version tag was updated to `1.4.3`.
-- `index.html` import map uses `three@0.184.0` for both `three` and `three/addons/`.
-- `display_satellite.html` import map uses `three@0.184.0` for both `three` and `three/addons/`.
+- `index.html` uses `js/dependencyBootstrap.js` to try `three@0.184.0` and `satellite.js@6.0.2` from `unpkg.com` first, then injects an import map or script fallback to local `./node_modules/` paths.
+- `display_satellite.html` uses the same bootstrap to try `three@0.184.0` from `unpkg.com` first, then injects an import map fallback to local `./node_modules/three/` paths.
 - `npm test`: passed, including `releaseStructure.test.js`.
 - `Get-ChildItem -File .\js -Filter *.js | ForEach-Object { node --check $_.FullName }`: passed.
 - `node --check .\tests\releaseStructure.test.js`: passed.
@@ -967,7 +970,7 @@ Checks performed on 2026-06-03:
 
 Checks not fully performed in this terminal:
 
-- Runtime browser confirmation that `OrbitControls`, `OBJLoader`, `MTLLoader`, `GLTFLoader`, and `CSS2DRenderer` load from `three@0.184.0`. No headless browser executable was available on `PATH`, so direct browser runtime validation remains manual.
+- Runtime browser confirmation that `OrbitControls`, `OBJLoader`, `MTLLoader`, `GLTFLoader`, and `CSS2DRenderer` load from CDN first and fall back to local `three@0.184.0` under `node_modules`. No headless browser executable was available on `PATH`, so direct browser runtime validation remains manual.
 
 ## Release 1.4.4 Verification Log
 
@@ -1606,11 +1609,14 @@ Checks performed for this Version 1.7.6 release:
 
 - `PROMPT_History.md` contains the latest `Release Date: 2026-06-15 Version 1.7.6` entry at the top.
 - `index.html`, `js/serverConnection.js`, `js/SatelliteMenuLoader.js`, `server.py`, `swagger.html`, and `SWAGGER.md` use version `1.7.6`.
-- `CLAUDE.md` added to repository root with commands, scene coordinate system, JS module reference, entry points, dependency pinning rules, and development conventions for Claude Code.
-- `README.md` updated to reference `CLAUDE.md` in the Markdown Files index, keeping the `releaseStructure` automated test passing.
-- `tests/timelineFreshness.test.js` and `icons/server_error.svg` / `icons/server_offline.svg` committed (were untracked from 1.7.5).
+- Re-entry Timeline initializes from confirmed decayed records before filtered active prediction completes.
+- SATCAT conditional unchanged responses skip repeated decayed DB rebuilds.
+- Incremental TLE refresh can fill touched launch-date sidecar records from local SATCAT data.
+- `js/serverConnection.js` added a default API base URL and fallback server check so local static/IDE hosts without API routes retry `http://127.0.0.1:8000` before offline mode.
+- `index.html` uses the fallback connection check during startup, and `README.md` documents the retry behavior.
+- `tests/serverConnection.test.js` covers the static-host-miss to Python-server-fallback path.
 - All 25 automated tests pass through `npm test`.
-- No application behaviour changes in this release.
+- Live API smoke check confirmed `http://127.0.0.1:8000/api/version` returns Version `1.7.6`.
 
 ## Release 1.7.5 Verification Log
 

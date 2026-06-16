@@ -2,19 +2,104 @@
 
 ## Release Date: 2026-06-15  Version 1.7.6
 
-Add Claude Code project guidance and commit previously untracked 1.7.5 assets.
+Implement Version `1.7.6` as a focused fix for the timeline data regressions discovered after Version `1.7.5`.
 
-Changes:
+Observed problems:
 
-1. `CLAUDE.md` — new file providing Claude Code (claude.ai/code) guidance for this repository: common commands (build, test, syntax checks, local server, Python API server, data maintenance, startup perf diagnostics), scene coordinate system (ECI with Three.js Y/Z swap, Earth fixed at origin, all math centralised in `js/sceneFrame.js`), key JS module reference table, entry points, runtime dependency pinning rules (Three.js `0.184.0` import map, satellite.js `6.0.2`), data file locations, and development rules.
+1. `Show Launch Timeline` does not show the latest launch data since `2026-06-01`.
+2. `Show Re-entry Timeline` does not show usable re-entry/decay data.
+3. `Preparing Re-entry Timeline` is very slow because active-satellite decay prediction can run over the full active TLE dataset before the timeline is usable.
+4. The timeline UI can appear to open without making the newest launch or decay event visible.
+5. `http://127.0.0.1:8000/index.html` can show a black screen when initial startup blocks on the live `/api/tle` server path, even though static/standalone loading reaches the UI.
 
-2. `README.md` — added one-line reference to `CLAUDE.md` in the Markdown Files index so the `releaseStructure` automated test continues to pass (the test asserts every `.md` file in the project root is documented in `README.md`).
+Requirements:
 
-3. `tests/timelineFreshness.test.js` — committed the 1.7.5 timeline freshness test file that was left untracked in the previous release. Tests cover: `parseLaunchDate` rejects future-impossible dates, `buildLaunchTimelineData` keeps only valid dated records, `getLatestLaunchEvent` returns the dataset maximum not wall-clock time, viewport ranges include the latest event, `buildReentryTimelineData` deduplicates confirmed records against active NORAD IDs and tags inactive records `isDecayedTimelineRecord: true`, `getLatestReentryEvent` can resolve a confirmed-decayed-only record, and `index.html` contains the `isDecayedTimelineRecord` guard and the `!activeTleSat` branch.
+1. Versioning
+   - Keep the active release at Version `1.7.6`.
+   - Update `index.html`, `js/serverConnection.js`, `js/SatelliteMenuLoader.js`, `server.py`, `swagger.html`, `README.md`, `Test_and_Integration.md`, `SWAGGER.md`, and tests only where the existing `1.7.6` metadata or documentation needs to describe this timeline fix.
 
-4. `icons/server_error.svg` and `icons/server_offline.svg` — committed the 1.7.5 server status SVG icons that were left untracked in the previous release.
+2. Launch timeline data after `2026-06-01`
+   - Audit all bundled launch-date inputs under `json/tle/`: `TLE.json`, `satellite_launch_dates.json`, and `starlink_launch_date_audit.json`.
+   - Verify those `json/tle/` files are current enough to contain valid launch coverage on or after `2026-06-01`; if any are stale, incomplete, or internally inconsistent, refresh/regenerate them or document the verified upstream limitation.
+   - Add or fix a smart incremental CelesTrak update path for `json/tle/*` that uses the last successful local update metadata instead of requerying the full legacy source list.
+   - The incremental update must query CelesTrak for only bounded new/recent TLE data, such as supported GP groups like `active` and `last-30-days`, and must merge missing NORAD records or newer TLE epochs into `json/tle/TLE.json`.
+   - If CelesTrak exposes usable cache/modified metadata for a request, use it to avoid downloading unchanged data; if no reliable since endpoint exists, use local `TLE.meta.json`, existing TLE epochs, and bounded recent CelesTrak groups to decide what to add or update.
+   - The incremental update must also refresh launch-date sidecar data needed by the timeline, including `satellite_launch_dates.json` and `starlink_launch_date_audit.json`, for new or changed satellites discovered since the last successful update.
+   - Do not run the slow full legacy TLE group sweep or full launch-date scrape during normal incremental updates; reserve those for explicit full-refresh commands such as `export-tle --all`.
+   - Audit how launch dates are loaded from `json/tle/TLE.json`, `json/tle/satellite_launch_dates.json`, `json/tle/starlink_launch_date_audit.json`, server `/api/tle` data, and any in-memory satellite metadata.
+   - Fix the launch-date merge/parsing path so valid launches on or after `2026-06-01` are included.
+   - `Show Launch Timeline` must identify the latest valid launch date in the currently loaded dataset, not a hardcoded cutoff and not wall-clock time.
+   - The timeline viewport/HUD must open around the latest valid launch event and visibly highlight it.
+   - The latest launch detail must include satellite name, NORAD ID when available, launch date, source tag/category, and launch-site metadata when present.
+   - Invalid, missing, future-impossible, or malformed launch dates must be skipped without hiding later valid launch records.
 
-No application behaviour changes in this release. All 25 automated tests pass.
+3. Re-entry timeline data visibility
+   - Audit how confirmed decayed data is loaded from `json/decayed/decayed.json`, server `/api/decayed`, and active-satellite decay estimates.
+   - Add or fix a smart incremental CelesTrak/SATCAT update path for decayed data that uses the last successful local `json/satcat.meta.json` and `json/decayed/decayed.meta.json` update metadata instead of rebuilding from scratch on every normal refresh.
+   - The incremental decayed-data update must query only bounded new/recent SATCAT changes when CelesTrak supports it.
+   - If CelesTrak SATCAT does not provide a reliable remote delta query, use conditional download with stored `ETag` and/or `Last-Modified` metadata (`If-None-Match` / `If-Modified-Since`) to skip unchanged downloads and avoid repeated full decayed-database rebuilds when the source has not changed.
+   - When conditional SATCAT download reports changed source data, rebuild or merge decayed records from the downloaded SATCAT as needed, but record it as a source-level refresh and preserve unchanged existing decayed records.
+   - When no reliable remote delta is available, use local metadata, SATCAT timestamps, existing NORAD catalog IDs, and decay dates to merge only new or changed records since the last successful update where possible.
+   - Merge new confirmed decayed payload records and updated decay dates into `json/decayed/decayed.json` while preserving unchanged records.
+   - Do not run a full SATCAT refresh/rebuild during normal incremental decayed updates unless required by missing/corrupt local metadata or explicitly requested by a full-refresh command.
+   - Load confirmed decayed records first and make `Show Re-entry Timeline` usable from confirmed data before expensive active-satellite prediction completes.
+   - Do not block the Re-entry Timeline button on decay prediction for every active TLE satellite.
+   - Replace full-dataset active decay prediction with a candidate filter. Only run prediction for likely decay candidates using cheap signals such as confirmed-decay absence, orbit class, perigee/apogee or current altitude, mean motion, TLE age, B* drag, propagation failure near current epoch, or available decay-risk metadata.
+   - Do not run active prediction for GEO, MEO, or HEO satellites by default unless a cheap pre-filter marks them as decay candidates.
+   - Confirmed `DECAY_DATE` records must take precedence over predicted decay windows for the same NORAD ID.
+   - Cache prediction results by NORAD ID, TLE line 1, TLE line 2, prediction options, and a daily UTC prediction-date bucket so unchanged satellites are not recomputed on every startup.
+   - Update active prediction results incrementally after TLE changes instead of recomputing all active satellites.
+   - If prediction is still running, the timeline must show confirmed records and a non-blocking status such as `Confirmed decay data loaded; prediction still updating`.
+   - Fix `Show Re-entry Timeline` so confirmed decay records and predicted decay estimates are merged into the timeline data consistently.
+   - The timeline must identify the latest valid confirmed or predicted re-entry/decay event in the currently loaded data.
+   - The timeline viewport/HUD must open around the latest valid decay event and visibly highlight it.
+   - Confirmed decayed records that are no longer active TLE satellites must remain selectable as details-only timeline records without attempting active TLE propagation.
+   - The latest re-entry detail must include object/satellite name, NORAD catalog ID, object ID when available, object type, launch date, launch site, and decay date when present.
+   - If no valid re-entry data is available, show a clear non-blocking status message instead of a blank or misleading timeline.
+
+4. Data source and refresh behavior
+   - Server-backed and local fallback data paths must produce the same launch/re-entry timeline behavior when their datasets contain equivalent records.
+   - If the Python data-maintenance tool refreshes `json/tle/TLE.json`, `json/tle/satellite_launch_dates.json`, `json/tle/starlink_launch_date_audit.json`, `json/satcat.csv`, or `json/decayed/decayed.json`, reopening or refreshing the timeline must reflect the newest valid launch and decay records.
+   - Record incremental CelesTrak update metadata, including successful timestamp, queried groups/endpoints, counts of added records, counts of updated records, launch-date sidecar updates, skipped/unchanged status, and any failure details.
+   - Record incremental decayed-data update metadata, including successful timestamp, SATCAT endpoint or source metadata, `ETag`, `Last-Modified`, conditional request result, counts of added decay records, counts of updated decay records, skipped/unchanged status, and any failure details.
+   - Initial `index.html` startup must render from the static `json/tle/TLE.json` route before checking the optional Python server status, so a slow or heavy `/api/tle` response cannot block the first visible server-hosted page.
+   - The reconnect/refresh action may still load validated live `/api/tle` data after startup and label the data source as live server when that explicit refresh succeeds.
+   - If CelesTrak is unavailable, rate-limited, unchanged, or returns invalid data, preserve the existing `json/tle/*` files and do not replace valid local data with partial or empty results.
+   - If the SATCAT/decayed update source is unavailable, rate-limited, unchanged, or returns invalid data, preserve the existing `json/satcat.csv`, `json/satcat.meta.json`, `json/decayed/decayed.json`, and `json/decayed/decayed.meta.json` files and do not replace valid local data with partial or empty results.
+   - All generated JSON/CSV writes must be atomic, preserve backups, and support `--dry-run` without writing generated data, metadata, temporary files, or backups.
+   - Do not require a full page reload when the app can safely rebuild timeline data in place.
+   - Preserve existing satellite selection, filters, timeline mutual exclusivity, 3D/Mercator views, Solar System, Stars & Milky Way, Share, Help, server status, and server data fallback behavior unless a timeline fix explicitly requires a small integration change.
+
+5. Tests and documentation
+   - Add or update automated tests with fixture data containing valid launch dates on or after `2026-06-01`.
+   - Add tests for the smart CelesTrak incremental update path: skip when metadata is fresh, query bounded recent groups when stale, merge new NORAD IDs, update newer TLE epochs, preserve unchanged records, update launch-date sidecars for new satellites, and avoid the full legacy source sweep unless explicitly requested.
+   - Add tests for the smart decayed-data incremental update path: skip when metadata is fresh, use conditional `ETag` / `Last-Modified` requests when no remote delta query is available, avoid download/rebuild on `304 Not Modified`, merge new decayed NORAD IDs when source data changes, update changed decay dates, preserve unchanged records, and avoid a full SATCAT rebuild unless explicitly requested or local metadata is missing/corrupt.
+   - Add or update tests that fail when `json/tle/TLE.json`, `json/tle/satellite_launch_dates.json`, and `json/tle/starlink_launch_date_audit.json` disagree about launch-date coverage for the same satellite/NORAD IDs.
+   - Add tests proving the launch timeline uses the newest valid dataset launch rather than a stale hardcoded range.
+   - Add tests proving malformed launch dates do not block later valid launch records.
+   - Add tests for confirmed decayed records, predicted decay estimates, inactive confirmed-decayed records, and the latest re-entry selection.
+   - Add tests proving the Re-entry Timeline initializes from confirmed decayed records before prediction completes.
+   - Add tests proving active prediction runs only on filtered likely-decay candidates, not the full active satellite list.
+   - Add tests proving cached prediction results are reused for unchanged satellites within the same daily UTC prediction-date bucket.
+   - Add tests proving empty or invalid re-entry data produces a clear non-blocking status state.
+   - Update `README.md` and `Test_and_Integration.md` with Version `1.7.6` timeline-fix behavior and manual verification steps.
+
+Acceptance Criteria:
+
+- `Show Launch Timeline` displays and highlights the latest valid launch from the loaded dataset, including launches dated on or after `2026-06-01`.
+- The normal data-refresh path performs a smart incremental CelesTrak update for `json/tle/*`, adding new TLEs and launch-date sidecar entries since the last successful update without requerying everything.
+- The normal decayed-data refresh path performs a smart incremental SATCAT/decayed update, uses `ETag` / `Last-Modified` conditional download when needed, adds new confirmed decays and changed decay dates since the last successful update, and avoids repeated full rebuilds when SATCAT is unchanged.
+- `Show Re-entry Timeline` becomes usable from confirmed decayed data without waiting for prediction over the full active TLE dataset.
+- Active-satellite decay prediction runs only for likely decay candidates and reuses cached results for unchanged satellites.
+- `Show Re-entry Timeline` displays and highlights the latest valid confirmed or predicted re-entry/decay event from the loaded data.
+- Launch and re-entry timeline viewports open around the latest valid event instead of a stale range.
+- Timeline details expose the latest event's name, identifier, date, and available metadata.
+- Confirmed decayed satellites that are no longer active can still be inspected in the re-entry timeline without active propagation.
+- Invalid or missing dates are skipped safely and do not hide later valid events.
+- `http://127.0.0.1:8000/index.html` renders the first visible globe/UI from static TLE data before server status checking or live `/api/tle` refresh work.
+- Server-backed and local fallback data paths remain consistent.
+- Existing timeline checkbox mutual exclusivity and unrelated app behavior remain intact.
+- Relevant automated tests pass, and any visual-only timeline checks are documented in `Test_and_Integration.md`.
 
 ## Release Date: 2026-06-15  Version 1.7.5
 

@@ -1,6 +1,7 @@
 export const APP_VERSION = '1.7.6';
 export const RELEASE_DATE = '2026-06-15';
 export const DEFAULT_SERVER_TIMEOUT_MS = 800;
+export const DEFAULT_API_BASE_URL = 'http://127.0.0.1:8000';
 export const API_BASE_STORAGE_KEY = 'openbexi.apiBaseUrl';
 export const SERVER_STATUS_ICONS = {
     connected: 'icons/server_connected.svg',
@@ -51,7 +52,7 @@ export function resolveApiBaseUrl({ windowObj = globalThis.window, storage = glo
         return normalizeApiBaseUrl(location.origin);
     }
 
-    return 'http://127.0.0.1:8000';
+    return DEFAULT_API_BASE_URL;
 }
 
 export function validateTleData(data) {
@@ -143,6 +144,43 @@ export async function checkServerConnection({
             error: err?.name === 'AbortError' ? 'Server check timed out' : (err?.message || String(err))
         };
     }
+}
+
+export async function checkServerConnectionWithFallback({
+    baseUrl = resolveApiBaseUrl(),
+    fallbackBaseUrls = [DEFAULT_API_BASE_URL],
+    fetchImpl = globalThis.fetch,
+    timeoutMs = DEFAULT_SERVER_TIMEOUT_MS
+} = {}) {
+    const candidates = [];
+    const addCandidate = (candidate) => {
+        const normalized = normalizeApiBaseUrl(candidate);
+        if (normalized && !candidates.includes(normalized)) {
+            candidates.push(normalized);
+        }
+    };
+
+    addCandidate(baseUrl);
+    fallbackBaseUrls.forEach(addCandidate);
+
+    let firstFailure = null;
+    for (const candidate of candidates) {
+        const result = await checkServerConnection({
+            baseUrl: candidate,
+            fetchImpl,
+            timeoutMs
+        });
+        if (result.connected) return result;
+        if (!firstFailure) firstFailure = result;
+    }
+
+    return firstFailure || {
+        state: 'disconnected',
+        connected: false,
+        baseUrl: normalizeApiBaseUrl(baseUrl),
+        dataSource: 'local',
+        error: 'No API base URL candidates were available'
+    };
 }
 
 export async function loadTleDataFromServer({

@@ -2,6 +2,7 @@ import assert from 'assert';
 import {
   apiEndpoint,
   checkServerConnection,
+  checkServerConnectionWithFallback,
   SERVER_STATUS_ICONS,
   loadTleDataFromServer,
   resolveApiBaseUrl,
@@ -73,6 +74,18 @@ async function run() {
   });
   assert.strictEqual(disconnected.state, 'disconnected', 'fetch failure marks server disconnected');
   assert.strictEqual(disconnected.dataSource, 'local', 'disconnected mode falls back to local data source');
+
+  const fallbackConnected = await checkServerConnectionWithFallback({
+    baseUrl: 'http://localhost:63342',
+    fetchImpl: async (url) => {
+      if (url.startsWith('http://localhost:63342')) throw new Error('static host has no API');
+      if (url.endsWith('/api/health')) return response(true, { status: 'ok' });
+      if (url.endsWith('/api/version')) return response(true, { api_version: '1.7.6' });
+      return response(false, {}, 404);
+    }
+  });
+  assert.strictEqual(fallbackConnected.state, 'connected', 'fallback connects to the default Python API after a static host misses');
+  assert.strictEqual(fallbackConnected.baseUrl, 'http://127.0.0.1:8000', 'fallback reports the working Python API base URL');
 
   const loadedTle = await loadTleDataFromServer({
     baseUrl: 'http://127.0.0.1:8000',

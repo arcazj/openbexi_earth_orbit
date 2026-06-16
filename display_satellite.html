@@ -402,14 +402,7 @@
             }
         }
     </style>
-    <script type="importmap">
-        {
-          "imports": {
-            "three": "https://unpkg.com/three@0.184.0/build/three.module.js",
-            "three/addons/": "https://unpkg.com/three@0.184.0/examples/jsm/"
-          }
-        }
-    </script>
+    <script src="./js/dependencyBootstrap.js"></script>
 </head>
 <body>
 <main class="shell" aria-label="Satellite model viewer">
@@ -460,7 +453,7 @@
     <span id="statusMessage" class="status-message">Preparing viewer...</span>
 </div>
 
-<script type="module">
+<script id="display-satellite-main-module" type="text/openbexi-module">
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
     import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -1266,6 +1259,30 @@
         setStatus('error', 'Error', `Viewer initialization failed: <code>${escapeHtml(error.message)}</code>`);
     });
     animate();
+</script>
+<script>
+    window.openbexiBootFromTemplate({
+        templateId: 'display-satellite-main-module',
+        moduleLabel: 'display_satellite.inline.js',
+        errorTargetId: 'statusMessage',
+        timeoutMs: 2500,
+        three: {
+            cdn: {
+                core: 'https://unpkg.com/three@0.184.0/build/three.module.js',
+                addons: 'https://unpkg.com/three@0.184.0/examples/jsm/'
+            },
+            local: {
+                core: './node_modules/three/build/three.module.js',
+                addons: './node_modules/three/examples/jsm/'
+            },
+            probePaths: [
+                'controls/OrbitControls.js',
+                'loaders/GLTFLoader.js',
+                'loaders/MTLLoader.js',
+                'loaders/OBJLoader.js'
+            ]
+        }
+    });
 </script>
 </body>
 </html>

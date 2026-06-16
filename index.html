@@ -5,15 +5,7 @@
     <title>Satellite Simulation - HTML Controls</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="css/style.css">
-    <script src="https://unpkg.com/satellite.js@6.0.2/dist/satellite.min.js"></script>
-    <script type="importmap">
-        {
-          "imports": {
-            "three": "https://unpkg.com/three@0.184.0/build/three.module.js",
-            "three/addons/": "https://unpkg.com/three@0.184.0/examples/jsm/"
-          }
-        }
-    </script>
+    <script src="./js/dependencyBootstrap.js"></script>
 </head>
 <body>
 <button id="menuToggleBtn" aria-label="Close menu">Close</button>
@@ -36,7 +28,7 @@
     </div>
 </div>
 
-<script type="module">
+<script id="openbexi-main-module" type="text/openbexi-module">
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
@@ -143,7 +135,14 @@
     } from './js/solarSystemOverviewLoader.js';
 
     import { initTimeline } from './js/ganttTimelineLoader.js';
-    import { computeDecayEstimates, loadConfirmedDecays } from './js/decayPredictor.js';
+    import {
+        applyCachedDecayPrediction,
+        applyConfirmedDecayRecord,
+        cacheDecayPrediction,
+        computeDecayEstimates,
+        isLikelyDecayCandidate,
+        loadConfirmedDecays
+    } from './js/decayPredictor.js';
     import { initReentryTimeline } from './js/reentryTimeline.js';
     import {
         createStartupPerformanceTracker,
@@ -158,7 +157,7 @@
     import { buildSatelliteSearchMatches } from './js/satelliteSearchUtils.js';
     import {
         APP_VERSION,
-        checkServerConnection,
+        checkServerConnectionWithFallback,
         loadTleDataFromServer,
         resolveApiBaseUrl,
         resolveServerDataUrl,
@@ -738,14 +737,63 @@
             startupPerf.mark('decay-data-load-start');
             const confirmedDecays = await loadConfirmedDecays();
             startupPerf.mark('decay-data-ready', { confirmed: confirmedDecays?.size || 0 });
-            startupPerf.mark('decay-estimates-start', { count: satellites.length });
 
             const estimateDate = new Date();
+            let activeConfirmed = 0;
+            satellites.forEach((sat) => {
+                if (applyConfirmedDecayRecord(sat, confirmedDecays)) {
+                    activeConfirmed += 1;
+                }
+            });
+
+            reentryTimelineHandle = initReentryTimeline(satellites, handleTimelineSelection, { confirmedDecays });
+            if (reentryTimelineHandle?.refreshData) {
+                reentryTimelineHandle.refreshData(confirmedDecays);
+            }
+            setTimelineButtonState('reentryTimelineToggle', 'Show Re-entry Timeline', false);
+            startupPerf.mark('reentry-timeline-ready', {
+                count: satellites.length,
+                confirmed: confirmedDecays?.size || 0,
+                activeConfirmed
+            });
+
+            const candidates = satellites.filter((sat) => isLikelyDecayCandidate(sat, { confirmedDecays, now: estimateDate }));
+            let cachedPredictions = 0;
+            const predictionCandidates = candidates.filter((sat) => {
+                if (applyCachedDecayPrediction(sat, { confirmedDecays, now: estimateDate })) {
+                    cachedPredictions += 1;
+                    return false;
+                }
+                return true;
+            });
+
+            if (cachedPredictions && reentryTimelineHandle?.refreshData) {
+                reentryTimelineHandle.refreshData(confirmedDecays);
+            }
+
+            startupPerf.mark('decay-estimates-start', {
+                count: predictionCandidates.length,
+                candidates: candidates.length,
+                cached: cachedPredictions
+            });
+
+            if (!predictionCandidates.length) {
+                startupPerf.mark('decay-estimates-ready', {
+                    count: 0,
+                    candidates: candidates.length,
+                    cached: cachedPredictions
+                });
+                startupPerf.logSummary();
+                return;
+            }
+
+            reentryTimelineHandle?.setStatusNote?.('Confirmed decay data loaded; prediction still updating');
             let lastProgressUpdate = 0;
             await processInChunks(
-                satellites,
+                predictionCandidates,
                 (sat) => {
                     computeDecayEstimates([sat], { confirmedDecays, now: estimateDate });
+                    cacheDecayPrediction(sat, { confirmedDecays, now: estimateDate });
                 },
                 {
                     chunkSize: DECAY_ESTIMATE_CHUNK_SIZE,
@@ -753,23 +801,26 @@
                         const now = performance.now();
                         if (now - lastProgressUpdate > 500 || processed === total) {
                             lastProgressUpdate = now;
-                            setTimelineButtonState(
-                                'reentryTimelineToggle',
-                                `Preparing Re-entry Timeline ${processed}/${total}`,
-                                true
+                            reentryTimelineHandle?.setStatusNote?.(
+                                `Confirmed decay data loaded; prediction still updating ${processed + cachedPredictions}/${total + cachedPredictions}`
                             );
+                            if (processed === total && reentryTimelineHandle?.refreshData) {
+                                reentryTimelineHandle.refreshData(confirmedDecays);
+                            }
                         }
                     }
                 }
             );
 
-            startupPerf.mark('decay-estimates-ready', { count: satellites.length });
-            reentryTimelineHandle = initReentryTimeline(satellites, handleTimelineSelection, { confirmedDecays });
+            reentryTimelineHandle?.setStatusNote?.('');
             if (reentryTimelineHandle?.refreshData) {
                 reentryTimelineHandle.refreshData(confirmedDecays);
             }
-            setTimelineButtonState('reentryTimelineToggle', 'Show Re-entry Timeline', false);
-            startupPerf.mark('reentry-timeline-ready', { count: satellites.length });
+            startupPerf.mark('decay-estimates-ready', {
+                count: predictionCandidates.length,
+                candidates: candidates.length,
+                cached: cachedPredictions
+            });
             startupPerf.logSummary();
         } finally {
             reentryTimelineInitializing = false;
@@ -1374,7 +1425,7 @@
             error: null
         });
 
-        const connection = await checkServerConnection({ baseUrl: serverConnectionState.baseUrl });
+        const connection = await checkServerConnectionWithFallback({ baseUrl: serverConnectionState.baseUrl });
         if (!connection.connected) {
             console.info('[server] Python server unavailable. Using local satellite data.', connection.error);
             setServerConnectionState({
@@ -1409,6 +1460,44 @@
                 connected: false,
                 baseUrl: connection.baseUrl,
                 version: connection.version,
+                dataSource: 'local files',
+                error: err?.message || String(err)
+            });
+            return null;
+        }
+    }
+
+    async function checkServerConnectionStatusOnly({ dataSource = serverConnectionState.dataSource || 'local files' } = {}) {
+        setServerConnectionState({
+            state: 'checking',
+            connected: false,
+            dataSource: 'checking server',
+            error: null
+        });
+
+        try {
+            const connection = await checkServerConnectionWithFallback({ baseUrl: serverConnectionState.baseUrl });
+            if (!connection.connected) {
+                console.info('[server] Python server unavailable. Continuing with local satellite data.', connection.error);
+                setServerConnectionState({
+                    ...connection,
+                    dataSource: 'local files'
+                });
+                return null;
+            }
+
+            setServerConnectionState({
+                ...connection,
+                dataSource,
+                error: null
+            });
+            return connection;
+        } catch (err) {
+            console.warn('[server] Server status check failed. Continuing with local satellite data.', err);
+            setServerConnectionState({
+                state: 'disconnected',
+                connected: false,
+                baseUrl: serverConnectionState.baseUrl,
                 dataSource: 'local files',
                 error: err?.message || String(err)
             });
@@ -4506,13 +4595,14 @@
             startAnimationLoopOnce();
 
             startupPerf.mark('tle-load-start');
-            const serverTleData = await checkAndLoadServerTleData();
-            if (!serverTleData) {
-                setServerConnectionState({ dataSource: 'local files' });
-            }
+            setServerConnectionState({
+                state: 'disconnected',
+                connected: false,
+                dataSource: 'local files',
+                error: null
+            });
             await setupTLESatellites(scene, {
-                tleDataOverride: serverTleData,
-                tleDataSource: serverTleData ? 'live server' : 'local files',
+                tleDataSource: 'local files',
                 chunkSize: SATELLITE_SETUP_CHUNK_SIZE,
                 onProgress: ({ processed, total }) => {
                     setSatelliteFoundCountLabel(`Loading ${processed}/${total}`);
@@ -4524,6 +4614,7 @@
             startupPerf.markOnce('first-interactive-ui', { count: satellites.length });
             startupPerf.logSummary();
             scheduleDeferredStartupWork();
+            void checkServerConnectionStatusOnly({ dataSource: 'local files' });
 
             if (simParams.showOrbit && currentSelectedSatellite) {
                 updateOrbitTrajectory(scene, simParams, currentSelectedSatellite);
@@ -4540,6 +4631,31 @@
     }
 
     start();
+</script>
+<script>
+    window.openbexiBootFromTemplate({
+        templateId: 'openbexi-main-module',
+        moduleLabel: 'index.inline.js',
+        errorTargetId: 'ob_menu',
+        timeoutMs: 2500,
+        three: {
+            cdn: {
+                core: 'https://unpkg.com/three@0.184.0/build/three.module.js',
+                addons: 'https://unpkg.com/three@0.184.0/examples/jsm/'
+            },
+            local: {
+                core: './node_modules/three/build/three.module.js',
+                addons: './node_modules/three/examples/jsm/'
+            },
+            probePaths: [
+                'controls/OrbitControls.js'
+            ]
+        },
+        satellite: {
+            cdn: 'https://unpkg.com/satellite.js@6.0.2/dist/satellite.min.js',
+            local: './node_modules/satellite.js/dist/satellite.min.js'
+        }
+    });
 </script>
 </body>
 </html>

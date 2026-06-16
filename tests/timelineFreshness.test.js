@@ -11,6 +11,13 @@ import {
   getLatestReentryEvent,
   getReentryTimelineRanges
 } from '../js/reentryTimeline.js';
+import {
+  applyCachedDecayPrediction,
+  applyConfirmedDecayRecord,
+  cacheDecayPrediction,
+  decayPredictionCacheKey,
+  isLikelyDecayCandidate
+} from '../js/decayPredictor.js';
 
 function run() {
   const now = new Date('2026-06-15T00:00:00Z');
@@ -91,9 +98,87 @@ function run() {
   const reentryRanges = getReentryTimelineRanges(reentryData, latestReentry);
   assert(reentryRanges.detailStart < latestReentry.time && latestReentry.time < reentryRanges.detailEnd, 're-entry viewport includes latest decay');
 
+  const confirmedActive = {
+    satellite_name: 'CONFIRMED ACTIVE',
+    norad_id: '300',
+    tle_line1: '1 00300U 20001A   26166.50000000  .00000000  00000+0  00000+0 0  9991',
+    tle_line2: '2 00300  51.6000 120.0000 0001000  10.0000  20.0000 15.00000000  1001'
+  };
+  assert.strictEqual(applyConfirmedDecayRecord(confirmedActive, confirmedDecays), true, 'confirmed decay records apply before prediction');
+  assert.strictEqual(confirmedActive.decay.decay_status, 'CONFIRMED', 'confirmed decay status takes precedence');
+  assert.strictEqual(confirmedActive.decay.object_id, '2020-001A', 'confirmed decay metadata is copied to active satellites');
+
+  const stableGeo = {
+    satellite_name: 'STABLE GEO',
+    norad_id: '400',
+    orbit_class: 'GEO',
+    perigee_km: 35780,
+    estimated_altitude_km: 35786,
+    mean_motion_rev_per_day: 1.0027,
+    tle_line1: '1 00400U 20001A   26166.50000000  .00000000  00000+0  00000+0 0  9991',
+    tle_line2: '2 00400   0.1000 120.0000 0001000  10.0000  20.0000  1.00270000  1001'
+  };
+  const stableLeo = {
+    satellite_name: 'STABLE LEO',
+    norad_id: '401',
+    orbit_class: 'LEO',
+    perigee_km: 550,
+    estimated_altitude_km: 550,
+    mean_motion_rev_per_day: 15.05,
+    tle_line1: '1 00401U 20001A   26166.50000000  .00000000  00000+0  10000-4 0  9991',
+    tle_line2: '2 00401  51.6000 120.0000 0001000  10.0000  20.0000 15.05000000  1001'
+  };
+  const decayingLeo = {
+    satellite_name: 'LOW LEO',
+    norad_id: '402',
+    orbit_class: 'LEO',
+    perigee_km: 180,
+    estimated_altitude_km: 190,
+    mean_motion_rev_per_day: 16.1,
+    tle_line1: '1 00402U 20001A   26166.50000000  .00120000  00000+0  15000-2 0  9991',
+    tle_line2: '2 00402  51.6000 120.0000 0001000  10.0000  20.0000 16.10000000  1001'
+  };
+  assert.strictEqual(isLikelyDecayCandidate(stableGeo, { confirmedDecays }), false, 'GEO satellites are not predicted by default');
+  assert.strictEqual(isLikelyDecayCandidate(stableLeo, { confirmedDecays }), false, 'stable LEO satellites are not decay candidates');
+  assert.strictEqual(isLikelyDecayCandidate(decayingLeo, { confirmedDecays }), true, 'low-perigee LEO satellites are decay candidates');
+
+  const storage = new Map();
+  Object.defineProperty(globalThis, 'localStorage', {
+    value: {
+      getItem: (key) => storage.has(key) ? storage.get(key) : null,
+      setItem: (key, value) => storage.set(key, value),
+      removeItem: (key) => storage.delete(key)
+    },
+    configurable: true
+  });
+  const cacheSource = {
+    ...decayingLeo,
+    decay: {
+      decay_status: 'PREDICTED',
+      decay_reason: 'fixture prediction',
+      decay_date: null,
+      predicted_decay_window: { start: '2026-07-01', end: '2026-07-02', confidence: 0.8 }
+    }
+  };
+  const cacheOptions = { now: '2026-06-15T12:00:00Z' };
+  const sameDayOptions = { now: '2026-06-15T23:59:00Z' };
+  const nextDayOptions = { now: '2026-06-16T00:01:00Z' };
+  assert(decayPredictionCacheKey(cacheSource, cacheOptions), 'prediction cache key includes NORAD and TLE identity');
+  assert.strictEqual(decayPredictionCacheKey(cacheSource, cacheOptions), decayPredictionCacheKey(cacheSource, sameDayOptions), 'cache key reuses the same UTC day bucket');
+  assert.notStrictEqual(decayPredictionCacheKey(cacheSource, cacheOptions), decayPredictionCacheKey(cacheSource, nextDayOptions), 'cache key changes across UTC days');
+  assert.strictEqual(cacheDecayPrediction(cacheSource, cacheOptions), true, 'prediction can be cached');
+  const cacheTarget = { ...decayingLeo, decay: null };
+  assert.strictEqual(applyCachedDecayPrediction(cacheTarget, sameDayOptions), true, 'same-day cached prediction is reused');
+  assert.strictEqual(cacheTarget.decay.decay_status, 'PREDICTED', 'cached prediction restores decay status');
+  const nextDayTarget = { ...decayingLeo, decay: null };
+  assert.strictEqual(applyCachedDecayPrediction(nextDayTarget, nextDayOptions), false, 'next-day cache miss triggers recomputation');
+
   const indexHtml = fs.readFileSync('index.html', 'utf8');
   assert(indexHtml.includes('isDecayedTimelineRecord'), 'index handles inactive decayed timeline records');
   assert(indexHtml.includes('!activeTleSat'), 'timeline selection avoids active propagation for missing TLE satellites');
+  assert(indexHtml.includes('isLikelyDecayCandidate'), 'startup filters active decay prediction candidates');
+  assert(indexHtml.includes('applyCachedDecayPrediction'), 'startup reuses cached decay predictions');
+  assert(indexHtml.includes('setStatusNote'), 're-entry timeline can show non-blocking prediction status');
 
   console.log('timelineFreshness tests passed');
 }
