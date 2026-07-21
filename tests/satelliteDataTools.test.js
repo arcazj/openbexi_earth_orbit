@@ -49,7 +49,9 @@ function run() {
   assert(tool.includes('def default_repo_root()'), 'Python tool defaults to the repository root when launched from an IDE');
   assert(tool.includes('has not updated since your last successful'), 'CelesTrak no-new-data throttles are treated as not modified');
   assert(tool.includes('"https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle"'), 'legacy source list starts with Starlink');
-  assert(tool.includes('args.all and not args.skip_launch_dates'), '--all refreshes launch dates unless explicitly skipped');
+  assert(!tool.includes('"http://celestrak.org/'), 'active CelesTrak source configuration contains no HTTP URLs');
+  assert(tool.includes('HTTP_USER_AGENT = "OpenBEXI-Earth-Orbit/2.0.0'), 'data fetches identify the v2.0.0 client');
+  assert(tool.includes('allow_n2yo: bool = False'), 'N2YO enrichment requires an explicit API opt-in');
   assert(tool.includes('INCREMENTAL_TLE_GROUPS = ("active", "last-30-days")'), 'default TLE update uses optimized incremental groups');
   assert(tool.includes('CELESTRAK_SATCAT_CSV_URL = "https://celestrak.org/pub/satcat.csv"'), 'tool knows the CelesTrak raw SATCAT CSV source');
   assert(tool.includes('CELESTRAK_MIN_REFRESH_HOURS = 2.0'), 'tool enforces a 2-hour CelesTrak refresh guard');
@@ -100,6 +102,85 @@ root = pathlib.Path(${JSON.stringify(tempRoot)})
 (root / "json" / "tle").mkdir(parents=True, exist_ok=True)
 (root / "json" / "decayed").mkdir(parents=True, exist_ok=True)
 
+assert all(s.parse.urlparse(url).scheme == "https" for url in s.LEGACY_TLE_SOURCE_URLS)
+assert all(s.parse.urlparse(url).scheme == "https" for url in s.source_urls_for_mode("all"))
+assert s.make_celestrak_group_url("active").startswith("https://")
+
+blocked_fetch_calls = []
+def blocked_fetcher(url, headers=None):
+    blocked_fetch_calls.append(url)
+    raise AssertionError("non-HTTPS URL reached the fetcher")
+
+blocked_responses, blocked_errors = s.fetch_tle_sources(
+    ["http://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle"],
+    fetcher=blocked_fetcher,
+)
+assert blocked_responses == []
+assert blocked_fetch_calls == []
+assert len(blocked_errors) == 1 and "non-HTTPS" in blocked_errors[0]
+try:
+    s.fetch_url("http://example.test/catalog")
+except s.SatelliteDataError as exc:
+    assert "non-HTTPS" in str(exc)
+else:
+    raise AssertionError("fetch_url accepted HTTP ingestion")
+
+captured_request = {}
+class FakeHttpResponse:
+    status = 200
+    headers = {"ETag": "fixture"}
+    def read(self):
+        return b"fixture"
+    def __enter__(self):
+        return self
+    def __exit__(self, exc_type, exc, traceback):
+        return False
+
+original_urlopen = s.request.urlopen
+def fake_urlopen(req, timeout=None):
+    captured_request["request"] = req
+    captured_request["timeout"] = timeout
+    return FakeHttpResponse()
+s.request.urlopen = fake_urlopen
+try:
+    fetched = s.fetch_url("https://example.test/catalog")
+finally:
+    s.request.urlopen = original_urlopen
+assert fetched.text == "fixture"
+assert captured_request["request"].get_header("User-agent") == s.HTTP_USER_AGENT
+assert "2.0.0" in s.HTTP_USER_AGENT
+
+all_args = s.build_parser().parse_args(["export-tle", "--all"])
+incremental_args = s.build_parser().parse_args(["export-tle"])
+explicit_n2yo_args = s.build_parser().parse_args(["export-tle", "--all", "--refresh-launch-dates"])
+assert all_args.refresh_launch_dates is False
+assert incremental_args.refresh_launch_dates is False
+assert explicit_n2yo_args.refresh_launch_dates is True
+
+n2yo_calls = []
+def n2yo_fetcher(url, headers=None):
+    n2yo_calls.append(url)
+    return s.FetchResponse(url=url, text="")
+
+n2yo_skipped = s.extract_launch_dates_all(
+    root=root,
+    fetcher=n2yo_fetcher,
+    now=dt.datetime(1990, 1, 1, tzinfo=dt.timezone.utc),
+)
+assert n2yo_skipped.skipped is True
+assert n2yo_calls == []
+n2yo_opt_in = s.extract_launch_dates_all(
+    root=root,
+    dry_run=True,
+    fetcher=n2yo_fetcher,
+    now=dt.datetime(1990, 1, 1, tzinfo=dt.timezone.utc),
+    allow_n2yo=True,
+)
+assert n2yo_opt_in.skipped is False
+assert n2yo_opt_in.counts == {"pages": 12, "records": 0, "errors": 0}
+assert len(n2yo_calls) == 12
+assert all(url.startswith("https://www.n2yo.com/") for url in n2yo_calls)
+
 sample_tle = """ISS (ZARYA)
 1 25544U 98067A   26154.24769802  .00009145  00000+0  16852-2 0  9990
 2 25544  51.6400 135.3804 0003061  72.2548 287.8794 15.48314930362054
@@ -130,6 +211,15 @@ all_records, all_counts = s.build_satellites_from_tle_responses(responses, launc
 assert len(all_records) == 1
 assert all_records[0]["satellite_name"] == "ISS (ZARYA)"
 assert all_counts["added"] == 1
+assert all_counts["retained"] == 0
+unchanged_tle = "\\n".join(sample_tle.splitlines()[:3]) + "\\n"
+unchanged_responses = [("FIRST", s.FetchResponse(url="first", text=unchanged_tle))]
+unchanged_records, unchanged_counts = s.build_satellites_from_tle_responses(
+    unchanged_responses, launch_dates, existing=[sat], mode="incremental"
+)
+assert len(unchanged_records) == 1
+assert unchanged_counts["updated"] == 0
+assert unchanged_counts["retained"] == 1
 
 tle_path = root / "json" / "tle" / "TLE.json"
 meta_path = root / "json" / "tle" / "TLE.meta.json"

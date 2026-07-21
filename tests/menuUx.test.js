@@ -18,6 +18,7 @@ function run() {
   const reentryTimeline = fs.readFileSync('js/reentryTimeline.js', 'utf8');
   const marsFrameLoader = fs.readFileSync('js/MarsFrameLoader.js', 'utf8');
   const mercatorMapLoader = fs.readFileSync('js/mercatorMapLoader.js', 'utf8');
+  const release = JSON.parse(fs.readFileSync('release/version.json', 'utf8'));
 
   assert(!html.includes('role="tablist"'), 'main menu no longer exposes a tablist');
   assert(!html.includes('role="tab"'), 'main menu no longer exposes tab buttons');
@@ -249,7 +250,7 @@ function run() {
   assert(html.includes('id="readmeMarkdownLink"'), 'Help includes README Markdown action');
   assert(html.includes('href="markdown_viewer.html?source=README.md&amp;title=README"'), 'README Markdown action opens the Markdown viewer');
   assert(html.includes('id="releasesHistoryMarkdownLink"'), 'Help includes Releases History Markdown action');
-  assert(html.includes('href="markdown_viewer.html?source=PROMPT_History.md&amp;title=Releases%20History"'), 'Releases History action opens the Markdown viewer');
+  assert(html.includes('href="markdown_viewer.html?source=RELEASE_NOTES.md&amp;title=Releases%20History"'), 'Releases History action opens deployable release notes');
   assert(html.includes('>Releases History</strong>'), 'Prompt History action is renamed to Releases History');
   assert(!html.includes('>Prompt History</a>'), 'Prompt History is not the visible Help action text');
   assert(!html.includes('id="helpMarkdownPanel"'), 'Help no longer renders Markdown inline in the menu');
@@ -269,7 +270,7 @@ function run() {
   assert(html.includes('href="http://127.0.0.1:8000/openapi.json"'), 'API link opens the default OpenAPI page');
   assert(markdownViewerHtml.includes("'SWAGGER.md', 'Swagger API'"), 'Markdown viewer can render local Swagger Markdown');
   assert(swaggerHtml.includes('OpenBEXI Earth Orbit API'), 'local Swagger page has the API title');
-  assert(swaggerHtml.includes('1.7.6'), 'local Swagger page displays the release version');
+  assert(swaggerHtml.includes(release.version), 'local Swagger page displays the release version');
   assert(swaggerHtml.includes('OAS 3.0.3'), 'local Swagger page displays the OpenAPI version badge');
   assert(swaggerHtml.includes('Base URL / Schema Source'), 'local Swagger page displays base URL/schema context');
   assert(swaggerHtml.includes('<details class="operation get"'), 'local Swagger page has expandable GET operation rows');

@@ -3,6 +3,8 @@
 // Returns HTML markup for the satellite-control sidebar.
 // -------------------------------------------------------------------
 
+import { APP_VERSION } from './releaseVersion.js';
+
 export function satelliteMenuLoader() {
     return /* html */ `
   <div id="controlsContainer">
@@ -17,7 +19,7 @@ export function satelliteMenuLoader() {
           <div><span>Server URL</span><strong id="serverStatusUrl">http://127.0.0.1:8000</strong></div>
           <div><span>Connection</span><strong id="serverStatusState">Checking</strong></div>
           <div><span>Data source</span><strong id="serverDataSource">Local files</strong></div>
-          <div><span>App version</span><strong id="serverAppVersion">1.7.6</strong></div>
+          <div><span>App version</span><strong id="serverAppVersion">${APP_VERSION}</strong></div>
           <div><span>API version</span><strong id="serverApiVersion">Unavailable</strong></div>
           <div><span>Last data load</span><strong id="serverLastSync">Never</strong></div>
           <button id="serverReconnectButton" type="button" class="menu-secondary-action server-reconnect-button">Reconnect / Refresh</button>
@@ -150,6 +152,105 @@ export function satelliteMenuLoader() {
         </div>
       </section>
 
+      <section id="conjunctionAccordionSection" class="menu-accordion-section menu-section-conjunction">
+        <h3 id="conjunctionAccordionHeader" role="button" tabindex="0" aria-controls="conjunctionContent" aria-expanded="false" data-collapsible-target="conjunctionContent" class="section-heading menu-accordion-heading menu-accordion-heading-conjunction" data-default-collapsed="true">
+          <span>Close Approaches <span class="conjunction-maturity-badge">Experimental</span></span>
+          <span class="toggle-icon">v</span>
+        </h3>
+        <div id="conjunctionContent" class="collapsible-content conjunction-panel collapsed" aria-labelledby="conjunctionAccordionHeader">
+          <div class="conjunction-qualification" role="note">
+            <strong>Experimental TLE-based screening</strong>
+            <span>Collision probability: unavailable</span>
+            <span>Legacy TLE coverage omits six-digit catalog objects</span>
+          </div>
+
+          <dl class="conjunction-context" aria-label="Screening context">
+            <div><dt>Primary</dt><dd id="conjunctionPrimarySummary">Unavailable</dd></div>
+            <div><dt>Catalog</dt><dd id="conjunctionCatalogSummary">Loading</dd></div>
+            <div><dt>Frame</dt><dd>TEME</dd></div>
+            <div><dt>Model</dt><dd>SGP4</dd></div>
+          </dl>
+
+          <form id="conjunctionScreeningForm" class="conjunction-form">
+            <label for="conjunctionStartTime">Start UTC
+              <input id="conjunctionStartTime" name="startTime" type="datetime-local" step="1" required>
+            </label>
+            <label for="conjunctionDurationHours">Duration (hours)
+              <input id="conjunctionDurationHours" name="durationHours" type="number" min="1" max="24" step="1" value="1" required>
+            </label>
+            <label for="conjunctionCoarseStepSeconds">Coarse step (seconds)
+              <input id="conjunctionCoarseStepSeconds" name="coarseStepSeconds" type="number" min="5" max="300" step="5" value="300" required>
+            </label>
+            <label for="conjunctionScreeningRadiusKm">Screening radius (km)
+              <input id="conjunctionScreeningRadiusKm" name="screeningRadiusKm" type="number" min="1" max="1000" step="1" value="100" required>
+            </label>
+            <label for="conjunctionRefinementToleranceSeconds">TCA tolerance (seconds)
+              <input id="conjunctionRefinementToleranceSeconds" name="refinementToleranceSeconds" type="number" min="0.05" max="5" step="0.05" value="0.5" required>
+            </label>
+            <label for="conjunctionMaxResults">Result limit
+              <input id="conjunctionMaxResults" name="maxResults" type="number" min="10" max="500" step="10" value="100" required>
+            </label>
+            <div class="conjunction-action-row">
+              <button id="conjunctionRunButton" type="submit" class="menu-secondary-action" disabled>Run Screen</button>
+              <button id="conjunctionCancelButton" type="button" class="menu-secondary-action" disabled>Cancel</button>
+              <button id="conjunctionExportButton" type="button" class="menu-secondary-action" disabled>Export JSON</button>
+            </div>
+          </form>
+
+          <div class="conjunction-progress-block">
+            <progress id="conjunctionProgress" max="100" value="0" aria-label="Screening progress"></progress>
+            <div id="conjunctionStatus" role="status" aria-live="polite">Select a satellite to enable screening.</div>
+          </div>
+
+          <div id="conjunctionResults" class="conjunction-results" hidden>
+            <div class="conjunction-results-toolbar">
+              <label for="conjunctionResultFilter">Filter
+                <input id="conjunctionResultFilter" type="search" autocomplete="off">
+              </label>
+              <label for="conjunctionResultSort">Sort
+                <select id="conjunctionResultSort">
+                  <option value="tca">TCA</option>
+                  <option value="miss-distance">Miss distance</option>
+                  <option value="relative-speed">Relative speed</option>
+                  <option value="object">Object</option>
+                </select>
+              </label>
+            </div>
+            <div class="conjunction-table-scroll" tabindex="0" aria-label="Close-approach events">
+              <table class="conjunction-table">
+                <thead>
+                  <tr>
+                    <th scope="col">TCA</th>
+                    <th scope="col">Object</th>
+                    <th scope="col">Miss km</th>
+                    <th scope="col">km/s</th>
+                    <th scope="col">Age d</th>
+                    <th scope="col">Quality</th>
+                  </tr>
+                </thead>
+                <tbody id="conjunctionResultRows"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <section id="conjunctionEventDetails" class="conjunction-event-details" aria-labelledby="conjunctionEventTitle" hidden>
+            <div class="conjunction-event-header">
+              <strong id="conjunctionEventTitle">Selected event</strong>
+              <span id="conjunctionEventQuality" class="conjunction-quality-badge">Unrated</span>
+            </div>
+            <dl id="conjunctionEventMetrics" class="conjunction-event-metrics"></dl>
+            <div class="conjunction-playback-row">
+              <button id="conjunctionPlaybackButton" type="button" class="conjunction-icon-button" aria-label="Play conjunction event" title="Play" disabled>&#9654;</button>
+              <label for="conjunctionPlaybackOffset">TCA offset
+                <input id="conjunctionPlaybackOffset" type="range" min="-300" max="300" step="1" value="0" disabled>
+              </label>
+              <output id="conjunctionPlaybackOffsetValue" for="conjunctionPlaybackOffset">TCA</output>
+            </div>
+            <div class="conjunction-visual-note">Markers are visually exaggerated. Numeric distance is authoritative for this screening model.</div>
+          </section>
+        </div>
+      </section>
+
       <section id="timelinesAccordionSection" class="menu-accordion-section menu-section-timelines">
         <h3 id="timelinesAccordionHeader" role="button" tabindex="0" aria-controls="timelineContent" aria-expanded="false" data-collapsible-target="timelineContent" class="section-heading menu-accordion-heading menu-accordion-heading-timelines" data-default-collapsed="true">
           <span>Timelines</span>
@@ -213,7 +314,7 @@ export function satelliteMenuLoader() {
               <strong>README</strong>
               <span>Open rendered project guide</span>
             </a>
-            <a id="releasesHistoryMarkdownLink" class="help-doc-card" href="markdown_viewer.html?source=PROMPT_History.md&amp;title=Releases%20History" title="Open Releases History Markdown in a separate page" target="_blank" rel="noopener noreferrer">
+            <a id="releasesHistoryMarkdownLink" class="help-doc-card" href="markdown_viewer.html?source=RELEASE_NOTES.md&amp;title=Releases%20History" title="Open Releases History Markdown in a separate page" target="_blank" rel="noopener noreferrer">
               <strong>Releases History</strong>
               <span>Open rendered release prompts</span>
             </a>

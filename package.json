@@ -1,12 +1,39 @@
 {
   "name": "openbexi_orbit",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=20 <25",
+    "npm": ">=10"
+  },
   "scripts": {
-    "test": "node tests/runAll.js"
+    "audit:dependencies": "npm audit --audit-level=high",
+    "build": "node scripts/build-static.mjs",
+    "check": "npm run check:syntax && npm run check:python && npm run check:version && npm run check:vendor && npm run check:artifact && npm run check:validation && npm run check:budgets",
+    "check:artifact": "node scripts/build-static.mjs",
+    "check:budgets": "node scripts/check-asset-budgets.mjs",
+    "check:python": "node scripts/python.mjs -m py_compile server.py tools/satellite_data_tools.py tools/generate_jpl_ephemeris.py tools/preprocess_star_catalog.py tools/save_obj_with_texture.py",
+    "check:syntax": "node scripts/check-js-syntax.mjs",
+    "check:validation": "node scripts/check-validation-manifest.mjs",
+    "check:vendor": "node scripts/vendor-browser-dependencies.mjs --check",
+    "check:version": "node scripts/check-version.mjs",
+    "sbom": "node scripts/generate-sbom.mjs",
+    "serve": "node scripts/python.mjs server.py --host 127.0.0.1 --port 8000",
+    "test": "npm run test:unit && npm run test:python && npm run test:browser",
+    "test:all": "npm test",
+    "test:browser": "playwright test",
+    "test:python": "node scripts/python.mjs -m unittest discover -s tests_python -v",
+    "test:unit": "node tests/runAll.js",
+    "vendor:browser": "node scripts/vendor-browser-dependencies.mjs --sync",
+    "version:sync": "node scripts/sync-version.mjs"
   },
   "dependencies": {
     "satellite.js": "6.0.2",
     "three": "0.184.0"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.12.1",
+    "@playwright/test": "1.61.1"
   }
 }

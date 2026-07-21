@@ -10,8 +10,16 @@ import {
 import { EARTH_RADIUS_KM, EARTH_SCENE_RADIUS } from './SatelliteConstantLoader.js';
 import { processInChunks } from './startupPerformance.js';
 import { orbitClassFromMeanMotion, radToDeg } from './orbit/orbitLinkGeometry.js';
+import { stableFingerprint } from './domain/objectIdentity.js';
+import { normalizeDatasetProvenance } from './domain/contracts.js';
+import { normalizeUtcInstant } from './domain/orbitalPolicy.js';
+import { validateCatalog } from './domain/catalogValidation.js';
 
 export let satellites = [];
+export let activeCatalogValidationSnapshot = null;
+export let activeCatalogQualitySummary = null;
+export let lastCatalogValidationSnapshot = null;
+export let lastCatalogQualitySummary = null;
 let orbitLine = null;
 export let usingLocalAssets = false;
 let textureLoader = new THREE.TextureLoader();
@@ -25,6 +33,141 @@ const MAX_ORBIT_SAMPLE_COUNT = 720;
 const ORBIT_SAMPLE_MINUTES_PER_POINT = 4;
 const MIN_ORBIT_REFRESH_INTERVAL_MS = 60_000;
 const MAX_ORBIT_REFRESH_INTERVAL_MS = 5 * 60_000;
+export const STATIC_DEPLOYMENT_MODE = 'static';
+
+export function resolveCatalogRuntimePolicy(options = {}) {
+    const documentObj = options.documentObj ?? globalThis.document;
+    const declaredMode = options.deployment_mode ?? options.deploymentMode ??
+        documentObj?.querySelector?.('meta[name="openbexi-deployment-mode"]')?.content ??
+        'server-capable';
+    const deploymentMode = String(declaredMode).trim().toLowerCase();
+    const remoteFallbackRequested = options.allow_remote_catalog_fallback ??
+        options.allowRemoteCatalogFallback ?? true;
+    return Object.freeze({
+        deployment_mode: deploymentMode,
+        packaged_catalog_required: deploymentMode === STATIC_DEPLOYMENT_MODE,
+        allow_remote_catalog_fallback: deploymentMode === STATIC_DEPLOYMENT_MODE
+            ? false
+            : remoteFallbackRequested === true
+    });
+}
+
+function canonicalJson(value) {
+    if (value === null || typeof value !== 'object') return JSON.stringify(value);
+    if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+    return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`;
+}
+
+function bytesToHex(bytes) {
+    return [...bytes].map(byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+export async function computeTleDatasetHash(records, options = {}) {
+    if (!Array.isArray(records)) throw new TypeError('TLE records must be an array.');
+    const material = records.map(canonicalJson).sort().join('\n');
+    const cryptoImpl = options.crypto_impl ?? options.cryptoImpl ?? globalThis.crypto;
+    if (cryptoImpl?.subtle?.digest) {
+        const digest = await cryptoImpl.subtle.digest('SHA-256', new TextEncoder().encode(material));
+        return `sha256:${bytesToHex(new Uint8Array(digest))}`;
+    }
+    return `fnv1a64:${stableFingerprint(material)}`;
+}
+
+function metadataSourceStatus(metadata) {
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+        return { source_status: 'DEGRADED', partial_update: false };
+    }
+    const status = String(metadata.last_status ?? '').trim().toLowerCase();
+    const mode = String(metadata.mode ?? '').trim().toLowerCase();
+    const rejected = Number(metadata.counts?.rejected ?? 0);
+    const fetched = Number(metadata.counts?.fetched);
+    const total = Number(metadata.counts?.total);
+    const isIncremental = mode === 'incremental' || (
+        Number.isFinite(fetched) && Number.isFinite(total) && fetched < total
+    );
+    if (status === 'ok' && rejected === 0 && !isIncremental) {
+        return { source_status: 'COMPLETE', partial_update: false };
+    }
+    if (status === 'ok' || status === 'partial') {
+        return { source_status: 'PARTIAL', partial_update: true };
+    }
+    return { source_status: 'DEGRADED', partial_update: false };
+}
+
+export async function buildTleDatasetProvenance(records, metadata, options = {}) {
+    const referenceTime = normalizeUtcInstant(
+        options.reference_time ?? options.referenceTime ?? options.now?.() ?? new Date(),
+        'catalog reference time'
+    );
+    const metadataTimestamp = metadata?.last_success_at ?? metadata?.fetched_at ?? null;
+    const datasetHash = await computeTleDatasetHash(records, options);
+    const status = metadataSourceStatus(metadata);
+    const sourceUrls = Array.isArray(metadata?.source_urls)
+        ? metadata.source_urls.filter(value => typeof value === 'string' && value.trim())
+        : [];
+    return normalizeDatasetProvenance({
+        source_id: options.source_id ?? options.sourceId ?? 'celestrak-gp-catalog',
+        provider: options.provider ?? 'CelesTrak',
+        retrieved_at: metadataTimestamp,
+        dataset_id: options.dataset_id ?? options.datasetId ?? `tle-catalog:${datasetHash.split(':')[1].slice(0, 16)}`,
+        dataset_hash: datasetHash,
+        source_uri: options.source_uri ?? options.sourceUri ?? sourceUrls[0] ?? null,
+        source_status: status.source_status,
+        partial_update: status.partial_update,
+        license_id: options.license_id ?? options.licenseId ?? null
+    });
+}
+
+export async function validateTleCatalogForDisplay(records, metadata, options = {}) {
+    const referenceTime = normalizeUtcInstant(
+        options.reference_time ?? options.referenceTime ?? options.now?.() ?? new Date(),
+        'catalog reference time'
+    );
+    const provenance = await buildTleDatasetProvenance(records, metadata, {
+        ...options,
+        reference_time: referenceTime
+    });
+    const satelliteLib = options.satelliteLib ?? options.satellite_lib ?? globalThis.satellite;
+    const sgp4Initializer = options.sgp4_initializer ?? options.sgp4Initializer ??
+        (typeof satelliteLib?.twoline2satrec === 'function'
+            ? (line1, line2) => satelliteLib.twoline2satrec(line1, line2)
+            : null);
+    const result = validateCatalog(records, {
+        provenance,
+        reference_time: referenceTime,
+        freshness_policy: options.freshness_policy ?? options.freshnessPolicy,
+        quarantine_stale: options.quarantine_stale ?? options.quarantineStale ?? false,
+        require_known_classification: options.require_known_classification ?? options.requireKnownClassification ?? false,
+        sgp4_initializer: sgp4Initializer
+    });
+    if (!result.value) return Object.freeze({ result, snapshot: null, quality: null, records: Object.freeze([]) });
+    const acceptedRecords = result.value.accepted_record_indices.map((sourceIndex, objectIndex) => ({
+        ...records[sourceIndex],
+        catalogObject: result.value.objects[objectIndex]
+    }));
+    return Object.freeze({
+        result,
+        snapshot: result.value,
+        quality: result.value.quality,
+        records: Object.freeze(acceptedRecords)
+    });
+}
+
+export function getActiveCatalogValidationSnapshot() {
+    return activeCatalogValidationSnapshot;
+}
+
+export function getActiveCatalogQualitySummary() {
+    return activeCatalogQualitySummary;
+}
+
+export function getLastCatalogValidationSnapshot() {
+    return lastCatalogValidationSnapshot;
+}
+
+export function getLastCatalogQualitySummary() {
+    return lastCatalogQualitySummary;
+}
 
 function getSatelliteLib(satelliteLib = globalThis.satellite) {
     if (!satelliteLib?.propagate) {
@@ -387,35 +530,37 @@ async function processSatellites(scene, tleData, baseMaterial, options = {}) {
     const {
         chunkSize = 300,
         onProgress = null,
-        schedulerOptions = { timeout: 16 }
+        schedulerOptions = { timeout: 16 },
+        satelliteLib = globalThis.satellite
     } = options;
-    if (tleData.length === 0) return null;
-    // Clear existing satellites from scene and array
-    satellites.forEach(s => {
-        if (s.mesh) scene.remove(s.mesh);
-        // If s.label and s.label.element, handle removal if CSS2DObjects were used for sprites
-    });
-    satellites.length = 0; // Empty the array
-
-    if (!tleData || tleData.length === 0) {
+    if (!Array.isArray(tleData) || tleData.length === 0) {
         console.warn("No TLE data to process.");
         if (typeof updateSatelliteList === "function") updateSatelliteList(); // Update UI
-        return;
+        return satellites;
     }
     if (!baseMaterial) {
-        console.error("Base material for satellites is not available. Cannot create satellite sprites.");
-        if (typeof updateSatelliteList === "function") updateSatelliteList(); // Update UI
-        return;
+        throw new Error('Base material for satellites is not available.');
+    }
+    if (!satelliteLib?.twoline2satrec) {
+        throw new Error('satellite.js with twoline2satrec is required to process the validated catalog.');
     }
 
+    // Commit only after the replacement catalog and rendering dependencies are ready.
+    satellites.forEach(s => {
+        if (s.mesh) scene.remove(s.mesh);
+    });
+    satellites.length = 0;
+
     await processInChunks(tleData, (item) => {
-        const {company, satellite_name, norad_id, type, launch_date, tle_line1, tle_line2} = item;
+        const {company, satellite_name, norad_id, type, launch_date, catalogObject} = item;
+        const tle_line1 = catalogObject?.element_set?.line1 ?? item.tle_line1 ?? item.tleLine1 ?? item.TLE_LINE1;
+        const tle_line2 = catalogObject?.element_set?.line2 ?? item.tle_line2 ?? item.tleLine2 ?? item.TLE_LINE2;
         if (!tle_line1 || !tle_line2) {
             console.warn(`Skipping satellite ${satellite_name || norad_id}: missing TLE line1 or line2.`);
             return;
         }
         try {
-            const satrec = satellite.twoline2satrec(tle_line1, tle_line2);
+            const satrec = satelliteLib.twoline2satrec(tle_line1, tle_line2);
             // Check for common error: epoch year. satellite.js might parse ' yyddd...' as 19yy if yy > 56.
             // Modern TLEs use 'yyddd...'. If satrec.epochyr < 2000 (and yy > 56), it's likely 20yy.
             // This is a heuristic. satellite.js handles most cases, but good to be aware.
@@ -433,13 +578,24 @@ async function processSatellites(scene, tleData, baseMaterial, options = {}) {
             satellites.push({
                 mesh: sprite, // The THREE.Sprite object
                 satrec: satrec, // The parsed TLE data from satellite.js
-                orbitType: type || "N/A",
+                orbitType: catalogObject?.orbit_class || item.orbit_class || type || "N/A",
                 company: company || "N/A",
                 satellite_name: satellite_name || `NORAD ${norad_id}`, // Use NORAD ID if name is missing
-                norad_id: norad_id,
+                norad_id: catalogObject?.norad_id ?? norad_id,
+                object_id: catalogObject?.object_id ?? item.object_id ?? null,
+                international_designator: catalogObject?.international_designator ?? item.international_designator ?? null,
+                object_type: catalogObject?.object_type ?? item.object_type ?? 'UNKNOWN',
+                orbit_class: catalogObject?.orbit_class ?? item.orbit_class ?? type ?? 'UNKNOWN',
+                lifecycle_status: catalogObject?.lifecycle_status ?? item.lifecycle_status ?? 'UNKNOWN',
                 launch_date: launch_date || "N/A",
                 tle_line1: tle_line1,
                 tle_line2: tle_line2,
+                element_set: catalogObject?.element_set ?? item.element_set ?? null,
+                provenance: catalogObject?.provenance ?? item.provenance ?? null,
+                covariance: catalogObject?.covariance ?? item.covariance ?? null,
+                hard_body_radius_km: catalogObject?.hard_body_radius_km ?? item.hard_body_radius_km ?? null,
+                quality_flags: catalogObject?.quality_flags ?? item.quality_flags ?? [],
+                catalogObject: catalogObject ?? null,
                 isSelected: false // Track selection state
             });
         } catch (e) {
@@ -460,8 +616,11 @@ async function processSatellites(scene, tleData, baseMaterial, options = {}) {
 export async function setupTLESatellites(scene, options = {}) {
     const {
         tleDataOverride = null,
-        tleDataSource = 'local files'
+        tleMetaOverride = null,
+        tleDataSource = 'local files',
+        satelliteMaterialOverride = null
     } = options;
+    const catalogRuntimePolicy = resolveCatalogRuntimePolicy(options);
     let TLE_BASE_URL = "json/tle/";
     console.log("Attempting to load TLE data from:", TLE_BASE_URL);
     const primaryTleUrl = TLE_BASE_URL + 'TLE.json';
@@ -476,8 +635,7 @@ export async function setupTLESatellites(scene, options = {}) {
 
         if (!Array.isArray(tleData) || tleData.length === 0) {
             //console.warn(`TLE data from ${primaryTleUrl} failed or is empty.`);
-            // If primary GitHub fails AND we are not already in local mode, try backup GitHub URL
-            if (!usingLocalAssets) {
+            if (catalogRuntimePolicy.allow_remote_catalog_fallback) {
                 const backupTleUrl = GITHUB_REPO_RAW_BASE_URL + "json/tle/" + 'TLE.json'; // Assuming backup is in the same base
                 console.log("Attempting backup TLE from GitHub:", backupTleUrl);
                 tleData = await fetchJSON(backupTleUrl);
@@ -486,10 +644,14 @@ export async function setupTLESatellites(scene, options = {}) {
                 } else {
                     console.log("Loaded TLE data from GitHub backup source.");
                 }
+            } else if (catalogRuntimePolicy.packaged_catalog_required) {
+                console.error('Packaged TLE catalog is unavailable; static deployment prohibits remote fallback.');
             }
             // If still no data (either local failed, or both GitHub primary/backup failed)
             if (!Array.isArray(tleData) || tleData.length === 0) {
-                const userMessage = "Critical Error: Failed to load satellite TLE data from all available sources. Satellites will not be displayed.";
+                const userMessage = catalogRuntimePolicy.packaged_catalog_required
+                    ? 'Critical Error: The packaged satellite catalog is missing or invalid. Remote fallback is disabled for static deployment.'
+                    : 'Critical Error: Failed to load satellite TLE data from all available sources. Satellites will not be displayed.';
                 console.error(userMessage);
                 // Display user-facing error
                 const errorDiv = document.createElement('div');
@@ -498,14 +660,43 @@ export async function setupTLESatellites(scene, options = {}) {
                 document.body.appendChild(errorDiv);
                 // No need for setTimeout, this is a critical error.
                 await processSatellites(scene, [], null, options); // Process with empty data
-                return
+                return satellites;
             }
         }
 
-        const satIconFullUrl = getFullGitHubUrl('icons/ob_satellite.png', GITHUB_REPO_RAW_BASE_URL);
-        let satMaterial;
+        const tleMetadata = tleMetaOverride !== null
+            ? tleMetaOverride
+            : await fetchJSON(TLE_BASE_URL + 'TLE.meta.json');
+        const catalogValidation = await validateTleCatalogForDisplay(tleData, tleMetadata, {
+            ...options,
+            reference_time: options.catalogReferenceTime ?? options.referenceTime ?? options.now?.() ?? new Date()
+        });
+        lastCatalogValidationSnapshot = catalogValidation.snapshot;
+        lastCatalogQualitySummary = catalogValidation.quality;
+        if (!catalogValidation.snapshot) {
+            throw new Error('TLE catalog validation could not produce a snapshot.');
+        }
+        if (catalogValidation.snapshot.quarantine.length > 0) {
+            console.warn(
+                `TLE catalog validation quarantined ${catalogValidation.snapshot.quarantine.length} of ${tleData.length} records.`,
+                catalogValidation.quality.quarantine_reason_counts
+            );
+        }
+        tleData = catalogValidation.records;
+        console.info(
+            `TLE catalog ${catalogValidation.snapshot.status}: ${tleData.length} accepted, ` +
+            `${catalogValidation.snapshot.quarantine.length} quarantined.`
+        );
+        if (tleData.length === 0) {
+            return satellites;
+        }
 
-        if (!satIconFullUrl) {
+        const satIconFullUrl = getFullGitHubUrl('icons/ob_satellite.png', GITHUB_REPO_RAW_BASE_URL);
+        let satMaterial = satelliteMaterialOverride;
+
+        if (satMaterial) {
+            // A material override keeps validation and processing independently testable.
+        } else if (!satIconFullUrl) {
             console.error("3D Satellite icon path is null (check satelliteConfig.icon). Using placeholder material.");
             // Create a very simple placeholder material if texture path is null
             const placeholderCanvas = document.createElement('canvas');
@@ -538,7 +729,10 @@ export async function setupTLESatellites(scene, options = {}) {
                     })
             });
         }
-        await processSatellites(scene, tleData, satMaterial, options);
+        const loadedSatellites = await processSatellites(scene, tleData, satMaterial, options);
+        activeCatalogValidationSnapshot = catalogValidation.snapshot;
+        activeCatalogQualitySummary = catalogValidation.quality;
+        return loadedSatellites;
 
     } catch (err) {
         console.error("Error in setupTLESatellites (fetching/processing TLEs):", err);
@@ -549,6 +743,7 @@ export async function setupTLESatellites(scene, options = {}) {
         document.body.appendChild(errorDiv);
         setTimeout(() => errorDiv.remove(), 7000);
         await processSatellites(scene, [], null, options); // Attempt to continue with empty data
+        return satellites;
     }
 }
 

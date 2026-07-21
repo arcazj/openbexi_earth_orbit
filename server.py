@@ -9,20 +9,107 @@ mandatory Python dependency installation step.
 from __future__ import annotations
 
 import argparse
+import hashlib
+import ipaddress
 import json
 import mimetypes
+import re
 import threading
 import time
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from urllib.parse import quote, unquote, urlparse
 
 
-APP_VERSION = "1.7.6"
-RELEASE_DATE = "2026-06-15"
-REPO_URL = "https://github.com/arcazj/openbexi_earth_orbit"
 ROOT = Path(__file__).resolve().parent
+RELEASE_METADATA_PATH = ROOT / "release" / "version.json"
+RELEASE_METADATA = json.loads(RELEASE_METADATA_PATH.read_text(encoding="utf-8"))
+APP_VERSION = str(RELEASE_METADATA["version"])
+PUBLICATION_STATE = str(RELEASE_METADATA["publicationState"])
+CANDIDATE_DATE = RELEASE_METADATA.get("candidateAt")
+RELEASE_DATE = RELEASE_METADATA.get("releasedAt")
+PUBLICATION_DATE = RELEASE_DATE or CANDIDATE_DATE
+REPO_URL = "https://github.com/arcazj/openbexi_earth_orbit"
+
+STATIC_ROOT_FILE_ALLOWLIST = frozenset(
+    {
+        "display_satellite.html",
+        "earth_stars_milkyway.html",
+        "index.html",
+        "license.md",
+        "markdown_viewer.html",
+        "readme.md",
+        "release_notes.md",
+        "swagger.html",
+        "swagger.md",
+        "solarsystemoverview.html",
+    }
+)
+STATIC_PREFIX_SUFFIX_ALLOWLIST = (
+    (("css",), frozenset({".css"})),
+    (("data", "ephemeris"), frozenset({".json"})),
+    (("data", "stars"), frozenset({".js"})),
+    (("icons",), frozenset({".png", ".svg"})),
+    (("js",), frozenset({".js", ".mjs"})),
+    (("obj",), frozenset({".glb", ".gltf", ".jpg", ".jpeg", ".mtl", ".obj", ".png", ".webp"})),
+    (("textures",), frozenset({".jpg", ".jpeg", ".ktx2", ".png", ".webp"})),
+)
+STATIC_JSON_FILE_ALLOWLIST = frozenset(
+    {
+        ("json", "decayed", "decayed.json"),
+        ("json", "tle", "tle.json"),
+        ("json", "tle", "tle.meta.json"),
+    }
+)
+STATIC_VENDOR_FILE_ALLOWLIST = frozenset(
+    {
+        ("vendor", "satellite.js", "6.0.2", "satellite.es.js"),
+        ("vendor", "satellite.js", "6.0.2", "satellite.min.js"),
+        ("vendor", "three", "0.184.0", "build", "three.core.js"),
+        ("vendor", "three", "0.184.0", "build", "three.module.js"),
+        ("vendor", "three", "0.184.0", "examples", "jsm", "controls", "orbitcontrols.js"),
+        ("vendor", "three", "0.184.0", "examples", "jsm", "loaders", "gltfloader.js"),
+        ("vendor", "three", "0.184.0", "examples", "jsm", "loaders", "mtlloader.js"),
+        ("vendor", "three", "0.184.0", "examples", "jsm", "loaders", "objloader.js"),
+        ("vendor", "three", "0.184.0", "examples", "jsm", "renderers", "css2drenderer.js"),
+        ("vendor", "three", "0.184.0", "examples", "jsm", "utils", "buffergeometryutils.js"),
+        ("vendor", "three", "0.184.0", "examples", "jsm", "utils", "skeletonutils.js"),
+    }
+)
+STATIC_BLOCKED_PARTS = frozenset(
+    {
+        ".git",
+        ".github",
+        ".idea",
+        "__pycache__",
+        "node_modules",
+        "out",
+        "src",
+        "target",
+        "tests",
+        "tests_python",
+        "tools",
+    }
+)
+STATIC_BLOCKED_SUFFIXES = frozenset(
+    {
+        ".class",
+        ".env",
+        ".iml",
+        ".java",
+        ".lock",
+        ".py",
+        ".pyc",
+        ".pyo",
+        ".tmp",
+        ".toml",
+        ".xml",
+        ".yaml",
+        ".yml",
+    }
+)
+SAFE_HOST_HEADER = re.compile(r"^[A-Za-z0-9.\-:\[\]]+$")
 
 try:
     from tools.satellite_data_tools import (
@@ -66,6 +153,124 @@ def _safe_json_file(path: Path) -> bytes:
     if not resolved.is_file() or ROOT not in resolved.parents:
         raise FileNotFoundError(path)
     return resolved.read_bytes()
+
+
+def _decode_request_path(raw_path: str) -> str | None:
+    decoded = urlparse(raw_path).path
+    for _ in range(3):
+        next_value = unquote(decoded)
+        if next_value == decoded:
+            break
+        decoded = next_value
+    if "\x00" in decoded or "\\" in decoded:
+        return None
+    return decoded
+
+
+def resolve_static_request_path(raw_path: str) -> tuple[Path, tuple[str, ...]] | None:
+    """Resolve a URL path without permitting traversal or symlink escape."""
+    decoded = _decode_request_path(raw_path)
+    if decoded is None:
+        return None
+    segments = tuple(part for part in PurePosixPath(decoded).parts if part not in {"", "/"})
+    if any(part in {".", ".."} for part in decoded.split("/")):
+        return None
+    candidate = ROOT.joinpath(*segments).resolve()
+    if candidate != ROOT and ROOT not in candidate.parents:
+        return None
+    return candidate, segments
+
+
+def _static_path_parts_are_allowed(parts: tuple[str, ...]) -> bool:
+    if not parts:
+        return True
+    lowered = tuple(part.lower() for part in parts)
+    if any(part.startswith(".") or part in STATIC_BLOCKED_PARTS for part in lowered):
+        return False
+    if any(".bak-" in part or part.endswith("~") for part in lowered):
+        return False
+    if Path(lowered[-1]).suffix in STATIC_BLOCKED_SUFFIXES:
+        return False
+
+    if len(parts) == 1:
+        return lowered[0] in STATIC_ROOT_FILE_ALLOWLIST
+    if lowered in STATIC_JSON_FILE_ALLOWLIST:
+        return True
+    if lowered in STATIC_VENDOR_FILE_ALLOWLIST:
+        return True
+    if len(lowered) == 3 and lowered[:2] == ("json", "satellites"):
+        return Path(lowered[-1]).suffix == ".json"
+
+    suffix = Path(lowered[-1]).suffix
+    return any(
+        lowered[: len(prefix)] == prefix and suffix in allowed_suffixes
+        for prefix, allowed_suffixes in STATIC_PREFIX_SUFFIX_ALLOWLIST
+    )
+
+
+def static_request_is_exposed(raw_path: str) -> bool:
+    resolved = resolve_static_request_path(raw_path)
+    if resolved is None:
+        return False
+    candidate, request_parts = resolved
+    resolved_parts = () if candidate == ROOT else candidate.relative_to(ROOT).parts
+    return _static_path_parts_are_allowed(request_parts) and _static_path_parts_are_allowed(resolved_parts)
+
+
+def is_loopback_host(host: str) -> bool:
+    normalized = str(host or "").strip().lower().strip("[]")
+    if normalized == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(normalized).is_loopback
+    except ValueError:
+        return False
+
+
+def cors_origin_is_allowed(origin: str, configured_origins: tuple[str, ...] = ()) -> bool:
+    if not origin:
+        return False
+    normalized = origin.rstrip("/")
+    if "*" in configured_origins or normalized in configured_origins:
+        return True
+    try:
+        parsed = urlparse(normalized)
+        host = parsed.hostname or ""
+        _ = parsed.port
+    except ValueError:
+        return False
+    return (
+        parsed.scheme in {"http", "https"}
+        and parsed.username is None
+        and parsed.password is None
+        and not parsed.path
+        and not parsed.params
+        and not parsed.query
+        and not parsed.fragment
+        and is_loopback_host(host)
+    )
+
+
+def safe_request_host(host_header: str | None, server_port: int) -> str:
+    fallback = f"127.0.0.1:{server_port}"
+    candidate = str(host_header or "").strip()
+    if not candidate or len(candidate) > 255 or not SAFE_HOST_HEADER.fullmatch(candidate):
+        return fallback
+    return candidate
+
+
+def cache_control_for_path(raw_path: str, status: int = HTTPStatus.OK) -> str:
+    if int(status) >= 400:
+        return "no-store"
+    decoded = (_decode_request_path(raw_path) or "").lower()
+    if decoded.startswith("/api/") or decoded in {"/docs", "/openapi.json"}:
+        return "no-store"
+    if decoded.startswith("/node_modules/"):
+        return "public, max-age=604800, immutable"
+    suffix = Path(decoded).suffix
+    if suffix in {".glb", ".gltf", ".jpg", ".jpeg", ".png", ".webp", ".avif", ".ktx2"}:
+        return "public, max-age=86400"
+    return "no-cache"
 
 
 def _metadata_files() -> list[dict[str, object]]:
@@ -508,7 +713,7 @@ def _docs_html() -> bytes:
 <body>
   <div class="fallback">
     <strong>OpenBEXI Earth Orbit API</strong>
-    <span>Version {APP_VERSION}, released {RELEASE_DATE}.</span>
+    <span>Version {APP_VERSION}, {PUBLICATION_STATE} dated {PUBLICATION_DATE}.</span>
     <a href="/openapi.json">OpenAPI schema</a>
   </div>
   <div id="swagger-ui"></div>
@@ -524,20 +729,47 @@ def _docs_html() -> bytes:
 
 
 class OpenBexiHandler(SimpleHTTPRequestHandler):
-    server_version = "OpenBEXIHTTP/1.7.6"
+    server_version = f"OpenBEXIHTTP/{APP_VERSION}"
+    sys_version = ""
 
-    def __init__(self, *args, serve_static: bool = True, **kwargs):
+    def __init__(
+        self,
+        *args,
+        serve_static: bool = True,
+        cors_origins: tuple[str, ...] = (),
+        **kwargs,
+    ):
         self.serve_static = serve_static
+        self.cors_origins = tuple(origin.rstrip("/") for origin in cors_origins if origin)
+        self._response_status = HTTPStatus.OK
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
+    def send_response(self, code: int, message: str | None = None) -> None:
+        self._response_status = code
+        super().send_response(code, message)
+
     def end_headers(self) -> None:
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET,HEAD,OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
-        self.send_header("Access-Control-Max-Age", "600")
+        origin = self.headers.get("Origin", "")
+        if origin:
+            self.send_header("Vary", "Origin")
+        if cors_origin_is_allowed(origin, self.cors_origins):
+            allowed_origin = "*" if "*" in self.cors_origins else origin.rstrip("/")
+            self.send_header("Access-Control-Allow-Origin", allowed_origin)
+            self.send_header("Access-Control-Allow-Methods", "GET,HEAD,OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Accept,Content-Type")
+            self.send_header("Access-Control-Max-Age", "600")
+        self.send_header("Cache-Control", cache_control_for_path(self.path, self._response_status))
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "SAMEORIGIN")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
         super().end_headers()
 
     def do_OPTIONS(self) -> None:
+        origin = self.headers.get("Origin", "")
+        if origin and not cors_origin_is_allowed(origin, self.cors_origins):
+            self.send_error(HTTPStatus.FORBIDDEN, "CORS origin is not allowed")
+            return
         self.send_response(HTTPStatus.NO_CONTENT)
         self.end_headers()
 
@@ -547,6 +779,9 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
         if not self.serve_static:
             self.send_error(HTTPStatus.NOT_FOUND, "Static hosting disabled")
             return
+        if not static_request_is_exposed(self.path):
+            self.send_error(HTTPStatus.NOT_FOUND, "Static resource is not exposed")
+            return
         super().do_GET()
 
     def do_HEAD(self) -> None:
@@ -555,7 +790,14 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
         if not self.serve_static:
             self.send_error(HTTPStatus.NOT_FOUND, "Static hosting disabled")
             return
+        if not static_request_is_exposed(self.path):
+            self.send_error(HTTPStatus.NOT_FOUND, "Static resource is not exposed")
+            return
         super().do_HEAD()
+
+    def list_directory(self, path: str):
+        self.send_error(HTTPStatus.NOT_FOUND, "Directory listing is disabled")
+        return None
 
     def _send_bytes(
         self,
@@ -565,9 +807,16 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
         status: HTTPStatus = HTTPStatus.OK,
         head_only: bool = False,
     ) -> None:
+        etag = f'"{hashlib.sha256(body).hexdigest()}"'
+        if self.headers.get("If-None-Match") == etag:
+            self.send_response(HTTPStatus.NOT_MODIFIED)
+            self.send_header("ETag", etag)
+            self.end_headers()
+            return
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
+        self.send_header("ETag", etag)
         self.end_headers()
         if not head_only:
             self.wfile.write(body)
@@ -581,7 +830,7 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
     def _handle_api(self, *, head_only: bool) -> bool:
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
-        host = self.headers.get("Host", f"127.0.0.1:{self.server.server_port}")
+        host = safe_request_host(self.headers.get("Host"), self.server.server_port)
 
         try:
             if path == "/api/health":
@@ -591,6 +840,8 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
                         "app": "openbexi_earth_orbit",
                         "version": APP_VERSION,
                         "release_date": RELEASE_DATE,
+                        "candidate_date": CANDIDATE_DATE,
+                        "publication_state": PUBLICATION_STATE,
                     },
                     head_only=head_only,
                 )
@@ -601,6 +852,11 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
                         "app_version": APP_VERSION,
                         "api_version": APP_VERSION,
                         "release_date": RELEASE_DATE,
+                        "candidate_date": CANDIDATE_DATE,
+                        "publication_state": PUBLICATION_STATE,
+                        "release_channel": RELEASE_METADATA["channel"],
+                        "maturity": RELEASE_METADATA["maturity"],
+                        "safety_class": RELEASE_METADATA["safetyClass"],
                         "repository": REPO_URL,
                         "server": self.server_version,
                     },
@@ -645,7 +901,8 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
             self.send_error(HTTPStatus.NOT_FOUND, "Requested API resource was not found")
             return True
         except OSError as exc:
-            self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, str(exc))
+            self.log_error("API resource error: %s", exc)
+            self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, "Unable to read the requested API resource")
             return True
 
         if path.startswith("/api/"):
@@ -656,16 +913,31 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
     def guess_type(self, path: str) -> str:
         if path.endswith(".glb"):
             return "model/gltf-binary"
+        if path.endswith(".gltf"):
+            return "model/gltf+json"
         if path.endswith(".obj"):
             return "text/plain"
         if path.endswith(".mtl"):
             return "text/plain"
+        if path.endswith((".js", ".mjs")):
+            return "text/javascript"
+        if path.endswith(".wasm"):
+            return "application/wasm"
+        if path.endswith(".ktx2"):
+            return "image/ktx2"
+        if path.endswith(".csv"):
+            return "text/csv"
         return super().guess_type(path) or mimetypes.guess_type(path)[0] or "application/octet-stream"
 
 
-def make_handler(serve_static: bool):
+def make_handler(serve_static: bool, cors_origins: tuple[str, ...] = ()):
     def handler(*args, **kwargs):
-        return OpenBexiHandler(*args, serve_static=serve_static, **kwargs)
+        return OpenBexiHandler(
+            *args,
+            serve_static=serve_static,
+            cors_origins=cors_origins,
+            **kwargs,
+        )
 
     return handler
 
@@ -674,6 +946,21 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Serve OpenBEXI Earth Orbit locally with API endpoints.")
     parser.add_argument("--host", default="127.0.0.1", help="Bind host. Default: 127.0.0.1")
     parser.add_argument("--port", default=8000, type=int, help="Bind port. Default: 8000")
+    parser.add_argument(
+        "--allow-public",
+        action="store_true",
+        help="Acknowledge non-loopback exposure. Required when --host is not loopback.",
+    )
+    parser.add_argument(
+        "--cors-origin",
+        action="append",
+        default=[],
+        metavar="ORIGIN",
+        help=(
+            "Allow an additional exact CORS origin. Loopback HTTP(S) origins are allowed by default. "
+            "Use '*' only for an intentionally public read-only deployment."
+        ),
+    )
     parser.add_argument(
         "--no-static",
         action="store_true",
@@ -695,12 +982,19 @@ def parse_args() -> argparse.Namespace:
         type=float,
         help="Minimum age before scheduled data updates run. Default: 24.",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if not is_loopback_host(args.host) and not args.allow_public:
+        parser.error("non-loopback --host requires --allow-public")
+    return args
 
 
 def main() -> None:
     args = parse_args()
-    server = ThreadingHTTPServer((args.host, args.port), make_handler(serve_static=not args.no_static))
+    cors_origins = tuple(origin.rstrip("/") for origin in args.cors_origin if origin)
+    server = ThreadingHTTPServer(
+        (args.host, args.port),
+        make_handler(serve_static=not args.no_static, cors_origins=cors_origins),
+    )
     scheduler = None
     if args.update_data_on_schedule and not args.no_data_update:
         scheduler = DataUpdateScheduler(interval_hours=args.data_update_interval_hours)

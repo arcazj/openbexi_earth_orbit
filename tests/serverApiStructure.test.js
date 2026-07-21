@@ -8,6 +8,7 @@ function run() {
   const markdownViewer = fs.readFileSync('markdown_viewer.html', 'utf8');
   const swagger = fs.readFileSync('SWAGGER.md', 'utf8');
   const swaggerHtml = fs.readFileSync('swagger.html', 'utf8');
+  const release = JSON.parse(fs.readFileSync('release/version.json', 'utf8'));
 
   [
     '"/api/health"',
@@ -26,8 +27,11 @@ function run() {
 
   assert(serverPy.includes('Access-Control-Allow-Origin'), 'server.py sends CORS headers');
   assert(serverPy.includes('ThreadingHTTPServer'), 'server.py uses a local threaded HTTP server');
-  assert(serverPy.includes('APP_VERSION = "1.7.6"'), 'server.py version matches latest release');
-  assert(serverPy.includes('RELEASE_DATE = "2026-06-15"'), 'server.py release date matches latest release');
+  assert(serverPy.includes('RELEASE_METADATA_PATH = ROOT / "release" / "version.json"'), 'server.py loads authoritative release metadata');
+  assert(serverPy.includes('APP_VERSION = str(RELEASE_METADATA["version"])'), 'server.py derives its version from release metadata');
+  assert(serverPy.includes('PUBLICATION_STATE = str(RELEASE_METADATA["publicationState"])'), 'server.py derives its publication state from release metadata');
+  assert(serverPy.includes('RELEASE_DATE = RELEASE_METADATA.get("releasedAt")'), 'server.py preserves a nullable release date');
+  assert(serverPy.includes('CANDIDATE_DATE = RELEASE_METADATA.get("candidateAt")'), 'server.py derives its candidate date from release metadata');
   assert(serverPy.includes('--update-data-on-schedule'), 'server.py exposes data update schedule opt-in');
   assert(serverPy.includes('--no-data-update'), 'server.py exposes data update disable flag');
   assert(serverPy.includes('--data-update-interval-hours'), 'server.py exposes data update interval flag');
@@ -97,7 +101,7 @@ function run() {
   assert(swagger.includes('/api/display-satellite-models'), 'SWAGGER.md documents display satellite model manifest');
   assert(swaggerHtml.includes('OpenBEXI Earth Orbit API'), 'swagger.html has a standard API title');
   assert(swaggerHtml.includes('class="badge version"'), 'swagger.html displays a version badge');
-  assert(swaggerHtml.includes('1.7.6'), 'swagger.html displays the release version');
+  assert(swaggerHtml.includes(release.version), 'swagger.html displays the release version');
   assert(swaggerHtml.includes('class="badge oas"'), 'swagger.html displays an OAS badge');
   assert(swaggerHtml.includes('Base URL / Schema Source'), 'swagger.html documents base URL/schema context');
   assert(swaggerHtml.includes('<details class="operation get"'), 'swagger.html uses expandable operation details');

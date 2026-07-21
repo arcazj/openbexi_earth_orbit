@@ -1,0 +1,15 @@
+{
+  "0": {
+    "name": "ISS (ZARYA)",
+    "meta": {
+      "norad_id": 25544,
+      "cospar_id": "1998-067A",
+      "type": "platform",
+      "description": "International Space Station"
+    },
+    "orbit": {},
+    "attitude": {},
+    "attitudeCapability": {},
+    "payload": {}
+  }
+}

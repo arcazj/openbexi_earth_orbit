@@ -36,8 +36,8 @@ http://127.0.0.1:8000
 
 | Method | Path | Server Required | Description |
 | --- | --- | --- | --- |
-| `GET` | `/api/health` | Yes | Returns local API health, app name, version, and release date. |
-| `GET` | `/api/version` | Yes | Returns app/API version metadata, release date, repository URL, and server identifier. |
+| `GET` | `/api/health` | Yes | Returns local API health, app name, version, and publication state/date. |
+| `GET` | `/api/version` | Yes | Returns app/API version metadata, publication state/date, repository URL, and server identifier. |
 | `GET` | `/api/tle` | Yes | Returns the active TLE satellite dataset from `json/tle/TLE.json`. |
 | `GET` | `/api/satellites` | Yes | Alias for `/api/tle`. |
 | `GET` | `/api/satellite-metadata` | Yes | Lists available metadata JSON files under `json/satellites/`. |
@@ -63,8 +63,10 @@ Example response:
 {
   "status": "ok",
   "app": "openbexi_earth_orbit",
-  "version": "1.7.6",
-  "release_date": "2026-06-15"
+  "version": "2.0.0",
+  "release_date": null,
+  "candidate_date": "2026-07-19",
+  "publication_state": "candidate"
 }
 ```
 
@@ -79,11 +81,16 @@ Example response:
 
 ```json
 {
-  "app_version": "1.7.6",
-  "api_version": "1.7.6",
-  "release_date": "2026-06-15",
+  "app_version": "2.0.0",
+  "api_version": "2.0.0",
+  "release_date": null,
+  "candidate_date": "2026-07-19",
+  "publication_state": "candidate",
+  "release_channel": "preview",
+  "maturity": "experimental",
+  "safety_class": "non-operational",
   "repository": "https://github.com/arcazj/openbexi_earth_orbit",
-  "server": "OpenBEXIHTTP/1.7.6 Python"
+  "server": "OpenBEXIHTTP/2.0.0 Python"
 }
 ```
 

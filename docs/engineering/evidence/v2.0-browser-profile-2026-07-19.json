@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 1,
+  "releaseVersion": "2.0.0",
+  "publicationState": "candidate",
+  "scientificMaturity": "Experimental",
+  "recordedAt": "2026-07-19",
+  "sourceState": {
+    "gitHead": "c021c9c6cfdefff5635f8330b12dc007b850e598",
+    "workingTreeDirty": true,
+    "packageLockSha256": "2f3c9e282ce563688ca37b19c6449c15856f17397acb8ef498581afb8e5999f2",
+    "catalogSha256": "0983049a0f9a52869b4e71870a6d5d57190c4a81ab1dd9f9c354d9b0455f8347",
+    "catalogMetadataSha256": "a3b6ce52ad6c6d52bc4248aa94ed3d0214a62cca5b1757f8ad55f3545b80c6f7",
+    "catalogFetchedAt": "2026-07-19T23:11:01.162865Z"
+  },
+  "host": {
+    "cpu": "Intel(R) Core(TM) i7-9700 CPU @ 3.00GHz",
+    "physicalCores": 8,
+    "logicalProcessors": 8,
+    "physicalMemoryBytes": 34155577344,
+    "networkProfile": "Loopback server; optional unpkg requests intentionally aborted",
+    "cacheState": "Fresh Playwright context; HTTP and browser cache state not separately measured"
+  },
+  "desktop": {
+    "command": "npm test (desktop journey: tests_browser/conjunction.spec.js, chromium project)",
+    "profile": "chromium",
+    "browser": "Chromium 149.0.7827.55",
+    "platform": "Windows",
+    "renderer": "ANGLE Vulkan SwiftShader Device (Subzero)",
+    "viewport": {
+      "width": 1280,
+      "height": 720,
+      "devicePixelRatio": 1
+    },
+    "catalogObjectCount": 16440,
+    "configuration": {
+      "durationHours": 1,
+      "coarseStepSeconds": 300,
+      "screeningRadiusKm": 100,
+      "refinementToleranceSeconds": 1,
+      "maxResults": 10
+    },
+    "startup": {
+      "tleLoadMs": 19239.1,
+      "firstInteractiveMs": 19608.3
+    },
+    "screening": {
+      "wallJourneyMs": 76688,
+      "monitoredDurationMs": 29727.2,
+      "reportedEngineDurationSeconds": 25.7,
+      "displayedEventCount": 10,
+      "eventsOmittedByLimit": 65,
+      "propagationFailureCount": 1220,
+      "resultStatus": "PARTIAL"
+    },
+    "responsiveness": {
+      "intervalTicks": 22,
+      "animationFrames": 45,
+      "maxIntervalGapMs": 1924,
+      "distinctProgressValues": 15,
+      "assertedCeilingMs": 2500
+    },
+    "approximateHeapBytes": {
+      "beforeScreening": 199000000,
+      "afterScreening": 199000000,
+      "totalHeapBytes": 254000000,
+      "jsHeapSizeLimit": 3760000000
+    },
+    "canvas": {
+      "drawingBufferWidth": 1280,
+      "drawingBufferHeight": 720,
+      "sampleWidth": 384,
+      "sampleHeight": 256,
+      "nonBlankPixels": 73403,
+      "eventColorPixels": 60,
+      "readbackDurationMs": 3.6,
+      "glError": 0
+    },
+    "assertions": {
+      "pageErrors": 0,
+      "unexpectedConsoleErrors": 0,
+      "runtimeDependenciesLocal": true,
+      "nodeModulesRequests": 0,
+      "eventSelectionMovedCamera": true,
+      "playbackAdvancedUtcSeconds": 30,
+      "staleInputInvalidatedPriorResult": true
+    }
+  },
+  "mobile": {
+    "command": "npm test (mobile journey: tests_browser/conjunction.spec.js, mobile-chromium project)",
+    "profile": "Pixel 7 emulation",
+    "viewport": {
+      "width": 412,
+      "height": 839,
+      "devicePixelRatio": 2.625
+    },
+    "catalogFixture": "two-object-colocated-valid-tle",
+    "catalogObjectCount": 2,
+    "eventRows": 1,
+    "canvasEventColorPixels": 102,
+    "panelClientWidth": 356,
+    "panelScrollWidth": 356,
+    "seriousOrCriticalAccessibilityViolations": 0,
+    "scope": "Functional Worker, event-selection, playback, rendering, accessibility, and layout evidence; not a full-catalog mobile performance claim."
+  },
+  "responsiveLayout": {
+    "testedCssWidths": [320, 390, 768],
+    "zoomReflowEquivalentCssWidth": 384,
+    "overflowingControls": 0,
+    "selectedDetailOverlapsControls": false
+  },
+  "staticArtifact": {
+    "fileCount": 111,
+    "totalBytes": 172535090,
+    "assetManifestSha256": "878ccf1cbb97a46c239b71b29b7fb2942934fb86f7ddd7fb49b1378e1ad5114a",
+    "externalRequests": 0,
+    "unexpectedConsoleErrors": 0,
+    "notFoundResponses": 0,
+    "moduleWorkerScreeningPassed": true,
+    "missingCatalogFailedClosedWithoutRemoteFallback": true
+  },
+  "limitations": [
+    "Single-run values are diagnostic evidence, not percentiles.",
+    "The git HEAD does not identify the dirty working-tree source state; promotion evidence must use a clean committed revision.",
+    "performance.memory is Chromium-specific and approximate.",
+    "SwiftShader results are not representative of a hardware GPU.",
+    "The source catalog produced stale-input warnings and partial propagation coverage.",
+    "The initial 2.5-second visible-globe and 4-second interactive targets are not met.",
+    "No 2x-catalog, repeated percentile, hardware-GPU, or GPU-resource-count profile has been completed.",
+    "No operational or independently reviewed scientific-accuracy claim is made."
+  ]
+}

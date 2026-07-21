@@ -4,11 +4,20 @@
     <meta charset="UTF-8">
     <title>Satellite Simulation - HTML Controls</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="openbexi-deployment-mode" content="server-capable">
+    <meta name="openbexi-dependency-policy" content="packaged-first-with-cdn-fallback">
     <link rel="stylesheet" href="css/style.css">
     <script src="./js/dependencyBootstrap.js"></script>
 </head>
 <body>
 <button id="menuToggleBtn" aria-label="Close menu">Close</button>
+<div id="startupFailure" hidden>
+    <div class="empty-state startup-error" role="alert" data-error-code="STARTUP_FAILED">
+        <strong>Application failed to start.</strong>
+        <span>Confirm the local server is running, then retry.</span>
+        <button type="button" data-startup-retry>Retry</button>
+    </div>
+</div>
 <div id="ob_menu"></div>
 <div id="mercatorContainer">
     <div class="mapBackground">
@@ -98,6 +107,8 @@
         refreshSelectedOrbitOcclusion,
         refreshOrbitTrajectoryIfNeeded,
         setupTLESatellites,
+        getActiveCatalogValidationSnapshot,
+        getLastCatalogValidationSnapshot,
         removeAllGeometry,
         isUsableOrbitPosition,
         selectedOrbitNearestPointDistance
@@ -146,6 +157,7 @@
     import { initReentryTimeline } from './js/reentryTimeline.js';
     import {
         createStartupPerformanceTracker,
+        createRoundRobinFrameProcessor,
         processInChunks,
         scheduleDeferredWork
     } from './js/startupPerformance.js';
@@ -170,6 +182,12 @@
         shareStateSummary,
         shareUrlContainsUnsafeLocalData
     } from './js/shareState.js';
+    import { createConjunctionPanel } from './js/conjunction/conjunctionPanel.js';
+    import { createConjunctionVisualization } from './js/conjunction/conjunctionVisualization.js';
+    import { createConjunctionWorkerClient } from './js/conjunction/conjunctionWorkerClient.js';
+    import { createTlePropagationService } from './js/orbit/propagationService.js';
+    import { normalizeNoradId, noradIdFromInternalObjectId } from './js/domain/objectIdentity.js';
+    import { EXPERIMENTAL_CONJUNCTION_SCREENING_ENABLED } from './js/releaseVersion.js';
 
     // UI
     const perfLoggingEnabled = (() => {
@@ -193,10 +211,7 @@
     })();
     startupPerf.mark('module-loaded');
 
-    const versionNumber = "1.7.6";
-    if (versionNumber !== APP_VERSION) {
-        console.warn(`Version mismatch: index ${versionNumber}, server module ${APP_VERSION}`);
-    }
+    const versionNumber = APP_VERSION;
     const versionRepoUrl = "https://github.com/arcazj/openbexi_earth_orbit";
     const versionText = `Version ${versionNumber} - hosted at`;
     document.getElementById('ob_menu').innerHTML = satelliteMenuLoader();
@@ -257,6 +272,7 @@
         'satelliteSelectionContent'
     ]);
     const DEFAULT_COLLAPSED_ACCORDION_SECTIONS = new Set([
+        'conjunctionContent',
         'timelineContent',
         'shareContent',
         'helpContent'
@@ -462,6 +478,231 @@
     let reentryTimelineInitializing = false;
     let controlsContainerElement, menuToggleBtnElement, versionDisplayElement;
     let labelXecrDiv, labelYecrDiv, labelZecrDiv, labelNorthPoleDiv, labelEquatorLineDiv, labelGreenwichMeridianDiv;
+    let conjunctionPanel = null;
+    let conjunctionLayer = null;
+    let conjunctionWorkerClient = null;
+    let conjunctionAbortController = null;
+    let conjunctionPropagationService = null;
+    let activeConjunctionPrimary = null;
+    let activeConjunctionSecondary = null;
+    let selectedConjunctionEvent = null;
+    let conjunctionCatalogMetadata = null;
+
+    function satelliteScreeningRecord(satData) {
+        if (!satData) return null;
+        if (satData.catalogObject) return satData.catalogObject;
+        return {
+            object_id: satData.object_id,
+            satellite_name: satData.satellite_name,
+            name: satData.satellite_name,
+            norad_id: satData.norad_id?.toString() || null,
+            international_designator: satData.international_designator || null,
+            object_type: satData.object_type || 'UNKNOWN',
+            orbit_class: satData.orbit_class || satData.orbitType || 'UNKNOWN',
+            lifecycle_status: satData.lifecycle_status || 'UNKNOWN',
+            launch_date: satData.launch_date || null,
+            tle_line1: satData.tle_line1,
+            tle_line2: satData.tle_line2,
+            element_set: satData.element_set,
+            provenance: satData.provenance,
+            perigee_km: satData.perigee_km,
+            apogee_km: satData.apogee_km,
+            quality_flags: satData.quality_flags || []
+        };
+    }
+
+    function satelliteForConjunctionObject(objectId) {
+        const noradId = noradIdFromInternalObjectId(objectId);
+        if (!noradId) return null;
+        return satellites.find(sat => {
+            try {
+                return normalizeNoradId(sat?.norad_id) === noradId;
+            } catch {
+                return false;
+            }
+        }) || null;
+    }
+
+    function conjunctionTrajectory(record, tca, spanSeconds = 300, stepSeconds = 30) {
+        if (!record || !conjunctionPropagationService || !Number.isFinite(tca?.getTime?.())) return [];
+        const prepared = conjunctionPropagationService.prepareObject(record);
+        if (!prepared.ok) return [];
+        const samples = [];
+        for (let offset = -spanSeconds; offset <= spanSeconds; offset += stepSeconds) {
+            const state = conjunctionPropagationService.propagate(
+                prepared.value,
+                new Date(tca.getTime() + offset * 1000)
+            );
+            if (state.ok) samples.push(state.value);
+        }
+        return samples;
+    }
+
+    function setConjunctionSimulationTime(date) {
+        if (!Number.isFinite(date?.getTime?.())) return;
+        simParams.timeWarp = 0;
+        simMillis = date.getTime();
+        SIM_DATE.setTime(simMillis);
+        simParams.simDate = SIM_DATE;
+        updateTimeWarpControls();
+    }
+
+    function showConjunctionEvent(event) {
+        selectedConjunctionEvent = event || null;
+        simParams.conjunctionEventId = event?.event_id || event?.eventId || '';
+        simParams.conjunctionRequestId = event?.request_id || event?.requestId || '';
+        refreshShareControls();
+        if (!conjunctionLayer) return;
+        if (!event) {
+            activeConjunctionPrimary = null;
+            activeConjunctionSecondary = null;
+            conjunctionLayer.clear();
+            return;
+        }
+        const tca = new Date(event.tca);
+        const primarySatellite = satelliteForConjunctionObject(event.primary_object_id) || currentSelectedSatellite;
+        const secondarySatellite = satelliteForConjunctionObject(event.secondary_object_id);
+        const primaryRecord = satelliteScreeningRecord(primarySatellite);
+        const secondaryRecord = satelliteScreeningRecord(secondarySatellite);
+        const preparedPrimary = conjunctionPropagationService?.prepareObject(primaryRecord);
+        const preparedSecondary = conjunctionPropagationService?.prepareObject(secondaryRecord);
+        activeConjunctionPrimary = preparedPrimary?.ok ? preparedPrimary.value : primaryRecord;
+        activeConjunctionSecondary = preparedSecondary?.ok ? preparedSecondary.value : secondaryRecord;
+        const shown = conjunctionLayer.showEvent(event, {
+            primary: conjunctionTrajectory(activeConjunctionPrimary, tca),
+            secondary: conjunctionTrajectory(activeConjunctionSecondary, tca)
+        });
+        if (!shown) return;
+        disableSelectedModelTracking();
+        setConjunctionSimulationTime(tca);
+        const focusObject = conjunctionLayer.focusObject();
+        if (focusObject && simParams.view3D) {
+            const cameraDurationMs = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 0 : 1000;
+            flyCameraToObject(focusObject, cameraDurationMs, {
+                distanceMultiplier: 8,
+                minContextDistance: EARTH_SCENE_RADIUS * 0.15
+            });
+        }
+    }
+
+    function updateConjunctionPlayback(event, date) {
+        if (!event || !activeConjunctionPrimary || !activeConjunctionSecondary || !conjunctionPropagationService) return;
+        const primaryState = conjunctionPropagationService.propagate(activeConjunctionPrimary, date);
+        const secondaryState = conjunctionPropagationService.propagate(activeConjunctionSecondary, date);
+        if (primaryState.ok && secondaryState.ok) {
+            setConjunctionSimulationTime(date);
+            conjunctionLayer?.updateStates(primaryState.value, secondaryState.value);
+        }
+    }
+
+    async function loadConjunctionCatalogMetadata() {
+        try {
+            const response = await fetch('json/tle/TLE.meta.json', { cache: 'no-store' });
+            if (!response.ok) throw new Error(`metadata request returned ${response.status}`);
+            const metadata = await response.json();
+            const snapshot = getActiveCatalogValidationSnapshot() || getLastCatalogValidationSnapshot();
+            const provenance = snapshot?.provenance || {};
+            const quality = snapshot?.quality || {};
+            const retrievedAt = provenance.retrieved_at || metadata.fetched_at || metadata.last_success_at || null;
+            const retrievedTime = retrievedAt ? Date.parse(retrievedAt) : NaN;
+            const existingCount = Number(metadata.counts?.existing);
+            const updatedCount = Number(metadata.counts?.updated);
+            const retainedCount = Number.isFinite(Number(metadata.counts?.retained))
+                ? Number(metadata.counts.retained)
+                : (Number.isFinite(existingCount) && Number.isFinite(updatedCount)
+                    ? Math.max(0, existingCount - updatedCount)
+                    : null);
+            return {
+                dataset_id: provenance.dataset_id || metadata.dataset_id || `celestrak-gp:${retrievedAt || 'unknown'}`,
+                dataset_hash: provenance.dataset_hash || metadata.dataset_hash || null,
+                retrieved_at: retrievedAt,
+                ageDays: Number.isFinite(retrievedTime) ? Math.max(0, (Date.now() - retrievedTime) / 86_400_000) : null,
+                provider: provenance.provider || 'CelesTrak',
+                source_id: provenance.source_id || 'celestrak-gp-catalog',
+                source_uri: provenance.source_uri || null,
+                license_id: provenance.license_id || null,
+                rejectedCount: Number(quality.quarantined_records ?? metadata.counts?.rejected) || 0,
+                retainedCount,
+                source_status: String(snapshot?.status || provenance.source_status || metadata.last_status || 'unknown').toUpperCase(),
+                partial_update: snapshot?.status === 'PARTIAL' || provenance.partial_update === true || metadata.mode === 'incremental',
+                quality,
+                source_urls: Array.isArray(metadata.source_urls) ? [...metadata.source_urls] : []
+            };
+        } catch (error) {
+            console.warn('[conjunction] Catalog metadata is unavailable.', error);
+            const snapshot = getActiveCatalogValidationSnapshot() || getLastCatalogValidationSnapshot();
+            const provenance = snapshot?.provenance || {};
+            const quality = snapshot?.quality || {};
+            const retrievedAt = provenance.retrieved_at || null;
+            const retrievedTime = retrievedAt ? Date.parse(retrievedAt) : NaN;
+            return {
+                dataset_id: provenance.dataset_id || 'dataset:loaded-tle-catalog',
+                dataset_hash: provenance.dataset_hash || null,
+                retrieved_at: retrievedAt,
+                ageDays: Number.isFinite(retrievedTime) ? Math.max(0, (Date.now() - retrievedTime) / 86_400_000) : null,
+                provider: provenance.provider || 'Unknown source',
+                source_id: provenance.source_id || 'loaded-tle-catalog',
+                source_uri: provenance.source_uri || null,
+                license_id: provenance.license_id || null,
+                rejectedCount: Number(quality.quarantined_records) || 0,
+                retainedCount: null,
+                source_status: String(snapshot?.status || provenance.source_status || 'UNKNOWN').toUpperCase(),
+                partial_update: snapshot?.status === 'PARTIAL' || provenance.partial_update !== false,
+                quality,
+                source_urls: []
+            };
+        }
+    }
+
+    async function syncConjunctionCatalog() {
+        if (!conjunctionPanel) return;
+        const catalog = satellites.map(satelliteScreeningRecord).filter(record =>
+            (record?.tle_line1 && record?.tle_line2) ||
+            (record?.element_set?.line1 && record?.element_set?.line2)
+        );
+        conjunctionCatalogMetadata = await loadConjunctionCatalogMetadata();
+        conjunctionCatalogMetadata.staleCount = catalog.filter(record =>
+            Array.isArray(record.quality_flags) && record.quality_flags.includes('TLE_STALE')
+        ).length;
+        conjunctionPanel.setCatalog(catalog, conjunctionCatalogMetadata);
+        conjunctionPanel.setPrimary(satelliteScreeningRecord(currentSelectedSatellite));
+        conjunctionPanel.setStartTime(SIM_DATE);
+    }
+
+    function initializeConjunctionWorkspace() {
+        if (!EXPERIMENTAL_CONJUNCTION_SCREENING_ENABLED) {
+            document.getElementById('conjunctionAccordionSection')?.setAttribute('hidden', '');
+            console.info('[conjunction]', { type: 'feature-disabled', feature: 'experimental_conjunction_screening' });
+            return;
+        }
+        conjunctionPropagationService = createTlePropagationService({ satelliteLib: satellite });
+        conjunctionWorkerClient = createConjunctionWorkerClient();
+        conjunctionLayer = createConjunctionVisualization(scene);
+        conjunctionPanel = createConjunctionPanel({
+            startScreening: (request, { onProgress }) => {
+                conjunctionAbortController?.abort();
+                const controller = new AbortController();
+                conjunctionAbortController = controller;
+                return conjunctionWorkerClient.screen(request, {
+                    signal: controller.signal,
+                    onProgress
+                }).finally(() => {
+                    if (conjunctionAbortController === controller) conjunctionAbortController = null;
+                });
+            },
+            cancelScreening: () => {
+                conjunctionAbortController?.abort();
+            },
+            onEventSelected: showConjunctionEvent,
+            onPlaybackTimeChanged: updateConjunctionPlayback,
+            onDiagnostic: diagnostic => console.info('[conjunction]', diagnostic)
+        });
+        window.addEventListener('beforeunload', () => {
+            conjunctionPanel?.dispose();
+            conjunctionWorkerClient?.terminate();
+            conjunctionLayer?.dispose();
+        }, { once: true });
+    }
 
     function normalizeOrbitSelection(selection) {
         const values = Array.isArray(selection) ? selection : [selection];
@@ -908,6 +1149,7 @@
     function updateSelectedSatelliteSummary(satData = currentSelectedSatellite) {
         updateSelectedSatelliteControlsVisibility(satData);
         updateSelectedSatelliteDetailPanel(satData);
+        conjunctionPanel?.setPrimary(satelliteScreeningRecord(satData));
         if (!selectedSatelliteSummary) return;
         if (!satData) {
             selectedSatelliteSummary.textContent = '';
@@ -1418,6 +1660,15 @@
     }
 
     async function checkAndLoadServerTleData() {
+        if (!serverConnectionState.baseUrl) {
+            setServerConnectionState({
+                state: 'disconnected',
+                connected: false,
+                dataSource: 'packaged static catalog',
+                error: null
+            });
+            return null;
+        }
         setServerConnectionState({
             state: 'checking',
             connected: false,
@@ -1468,6 +1719,15 @@
     }
 
     async function checkServerConnectionStatusOnly({ dataSource = serverConnectionState.dataSource || 'local files' } = {}) {
+        if (!serverConnectionState.baseUrl) {
+            setServerConnectionState({
+                state: 'disconnected',
+                connected: false,
+                dataSource: 'packaged static catalog',
+                error: null
+            });
+            return null;
+        }
         setServerConnectionState({
             state: 'checking',
             connected: false,
@@ -1506,8 +1766,8 @@
     }
 
     function refreshShareControls() {
-        const state = buildShareState(simParams, currentSelectedSatellite);
-        const shareUrl = buildShareUrl(window.location.href, simParams, currentSelectedSatellite);
+        const state = buildShareState(simParams, currentSelectedSatellite, selectedConjunctionEvent);
+        const shareUrl = buildShareUrl(window.location.href, simParams, currentSelectedSatellite, selectedConjunctionEvent);
         if (shareStateSummaryElement) shareStateSummaryElement.textContent = shareStateSummary(state);
         if (shareLinkOutput) shareLinkOutput.value = shareUrl;
         if (nativeShareButton) {
@@ -1704,6 +1964,8 @@
         simParams.yawDeg = Number.isFinite(pendingShareState.yawDeg) ? pendingShareState.yawDeg : 0;
         simParams.pitchDeg = Number.isFinite(pendingShareState.pitchDeg) ? pendingShareState.pitchDeg : 0;
         simParams.rollDeg = Number.isFinite(pendingShareState.rollDeg) ? pendingShareState.rollDeg : 0;
+        simParams.conjunctionEventId = pendingShareState.conjunctionEventId || '';
+        simParams.conjunctionRequestId = pendingShareState.conjunctionRequestId || '';
         if (pendingShareState.simDate) {
             simMillis = pendingShareState.simDate.getTime();
             SIM_DATE.setTime(simMillis);
@@ -2745,6 +3007,7 @@
                 }
             });
             updateSatelliteList();
+            await syncConjunctionCatalog();
             if (selectedNorad) {
                 const restored = satellites.find(s => s.norad_id?.toString() === selectedNorad);
                 if (restored) selectSatelliteViaShortcut(restored);
@@ -3468,6 +3731,10 @@
     }
 
     const clock = createAnimationTimer();
+    const visibleSatelliteFrameProcessor = createRoundRobinFrameProcessor({
+        budgetMs: 6,
+        maxItemsPerRun: 512
+    });
     let cameraMove = null;
 
     function enforceSceneOrigin() {
@@ -3909,6 +4176,14 @@
 
     function animateCameraTo(endCamPos, endTarget, millis = 1500) {
         if (!camera || !controls || !endCamPos || !endTarget) return;
+        if (!(millis > 0)) {
+            cameraMove = null;
+            camera.position.copy(endCamPos);
+            controls.target.copy(endTarget);
+            controls.enabled = true;
+            controls.update();
+            return;
+        }
         const startCamPos = camera.position.clone();
         const startTarget = controls.target.clone();
 
@@ -4403,17 +4678,17 @@
 
         /* Visible TLE sprites */
         if (!simParams.solarSystemOverview) {
-            for (const s of satellites) {
-                if (!s.mesh || !s.mesh.visible || !s.satrec) continue;
+            visibleSatelliteFrameProcessor.run(satellites, (s) => {
+                if (!s.mesh || !s.mesh.visible || !s.satrec) return;
                 const pv = satellite.propagate(s.satrec, SIM_DATE);
                 if (!isUsableOrbitPosition(pv?.position)) {
                     s.propagationInvalid = true;
                     s.mesh.visible = false;
-                    continue;
+                    return;
                 }
                 s.propagationInvalid = false;
                 eciToSceneVector(s.mesh.position, pv.position);
-            }
+            });
         }
 
         /* Detailed model (selected) */
@@ -4587,6 +4862,7 @@
             initMercatorView();
             initFootprintRenderer(scene, earthMesh, mercatorCtx);
             setupHTMLControls();
+            initializeConjunctionWorkspace();
             setSatelliteLoadingState('Loading satellites...');
             setTimelineButtonState('launchTimelineToggle', 'Loading satellite data...', true);
             setTimelineButtonState('reentryTimelineToggle', 'Loading satellite data...', true);
@@ -4610,6 +4886,7 @@
             });
             startupPerf.mark('satellite-data-ready', { count: satellites.length });
             updateSatelliteList();
+            await syncConjunctionCatalog();
             applyPendingShareStateAfterSatelliteLoad();
             startupPerf.markOnce('first-interactive-ui', { count: satellites.length });
             startupPerf.logSummary();
@@ -4627,16 +4904,22 @@
             startAnimationLoopOnce();
         } catch (e) {
             console.error("Critical error:", e);
+            window.openbexiShowStartupError?.(e);
         }
     }
 
     start();
 </script>
 <script>
-    window.openbexiBootFromTemplate({
+    const startupFailure = document.getElementById('startupFailure');
+    startupFailure.querySelector('[data-startup-retry]').addEventListener('click', () => window.location.reload());
+    if (typeof window.openbexiBootFromTemplate !== 'function') {
+        startupFailure.hidden = false;
+        console.error('OpenBEXI dependency bootstrap did not load.');
+    } else window.openbexiBootFromTemplate({
         templateId: 'openbexi-main-module',
         moduleLabel: 'index.inline.js',
-        errorTargetId: 'ob_menu',
+        errorTargetId: 'startupFailure',
         timeoutMs: 2500,
         three: {
             cdn: {
@@ -4644,8 +4927,8 @@
                 addons: 'https://unpkg.com/three@0.184.0/examples/jsm/'
             },
             local: {
-                core: './node_modules/three/build/three.module.js',
-                addons: './node_modules/three/examples/jsm/'
+                core: './vendor/three/0.184.0/build/three.module.js',
+                addons: './vendor/three/0.184.0/examples/jsm/'
             },
             probePaths: [
                 'controls/OrbitControls.js'
@@ -4653,7 +4936,7 @@
         },
         satellite: {
             cdn: 'https://unpkg.com/satellite.js@6.0.2/dist/satellite.min.js',
-            local: './node_modules/satellite.js/dist/satellite.min.js'
+            local: './vendor/satellite.js/6.0.2/satellite.min.js'
         }
     });
 </script>

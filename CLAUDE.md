@@ -1,44 +1,54 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides repository guidance for Claude Code and other coding agents working on OpenBEXI Earth Orbit.
 
 ## Commands
 
-**Install dependencies:**
+Install the locked dependency graph:
+
 ```powershell
-npm install
+npm ci
 ```
 
-**Run tests:**
+Run the complete policy/build checks and test suites:
+
 ```powershell
+npm run check
 npm test
 ```
 
-**JavaScript syntax check (all browser modules):**
+Run focused suites when iterating:
+
 ```powershell
-Get-ChildItem -File .\js -Filter *.js | ForEach-Object { node --check $_.FullName }
+npm run test:unit
+npm run test:python
+npm run test:browser
 ```
 
-**Python syntax checks:**
+Supply-chain and static-artifact commands:
+
 ```powershell
-py -m py_compile server.py
-py -m py_compile tools/satellite_data_tools.py
+npm run audit:dependencies
+npm run sbom
+npm run build
+py -m http.server 8001 --bind 127.0.0.1 --directory dist
 ```
 
-**Serve locally (no API):**
+Serve the source application with the optional Python API:
+
+```powershell
+npm run serve
+# http://127.0.0.1:8000/index.html
+```
+
+For static source hosting without API routes:
+
 ```powershell
 py -m http.server 8000 --bind 127.0.0.1
-# open http://127.0.0.1:8000/index.html
 ```
 
-**Optional Python API server:**
-```powershell
-py server.py --host 127.0.0.1 --port 8000
-# with scheduled data refresh:
-py server.py --host 127.0.0.1 --port 8000 --update-data-on-schedule
-```
+Data maintenance:
 
-**Data maintenance (satellite TLE + decayed DB):**
 ```powershell
 py tools/satellite_data_tools.py export-tle --dry-run
 py tools/satellite_data_tools.py export-tle --all
@@ -46,73 +56,91 @@ py tools/satellite_data_tools.py build-decayed-db --all
 py tools/satellite_data_tools.py build-decayed-db --refresh-satcat --force
 ```
 
-**Startup performance diagnostics:**
-Open `http://127.0.0.1:8000/index.html?perf=1`, then in the browser console:
+For startup performance diagnostics, open `http://127.0.0.1:8000/index.html?perf=1`, then run:
+
 ```javascript
 window.openbexiStartupPerformance.summary()
 ```
 
 ## Architecture
 
-### Scene coordinate system
+### Runtime and deployment
 
-All 3D positions use an Earth-centered inertial (ECI) frame with Three.js Y/Z axes swapped:
+The source application is plain HTML, CSS, and browser ES modules. There is no JavaScript bundler, but `npm run build` creates the curated deterministic `dist/` artifact defined by `release/static-artifact.json`.
+
+`js/dependencyBootstrap.js` prefers exact integrity-checked Three.js and satellite.js files under `vendor/`. Source/server mode can use exact-version CDN URLs only as an explicit fallback. The generated static artifact is packaged-only, same-origin-only, and must not execute remote runtime code. Never use `file://`; modules, Workers, JSON, textures, and models require HTTP.
+
+### Coordinate and scientific boundaries
+
+Visualization positions use an Earth-centered frame with Three.js Y/Z axes swapped:
+
+```text
+scene = (orbital.x, orbital.z, orbital.y) * KM_TO_SCENE_UNITS
 ```
-scene = (ECI.x, ECI.z, ECI.y) × KM_TO_SCENE_UNITS
-```
-Earth mesh stays at `(0, 0, 0)` always. ECF geometry is rotated about scene Y by `-GMST`. All scale and frame math is centralized in `js/sceneFrame.js`; use it for any coordinate/orientation/framing work so browser modules and tests stay consistent.
 
-Shared scale constants (e.g. `KM_TO_SCENE_UNITS`, `EARTH_SCENE_RADIUS`) live in `js/SatelliteConstantLoader.js`.
+Earth remains at `(0, 0, 0)`. ECF visualization geometry is rotated about scene Y by `-GMST`. Reusable visualization coordinate, orientation, and framing math belongs in `js/sceneFrame.js`; shared scale constants belong in `js/SatelliteConstantLoader.js`.
 
-### Key JS modules
+Conjunction calculations do not use scene coordinates. They propagate both objects at the same UTC instant and compare raw satellite.js/SGP4 TEME position and velocity states in kilometers and kilometers per second. Keep frame, time, units, provenance, element age, and algorithm version explicit. Never infer physical encounters from orbit lines, sprites, camera state, or scene scale.
+
+Version 2.0 conjunction screening is `Experimental` and non-operational. It reports geometric TCA, miss distance, and relative velocity. Collision probability is unavailable without validated covariance and hard-body-radius inputs. Do not present the workflow as operational collision prediction, maneuver advice, or complete catalog coverage.
+
+### Key browser modules
 
 | Module | Role |
 |---|---|
-| `js/sceneFrame.js` | Coordinate transforms, GMST, WGS84, Web Mercator — canonical math |
-| `js/SatelliteConstantLoader.js` | Shared scale/physics constants |
-| `js/satelliteTLELoader.js` | TLE loading (server or local JSON fallback) |
-| `js/SatelliteMenuLoader.js` | Left-menu accordion, satellite selector, filter UI |
-| `js/satelliteModelResolver.js` | Satellite name → local OBJ/MTL or GLB mapping |
-| `js/satelliteModelLoader.js` | Three.js model loading, centering, orientation, lighting |
-| `js/mercatorMapLoader.js` | 2D Mercator canvas, ground tracks, footprints, day/night |
-| `js/solarSystemOverviewLoader.js` | Integrated Solar System mode (planets, orbits, labels) |
-| `js/solarSystemEphemeris.js` | JPL ephemeris interpolation from `data/ephemeris/` |
-| `js/serverConnection.js` | Optional Python API server health check and data routing |
+| `js/dependencyBootstrap.js` | Local-first dependency resolution, module-graph completion, and retryable startup failure state |
+| `js/domain/contracts.js` | Versioned orbital and conjunction data contracts |
+| `js/domain/catalogValidation.js` | Strict catalog validation, quarantine, provenance, and quality summary |
+| `js/domain/objectIdentity.js` | Stable object identity and identifier evidence |
+| `js/domain/orbitalPolicy.js` | Time, frame, maturity, and screening policy metadata |
+| `js/orbit/propagationService.js` | Pure satellite.js/SGP4 TEME propagation service |
+| `js/conjunction/conjunctionScreening.js` | Broad-phase admission and bounded TCA refinement |
+| `js/conjunction/conjunctionWorker*.js` | Worker execution, protocol, progress, cancellation, and supersession |
+| `js/conjunction/conjunctionPanel.js` | Close Approaches controls, progress, sorting/filtering, details, and export |
+| `js/conjunction/conjunctionVisualization.js` | Selected-event geometry and synchronized playback around TCA |
+| `js/sceneFrame.js` | Canonical visualization transforms, GMST, WGS84, Web Mercator, and framing math |
+| `js/satelliteTLELoader.js` | Static-first catalog loading with optional validated server refresh |
+| `js/SatelliteMenuLoader.js` | Left-menu accordion, selector, filters, and workflow controls |
+| `js/satelliteModelResolver.js` | Satellite name to local OBJ/MTL or GLB mapping |
+| `js/satelliteModelLoader.js` | Three.js model loading, centering, orientation, and lighting |
+| `js/mercatorMapLoader.js` | 2D Mercator view, ground tracks, footprints, and day/night |
+| `js/solarSystemOverviewLoader.js` | Integrated Solar System view |
+| `js/solarSystemEphemeris.js` | Local JPL-derived ephemeris interpolation |
+| `js/serverConnection.js` | Optional Python API health check and data routing |
 | `js/ganttTimelineLoader.js` / `js/reentryTimeline.js` | Launch and re-entry timelines |
-| `js/startupPerformance.js` | Startup timing marks and deferred/chunked-work scheduler |
-| `js/decayPredictor.js` | Decay estimates for active satellites |
-| `js/shareState.js` | URL share serialization/restore |
+| `js/startupPerformance.js` | Startup timing and deferred/chunked-work scheduling |
+| `js/decayPredictor.js` | Bounded decay estimates for likely candidates |
+| `js/shareState.js` | URL share-state serialization and restore |
 
-### Entry points
+### Entry points and services
 
-- `index.html` — main app; starts animation loop before TLE sprite pass completes for fast first render
-- `display_satellite.html` — isolated OBJ/MTL + GLB model viewer for asset validation
-- `SolarSystemOverview.html` — standalone Solar System debug page
-- `Earth_Stars_MilkyWay.html` — standalone star/Milky Way viewer
-- `markdown_viewer.html` — static Markdown renderer used by Help links
-- `swagger.html` — local Swagger/OpenAPI static page (no server needed)
-- `server.py` — optional Python stdlib API server; also importable by `tools/satellite_data_tools.py`
+- `index.html`: main application and integration point.
+- `display_satellite.html`: isolated manifest-backed OBJ/MTL and GLB model viewer.
+- `SolarSystemOverview.html`: standalone Solar System diagnostic page.
+- `Earth_Stars_MilkyWay.html`: standalone star and Milky Way viewer.
+- `markdown_viewer.html`: static Markdown renderer used by Help.
+- `swagger.html`: local static Swagger/OpenAPI page.
+- `server.py`: optional Python standard-library static/API server with explicit runtime allowlists.
 
-### Runtime dependencies
+### Data and release sources
 
-- **Three.js `0.184.0`** via import map in `index.html`. Keep `three` and `three/addons/` on the exact same version — mismatches break addon loading silently.
-- **satellite.js `6.0.2`** via CDN `<script>`. Returns TEME-like coordinates; the app treats them as ECI-like for visualization.
-- No bundler; all JS is plain ES modules loaded directly by the browser.
-- Never use `file://` — ES modules, JSON, and binary assets require HTTP.
+- `release/version.json`: authoritative product version, channel, publication state, maturity, and safety class.
+- `release/feature-flags.json`: auditable feature flags.
+- `release/static-artifact.json`: static publication allowlist and rewrite contract.
+- `json/tle/TLE.json` and `json/tle/TLE.meta.json`: packaged catalog and retrieval/quality metadata.
+- `json/satellites/*.json`: satellite metadata and model configuration.
+- `json/decayed/decayed.json`: confirmed decayed-object data.
+- `validation/v2.0.0/`: scientific fixture manifest and checksums.
+- `data/ephemeris/solar_system_jpl_horizons_2020_2035_6h.json`: local JPL-derived visualization ephemeris.
+- `vendor/`: exact browser dependencies, integrity manifests, and license files.
+- `obj/`: local GLB and OBJ/MTL model assets.
 
-### Data files
+## Development Rules
 
-- `json/tle/TLE.json` — primary TLE dataset (source of truth for satellite list)
-- `json/satellites/*.json` — satellite metadata and model configuration
-- `json/decayed/decayed.json` — confirmed decayed satellite database
-- `json/satcat.csv` — CelesTrak SATCAT source used by `build-decayed-db`
-- `data/ephemeris/solar_system_jpl_horizons_2020_2035_6h.json` — local JPL-derived ephemeris (2020–2035, 6 h cadence)
-- `obj/` — local GLB and OBJ/MTL satellite models
-
-## Development rules
-
-- Update the visible version tag in `index.html` to match the latest release in `PROMPT_History.md` for every release.
-- `PROMPT_Instructions.md` contains only the general execution prompt; all release history goes in `PROMPT_History.md`.
-- Add reusable coordinate/scale/orientation/framing math to `js/sceneFrame.js` rather than inline in modules.
-- Keep `Test_and_Integration.md` current whenever features, controls, or verification procedures change. It is the authoritative acceptance checklist — all items must pass before a release is complete.
-- `npm test` auto-discovers every `tests/*.test.js` file. Run it and the JS syntax check after any JS change.
+- Change release identity in `release/version.json`, run `npm run version:sync`, and verify with `npm run check:version`. `PROMPT_History.md` is historical context, not a runtime version source.
+- Treat `docs/engineering/RELEASE_CHECKLIST.md`, package scripts, and retained release evidence as the current v2.0 gate. `Test_and_Integration.md` preserves the historical regression record through Version 1.7.6.
+- Keep the accepted release boundary: v2.0 is a local preview candidate with open external and human gates. Do not begin v2.1 without explicit approval.
+- Add or update deterministic tests for every behavioral change. `npm run test:unit` auto-discovers `tests/*.test.js`; Python and browser suites run separately or through `npm test`.
+- Browser startup or rendering changes require a nonblank-canvas check plus page-error, console-error, request-failure, and unintended-external-request inspection.
+- Keep dependency locks, vendored files, integrity metadata, license records, SBOM, and delivery documentation synchronized.
+- Preserve unrelated worktree changes and do not delete user files merely because they are generated or untracked.

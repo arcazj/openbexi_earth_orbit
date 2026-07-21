@@ -1,5 +1,6 @@
 import assert from 'assert';
 import {
+  APP_VERSION,
   apiEndpoint,
   checkServerConnection,
   checkServerConnectionWithFallback,
@@ -32,10 +33,20 @@ async function run() {
   assert.strictEqual(
     resolveApiBaseUrl({
       windowObj: { location: { search: '', protocol: 'http:', hostname: '127.0.0.1', origin: 'http://127.0.0.1:8000' } },
-      storage: null
+      storage: null,
+      documentObj: null
     }),
     'http://127.0.0.1:8000',
     'loopback static hosting checks same-origin API first'
+  );
+  assert.strictEqual(
+    resolveApiBaseUrl({
+      windowObj: { location: { search: '', protocol: 'http:', hostname: '127.0.0.1', origin: 'http://127.0.0.1:8001' } },
+      storage: null,
+      documentObj: { querySelector: () => ({ content: 'static' }) }
+    }),
+    '',
+    'curated static deployment does not probe nonexistent same-origin API routes'
   );
   assert.strictEqual(
     resolveServerDataUrl('json/tle/TLE.json', 'http://127.0.0.1:8000'),
@@ -61,12 +72,12 @@ async function run() {
     baseUrl: 'http://127.0.0.1:8000',
     fetchImpl: async (url) => {
       if (url.endsWith('/api/health')) return response(true, { status: 'ok' });
-      if (url.endsWith('/api/version')) return response(true, { api_version: '1.7.6' });
+      if (url.endsWith('/api/version')) return response(true, { api_version: APP_VERSION });
       return response(false, {}, 404);
     }
   });
   assert.strictEqual(connected.state, 'connected', 'health ok marks server connected');
-  assert.strictEqual(connected.version.api_version, '1.7.6', 'version payload is captured');
+  assert.strictEqual(connected.version.api_version, APP_VERSION, 'version payload is captured');
 
   const disconnected = await checkServerConnection({
     baseUrl: 'http://127.0.0.1:8000',
@@ -80,7 +91,7 @@ async function run() {
     fetchImpl: async (url) => {
       if (url.startsWith('http://localhost:63342')) throw new Error('static host has no API');
       if (url.endsWith('/api/health')) return response(true, { status: 'ok' });
-      if (url.endsWith('/api/version')) return response(true, { api_version: '1.7.6' });
+      if (url.endsWith('/api/version')) return response(true, { api_version: APP_VERSION });
       return response(false, {}, 404);
     }
   });

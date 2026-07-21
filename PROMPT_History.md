@@ -1,5 +1,61 @@
 # Prompt History
 
+## Release Date: 2026-07-20  Version 2.0.0 Preview Candidate - Startup Reliability Follow-up
+
+Stabilize the Version `2.0.0` preview startup path after a reported black screen at `http://127.0.0.1:8000/index.html`.
+
+Observed behavior:
+
+1. The page rendered in Firefox and Chrome but initially showed a black screen in Microsoft Edge.
+2. Clearing the Edge browser cache restored the application, indicating stale browser state rather than a general Edge incompatibility.
+3. A dependency or ES-module load failure could leave the page black without a useful recovery action.
+
+Requirements:
+
+1. Prefer the integrity-checked local Three.js `0.184.0` and satellite.js `6.0.2` files under `vendor/` during source/server startup.
+2. Keep the exact-version CDN paths available only as an explicit source-mode fallback. The curated static artifact must remain packaged-only and must not execute remote runtime code.
+3. Wait for the injected ES-module graph to finish loading before treating bootstrap as complete.
+4. Route synchronous and asynchronous startup failures into one visible, accessible error state with a stable diagnostic code and a `Retry` action that reloads the complete document.
+5. Preserve the existing application UI and behavior when startup succeeds.
+6. Add browser coverage proving a normal startup makes zero CDN requests, an injected module failure shows the retry state, and retry restores a nonblank WebGL canvas.
+7. Update current release, deployment, verification, and prompt-history documentation without rewriting historical release requirements.
+
+Acceptance Criteria:
+
+- The live source page renders a visible globe with vendored dependencies and no routine CDN requests.
+- A forced module-graph failure produces an accessible error rather than a silent black screen.
+- The `Retry` action restores the application and a nonblank canvas after the failure is removed.
+- The generated static artifact remains same-origin-only and passes its integrity checks.
+- The unit, Python, and applicable browser suites pass.
+- Microsoft Edge is manually confirmed after clearing its stale cache; the automated v2.0 browser gate remains the pinned Playwright Chromium profile.
+
+## Release Date: 2026-07-19  Version 2.0.0 Preview Candidate
+
+Implement the accepted roadmap as an incremental release train beginning with Version `2.0.0`. Complete only the v2.0 gate, then stop before v2.1 pending explicit human approval. The complete execution prompt is preserved in `PROMPT_IMPLEMENT_ROADMAP_V2.md`.
+
+Version 2.0 scope:
+
+1. Establish reproducible installation, authoritative version metadata, continuous checks, release evidence, feature flags, dependency integrity, SBOM generation, a curated static artifact, and rollback guidance.
+2. Add schema-validated orbital domain contracts with explicit units, timestamps, frames, provenance, maturity, object identity, and catalog-quality reporting.
+3. Add a pure satellite.js/SGP4 propagation service that is independent from rendering and returns structured state vectors or structured errors.
+4. Add cancellable selected-object versus catalog close-approach screening in a module Web Worker, using synchronized physical-time states, a conservative broad phase, bounded TCA refinement, progress, supersession, and partial-result reporting.
+5. Add an accessible desktop and mobile `Close Approaches` workflow with configurable screening inputs, result sorting/filtering, data-quality states, and synchronized 3D playback around the selected TCA.
+6. Report TCA, geometric miss distance, relative speed, source age, provenance, configuration, and algorithm version. Label the capability `Experimental` and non-operational.
+7. Keep collision probability explicitly unavailable because the TLE catalog does not provide validated covariance and hard-body-radius inputs. Do not provide alerts, maneuver recommendations, or operational decision support in v2.0.
+8. Validate propagation and encounter math with documented reference and synthetic fixtures, compare broad-phase results with brute force on deterministic catalogs, and cover Worker cancellation, errors, accessibility, responsive layout, WebGL rendering, and static deployment.
+9. Document scientific limitations, time/reference-frame policy, data governance, security boundary, performance budgets, deployment, and the remaining external or human release gates.
+
+Acceptance Criteria:
+
+- `npm ci`, `npm run check`, and the applicable automated test suites pass for the candidate source state.
+- The application runs locally and the selected-object screening workflow is reproducible without blocking the browser UI.
+- Every result carries explicit inputs, physical units, time/frame meaning, provenance, quality, and algorithm metadata.
+- No rendered line, sprite, scene-unit distance, invented covariance, or heuristic percentage is used as collision-risk evidence.
+- The static artifact contains only approved runtime files and exact vendored dependencies, with manifest checksums and negative-exposure tests.
+- Limitations and non-operational maturity are visible in the UI and documentation.
+- Open clean-clone CI, independent review, performance, licensing, public-deployment, and rollback-rehearsal gates remain open and are not presented as complete.
+- No v2.1 work begins without explicit approval.
+
 ## Release Date: 2026-06-15  Version 1.7.6
 
 Implement Version `1.7.6` as a focused fix for the timeline data regressions discovered after Version `1.7.5`.

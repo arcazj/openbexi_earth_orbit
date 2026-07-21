@@ -483,7 +483,7 @@
     <header class="hero">
       <h1>
         OpenBEXI Earth Orbit API
-        <span class="badge version">1.7.6</span>
+        <span class="badge version">2.0.0</span>
         <span class="badge oas">OAS 3.0.3</span>
       </h1>
       <p class="description">
@@ -539,8 +539,10 @@
               <pre><code>{
   "status": "ok",
   "app": "OpenBEXI Earth Orbit",
-  "version": "1.7.6",
-  "release_date": "2026-06-15"
+  "version": "2.0.0",
+  "release_date": null,
+  "candidate_date": "2026-07-19",
+  "publication_state": "candidate"
 }</code></pre>
             </div>
             <div>
@@ -562,7 +564,7 @@
         </summary>
         <div class="operation-body">
           <h3>Description</h3>
-          <p>Returns the application version, release date, API version, repository URL, and server identifier.</p>
+          <p>Returns the application/API version, publication state and date, release channel, scientific maturity, safety class, repository URL, and server identifier.</p>
           <h3>Parameters</h3>
           <p class="empty">No parameters.</p>
           <h3>Responses</h3>
@@ -572,10 +574,16 @@
           </table>
           <h3>Example Response</h3>
           <pre><code>{
-  "app": "OpenBEXI Earth Orbit",
-  "version": "1.7.6",
-  "api_version": "1.0",
-  "release_date": "2026-06-15"
+  "app_version": "2.0.0",
+  "api_version": "2.0.0",
+  "release_date": null,
+  "candidate_date": "2026-07-19",
+  "publication_state": "candidate",
+  "release_channel": "preview",
+  "maturity": "experimental",
+  "safety_class": "non-operational",
+  "repository": "https://github.com/arcazj/openbexi_earth_orbit",
+  "server": "OpenBEXIHTTP/2.0.0 Python"
 }</code></pre>
         </div>
       </details>
@@ -823,7 +831,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "OpenBEXI Earth Orbit API",
-    "version": "1.7.6"
+    "version": "2.0.0"
   },
   "paths": {
     "/api/health": {},
@@ -854,7 +862,7 @@
     </section>
 
     <footer>
-      Static local documentation for OpenBEXI Earth Orbit 1.7.6. Companion Markdown: <a href="markdown_viewer.html?source=SWAGGER.md&amp;title=Swagger%20API">SWAGGER.md</a>.
+      Static local documentation for OpenBEXI Earth Orbit 2.0.0. Companion Markdown: <a href="markdown_viewer.html?source=SWAGGER.md&amp;title=Swagger%20API">SWAGGER.md</a>.
     </footer>
   </main>
 

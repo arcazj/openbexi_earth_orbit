@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="openbexi-dependency-policy" content="packaged-first-with-cdn-fallback">
     <title>Satellite Model Viewer</title>
     <style>
         :root {
@@ -1272,8 +1273,8 @@
                 addons: 'https://unpkg.com/three@0.184.0/examples/jsm/'
             },
             local: {
-                core: './node_modules/three/build/three.module.js',
-                addons: './node_modules/three/examples/jsm/'
+                core: './vendor/three/0.184.0/build/three.module.js',
+                addons: './vendor/three/0.184.0/examples/jsm/'
             },
             probePaths: [
                 'controls/OrbitControls.js',

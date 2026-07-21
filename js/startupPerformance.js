@@ -138,3 +138,46 @@ export async function processInChunks(items, processor, options = {}) {
 
     return source;
 }
+
+export function createRoundRobinFrameProcessor(options = {}) {
+    const {
+        budgetMs = 6,
+        maxItemsPerRun = 512,
+        performanceObj = globalThis.performance
+    } = options;
+    if (!(Number.isFinite(budgetMs) && budgetMs > 0)) {
+        throw new TypeError('Frame processor budgetMs must be greater than zero.');
+    }
+    if (!Number.isInteger(maxItemsPerRun) || maxItemsPerRun < 1) {
+        throw new TypeError('Frame processor maxItemsPerRun must be a positive integer.');
+    }
+
+    let cursor = 0;
+    return Object.freeze({
+        run(items, processor) {
+            const source = Array.isArray(items) ? items : [];
+            if (source.length === 0 || typeof processor !== 'function') {
+                cursor = 0;
+                return Object.freeze({ processed: 0, next_index: 0 });
+            }
+            cursor %= source.length;
+            const startedAt = safeNow(performanceObj);
+            const limit = Math.min(source.length, maxItemsPerRun);
+            let processed = 0;
+            while (processed < limit) {
+                const index = cursor;
+                cursor = (cursor + 1) % source.length;
+                processor(source[index], index, source);
+                processed += 1;
+                if (safeNow(performanceObj) - startedAt >= budgetMs) break;
+            }
+            return Object.freeze({ processed, next_index: cursor });
+        },
+        reset() {
+            cursor = 0;
+        },
+        nextIndex() {
+            return cursor;
+        }
+    });
+}

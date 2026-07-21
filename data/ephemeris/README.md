@@ -1,6 +1,6 @@
 # OpenBEXI Solar System Ephemeris
 
-This folder contains local runtime ephemeris data for OpenBEXI Earth Orbit Version 1.7.
+This folder contains local runtime ephemeris data introduced in OpenBEXI Earth Orbit Version 1.7 and retained in the Version 2.0 preview.
 
 ## Dataset
 

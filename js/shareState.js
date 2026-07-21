@@ -17,19 +17,31 @@ function safeList(values) {
         .filter(value => !UNSAFE_SHARE_PATTERN.test(value));
 }
 
+function safeIdentifier(value) {
+    const normalized = String(value || '').trim();
+    if (!normalized || normalized.length > 200 || UNSAFE_SHARE_PATTERN.test(normalized)) return '';
+    return /^[A-Za-z0-9:._-]+$/.test(normalized) ? normalized : '';
+}
+
 function safeDebrisFilter(value, orbitTypeFilter = []) {
     const orbitSelection = safeList(orbitTypeFilter).map(item => item.toUpperCase());
     if (orbitSelection.includes('DEBRIS')) return 'only';
     return value === 'only' ? 'only' : 'show';
 }
 
-export function buildShareState(simParams = {}, selectedSatellite = null) {
+export function buildShareState(simParams = {}, selectedSatellite = null, selectedConjunctionEvent = null) {
     const orbitTypeFilter = safeList(simParams.orbitTypeFilter);
     return {
         selectedSatelliteNoradId: selectedSatellite?.norad_id?.toString() ||
             simParams.selectedSatelliteNoradId?.toString() ||
             '',
         selectedSatelliteName: selectedSatellite?.satellite_name || simParams.selectedSatelliteName || '',
+        conjunctionEventId: safeIdentifier(
+            selectedConjunctionEvent?.event_id ?? selectedConjunctionEvent?.eventId ?? simParams.conjunctionEventId
+        ),
+        conjunctionRequestId: safeIdentifier(
+            selectedConjunctionEvent?.request_id ?? selectedConjunctionEvent?.requestId ?? simParams.conjunctionRequestId
+        ),
         view3D: !!simParams.view3D,
         viewMercator: !!simParams.viewMercator,
         orbitTypeFilter,
@@ -57,6 +69,12 @@ export function encodeShareState(params, state) {
     if (state.selectedSatelliteName && !UNSAFE_SHARE_PATTERN.test(state.selectedSatelliteName)) {
         params.set('satName', state.selectedSatelliteName);
     }
+    const conjunctionEventId = safeIdentifier(state.conjunctionEventId);
+    const conjunctionRequestId = safeIdentifier(state.conjunctionRequestId);
+    if (conjunctionEventId) params.set('conjEvent', conjunctionEventId);
+    else params.delete('conjEvent');
+    if (conjunctionRequestId) params.set('conjRequest', conjunctionRequestId);
+    else params.delete('conjRequest');
     params.set('view3D', boolValue(state.view3D));
     params.set('mercator', boolValue(state.viewMercator));
     if (state.orbitTypeFilter?.length) params.set('orbit', state.orbitTypeFilter.join(','));
@@ -78,9 +96,9 @@ export function encodeShareState(params, state) {
     return params;
 }
 
-export function buildShareUrl(currentHref, simParams = {}, selectedSatellite = null) {
+export function buildShareUrl(currentHref, simParams = {}, selectedSatellite = null, selectedConjunctionEvent = null) {
     const url = new URL(currentHref || 'http://127.0.0.1:8000/index.html');
-    encodeShareState(url.searchParams, buildShareState(simParams, selectedSatellite));
+    encodeShareState(url.searchParams, buildShareState(simParams, selectedSatellite, selectedConjunctionEvent));
     url.hash = '';
     return url.toString();
 }
@@ -97,6 +115,8 @@ export function parseShareStateFromSearch(search = '') {
     return {
         selectedSatelliteNoradId: params.get('sat') || '',
         selectedSatelliteName: params.get('satName') || '',
+        conjunctionEventId: safeIdentifier(params.get('conjEvent')),
+        conjunctionRequestId: safeIdentifier(params.get('conjRequest')),
         view3D: parseBool(params.get('view3D')),
         viewMercator: parseBool(params.get('mercator')),
         orbitTypeFilter,
@@ -123,6 +143,7 @@ export function shareUrlContainsUnsafeLocalData(urlText = '') {
 export function shareStateSummary(state = {}) {
     const parts = [];
     if (state.selectedSatelliteNoradId) parts.push(`NORAD ${state.selectedSatelliteNoradId}`);
+    if (state.conjunctionEventId) parts.push(`Event ${state.conjunctionEventId}`);
     if (state.view3D && state.viewMercator) parts.push('Globe + Mercator');
     else if (state.viewMercator) parts.push('Mercator');
     else parts.push('Globe');

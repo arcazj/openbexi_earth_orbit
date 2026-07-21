@@ -2,6 +2,9 @@
 out/
 !**/src/main/**/out/
 !**/src/test/**/out/
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/shelf/
 
 ### Eclipse ###
 .apt_generated
@@ -28,3 +31,30 @@ bin/
 ### Mac OS ###
 .DS_Store
 /target/
+
+### Node.js and browser tests ###
+node_modules/
+coverage/
+playwright-report/
+test-results/
+*.log
+npm-debug.log*
+
+### Python ###
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+### Generated data and local configuration ###
+*.bak-*
+*.tmp
+.env
+.env.*
+!.env.example
+json/.satellite_data_update.lock
+
+### Local build and audit artifacts ###
+dist/
+artifacts/

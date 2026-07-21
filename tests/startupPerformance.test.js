@@ -1,5 +1,6 @@
 import assert from 'assert';
 import {
+  createRoundRobinFrameProcessor,
   createStartupPerformanceTracker,
   processInChunks,
   scheduleDeferredWork
@@ -98,6 +99,31 @@ async function run() {
 
   assert.deepStrictEqual(processed, [1, 2, 3, 4, 5], 'all items are processed in order');
   assert.deepStrictEqual(chunkProgress, ['2/5', '4/5', '5/5'], 'chunk progress is reported after each batch');
+
+  let frameNow = 0;
+  const frameVisits = [];
+  const frameProcessor = createRoundRobinFrameProcessor({
+    budgetMs: 2,
+    maxItemsPerRun: 4,
+    performanceObj: { now: () => frameNow }
+  });
+  const processFrameItem = item => {
+    frameVisits.push(item);
+    frameNow += 1;
+  };
+  assert.deepStrictEqual(
+    frameProcessor.run(['a', 'b', 'c', 'd'], processFrameItem),
+    { processed: 2, next_index: 2 },
+    'frame work stops at its time budget'
+  );
+  assert.deepStrictEqual(
+    frameProcessor.run(['a', 'b', 'c', 'd'], processFrameItem),
+    { processed: 2, next_index: 0 },
+    'the next frame resumes at the saved cursor'
+  );
+  assert.deepStrictEqual(frameVisits, ['a', 'b', 'c', 'd'], 'round-robin work does not starve later items');
+  frameProcessor.reset();
+  assert.strictEqual(frameProcessor.nextIndex(), 0);
 
   console.log('startupPerformance tests passed');
 }

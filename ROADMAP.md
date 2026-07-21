@@ -1,6 +1,6 @@
 # OpenBEXI Earth Orbit Roadmap
 
-Last reviewed: 2026-07-19
+Last reviewed: 2026-07-20
 
 ## Purpose
 
@@ -12,9 +12,29 @@ The roadmap deliberately separates three capability levels:
 2. **Collision-likelihood assessment**: probability of collision (Pc) computed from validated state uncertainty, covariance, coordinate frames, and hard-body radii.
 3. **Operational decision support**: risk policy, alerting, maneuver analysis, and audited workflows suitable for trained operators.
 
-The current repository can support the first level after foundational work. It cannot responsibly claim the second or third level today. Until the relevant validation gates are passed, all conjunction output should remain labeled **experimental TLE-based screening**, not collision prediction or operational collision avoidance.
+The v2.0 preview implements the first level for one selected object against the validated browser catalog. It cannot responsibly claim the second or third level. Until the relevant validation gates are passed, all conjunction output remains labeled **experimental TLE-based screening**, not collision prediction or operational collision avoidance.
 
-## 1. Current Project Assessment
+## v2.0 Implementation Status
+
+Status at 2026-07-20: **2.0.0 local preview candidate implemented; external and human release gates remain open**. The authoritative record is `release/version.json`; scientific maturity is `Experimental` and safety class is `non-operational`. Work must stop at the v2.0 gate for human approval before any v2.1 implementation begins.
+
+| Roadmap scope | Preview status | Evidence and remaining gate |
+| --- | --- | --- |
+| FND-1 reproducibility/CI | Implemented | Locked dependencies, full test discovery, static/Python/browser workflows, audit and SBOM commands; clean-clone CI evidence still must be reviewed at the gate |
+| FND-2 contracts, identity, validation | Implemented for TLE preview | `js/domain/` defines closed, versioned catalog/state/request/event/result contracts, stable NORAD-backed identity, full request/configuration and source provenance, signed element ages, structured errors, freshness, and quarantine; OMM/OEM/covariance contracts remain later work |
+| FND-3/FND-4 propagation and compute boundary | Implemented for selected-object screening | Pure `js/orbit/propagationService.js`, a catalog-chunked Web Worker with coalesced progress, cancellation and crash recovery, and ADR 0002; broader legacy rendering migration and higher-fidelity engines remain open |
+| CA-1 terminology/data quality | Implemented | UI, exports, feature flag, and science documentation retain Experimental/non-operational labels and `collision_probability: null` |
+| CA-2/CA-3 selected-object screening and TCA | Implemented for preview envelope | Synchronized TEME states, conservative interval admission, neighbor-confirmed local minima, half-open coarse-interval ownership, bounded refinement/deduplication, deterministic events, and reference/synthetic tests |
+| CA-5 event UI/playback | Implemented for preview | Accessible controls, sortable/filterable results, event details, stale-result invalidation, numeric and Alpha-5 object lookup during playback, bounded event/request share identifiers, a self-contained frozen-catalog export, and display-only synchronized 3D playback; application import or cross-session resolution of exports is deferred beyond v2.0 |
+| FEAT-1 catalog diagnostics | Partially implemented | Source, provider-supplied retrieval time (explicitly unknown rather than synthesized when absent), counts, quarantine, freshness, and partial/degraded state are available; broader history and provider governance remain open |
+| v2.0 scientific/performance gate | Locally evidenced; external gate open | The checksum-consistent candidate manifest and official Vallado numeric TEME comparisons cover near-Earth, deep-space non-resonant, HEO half-day resonance, GEO synchronous resonance, and negative-BSTAR cases. Immutability still requires a committed/tagged publication. A fresh loopback run meets the initial visible-globe target, while the catalog-dependent interactive target remains unmet; neither single SwiftShader result is percentile evidence. Independent review, external clean-clone CI, 2x-catalog and hardware-GPU profiles, and human approval remain required before stronger maturity claims |
+| CA-4 and CA-6 through CA-9 | Not started by design | Full-catalog server jobs, covariance/CDM, Pc, persistent history/alerts, and maneuver analysis are post-v2.0 and require separate release approval |
+
+Detailed method and validation limits are in `docs/science/EXPERIMENTAL_CONJUNCTION_SCREENING_V2.md`. The auditable preview switch and rollback behavior are in `release/feature-flags.json` and `docs/engineering/ROLLBACK.md`.
+
+Sections 1 through 8 retain the original audit baseline and longer-term roadmap so that implementation decisions remain traceable. The status table above is the current v2.0 record; a baseline evidence statement below does not override implemented v2.0 behavior or approve a later phase.
+
+## 1. Baseline Project Assessment (Pre-v2.0)
 
 ### 1.1 System map
 
@@ -53,7 +73,7 @@ At the review date:
 - Mercator rendering repeats propagation at roughly 30 FPS (see `index.html:4535-4551` and `js/mercatorMapLoader.js:301-328`).
 - All TLE rows receive individual Three.js sprites with cloned materials (see `js/satelliteTLELoader.js:411-444`).
 - Selected orbit paths are display geometry sampled over one period. Their samples discard timestamps, and their geometric nearest-point helper does not establish simultaneity (see `js/satelliteTLELoader.js:108-177`).
-- No Web Worker, background analysis process, spatial index, conjunction job queue, or event store exists.
+- Legacy globe and Mercator propagation still run on the main thread. The v2.0 conjunction workflow now uses a module Web Worker, but no server-side analysis process, spatial index, conjunction job queue, or event store exists.
 
 A catalog of 16,347 objects has 133,604,031 unordered pairs at a single time sample. A naive all-pairs scan, especially inside the render loop, is not viable.
 
@@ -65,15 +85,9 @@ That posture must remain in place. The scene axis swap preserves distance, but s
 
 ### 1.5 Verification snapshot
 
-The following checks were performed during this review:
+The original audit found a local dependency-installation gap. That blocker has been removed: dependencies are locked, the exact browser runtime files are integrity-checked under `vendor/`, CI and local commands use `npm ci`, and the curated static artifact is tested without `node_modules` or CDN access. The authoritative v2.0 gate is now `npm run check`, `npm run test:all`, dependency audit/SBOM evidence, and the explicit approvals in `docs/engineering/RELEASE_CHECKLIST.md`; documentation does not treat the existence of these checks as proof that the external release gate has passed.
 
-- JavaScript syntax checks for `js/*.js` passed.
-- Python compile checks for the server and tools passed.
-- `npm audit --omit=dev` reported no known dependency vulnerabilities.
-- `npm test` began successfully but stopped after three files because the working copy's tracked `node_modules/three` directory contains only `package.json` and is missing `build/three.module.js`. This is an incomplete dependency installation, not a conjunction-test failure.
-- Maven tests were not run because `mvn` is unavailable in the review environment.
-
-## 2. Strengths and Technical Debt
+## 2. Baseline Strengths and Technical Debt
 
 ### 2.1 Strengths to preserve
 
@@ -92,12 +106,12 @@ The following checks were performed during this review:
 |---|---|---|---|
 | Critical | No covariance/CDM/hard-body-radius model | Current TLE schema and `server.py:325-400` | Pc cannot be calculated responsibly |
 | Critical | Ambiguous time/frame/unit semantics for analysis | `README.md:121-125`, `js/sceneFrame.js:4-65` | Miss distance and covariance transformations cannot be certified |
-| Critical | No reproducible clean-clone test path or CI | `package.json:5-7`, `tests/runAll.js`, no CI workflow | Regressions can reach releases unnoticed |
+| Medium | Clean-clone CI evidence still requires gate review | `.github/workflows/ci.yml`, `package.json`, `docs/engineering/RELEASE_CHECKLIST.md` | A configured workflow is not proof of a passing external run |
 | High | Browser orchestration monolith | `index.html` is 4,661 lines | Scientific logic would be difficult to isolate and validate |
 | High | Main-thread repeated propagation | `index.html:4404-4455`, `js/mercatorMapLoader.js:301-328` | Poor scaling and UI stalls |
 | High | Weak catalog contract and batch validation | `js/serverConnection.js:58-68` accepts a batch if any row looks valid | Invalid/stale data can be mixed into analysis |
 | High | Incomplete catalog status semantics | `tools/satellite_data_tools.py:103` and incremental merge behavior | Missing, inactive, debris, and retired-object coverage is unclear |
-| High | Server is localhost-oriented, not production-hardened | `server.py:529-550`, `server.py:533-538` | Public deployment could expose repository files and overbroad CORS |
+| High | Server remains local-first rather than a hosted analytics service | `server.py`, `docs/adr/0001-v2-quality-gates-and-local-first-server.md` | The strict allowlist reduces file exposure, but public deployment still needs reviewed TLS, CORS, authentication, monitoring, and operations |
 | High | Tests emphasize source strings and manual checks | `tests/menuUx.test.js`, `tests/serverApiStructure.test.js` | Browser behavior and WebGL output are under-tested |
 | Medium | Python and legacy Java responsibilities overlap | `README.md:105`, `src/com`, `pom.xml` | Toolchain and ownership are unclear |
 | Medium | Version and release metadata are duplicated | `index.html:196`, `server.py:22`, `js/serverConnection.js:1` | Drift is likely |
@@ -111,7 +125,7 @@ Each item below is a roadmap item with its own value, evidence, implementation d
 ### FND-1. Reproducible toolchain and continuous integration
 
 - **Objective and user value:** Make every release buildable and testable from a clean clone so scientific and UI regressions are caught before users see them.
-- **Evidence:** `package.json:5-7` defines only one test command; `tests/runAll.js:5-12` fails fast; no CI workflow or tool-version file exists; `.gitignore:1-30` does not ignore `node_modules`, Python bytecode, IDE files, or generated backups.
+- **Evidence:** The baseline had one test command and no CI. v2.0 now supplies locked local checks, full test discovery, Playwright/Python workflows, and `.github/workflows/ci.yml`; clean external CI evidence remains an unchecked release gate.
 - **Recommended approach:** Define supported Node, Python, and Java versions; add `check`, unit, integration, end-to-end, lint, format, and serve scripts; use `npm ci`; add CI for JavaScript, Python, and browser smoke tests; run Java only if it remains supported. Remove generated/dependency artifacts from version control in a separate, reviewed cleanup.
 - **Dependencies and prerequisites:** Decide whether Java remains part of the supported product; identify generated data that releases intentionally include.
 - **Risks and limitations:** Repository cleanup can create a large diff and must not remove intentional assets or user data.
@@ -121,7 +135,7 @@ Each item below is a roadmap item with its own value, evidence, implementation d
 ### FND-2. Versioned catalog, state, covariance, and event contracts
 
 - **Objective and user value:** Give every orbital calculation explicit, machine-validatable semantics and provenance.
-- **Evidence:** TLE records overload `type` with orbit category while UI code also treats it as object type (see `tools/satellite_data_tools.py:532-550` and `index.html:1214-1222`); API schemas currently accept arbitrary objects; frontend validation checks only that one row appears valid.
+- **Evidence:** Legacy TLE/display paths still overload `type` with orbit category and accept looser objects, while the v2.0 conjunction boundary now uses closed domain contracts and validates/quarantines the complete screening catalog.
 - **Recommended approach:** Define versioned JSON Schemas or equivalent typed models for `CatalogObject`, `ElementSet`, `StateVector`, `Covariance`, `ScreeningJob`, and `ConjunctionEvent`. Separate `object_type` from `orbit_class`. Require units, frame, time scale, source epoch, ingestion time, source URL/provider, dataset ID/hash, validation flags, and nullable uncertainty/HBR fields. Add provider adapters for the complete supported screening catalog, including payloads, debris, and rocket bodies; preserve authoritative status/type and reconcile disappearance, decay, and retirement instead of retaining records indefinitely without status.
 - **Dependencies and prerequisites:** Choose the schema/versioning mechanism and migration policy; define authorized catalog providers, coverage, credentials, and redistribution terms.
 - **Risks and limitations:** Existing generated files and frontend consumers require a compatibility adapter during migration.
@@ -151,7 +165,7 @@ Each item below is a roadmap item with its own value, evidence, implementation d
 ### FND-5. Scalable propagation and rendering pipeline
 
 - **Objective and user value:** Keep the UI responsive with large catalogs and create a safe execution path for screening.
-- **Evidence:** All records become sprites with cloned materials; visible objects are propagated per animation frame; Mercator repeats the work; no worker or spatial index exists.
+- **Evidence:** All records still become sprites with cloned materials, visible objects are propagated per animation frame, and Mercator repeats the work. The v2.0 conjunction screen now has a dedicated Worker; shared render-state buffers and a spatial index remain open.
 - **Recommended approach:** Separate catalog data, propagated-state buffers, and render objects. Use Web Workers for browser screening/propagation, transfer typed arrays, share one state snapshot between globe and Mercator, update at an adaptive cadence, use Points/instancing and shared materials, cap device-pixel ratio, and add label/camera culling. Use background jobs for full-catalog screening.
 - **Dependencies and prerequisites:** FND-3; agreed performance profiles and budgets.
 - **Risks and limitations:** Worker/module loading must work both on GitHub Pages and with the optional server; premature optimization can obscure correctness.
@@ -171,8 +185,8 @@ Each item below is a roadmap item with its own value, evidence, implementation d
 ### FND-7. Security and production deployment hardening
 
 - **Objective and user value:** Prevent data, credential, and host exposure if server-backed analytics or alerts are deployed beyond localhost.
-- **Evidence:** The server serves the repository root, applies wildcard CORS to all responses, reflects the Host header into OpenAPI, and can return raw OS error text (see `server.py:529-550`, `server.py:533-538`, `server.py:584`, and `server.py:647-648`). Default loopback binding at `server.py:675` is a useful mitigation.
-- **Recommended approach:** Keep localhost as the default; require explicit public mode; serve a strict runtime allowlist/build artifact; use an origin allowlist, security headers, validated Host, generic client errors, structured internal logs, HTTPS-only upstreams, reverse-proxy TLS guidance, rate limits, and request-size limits. Store provider credentials only in server-side secrets, never browser storage. Add authentication, authorization, CSRF policy, and audit logs before mutation or notification endpoints.
+- **Evidence:** The pre-v2.0 server exposed an overly broad repository-root boundary. v2.0 now defaults to loopback, requires explicit public binding, restricts CORS, validates `Host`, confines paths, serves exact runtime allowlists, returns controlled errors, and applies tested security headers. The curated static artifact also excludes repository metadata and source-only files. Authentication, production rate limits, target-host TLS/monitoring, and a strict CSP remain open.
+- **Recommended approach:** Preserve the implemented local-server and static-artifact controls. Before any hosted analytics, mutation, or notification deployment, add a reviewed reverse-proxy/TLS profile, resource and request-size limits, structured internal logs, authentication, authorization, CSRF policy, secret management, and audit logs. Keep provider credentials in server-side secrets, never browser storage.
 - **Dependencies and prerequisites:** Deployment model and user/tenant model.
 - **Risks and limitations:** Authentication is unnecessary complexity for a strictly local read-only tool but mandatory for remote operational data.
 - **Effort / priority / phase:** **Medium / Critical / Foundational Work**
@@ -181,8 +195,8 @@ Each item below is a roadmap item with its own value, evidence, implementation d
 ### FND-8. Scientific, browser, accessibility, and operational validation
 
 - **Objective and user value:** Make accuracy claims traceable and ensure critical workflows work in real browsers and assistive technology.
-- **Evidence:** Existing orbit tests use useful mocks but not SGP4 golden vectors or known conjunctions; many tests assert source strings; canvas timelines and WebGL views remain largely manual.
-- **Recommended approach:** Use a standard JS test runner with coverage, native Python tests, actual API integration tests, and Playwright desktop/mobile tests. Add nonblank WebGL pixel checks, console-error capture, local/CDN-failure modes, axe checks, keyboard-only flows, and deterministic time. Build a separate scientific reference suite for propagation, transforms, TCA, covariance, and Pc.
+- **Evidence:** v2.0 now includes published Vallado/CelesTrak numeric TEME comparisons, analytic and dense-oracle conjunction cases, Worker protocol tests, native Python API/security tests, and Playwright desktop/mobile journeys with nonblank WebGL pixel checks, conjunction-marker checks, console-error capture, keyboard/reflow coverage, and Axe checks. Independent scientific review, automated coverage reporting, broader browser coverage, named hardware-GPU profiles, a 2x-catalog profile, and later covariance/Pc reference suites remain open.
+- **Recommended approach:** Retain the implemented deterministic and browser evidence, then add coverage reporting, independent cross-tool TCA cases across orbit regimes, repeated percentile and hardware profiles, broader supported-browser journeys, and scientific reference suites as transforms, covariance, and Pc are introduced. Keep vendored-first, blocked-CDN, module-graph failure/retry, accessibility, and deterministic-time paths in regression coverage.
 - **Dependencies and prerequisites:** FND-1 through FND-4 and licensed/shareable reference fixtures.
 - **Risks and limitations:** Screenshot tests can be noisy; scientific tolerances must reflect model fidelity rather than be tuned merely to pass.
 - **Effort / priority / phase:** **Large / Critical / All phases**
@@ -201,8 +215,8 @@ Each item below is a roadmap item with its own value, evidence, implementation d
 ### FND-10. Architecture ownership and developer documentation
 
 - **Objective and user value:** Reduce regression risk and make it clear where orbital truth, rendering state, generated data, and supported deployment behavior belong.
-- **Evidence:** `index.html`, `server.py`, and `tools/satellite_data_tools.py` carry broad responsibilities; Python replaced the Java maintenance flow but Java/Maven remains; version strings and release rules are duplicated across files.
-- **Recommended approach:** Add `ARCHITECTURE.md` with module/data-flow/frame ownership, ADRs for engines/deployment/persistence, `CONTRIBUTING.md`, `SECURITY.md`, generated-data policy, release/runbook documentation, and one version source. Extract the inline app controller/state/render adapters incrementally after tests protect current behavior. Decide whether Java is a supported Orekit module or retired legacy.
+- **Evidence:** v2.0 establishes `release/version.json` as the authoritative version source and adds ADRs, `CONTRIBUTING.md`, `SECURITY.md`, governance, validation, deployment, release, and rollback documentation. `index.html`, `server.py`, and `tools/satellite_data_tools.py` still carry broad responsibilities; Java/Maven ownership remains unresolved; and no single `ARCHITECTURE.md` or maintained architecture/API diagram traces all module, data-flow, frame, and deployment boundaries.
+- **Recommended approach:** Add `ARCHITECTURE.md` and maintained diagrams that link the existing ADRs and policy documents, then extract the inline app controller/state/render adapters incrementally after tests protect current behavior. Decide whether Java is a supported Orekit module or retired legacy, and keep version-derived surfaces generated from `release/version.json`.
 - **Dependencies and prerequisites:** FND-1 and the FND-4 engine decision.
 - **Risks and limitations:** Documentation decays unless CI and code-review ownership require updates; a large rewrite of `index.html` would create unnecessary risk.
 - **Effort / priority / phase:** **Medium / High / Quick Wins and Foundational Work**
@@ -228,20 +242,27 @@ The eventual capability should support:
 - Historical event versions, acknowledgement, analysis, playback, export, and alert lifecycle.
 - Experimental maneuver what-if analysis only after the state/covariance pipeline is validated.
 
-### 4.2 Proposed event contract
+### 4.2 Implemented event contract and planned extensions
 
-A versioned `ConjunctionEvent` should include at least:
+The closed v2.0 `ConjunctionEvent` currently includes:
 
-- Event ID and revision/supersession relationship.
-- Primary and secondary catalog IDs, names, object types, and maneuverability flags when known.
-- Screening window and TCA in explicit UTC/time scale.
-- Miss distance, relative position vector, relative velocity vector, and relative speed with units and frame.
-- Screening threshold/volume and algorithm used to find/refine the event.
-- Nullable Pc, Pc method, covariance frames/epochs, covariance quality flags, and combined hard-body radius.
-- Separate screening-priority, likelihood, consequence, and data-quality classifications with policy version.
-- Input element-set IDs, epochs, provider/source, dataset hash, ingestion time, and age at TCA.
-- Engine, library, algorithm, and configuration versions.
-- Created, updated, acknowledged, resolved, expired, and invalidated timestamps.
+- Event ID, request ID, and canonical pair key.
+- Primary and secondary internal catalog IDs plus immutable display names.
+- TCA in explicit UTC and synchronized primary/secondary state vectors in TEME.
+- Miss distance, relative position vector, relative velocity vector, and relative speed with explicit physical units.
+- The screening radius and bounded refinement diagnostics.
+- Nullable collision probability, probability method, and hard-body radius fields, with covariance explicitly `UNAVAILABLE` in the TLE-only workflow.
+- Input element-set IDs, epochs, and signed ages at TCA.
+- Full dataset/source and computation provenance, including dataset hash and algorithm name, version, configuration hash, generation time, and input element-set IDs.
+- Experimental maturity, structured quality flags, and optional analysis diagnostics.
+
+Post-v2.0 event-contract extensions remain roadmap work:
+
+- Revision and supersession relationships plus durable event identity across recomputations.
+- Object type, maneuverability, and other operator-approved object attributes when known.
+- Validated covariance frames/epochs/quality, sourced hard-body radii, supported Pc methods, and method-validity diagnostics.
+- Separate screening-priority, likelihood, consequence, data-quality, and operational-priority classifications with a policy version.
+- Created, updated, acknowledged, resolved, expired, and invalidated lifecycle timestamps.
 
 ### 4.3 Processing pipeline
 
@@ -254,8 +275,8 @@ Screening must not use rendered orbit-path intersections or `selectedOrbitNeares
 ### CA-1. Accuracy contract, terminology, and data-quality gate
 
 - **Objective and user value:** Prevent experimental output from being mistaken for operational collision risk.
-- **Evidence:** The current catalog has no covariance and the repository explicitly disclaims conjunction use; current scene and orbit-path helpers are visualization-oriented.
-- **Recommended approach:** Publish an accuracy contract defining `screening`, `conjunction`, `TCA`, `miss distance`, `Pc`, `screening priority`, and `risk`. Display source age, frame, model, and quality beside every result. Disable Pc when covariance or HBR is missing/invalid. Use `Unknown` rather than `0` or `Low`.
+- **Evidence:** The current catalog has no validated covariance or hard-body radius. The repository now supports explicitly Experimental selected-object close-approach screening while disclaiming physical collision prediction, operational conjunction assessment, alerts, and collision-avoidance decisions. Scene and orbit-path helpers remain visualization-only.
+- **Recommended approach:** Maintain the implemented accuracy contract defining `screening`, `conjunction`, `TCA`, `miss distance`, `Pc`, screening priority, and risk. Keep source age, frame, model, and quality beside every result; keep Pc unavailable when covariance or HBR is missing or invalid; and use `Unknown` rather than `0` or `Low`.
 - **Dependencies and prerequisites:** FND-2 and agreement on intended educational versus operational audience.
 - **Risks and limitations:** Users may still over-trust precise-looking numbers; visual language and exports must repeat the qualification.
 - **Effort / priority / phase:** **Small / Critical / Quick Wins**
@@ -264,9 +285,9 @@ Screening must not use rendered orbit-path intersections or `selectedOrbitNeares
 ### CA-2. Selected-object versus catalog close-approach MVP
 
 - **Objective and user value:** Let a user select one satellite and find potential close approaches against the loaded catalog without attempting 133 million pairs per time step.
-- **Evidence:** Selection, shared simulation date, parsed satrecs, orbit visualization, and timeline interaction already exist; no screening engine exists.
-- **Recommended approach:** Create a pure JavaScript/Node screening module using the same pinned satellite.js implementation, execute it in a module Web Worker, and screen one primary against eligible secondary objects over a short configurable horizon. Use conservative orbit-envelope pruning, then same-time coarse propagation and relative swept-segment minima. Return deterministic metrics and quality flags, not Pc.
-- **Dependencies and prerequisites:** FND-2, FND-3, FND-5, and CA-1.
+- **Evidence:** v2.0 implements a rendering-independent satellite.js propagation service, a pure screening engine, and a module Web Worker that screens one selected primary against the validated eligible catalog with progress, cancellation, crash recovery, deterministic configuration, and bounded resources.
+- **Implemented v2.0 approach:** Prepare each eligible TLE once, evaluate both objects on the same UTC/TEME coarse grid, admit intervals with a relative-position chord test plus explicit curvature margin and padding, then return deterministic geometric events and quality flags rather than Pc. This selected-object path is not a spatial index, scheduled service, or full-catalog all-pairs screen.
+- **Dependencies and prerequisites:** The TLE-preview portions of FND-2, FND-3, FND-5, and CA-1 are implemented. Independent scientific review, broader scale evidence, and any server-side catalog job architecture remain prerequisites for a stronger claim.
 - **Risks and limitations:** TLE errors, stale elements, unmodeled maneuvers, missing catalog objects, and overly large coarse steps can create false confidence.
 - **Effort / priority / phase:** **Large / Critical / Core Collision-Risk Capability**
 - **Acceptance criteria:** The UI remains responsive; cancellation works; identical dataset/configuration produces identical results; no self-pairs or duplicate pairs appear; both states are evaluated at identical timestamps; result provenance is complete; candidate recall is 100% on the bounded synthetic/reference corpus; results are labeled TLE-based screening.
@@ -274,9 +295,9 @@ Screening must not use rendered orbit-path intersections or `selectedOrbitNeares
 ### CA-3. TCA refinement and encounter metrics
 
 - **Objective and user value:** Replace coarse alerts with accurate local closest-approach time, miss distance, and relative velocity for the selected propagation model.
-- **Evidence:** Current orbit display sampling keeps positions but not timestamps and is not suitable for temporal closest approach.
-- **Recommended approach:** Bracket each candidate minimum with coarse same-time states. Refine by bounded minimization of squared relative distance or root solving on relative position dot relative velocity, re-propagating both objects at every evaluation. Define convergence, maximum evaluations, boundary-TCA behavior, and invalid-propagation handling.
-- **Dependencies and prerequisites:** CA-2 and validated propagation fixtures.
+- **Evidence:** Display orbit sampling remains unsuitable for temporal closest approach, so v2.0 instead brackets candidates from synchronized raw states and re-propagates both objects during bounded refinement. The engine returns TCA, miss distance, relative position/velocity, relative speed, convergence, boundary, and incomplete-coverage diagnostics.
+- **Implemented v2.0 approach:** Sample deterministic subdivisions and neighboring points inside each admitted interval, accept neighbor-confirmed local basins or actual screening-window boundary minima, assign shared coarse boundaries with half-open ownership, refine squared separation with bounded golden-section search, and deduplicate overlapping brackets that converge to the same minimum.
+- **Dependencies and prerequisites:** CA-2 and the initial propagation/reference fixtures are implemented. Independent TCA cases across orbit regimes and stronger cross-tool validation remain open.
 - **Risks and limitations:** Multiple local minima, low-relative-speed/co-orbital encounters, HEO boundaries, invalid SGP4 spans, and time-window edges require explicit handling.
 - **Effort / priority / phase:** **Medium / Critical / Core Collision-Risk Capability**
 - **Acceptance criteria:** Analytic straight-line and synthetic orbital cases meet documented TCA/miss-distance tolerances; results are stable as the coarse cadence is tightened; boundary and multiple-minimum cases are identified; relative speed and vectors use documented units/frame; invalid refinement cannot silently become a safe result.
@@ -294,12 +315,12 @@ Screening must not use rendered orbit-path intersections or `selectedOrbitNeares
 ### CA-5. Conjunction event dashboard, visualization, and playback
 
 - **Objective and user value:** Make events understandable and actionable without requiring users to interpret raw JSON.
-- **Evidence:** The app already has satellite selection, right-side details, orbit lines, timelines, Mercator, and shared simulation time, but no pair/event state.
-- **Recommended approach:** Add a compact Conjunctions section with sortable/filterable table, severity/data-quality indicators, event details, and TCA playback. In 3D, render both objects, short synchronized trajectory arcs, closest-approach connector, relative frame, and clearly exaggerated HBR only when labeled. Provide a text/table alternative; use the existing simulation clock rather than a second time source.
-- **Dependencies and prerequisites:** CA-1 through CA-3 and accessible UI designs.
+- **Evidence:** v2.0 implements pair/event state in `js/conjunction/conjunctionPanel.js` and display-only synchronized visualization in `js/conjunction/conjunctionVisualization.js`. The workspace provides filter/sort controls, event details, quality states, input invalidation, a frozen-catalog JSON export, event selection, TCA playback on the shared simulation clock, short pair trajectories, and a closest-approach connector.
+- **Implemented v2.0 approach:** Use the compact Close Approaches workspace and its table/details as the accessible text alternative; render deliberately exaggerated inspection markers, synchronized trajectory arcs, and the connector without treating them as physical object size or calculation input. Keep covariance, HBR geometry, durable event history, and cross-session event resolution unavailable.
+- **Dependencies and prerequisites:** The v2.0 portions of CA-1 through CA-3 and the accessible UI design are implemented. Persistent event identity and later uncertainty/risk displays depend on CA-6 through CA-8.
 - **Risks and limitations:** Scale exaggeration can mislead; dense event lists can overwhelm; red/green alone is inaccessible.
 - **Effort / priority / phase:** **Large / High / Core Collision-Risk Capability**
-- **Acceptance criteria:** Selecting an event synchronizes table, details, clock, camera, and both objects; true numeric distance is always shown independently of visual scaling; keyboard and touch workflows work; no overlap at 320/390/768 px and 200% zoom; WebGL pixel tests prove the pair/connector renders; URL share state can identify an event revision without embedding sensitive data.
+- **Acceptance criteria:** Selecting an event synchronizes table, details, clock, camera, and both objects; true numeric distance is always shown independently of visual scaling; keyboard and touch workflows work; no overlap at 320/390/768 px and 200% zoom; WebGL pixel tests prove the pair/connector renders; URL share state can retain bounded event/request context without embedding the frozen catalog or result.
 
 ### CA-6. CDM, covariance, and hard-body-radius ingestion
 
@@ -324,7 +345,7 @@ Screening must not use rendered orbit-path intersections or `selectedOrbitNeares
 ### CA-8. Event history, API, exports, and alerts
 
 - **Objective and user value:** Track how an event evolves, integrate it with other tools, and notify users when configured conditions are met.
-- **Evidence:** Current server has read-only file endpoints and no persistent event lifecycle; share/export behavior is limited to current app state and screenshots.
+- **Evidence:** The server remains read-only and has no persistent event lifecycle. v2.0 adds a self-contained frozen-catalog JSON conjunction export for external replay, but no application import, event revision store, acknowledgement, scheduling, or alert delivery.
 - **Recommended approach:** Persist immutable event revisions and a derived current-event view. Provide paginated REST endpoints, CSV/JSON and human-readable report export, acknowledgement/assignment notes for authenticated deployments, and Server-Sent Events for job/event changes. Deliver in-app alerts first, then opt-in webhook/email integrations with deduplication, escalation, quiet periods, retries, and audit logs.
 - **Dependencies and prerequisites:** FND-6, FND-7, CA-5, retention policy, notification provider, and user model.
 - **Risks and limitations:** Recomputed data can spam users; sensitive CDMs may not be exportable; notification failure can create false assurance.
@@ -432,7 +453,7 @@ These references guide validation; citing them does not make this project operat
 ### FEAT-6. Asset optimization and reliable offline/local operation
 
 - **Objective and user value:** Reduce startup cost and make the documented local fallback dependable.
-- **Evidence:** The repository contains large GLB, texture, ephemeris, and TLE assets; dependency bootstrap supports local fallback, but the inspected local Three.js install is incomplete.
+- **Evidence:** The repository contains large GLB, texture, ephemeris, and TLE assets. v2.0 now vendors integrity-checked Three.js and satellite.js runtime files and builds a curated static artifact, while large optional assets and startup cost remain optimization work.
 - **Recommended approach:** Produce an immutable runtime artifact, self-host verified dependencies, lazy-load optional modes/models, compress/chunk catalog responses, add ETag/cache/compression at the server, optimize textures/models with visual checks, and consider an installable offline shell that clearly reports data age.
 - **Dependencies and prerequisites:** FND-1, FND-5, asset provenance, and browser cache policy.
 - **Risks and limitations:** Aggressive model/texture compression can damage inspection quality; offline data can become dangerously stale.
@@ -443,49 +464,45 @@ These references guide validation; citing them does not make this project operat
 
 No calendar estimate is provided because team size, operational target, provider access, and deployment scope are unknown. Relative effort is given on each item.
 
-### Phase 0: Quick Wins
+### Phase 0: Quick Wins (Locally Delivered for v2.0; External Gate Open)
 
 Primary items: CA-1, FND-1, FND-2 design, FEAT-1, baseline security cleanup.
 
-Deliverables:
+Delivered v2.0 slice:
 
 - Accuracy/terminology contract and unchanged operational disclaimer.
-- Data schema draft with separate object type/orbit class and nullable covariance/Pc.
-- Reproducible dependency install and CI.
-- Current data-quality/freshness summary.
-- Performance baseline for current catalog.
-- Engine/deployment ADR work begins.
+- Closed TLE-preview contracts with separate object type/orbit class and nullable covariance/Pc.
+- Reproducible dependency install, configured CI, and local static/Python/browser checks.
+- Current data-quality/freshness summary and initial performance evidence for the current catalog.
+- Accepted deployment and selected-object screening ADRs.
 
-Exit gate: a clean clone passes CI, current data health is visible, and no UI/API can represent missing covariance as a collision probability.
+Gate status: local checks pass, current data health is visible, and no UI/export can represent missing covariance as a collision probability. External clean-clone CI evidence, independent reviews, asset/data approval, and human approval remain open.
 
-### Phase 1: Foundational Work
+### Phase 1: Foundational Work (Partially Delivered for v2.0)
 
 Primary items: FND-2 through FND-5, FND-7 through FND-10, FEAT-4, FEAT-6.
 
-Deliverables:
+Delivered and remaining scope:
 
-- Typed catalog/state/event contracts and strict ingestion validation.
-- Pure propagation/time/frame service with reference tests.
-- Astrodynamics engine ADR.
-- Worker/background compute boundary and shared state buffers.
-- Production security boundary for any server deployment.
-- Browser/API/scientific test harness.
+- **Delivered:** Typed TLE catalog/state/request/event/result contracts, strict runtime validation/quarantine, and a pure UTC/TEME propagation service with published numeric reference tests.
+- **Delivered:** Browser module-Worker compute boundary, hardened local/static serving boundary, vendored runtime artifact, and initial browser/API/scientific test harness.
+- **Remaining:** Broader legacy-rendering migration to the propagation service, shared render-state buffers, a higher-fidelity astrodynamics-engine decision, hosted authentication/TLS/rate controls/monitoring, architecture ownership, independent validation, and representative scale/hardware evidence.
 
-Exit gate: propagation and frame tests pass reference tolerances; rendering consumes the new state service without regression; screening work can run without blocking the UI; catalog snapshots are versioned and reproducible.
+Gate status: the selected-object TLE-preview path passes its local reference and browser checks, screening runs in a Worker, and exported inputs are versioned and reproducible. The complete foundational exit gate remains open because legacy rendering has not fully migrated and the external, hosted-deployment, performance, and independent-review evidence is incomplete.
 
-### Phase 2: Core Collision-Risk Capability
+### Phase 2: Core Collision-Risk Capability (Delivered for v2.0 Preview Gate Review)
 
 Primary items: CA-2, CA-3, CA-5, initial FND-6.
 
-Deliverables:
+Delivered v2.0 slice:
 
 - Selected object versus catalog experimental close-approach screening.
 - Conservative coarse candidate generation and refined TCA.
 - Miss distance, relative velocity, input age, and quality diagnostics.
 - Conjunction list/details and synchronized TCA playback.
-- Versioned result artifacts or local persistent jobs.
+- Self-contained versioned frozen-catalog JSON result export for external replay; local persistent jobs and application import are not implemented.
 
-Exit gate: bounded reference-corpus candidate recall is 100%; TCA/miss metrics meet declared tolerances; UI remains responsive; results are reproducible and explicitly screening-only.
+Gate status: bounded local reference-corpus recall and TCA/miss tolerances pass, Worker execution provides progress and cancellation with provisional browser-responsiveness evidence, and results are reproducible and explicitly screening-only. Independent scientific review, external clean-clone evidence, repeated percentile performance, and human approval remain open; this gate does not authorize v2.1 or a `Validated` claim.
 
 ### Phase 3: Advanced Features
 
@@ -602,18 +619,19 @@ Exit gate: no research output is promoted to production-ready without new accept
 - Export/API use success rate.
 - Reduction in manual steps to reproduce and compare a screening result.
 
-## Recommended First Milestone
+## v2.0 Milestone Delivered for Gate Review
 
-The first milestone should be **Experimental Selected-Satellite Close-Approach Screening**, not probability of collision.
+The implemented first milestone is **Experimental Selected-Satellite Close-Approach Screening**, not probability of collision.
 
-It should include:
+It includes:
 
 1. Strict, versioned TLE/catalog validation and visible freshness.
 2. A pure, tested satellite.js propagation adapter operating in raw common-frame kilometers and UTC instants.
-3. A Web Worker that screens one selected primary against the eligible catalog over a short window.
-4. Conservative candidate bracketing plus refined TCA, miss distance, and relative velocity.
-5. A compact accessible event list and synchronized 3D playback.
-6. Full input/algorithm provenance and an explicit `Pc unavailable: covariance/HBR not provided` state.
-7. Synthetic, Vallado/SGP4, brute-force recall, browser, and performance gates in CI.
+3. A catalog-chunked Web Worker that screens one selected primary against the eligible catalog over a bounded short window, coalesces progress, supports cancellation, and can be recreated after a crash.
+4. Conservative candidate admission, neighbor-confirmed minima with half-open interval ownership, and refined TCA, miss distance, and relative velocity.
+5. A compact accessible event list and synchronized 3D playback, verified at named mobile/tablet/reflow widths with invalid-catalog, stale-result, Alpha-5 identity, accessibility, and unexpected-console-error coverage.
+6. Closed typed request/result contracts, full input/source/algorithm provenance, structured propagation errors, screen-time freshness flags with signed element ages, and an explicit `Pc unavailable: covariance/HBR not provided` state.
+7. A self-contained frozen-catalog export that is replayable by external tooling; application import is not available in v2.0.
+8. Synthetic, Vallado/SGP4, brute-force recall, browser, and performance gates in CI, plus a hard preview limit of 500,000 estimated coarse catalog propagations per request.
 
-This milestone delivers useful functionality while establishing the architecture and scientific discipline required for later CDM, covariance, Pc, alerts, and maneuver work.
+This milestone is implemented for preview gate review. It remains Experimental and non-operational until the outstanding evidence and approvals are completed; work on v2.1 requires explicit human approval.

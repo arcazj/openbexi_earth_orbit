@@ -1,61 +1,41 @@
 (function bootstrapDependencyLoader(global) {
     'use strict';
 
-    const DEFAULT_TIMEOUT_MS = 2500;
-
-    function normalizeTimeout(value) {
-        const parsed = Number(value);
-        return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_TIMEOUT_MS;
-    }
-
-    function fetchOk(url, timeoutMs) {
-        return new Promise((resolve) => {
-            const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-            const timeout = controller
-                ? setTimeout(() => controller.abort(), timeoutMs)
-                : null;
-
-            fetch(url, {
+    async function fetchOk(url, timeoutMs) {
+        try {
+            const response = await fetch(url, {
                 cache: 'force-cache',
-                signal: controller?.signal
-            }).then((response) => {
-                resolve(Boolean(response?.ok));
-            }).catch(() => {
-                resolve(false);
-            }).finally(() => {
-                if (timeout) clearTimeout(timeout);
+                signal: AbortSignal.timeout(timeoutMs)
             });
-        });
+            return response.ok;
+        } catch (error) {
+            return false;
+        }
     }
 
     function loadClassicScript(src, timeoutMs) {
         return new Promise((resolve, reject) => {
             const script = document.createElement('script');
             let settled = false;
-            const timeout = setTimeout(() => {
+            const finish = (error) => {
                 if (settled) return;
                 settled = true;
-                script.onload = null;
-                script.onerror = null;
-                script.remove();
-                reject(new Error(`Timed out loading ${src}`));
-            }, timeoutMs);
-
+                clearTimeout(timeout);
+                if (error) {
+                    script.remove();
+                    reject(error);
+                } else {
+                    resolve(src);
+                }
+            };
+            const timeout = setTimeout(
+                () => finish(new Error(`Timed out loading ${src}`)),
+                timeoutMs
+            );
             script.async = false;
             script.src = src;
-            script.onload = () => {
-                if (settled) return;
-                settled = true;
-                clearTimeout(timeout);
-                resolve(src);
-            };
-            script.onerror = () => {
-                if (settled) return;
-                settled = true;
-                clearTimeout(timeout);
-                script.remove();
-                reject(new Error(`Failed to load ${src}`));
-            };
+            script.onload = () => finish();
+            script.onerror = () => finish(new Error(`Failed to load ${src}`));
             document.head.appendChild(script);
         });
     }
@@ -64,58 +44,40 @@
         return source.endsWith('/') ? source : `${source}/`;
     }
 
-    async function probeThreeSource(source, probePaths, timeoutMs) {
-        const coreOk = await fetchOk(source.core, timeoutMs);
-        if (!coreOk) return false;
-
-        const addonBase = sourceWithTrailingSlash(source.addons);
-        const addonChecks = (probePaths || []).map(path => fetchOk(`${addonBase}${path}`, timeoutMs));
-        const addonResults = await Promise.all(addonChecks);
-        return addonResults.every(Boolean);
+    function sourceCandidates(options, allowCdn) {
+        const sources = [['local', options.local]];
+        if (allowCdn && options.cdn) sources.push(['cdn', options.cdn]);
+        return sources;
     }
 
-    async function resolveThreeSource(options, timeoutMs) {
-        const probePaths = options.probePaths || [];
-        if (await probeThreeSource(options.cdn, probePaths, timeoutMs)) {
-            return {
-                source: 'cdn',
-                core: options.cdn.core,
-                addons: sourceWithTrailingSlash(options.cdn.addons)
-            };
-        }
+    async function probeThreeSource(source, probePaths, timeoutMs) {
+        if (!source || !await fetchOk(source.core, timeoutMs)) return false;
+        const addonBase = sourceWithTrailingSlash(source.addons);
+        const checks = (probePaths || []).map(path => fetchOk(`${addonBase}${path}`, timeoutMs));
+        return (await Promise.all(checks)).every(Boolean);
+    }
 
-        if (await probeThreeSource(options.local, probePaths, timeoutMs)) {
-            return {
-                source: 'local',
-                core: options.local.core,
-                addons: sourceWithTrailingSlash(options.local.addons)
-            };
+    async function resolveThreeSource(options, timeoutMs, allowCdn) {
+        for (const [name, source] of sourceCandidates(options, allowCdn)) {
+            if (await probeThreeSource(source, options.probePaths, timeoutMs)) {
+                return { source: name, core: source.core, addons: sourceWithTrailingSlash(source.addons) };
+            }
         }
-
-        return {
-            source: 'local-unverified',
-            core: options.local.core,
-            addons: sourceWithTrailingSlash(options.local.addons)
-        };
+        throw new Error('Three.js sources are unavailable.');
     }
 
     function hasSatelliteGlobal() {
         return Boolean(global.satellite?.propagate && global.satellite?.twoline2satrec && global.satellite?.gstime);
     }
 
-    async function loadSatelliteSource(options, timeoutMs) {
-        try {
-            await loadClassicScript(options.cdn, timeoutMs);
-            if (hasSatelliteGlobal()) return { source: 'cdn', url: options.cdn };
-        } catch (err) {
-            // Fall through to the local package fallback.
+    async function loadSatelliteSource(options, timeoutMs, allowCdn) {
+        for (const [name, source] of sourceCandidates(options, allowCdn)) {
+            try {
+                await loadClassicScript(source, timeoutMs);
+                if (hasSatelliteGlobal()) return { source: name, url: source };
+            } catch (error) {}
         }
-
-        await loadClassicScript(options.local, timeoutMs);
-        if (!hasSatelliteGlobal()) {
-            throw new Error('satellite.js loaded without the expected global API');
-        }
-        return { source: 'local', url: options.local };
+        throw new Error('satellite.js sources are unavailable.');
     }
 
     function injectImportMap(threeSource) {
@@ -126,50 +88,71 @@
                 three: threeSource.core,
                 'three/addons/': threeSource.addons
             }
-        }, null, 2);
+        });
         document.head.appendChild(script);
     }
 
     function runTemplateModule(templateId, moduleLabel) {
         const template = document.getElementById(templateId);
-        if (!template) {
-            throw new Error(`Missing module template: ${templateId}`);
-        }
-
-        const moduleScript = document.createElement('script');
-        moduleScript.type = 'module';
-        moduleScript.textContent = `${template.textContent}\n//# sourceURL=${moduleLabel || `${templateId}.js`}`;
-        template.after(moduleScript);
+        if (!template) throw new Error(`Missing module template: ${templateId}`);
+        return new Promise((resolve, reject) => {
+            const moduleScript = document.createElement('script');
+            global.__openbexiModuleLoaded = () => {
+                delete global.__openbexiModuleLoaded;
+                resolve();
+            };
+            moduleScript.type = 'module';
+            moduleScript.textContent = `${template.textContent}\nwindow.__openbexiModuleLoaded();\n//# sourceURL=${moduleLabel || `${templateId}.js`}`;
+            moduleScript.onerror = () => {
+                delete global.__openbexiModuleLoaded;
+                reject(new Error('Application module graph failed to load.'));
+            };
+            template.after(moduleScript);
+        });
     }
 
     function showDependencyError(targetId, error) {
-        if (!targetId) return;
-        const target = document.getElementById(targetId);
-        if (!target) return;
-        target.innerHTML = '<div class="empty-state">Runtime dependency load failed. Check the browser console.</div>';
+        const target = targetId ? document.getElementById(targetId) : null;
+        if (target) {
+            target.hidden = false;
+            if (!target.querySelector('[data-error-code]')) {
+                target.textContent = 'Application failed to start. Confirm the local server is running, then retry.';
+            }
+            const retry = target.querySelector('[data-startup-retry]');
+            if (retry) retry.onclick = () => global.location.reload();
+        }
+        global.openbexiStartupState = { phase: 'error', errorCode: 'STARTUP_FAILED' };
         console.error('OpenBEXI dependency bootstrap failed:', error);
     }
 
+    global.openbexiShowStartupError = (error, targetId = 'startupFailure') => showDependencyError(targetId, error);
     global.openbexiBootFromTemplate = async function openbexiBootFromTemplate(options) {
-        const timeoutMs = normalizeTimeout(options.timeoutMs);
+        const timeoutMs = Number(options.timeoutMs) > 0 ? Number(options.timeoutMs) : 2500;
+        const deploymentMode = document.querySelector?.('meta[name="openbexi-deployment-mode"]')?.content || 'server-capable';
+        const policy = document.querySelector?.('meta[name="openbexi-dependency-policy"]')?.content
+            || (deploymentMode === 'static' ? 'packaged-only' : 'packaged-first-with-cdn-fallback');
+        const allowCdn = policy === 'packaged-first-with-cdn-fallback';
+        global.openbexiStartupState = { phase: 'dependencies', errorCode: null };
         try {
             const [threeSource, satelliteSource] = await Promise.all([
-                resolveThreeSource(options.three, timeoutMs),
+                resolveThreeSource(options.three, timeoutMs, allowCdn),
                 options.satellite
-                    ? loadSatelliteSource(options.satellite, timeoutMs)
+                    ? loadSatelliteSource(options.satellite, timeoutMs, allowCdn)
                     : Promise.resolve(null)
             ]);
-
             global.openbexiDependencySources = {
+                deploymentMode,
+                policy,
                 three: threeSource.source,
                 satellite: satelliteSource?.source || null,
                 threeCoreUrl: threeSource.core,
                 threeAddonsUrl: threeSource.addons,
                 satelliteUrl: satelliteSource?.url || null
             };
-
             injectImportMap(threeSource);
-            runTemplateModule(options.templateId, options.moduleLabel);
+            global.openbexiStartupState.phase = 'module';
+            await runTemplateModule(options.templateId, options.moduleLabel);
+            global.openbexiStartupState.phase = 'module-loaded';
         } catch (error) {
             showDependencyError(options.errorTargetId, error);
         }

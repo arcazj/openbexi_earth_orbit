@@ -2,7 +2,16 @@
 
 ## Purpose
 
-This plan verifies that the `openbexi_earth_orbit` application still works after filter, coordinate-frame, orbital math, rendering, scaling, and UI changes. It is the acceptance checklist for implementation work: all automated tests, browser checks, and manual regression items in this file must pass, or any remaining limitation must be documented before the task is considered complete.
+This file preserves the historical regression and manual-test record through Version 1.7.6. It is not the authoritative v2.0 release gate. Current v2.0 authority is `docs/engineering/RELEASE_CHECKLIST.md`, the scripts selected by `npm run check` and `npm test`, and retained evidence under `release/evidence/`. Historical statements below are not current dependency, version, or publication requirements.
+
+## Version 2.0 Candidate Verification
+
+- Run `npm ci`, `npm run check`, and `npm test` from a clean clone for promotion evidence.
+- Source/server-capable startup must prefer the exact integrity-checked files under `vendor/` and make zero routine CDN requests; exact-version CDN URLs are an explicit source-mode fallback only. The curated `dist/` artifact must not execute remote runtime code.
+- A dependency or application module-graph failure must show a visible accessible error with a `Retry` action rather than a silent black screen. Browser coverage must prove retry restores a nonblank canvas.
+- Conjunction output remains Experimental TLE-based close-approach screening, with collision probability unavailable and operational use prohibited.
+- The current local candidate summary records 40/40 unit files, 14/14 Python API/security tests, and 8 browser journeys passing with 4 project-inapplicable skips. Unchecked external and human gates remain in `docs/engineering/RELEASE_CHECKLIST.md`.
+- If only one browser shows a blank page while the same URL works elsewhere, hard-refresh or clear that origin's site data before diagnosing a general compatibility failure. The reported Microsoft Edge case rendered after its stale cache was cleared; this manual result is not an additional automated release gate.
 
 Version 1.4 adds selected-satellite observer framing and Earth-facing orientation. In 3D mode, selected satellites should transition to a close observer view with Earth centered behind the satellite. In 2D/Mercator mode, selected satellites should be clearly highlighted without applying 3D-only camera-distance logic.
 
@@ -84,7 +93,7 @@ Version 1.7.4 replaces legacy Java data maintenance with `tools/satellite_data_t
 
 Version 1.7.5 makes `Show Launch Timeline` and `Show Re-entry Timeline` data-fresh. Launch Timeline must derive and highlight the latest valid launch date from currently loaded satellite/TLE data. Re-entry Timeline must derive and highlight the latest valid confirmed or predicted decay event from active satellites plus local/server decayed records, and it must show inactive decayed-record details without attempting active TLE propagation.
 
-Version 1.7.6 fixes timeline data freshness, Re-entry Timeline startup latency, and Python-server startup rendering while keeping the release number unchanged. Incremental TLE refreshes must query bounded CelesTrak groups, merge missing/newer TLE records, and fill launch-date sidecar entries from local SATCAT when available. SATCAT/decayed updates must use conditional `ETag` / `Last-Modified` requests and skip repeated decayed DB rebuilds when unchanged. `Show Re-entry Timeline` must become usable from confirmed decayed records before active decay prediction completes, and prediction must run only for likely decay candidates with daily cache reuse. `index.html` must draw from the static `json/tle/TLE.json` route before checking the optional Python server so `/api/tle` cannot block the first visible server-hosted page. Three.js `0.184.0` and `satellite.js` `6.0.2` must load CDN-first with local `node_modules` fallbacks before the main app module starts.
+Version 1.7.6 historically required CDN-first dependencies with local `node_modules` fallbacks. Version 2.0 supersedes that delivery rule with exact vendored runtime files and a local-only curated static artifact.
 
 ## Test Environment
 
@@ -400,7 +409,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test shared links restore supported app state only after satellite data loads and fail safely if the referenced satellite is unavailable.
 - Test the Help section contains GitHub, README Markdown, Releases History Markdown, Licenses, Swagger, and API document actions.
 - Test README and Releases History open rendered Markdown in `markdown_viewer.html`, with raw HTML escaped and rendered links sanitized.
-- Test the Releases History action targets `PROMPT_History.md` and no Help action displays the old `Prompt History` text.
+- Test the Releases History action targets production-safe `RELEASE_NOTES.md` and no Help action displays the old `Prompt History` text.
 - Test Swagger/API/Licenses actions open separate pages or views and are not disabled solely because the Python server is offline.
 - Test the prohibited concatenated Swagger/API sentence is absent.
 - Test the GitHub Help link uses `target="_blank"` and `rel="noopener noreferrer"`.
@@ -433,14 +442,14 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 ### Data Maintenance Tools
 
 - Test `tools/satellite_data_tools.py` compiles with `py -m py_compile`.
-- Test `export-tle --all` support is present, refreshes N2YO launch dates by default, uses the legacy CelesTrak group source order, and keeps first-seen NORAD behavior.
+- Test `export-tle --all` support is present, uses HTTPS for every CelesTrak group, keeps the legacy group source order and first-seen NORAD behavior, and does not refresh N2YO launch dates by default.
 - Test default `export-tle` uses incremental source groups such as `active` and `last-30-days`, not the full legacy group sweep.
 - Test TLE transformation preserves frontend fields: `company`, `satellite_name`, `norad_id`, `launch_date`, `type`, `orbit_class`, orbit metric fields, `tle_line1`, and `tle_line2`.
 - Test orbit metric formulas and classification rules match the legacy Java behavior for LEO, MEO, GEO, HEO, and DECAYING cases.
 - Test metadata freshness skips default TLE fetching when the last successful update is newer than the 2-hour CelesTrak guard unless `--force` is used.
 - Test CelesTrak failure preserves existing `json/tle/TLE.json`, records a failed attempt, and does not replace the last successful timestamp.
 - Test optional Space-Track fallback remains disabled unless credentials are explicitly configured.
-- Test normal incremental TLE refresh fills or updates `satellite_launch_dates.json` from local SATCAT data for touched NORAD records when SATCAT launch metadata is available; test `export-tle --refresh-launch-dates` and `export-tle --all` still support full launch-date refreshes.
+- Test normal incremental TLE refresh fills or updates `satellite_launch_dates.json` from local SATCAT data for touched NORAD records when SATCAT launch metadata is available; test N2YO HTML enrichment requires the explicit `export-tle --refresh-launch-dates` opt-in and remains excluded from release evidence.
 - Test `refresh-satcat --force` downloads CelesTrak raw SATCAT CSV to `json/satcat.csv` with metadata and preserves the local file on source failure.
 - Test `build-decayed-db --all` reads `json/satcat.csv`, filters `DECAY_DATE` plus `OBJECT_TYPE=PAY`, groups by `OBJECT_NAME`, sorts top-level keys, and writes the Java-compatible schema.
 - Test `build-decayed-db --refresh-satcat --force` sends conditional SATCAT headers from stored metadata, refreshes SATCAT before rebuilding when changed, and skips the decayed rebuild when SATCAT returns unchanged and a valid decayed DB already exists.
@@ -539,7 +548,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm the ISS shortcut shows `ISS unavailable` if no ISS target can be resolved.
 - Confirm `Timelines` appears immediately after `Satellites Selection - Found`.
 - Confirm `Share` appears immediately after `Timelines` and immediately before `Help`.
-- Confirm `Close`, `Version 1.7.6 - hosted at GitHub Repo`, and the server status icon/text are aligned on one compact row on desktop.
+- Historical 1.7.6 check: confirm `Close`, the version label, and the server status icon/text are aligned on one compact row on desktop. Current version text is generated from `release/version.json`.
 - Confirm the version/GitHub text is centered in the menu header.
 - Confirm the server status indicator appears above the accordion menu and does not shift layout when changing between checking, offline, connected, and error states.
 - Confirm connected status uses `power_green.png` and offline/error status uses `power_red.png`.
@@ -548,7 +557,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm native share is enabled only when the browser supports it.
 - Open Help and confirm the `GitHub`, `README`, `Releases History`, `Licenses`, `Swagger`, `Swagger MD`, and `Live API` actions are readable and clickable.
 - Click `README` and confirm a separate `markdown_viewer.html?source=README.md&title=README` page renders the README as Markdown, not as raw plain text.
-- Click `Releases History` and confirm a separate `markdown_viewer.html?source=PROMPT_History.md&title=Releases%20History` page renders `PROMPT_History.md` as Markdown, not as raw plain text.
+- Click `Releases History` and confirm a separate `markdown_viewer.html?source=RELEASE_NOTES.md&title=Releases%20History` page renders `RELEASE_NOTES.md` as Markdown, not as raw plain text.
 - Confirm no visible Help action uses the old `Prompt History` label.
 - Open Help while the Python server is disconnected and confirm `Swagger` opens `swagger.html` without requiring the server.
 - Open Help while the Python server is disconnected and confirm `Swagger MD` opens `markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API` without requiring the server.
@@ -958,8 +967,7 @@ Checks performed on 2026-06-03:
 - `PROMPT_Instructions.md` contains the `General Execution Prompt` section and no release history.
 - `PROMPT_History.md` contains the latest `Release Date: 2026-06-03 Version 1.4.3` entry.
 - `index.html` visible version tag was updated to `1.4.3`.
-- `index.html` uses `js/dependencyBootstrap.js` to try `three@0.184.0` and `satellite.js@6.0.2` from `unpkg.com` first, then injects an import map or script fallback to local `./node_modules/` paths.
-- `display_satellite.html` uses the same bootstrap to try `three@0.184.0` from `unpkg.com` first, then injects an import map fallback to local `./node_modules/three/` paths.
+- Historical 1.7.6 behavior used unpkg and `node_modules` fallbacks. Version 2.0 runtime artifacts use integrity-checked files under `vendor/`, and `dist/` must remain local-only.
 - `npm test`: passed, including `releaseStructure.test.js`.
 - `Get-ChildItem -File .\js -Filter *.js | ForEach-Object { node --check $_.FullName }`: passed.
 - `node --check .\tests\releaseStructure.test.js`: passed.
@@ -970,7 +978,7 @@ Checks performed on 2026-06-03:
 
 Checks not fully performed in this terminal:
 
-- Runtime browser confirmation that `OrbitControls`, `OBJLoader`, `MTLLoader`, `GLTFLoader`, and `CSS2DRenderer` load from CDN first and fall back to local `three@0.184.0` under `node_modules`. No headless browser executable was available on `PATH`, so direct browser runtime validation remains manual.
+- Historical note: the old CDN/`node_modules` fallback check is superseded by the v2.0 vendored-dependency and browser-artifact tests.
 
 ## Release 1.4.4 Verification Log
 
@@ -1527,7 +1535,7 @@ Checks performed for this Version 1.5.16 implementation session:
 - Static tests confirm selected-satellite controls stay hidden until a satellite is selected.
 - Static tests confirm Help shows `README` and `Releases History` actions.
 - Static tests confirm Help includes GitHub, README, Releases History, Licenses, Swagger, Swagger MD, Live API, and a bottom disclaimer.
-- Static tests confirm `Releases History` targets `PROMPT_History.md` and the old visible `Prompt History` label is not used.
+- Static tests confirm `Releases History` targets `RELEASE_NOTES.md` and the old visible `Prompt History` label is not used.
 - Static tests confirm README and Releases History use the in-app Markdown renderer, raw HTML escaping, and sanitized Markdown links.
 - Static tests confirm Close, centered version text, and server status share the header alignment height and server status icon sizing hooks.
 - Static tests confirm connected status uses `icons/power_green.png` and offline/error status uses `icons/power_red.png`.
@@ -1570,7 +1578,7 @@ Checks not fully performed in this terminal:
 - Share links copy and restore supported state without including local filesystem paths, tokens, or private server configuration.
 - Share can preview, download, copy, and natively share the current canvas image when the browser supports those APIs.
 - Help includes Swagger/API documentation links that open separate local UI, Markdown companion, and live API pages, with local docs remaining clickable while offline.
-- Help opens README and Releases History Markdown through `markdown_viewer.html` and keeps `PROMPT_History.md` available through the `Releases History` action.
+- Help opens README and production-safe Releases History Markdown through `markdown_viewer.html`; source prompt history is not exposed by that action.
 - The Views & Time menu uses the Version 1.6.2 Solar System/Stars, Globe/High Def./ECEF, and Mercator/Day-Night rows; First Starlink/ISS shortcuts live in Satellite Selection.
 - The canvas-top Time x slider remains visible and controls the shared simulation-speed state.
 - The obsolete visible helper text for Views & Time, the orbit filter, and Satellite Selection is removed without leaving empty layout gaps.

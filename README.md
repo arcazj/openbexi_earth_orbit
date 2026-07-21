@@ -45,6 +45,17 @@ OpenBEXI Earth Orbit is a browser-based satellite visualization app built with p
 - Timeline checkboxes are mutually exclusive: enabling the launch timeline hides the re-entry timeline, and enabling the re-entry timeline hides the launch timeline. The launch timeline opens on the latest valid launch date in the loaded satellite data, and the re-entry timeline opens on the latest valid confirmed or predicted decay event, including confirmed decayed records that are no longer active TLE satellites.
 - Faster initial startup path: the globe and core controls render before the full TLE sprite pass, while timelines and decay estimates are prepared as deferred work.
 - Optional startup timing diagnostics through `?perf=1` or `localStorage.openbexiStartupPerf = "1"`.
+- Version 2.0 preview adds Experimental TLE-based selected-object versus catalog close-approach screening in a cancellable Web Worker, with synchronized TCA playback, miss distance, relative speed, input age, provenance, and explicit quality states.
+
+## Version 2.0 Preview Boundary
+
+Version `2.0.0` is a **local preview candidate** with **Experimental** scientific maturity and a **non-operational** safety classification. It has not passed the external and human release gates in `docs/engineering/RELEASE_CHECKLIST.md`. The conjunction workspace reports geometric close approaches from same-time SGP4/TEME state vectors. It does not predict physical collision, provide operational alerts, or recommend maneuvers.
+
+Collision probability is unavailable in v2.0 because the current TLE catalog does not supply validated covariance and hard-body-radius inputs. The application never substitutes a heuristic probability. Stale elements, incomplete propagation coverage, non-converged refinement, and nearly identical/common TLE geometry remain visible as quality conditions.
+
+The implemented method, validation evidence, assumptions, and unresolved limits are documented in `docs/science/EXPERIMENTAL_CONJUNCTION_SCREENING_V2.md`. The compute-boundary decision is recorded in `docs/adr/0002-browser-selected-object-conjunction-screening.md`. The feature is auditable and reversible through `release/feature-flags.json`.
+
+`release/version.json` is the authoritative version record. `npm run version:sync` regenerates browser metadata, and `npm run check:version` rejects drift in package, browser, server, static API documentation, or feature-flag metadata.
 
 ## Orbit and Ground-Track Notes
 
@@ -106,7 +117,9 @@ Version 1.7.4 replaces the legacy Java satellite data maintenance workflows with
 
 Version 1.7.5 refreshes the Launch and Re-entry timelines around the newest dataset events. `Show Launch Timeline` derives the latest launch from loaded TLE/satellite metadata and anchors the HUD around that event. `Show Re-entry Timeline` merges active-satellite decay estimates with confirmed decayed records from local or server `/api/decayed` data, anchors on the latest valid decay event, highlights it, and allows inactive decayed objects to show details without attempting active TLE propagation.
 
-Version 1.7.6 fixes timeline data freshness and startup behavior without changing the release number. `Show Launch Timeline` continues to anchor on the newest valid loaded launch date, while the data tool's incremental TLE path queries bounded CelesTrak groups (`active` and `last-30-days`), merges missing or newer TLE epochs, and fills launch-date sidecar entries from local SATCAT data when available. `Show Re-entry Timeline` now becomes usable as soon as confirmed decayed records load, then runs active-satellite decay prediction only for filtered likely-decay candidates and reuses daily cached prediction results. SATCAT refreshes use stored `ETag` / `Last-Modified` metadata and skip repeated decayed DB rebuilds when the source reports unchanged. The browser bootstrap also keeps Three.js `0.184.0` and `satellite.js` `6.0.2` CDN-first with local `node_modules` fallbacks so matching local packages can start the app when the CDN is unavailable.
+Version 1.7.6 fixes timeline data freshness and startup behavior without changing the release number. `Show Launch Timeline` continues to anchor on the newest valid loaded launch date, while the data tool's incremental TLE path queries bounded CelesTrak groups (`active` and `last-30-days`), merges missing or newer TLE epochs, and fills launch-date sidecar entries from local SATCAT data when available. `Show Re-entry Timeline` now becomes usable as soon as confirmed decayed records load, then runs active-satellite decay prediction only for filtered likely-decay candidates and reuses daily cached prediction results. SATCAT refreshes use stored `ETag` / `Last-Modified` metadata and skip repeated decayed DB rebuilds when the source reports unchanged. That historical release used a CDN-first browser bootstrap; Version 2.0 supersedes it with vendored dependencies first and exact-version CDN fallback only when a packaged source is unavailable.
+
+The Version 2.0.0 candidate implements strict catalog/domain contracts, a pure satellite.js propagation adapter, and Experimental selected-satellite close-approach screening in a Web Worker. The preview reports TCA, geometric miss distance, relative velocity, source/element age, configuration and algorithm provenance, quality flags, and synchronized 3D playback. It explicitly leaves collision probability unavailable, retains a non-operational safety class, and does not include full-catalog scheduled jobs, persistent event history, alerts, CDM/covariance analysis, or maneuver recommendations. Its legacy TLE feed also cannot represent newly issued six-digit catalog identifiers, so a successful run is not complete catalog coverage.
 
 The selected satellite model axis convention is:
 
@@ -122,7 +135,7 @@ For ISS selected models only, the yaw and pitch control inputs are swapped to ma
 
 - TLE propagation remains on the existing `satellite.js` SGP4 path.
 - `satellite.js` returns TEME-like coordinates. The app treats those coordinates as ECI-like scene coordinates for visualization unless a higher-fidelity TEME-to-ITRF/ECI transform is explicitly added later.
-- TLE/SGP4 results are suitable for educational visualization and short-term screening, not operational flight dynamics or conjunction assessment.
+- TLE/SGP4 results support educational visualization and the explicitly Experimental short-term screening envelope, not operational flight dynamics, collision prediction, or conjunction decision support.
 - The Moon remains a simplified visual model inside the Earth-centered scene; Moon mode changes the camera target to the Moon center but does not recenter the physical scene frame.
 - Mars remains a simplified visual model inside the Earth-centered scene; Mars mode changes the camera target to the Mars center but does not recenter the physical scene frame.
 - Mars texture source: `textures/March.jpg`, local project-provided texture, exact source/license to be confirmed.
@@ -188,19 +201,21 @@ Solar System ephemeris: Version 1.7 uses local JPL Horizons-derived vectors in `
 - Node.js for automated tests.
 - Python 3 for the optional local API server or another local static HTTP server for browser smoke testing.
 
-Browser runtime dependencies are loaded CDN-first, with local `node_modules` fallbacks selected by `js/dependencyBootstrap.js` before the main module starts:
+Source and server-capable pages load integrity-checked vendored dependencies first, with exact-version CDN URLs retained only as an explicit fallback selected by `js/dependencyBootstrap.js`. The bootstrap awaits the application module graph and displays a retryable startup error instead of leaving a black screen when it cannot load. The curated `dist/` builder enforces packaged-only runtime URLs, removes the mutable raw-GitHub fallback, and is tested with every non-artifact-origin request blocked:
 
-- Three.js `0.184.0` tries `https://unpkg.com/three@0.184.0/...` first, then falls back to `./node_modules/three/build/three.module.js` and `./node_modules/three/examples/jsm/`.
-- satellite.js `6.0.2` tries `https://unpkg.com/satellite.js@6.0.2/dist/satellite.min.js` first, then falls back to `./node_modules/satellite.js/dist/satellite.min.js`.
+- Three.js `0.184.0` loads from the repository-owned core and required addon subset under `./vendor/three/0.184.0/`; source/dev mode may use the matching `https://unpkg.com/three@0.184.0/...` files only if the packaged copy is unavailable.
+- satellite.js `6.0.2` loads from `./vendor/satellite.js/6.0.2/satellite.min.js`; source/dev mode may use the exact unpkg version only if the packaged copy is unavailable. The conjunction Worker imports the matching vendored ES module. The curated static artifact executes only same-origin vendored dependency bytes and does not resolve through `node_modules`, unpkg, or raw GitHub.
 
-Node test dependencies are declared in `package.json`.
+Run `npm run vendor:browser` only when intentionally refreshing the pinned browser artifacts after a dependency update. `npm run check:vendor` verifies their committed SHA-256 values, npm lockfile integrity metadata, public APIs, installed-package byte parity when dependencies are present, and absence of runtime references to `node_modules`.
+
+Node test dependencies are declared in `package.json` and pinned by `package-lock.json`. Node.js 22 is the CI and recommended local runtime; the supported range is declared in `package.json`.
 
 ## Setup
 
-Install Node dependencies:
+Install the exact locked Node dependencies:
 
 ```powershell
-npm install
+npm ci
 ```
 
 Serve the app locally:
@@ -214,6 +229,15 @@ Open:
 ```text
 http://127.0.0.1:8000/index.html
 ```
+
+Build and serve the curated deployment artifact:
+
+```powershell
+npm run build
+py -m http.server 8001 --bind 127.0.0.1 --directory dist
+```
+
+Publish only the contents of `dist/`, never the repository or branch root. The build emits `dist/asset-manifest.json` with deterministic file hashes and excludes prompts, tests, roadmap/release internals, operational data, backups, and generated package directories. See `docs/engineering/STATIC_DEPLOYMENT.md` for the artifact contract and verification procedure.
 
 Optional API server mode:
 
@@ -240,6 +264,14 @@ The Python server uses only the standard library. It serves the existing static 
 - `http://127.0.0.1:8000/docs`
 - `http://127.0.0.1:8000/openapi.json`
 
+The API server binds to loopback by default and permits browser CORS requests only from loopback origins unless an origin is explicitly allowed. A non-loopback bind requires an explicit acknowledgement:
+
+```powershell
+py server.py --host 0.0.0.0 --port 8000 --allow-public --cors-origin https://trusted.example
+```
+
+Public exposure still requires an authenticated reverse proxy, TLS, request limits, and deployment-specific access controls. See `SECURITY.md` before exposing the server outside a trusted development machine.
+
 Static Swagger/API documentation is also available without the Python server:
 
 ```text
@@ -264,7 +296,7 @@ py tools/satellite_data_tools.py build-decayed-db --refresh-satcat --force
 py tools/satellite_data_tools.py build-decayed-db --all
 ```
 
-Default `export-tle` is incremental. It reads `json/tle/TLE.json`, `json/tle/TLE.meta.json`, and existing TLE epochs, respects a 2-hour CelesTrak guard unless `--force` is used, then queries smaller CelesTrak GP groups such as `active` and `last-30-days` to add missing TLEs and update newer records. When local `json/satcat.csv` contains matching NORAD launch metadata, the same incremental run fills or updates `json/tle/satellite_launch_dates.json` entries for the touched satellites and writes those launch dates back into `TLE.json`. `export-tle --all` refreshes N2YO launch dates by default, keeps the legacy Java source group order, and keeps first-seen NORAD behavior; use `--skip-launch-dates` only when intentionally reusing the existing local launch-date file. `build-decayed-db` reads `json/satcat.csv` and writes `json/decayed/decayed.json` using the legacy `DECAY_DATE` plus `OBJECT_TYPE=PAY` filter.
+Default `export-tle` is incremental. It reads `json/tle/TLE.json`, `json/tle/TLE.meta.json`, and existing TLE epochs, respects a 2-hour CelesTrak guard unless `--force` is used, then queries smaller HTTPS CelesTrak GP groups such as `active` and `last-30-days` to add missing TLEs and update newer records. When local `json/satcat.csv` contains matching NORAD launch metadata, the same incremental run fills or updates `json/tle/satellite_launch_dates.json` entries for the touched satellites and writes those launch dates back into `TLE.json`. `export-tle --all` keeps the legacy Java group order and first-seen NORAD behavior but does not scrape N2YO. Legacy N2YO HTML enrichment runs only with the explicit `--refresh-launch-dates` opt-in and is excluded from release evidence pending provider/governance approval. The shared fetch boundary rejects non-HTTPS and credential-bearing ingestion URLs. `build-decayed-db` reads `json/satcat.csv` and writes `json/decayed/decayed.json` using the legacy `DECAY_DATE` plus `OBJECT_TYPE=PAY` filter.
 
 Decayed data is separate from TLE updates. Use `refresh-satcat --force` to update `json/satcat.csv` from CelesTrak raw SATCAT CSV, then `build-decayed-db --force`, or combine both with `build-decayed-db --refresh-satcat --force`. SATCAT refresh metadata stores `ETag` and `Last-Modified` values and sends `If-None-Match` / `If-Modified-Since`; when CelesTrak returns unchanged data, the combined decayed update preserves the existing `json/decayed/decayed.json` and skips the rebuild.
 
@@ -280,19 +312,37 @@ Scheduled updates are disabled by default. When enabled, startup only checks loc
 
 ## Testing
 
-Run automated tests:
+Run the static checks and complete JavaScript, Python, and browser suite:
 
 ```powershell
+npm run check
 npm test
 ```
 
-Run JavaScript syntax checks:
+For focused iteration, use `npm run test:unit`, `npm run test:python`, or `npm run test:browser`.
+
+After changing `release/version.json`, regenerate browser metadata and verify all derived release surfaces:
 
 ```powershell
-Get-ChildItem -File .\js -Filter *.js | ForEach-Object { node --check $_.FullName }
+npm run version:sync
+npm run check:version
 ```
 
-Run the browser and manual regression checklist in `Test_and_Integration.md` before considering a release complete.
+Install Chromium once before the complete suite or focused browser tests:
+
+```powershell
+npx playwright install chromium
+npm test
+```
+
+Audit production dependencies and generate a CycloneDX SBOM:
+
+```powershell
+npm run audit:dependencies
+npm run sbom -- --output artifacts/openbexi-node-sbom.cdx.json
+```
+
+CI runs the same checks from a clean `npm ci` install. Run the manual regression checklist in `Test_and_Integration.md` and the gates in `docs/engineering/RELEASE_CHECKLIST.md` before considering a release complete.
 
 ## Startup Performance
 
@@ -328,7 +378,7 @@ After a satellite is selected, the right side of the canvas shows a translucent 
 
 The Help section disclaimer is part of the application UI: OpenBEXI Earth Orbit is for visualization, educational, and experimental purposes only. It is not an authoritative source for navigation, safety, mission planning, collision avoidance, or operational satellite decisions.
 
-The Help section opens Swagger and API documentation in separate pages. `Swagger` opens the local standard `swagger.html` page without requiring the Python server, `Swagger MD` opens the companion `SWAGGER.md` through `markdown_viewer.html`, and `Live API` opens the connected server `/openapi.json` URL when the optional Python server is running. README and Releases History open through `markdown_viewer.html` as separate rendered Markdown pages for `README.md` and `PROMPT_History.md`. The Licenses action opens `LICENSE.md` as a Markdown page.
+The Help section opens Swagger and API documentation in separate pages. `Swagger` opens the local standard `swagger.html` page without requiring the Python server, `Swagger MD` opens the companion `SWAGGER.md` through `markdown_viewer.html`, and `Live API` opens the connected server `/openapi.json` URL when the optional Python server is running. README and Releases History open through `markdown_viewer.html` as separate rendered Markdown pages for `README.md` and production-safe `RELEASE_NOTES.md`. The Licenses action opens `LICENSE.md` as a Markdown page.
 
 ## Project Structure
 
@@ -342,6 +392,11 @@ The Help section opens Swagger and API documentation in separate pages. `Swagger
 - `js/`: Browser modules for coordinates, satellite loading, models, menu, footprints, frames, day/night, Moon/Mars, timelines, and map rendering.
 - `server.py`: Optional standard-library Python server for static hosting, API endpoints, CORS, Swagger/OpenAPI docs, and server-backed data loading.
 - `js/startupPerformance.js`: Startup timing, deferred scheduling, and chunked-work helpers used to keep the first render responsive.
+- `js/domain/`: Versioned orbital domain contracts, identity, catalog validation, and frame/time policies.
+- `js/orbit/propagationService.js`: Rendering-independent TLE/SGP4 state-vector service.
+- `js/conjunction/`: Experimental worker protocol, screening engine, panel state, and display-only conjunction visualization.
+- `release/`: Authoritative version, feature-flag registry, and enforced asset budgets.
+- `docs/`: Architecture decisions, governance, validation, science limitations, performance, release, and rollback documentation.
 - `json/tle/`: TLE source data.
 - `json/tle/TLE.meta.json`: Generated TLE update metadata when the Python data tool runs.
 - `json/satellites/`: Satellite metadata and model configuration.
@@ -359,21 +414,28 @@ The Help section opens Swagger and API documentation in separate pages. `Swagger
 
 ## Markdown Files
 
+- `CLAUDE.md`: Repository commands, architecture boundaries, dependency delivery, and coding-agent guidance.
+- `CONTRIBUTING.md`: Reproducible setup, required checks, and contribution discipline.
+- `DEPENDENCIES.md`: Locked dependency, audit, SBOM, and runtime-delivery policy.
 - `README.md`: Project overview, setup, features, testing commands, and documentation index.
+- `RELEASE_NOTES.md`: Candidate/release history summary used by the Help workspace.
+- `SECURITY.md`: Supported security boundary, reporting guidance, and public-server requirements.
 - `LICENSE.md`: Markdown copy of the MIT license used by the Help Licenses action.
-- `PROMPT_Instructions.md`: General execution prompt and project-compatible execution rules; release-specific content belongs in prompt history.
+- `PROMPT_Instructions.md`: General execution prompt and project-compatible execution rules; dated implementation requests belong in prompt history or a clearly identified accepted standalone prompt.
+- `PROMPT_IMPLEMENT_ROADMAP_V2.md`: Archived accepted implementation prompt for the Version 2.0 roadmap; it does not authorize v2.1 while current release gates remain open.
 - `PROMPT4beamFormingSimulator3DWithMercatorMap_V2.MD`: Supplemental beam-forming/Mercator simulator prompt kept in the workspace when present.
-- `PROMPT_History.md`: Release-specific prompts and implementation requirements by date and version; shown in Help as `Releases History`.
+- `PROMPT_History.md`: Source-only dated implementation prompts and requirements, including the v2.0 candidate and startup follow-up; excluded from production artifacts.
+- `ROADMAP.md`: Evidence-based Version 2.0 improvement and feature roadmap.
 - `SWAGGER.md`: Local static Swagger/API Markdown companion; render with `markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API` without starting the Python server.
-- `Test_and_Integration.md`: Authoritative automated, browser, manual, domain, visual, and regression acceptance checklist.
+- `Test_and_Integration.md`: Historical regression/manual record through Version 1.7.6; current v2.0 gates live in `docs/engineering/RELEASE_CHECKLIST.md` and package scripts.
 
 ## Development Notes
 
-- For each new release in `PROMPT_History.md`, update the visible `index.html` version tag to match the latest release version.
+- Change the application version only in `release/version.json`, run `npm run version:sync`, update release documentation, and pass `npm run check:version`. `PROMPT_History.md` remains historical context and is not a runtime version source.
 - Keep browser import maps synchronized: `three` and `three/addons/` must use the same verified Three.js version.
-- Keep `PROMPT_Instructions.md` limited to the `General Execution Prompt` and project-compatible execution rules; put all release history in `PROMPT_History.md`.
+- Keep `PROMPT_Instructions.md` limited to general project-compatible execution rules. Put dated prompt records in `PROMPT_History.md`, user-facing release summaries in `RELEASE_NOTES.md`, and preserve an accepted standalone prompt when it is a named project artifact.
 - Keep reusable coordinate, scale, orientation, and framing math in `js/sceneFrame.js` when practical so browser behavior and automated tests stay aligned.
-- Keep `Test_and_Integration.md` current whenever features, controls, or accepted verification procedures change.
+- Preserve `Test_and_Integration.md` as the historical regression record through Version 1.7.6. Record current v2.0 promotion criteria in `docs/engineering/RELEASE_CHECKLIST.md` and bind verification results under `release/evidence/`.
 - Keep `README.md` current when setup, usage, test commands, features, architecture, or known limitations change.
 - Avoid mixing generated assets, build outputs, or unrelated untracked files into feature changes.
 

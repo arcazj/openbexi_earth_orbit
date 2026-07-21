@@ -1,5 +1,4 @@
-export const APP_VERSION = '1.7.6';
-export const RELEASE_DATE = '2026-06-15';
+export { APP_VERSION, RELEASE_DATE, RELEASE_METADATA } from './releaseVersion.js';
 export const DEFAULT_SERVER_TIMEOUT_MS = 800;
 export const DEFAULT_API_BASE_URL = 'http://127.0.0.1:8000';
 export const API_BASE_STORAGE_KEY = 'openbexi.apiBaseUrl';
@@ -28,7 +27,11 @@ function isLoopbackHost(hostname = '') {
         hostname.startsWith('127.');
 }
 
-export function resolveApiBaseUrl({ windowObj = globalThis.window, storage = globalThis.localStorage } = {}) {
+export function resolveApiBaseUrl({
+    windowObj = globalThis.window,
+    storage = globalThis.localStorage,
+    documentObj = globalThis.document
+} = {}) {
     const location = windowObj?.location;
     let search = '';
     try {
@@ -47,6 +50,11 @@ export function resolveApiBaseUrl({ windowObj = globalThis.window, storage = glo
     } catch (err) {
         // Storage may be blocked; use the safe default below.
     }
+
+    const deploymentMode = String(
+        documentObj?.querySelector?.('meta[name="openbexi-deployment-mode"]')?.content || ''
+    ).trim().toLowerCase();
+    if (deploymentMode === 'static') return '';
 
     if (location?.origin && /^https?:$/i.test(location.protocol) && isLoopbackHost(location.hostname)) {
         return normalizeApiBaseUrl(location.origin);

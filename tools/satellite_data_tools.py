@@ -33,6 +33,7 @@ MINUTES_PER_DAY = 1440.0
 CELESTRAK_MIN_REFRESH_HOURS = 2.0
 DEFAULT_SERVER_UPDATE_INTERVAL_HOURS = 24.0
 DEFAULT_HTTP_TIMEOUT_SECONDS = 30.0
+HTTP_USER_AGENT = "OpenBEXI-Earth-Orbit/2.0.0 (Experimental; non-operational)"
 
 TLE_RELATIVE_PATH = Path("json") / "tle" / "TLE.json"
 TLE_META_RELATIVE_PATH = Path("json") / "tle" / "TLE.meta.json"
@@ -69,34 +70,34 @@ LEGACY_TLE_SOURCE_URLS = [
     "https://celestrak.org/NORAD/elements/gp.php?GROUP=beidou&FORMAT=tle",
     "https://celestrak.org/NORAD/elements/gp.php?GROUP=qianfan&FORMAT=tle",
     "https://celestrak.org/NORAD/elements/gp.php?GROUP=kuiper&FORMAT=tle",
-    "http://celestrak.org/NORAD/elements/gp.php?GROUP=argos&FORMAT=tle",
-    "http://celestrak.org/NORAD/elements/gp.php?GROUP=amateur&FORMAT=tle",
-    "http://celestrak.org/NORAD/elements/gp.php?GROUP=cubesat&FORMAT=tle",
-    "http://celestrak.org/NORAD/elements/gp.php?GROUP=dmc&FORMAT=tle",
-    "http://celestrak.org/NORAD/elements/gp.php?GROUP=education&FORMAT=tle",
-    "http://celestrak.org/NORAD/elements/gp.php?GROUP=geo&FORMAT=tle",
-    "http://celestrak.org/NORAD/elements/gp.php?GROUP=geodetic&FORMAT=tle",
-    "http://celestrak.org/NORAD/elements/gp.php?GROUP=glo-ops&FORMAT=tle",
-    "http://celestrak.org/NORAD/elements/gp.php?GROUP=globalstar&FORMAT=tle",
-    "http://celestrak.org/NORAD/elements/gp.php?GROUP=goes&FORMAT=tle",
-    "http://celestrak.org/NORAD/elements/gp.php?GROUP=gorizont&FORMAT=tle",
-    "http://celestrak.org/NORAD/elements/gp.php?GROUP=gps-ops&FORMAT=tle",
-    "http://celestrak.org/NORAD/elements/gp.php?GROUP=iridium&FORMAT=tle",
-    "http://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-NEXT&FORMAT=tle",
-    "http://celestrak.org/NORAD/elements/gp.php?GROUP=molniya&FORMAT=tle",
-    "http://celestrak.org/NORAD/elements/gp.php?GROUP=orbcomm&FORMAT=tle",
-    "http://celestrak.org/NORAD/elements/gp.php?GROUP=planet&FORMAT=tle",
-    "http://celestrak.org/NORAD/elements/gp.php?GROUP=raduga&FORMAT=tle",
-    "http://celestrak.org/NORAD/elements/gp.php?GROUP=resource&FORMAT=tle",
-    "http://celestrak.org/NORAD/elements/gp.php?GROUP=satnogs&FORMAT=tle",
-    "http://celestrak.org/NORAD/elements/gp.php?GROUP=sarsat&FORMAT=tle",
-    "http://celestrak.org/NORAD/elements/gp.php?GROUP=science&FORMAT=tle",
-    "http://celestrak.org/NORAD/elements/gp.php?GROUP=spire&FORMAT=tle",
-    "http://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle",
-    "http://celestrak.org/NORAD/elements/gp.php?GROUP=tdrss&FORMAT=tle",
-    "http://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=tle",
-    "http://celestrak.org/NORAD/elements/gp.php?GROUP=weather&FORMAT=tle",
-    "http://celestrak.org/NORAD/elements/gp.php?GROUP=x-comm&FORMAT=tle",
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=argos&FORMAT=tle",
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=amateur&FORMAT=tle",
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=cubesat&FORMAT=tle",
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=dmc&FORMAT=tle",
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=education&FORMAT=tle",
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=geo&FORMAT=tle",
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=geodetic&FORMAT=tle",
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=glo-ops&FORMAT=tle",
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=globalstar&FORMAT=tle",
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=goes&FORMAT=tle",
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=gorizont&FORMAT=tle",
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=gps-ops&FORMAT=tle",
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium&FORMAT=tle",
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-NEXT&FORMAT=tle",
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=molniya&FORMAT=tle",
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=orbcomm&FORMAT=tle",
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=planet&FORMAT=tle",
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=raduga&FORMAT=tle",
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=resource&FORMAT=tle",
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=satnogs&FORMAT=tle",
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=sarsat&FORMAT=tle",
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=science&FORMAT=tle",
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=spire&FORMAT=tle",
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle",
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=tdrss&FORMAT=tle",
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=tle",
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=weather&FORMAT=tle",
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=x-comm&FORMAT=tle",
     "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle",
 ]
 
@@ -253,6 +254,16 @@ def make_celestrak_group_url(group: str, *, output_format: str = "tle") -> str:
     return f"{CELESTRAK_GP_ENDPOINT}?{query}"
 
 
+def require_https_ingestion_url(url: str) -> str:
+    normalized = str(url or "").strip()
+    parsed = parse.urlparse(normalized)
+    if parsed.scheme.lower() != "https" or not parsed.hostname:
+        raise SatelliteDataError(f"Refusing non-HTTPS ingestion URL: {normalized or '<empty>'}")
+    if parsed.username is not None or parsed.password is not None:
+        raise SatelliteDataError(f"Refusing credential-bearing ingestion URL: {normalized}")
+    return normalized
+
+
 def extract_group_from_url(url: str) -> str:
     parsed = parse.urlparse(url)
     query = parse.parse_qs(parsed.query)
@@ -266,10 +277,11 @@ def fetch_url(
     timeout: float = DEFAULT_HTTP_TIMEOUT_SECONDS,
     headers: dict[str, str] | None = None,
 ) -> FetchResponse:
+    url = require_https_ingestion_url(url)
     req = request.Request(
         url,
         headers={
-            "User-Agent": "Mozilla/5.0 OpenBEXI-Earth-Orbit/1.7.4",
+            "User-Agent": HTTP_USER_AGENT,
             **(headers or {}),
         },
     )
@@ -622,9 +634,10 @@ def fetch_tle_sources(
     errors: list[str] = []
     for url in urls:
         try:
-            response = fetcher(url, headers=_metadata_request_headers(meta, url))
+            validated_url = require_https_ingestion_url(url)
+            response = fetcher(validated_url, headers=_metadata_request_headers(meta, validated_url))
             if not response.not_modified:
-                responses.append((extract_group_from_url(url), response))
+                responses.append((extract_group_from_url(validated_url), response))
         except Exception as exc:
             errors.append(f"{url}: {exc}")
     return responses, errors
@@ -645,6 +658,8 @@ def build_satellites_from_tle_responses(
         if norad and norad not in by_norad:
             by_norad[norad] = dict(record)
             order.append(norad)
+    initial_norad_ids = set(by_norad)
+    updated_initial_ids: set[str] = set()
 
     added = 0
     updated = 0
@@ -675,12 +690,15 @@ def build_satellites_from_tle_responses(
             elif should_replace_tle(existing_record, candidate):
                 by_norad[norad] = preserve_existing_tags(existing_record, candidate)
                 updated += 1
+                if norad in initial_norad_ids:
+                    updated_initial_ids.add(norad)
 
     return [by_norad[norad] for norad in order], {
         "existing": len(existing or []),
         "fetched": fetched,
         "added": added,
         "updated": updated,
+        "retained": len(initial_norad_ids - updated_initial_ids),
         "rejected": rejected,
         "total": len(order),
     }
@@ -859,11 +877,21 @@ def extract_launch_dates_all(
     dry_run: bool = False,
     fetcher: Callable[..., FetchResponse] | None = None,
     now: dt.datetime | None = None,
+    allow_n2yo: bool = False,
 ) -> UpdateResult:
     now = now or utc_now()
-    fetcher = fetcher or fetch_url
     root_path = Path(root).resolve()
     output_path = repo_path(root_path, LAUNCH_DATES_RELATIVE_PATH)
+    if not allow_n2yo:
+        return UpdateResult(
+            changed=False,
+            skipped=True,
+            mode="launch-dates-all",
+            message="N2YO HTML launch-date enrichment is disabled unless explicitly opted in.",
+            paths={"launch_dates": str(output_path)},
+        )
+
+    fetcher = fetcher or fetch_url
     launch_dates: dict[str, dict[str, str]] = {}
     name_to_norad: dict[str, str] = {}
     errors: list[str] = []
@@ -871,7 +899,7 @@ def extract_launch_dates_all(
 
     for year in range(1990, now.year + 1):
         for month in range(1, 13):
-            url = f"{N2YO_BROWSE_ENDPOINT}?y={year}&m={month:02d}"
+            url = require_https_ingestion_url(f"{N2YO_BROWSE_ENDPOINT}?y={year}&m={month:02d}")
             try:
                 response = fetcher(url)
                 fetched_pages += 1
@@ -1300,12 +1328,10 @@ def build_parser() -> argparse.ArgumentParser:
     export_parser.add_argument(
         "--refresh-launch-dates",
         action="store_true",
-        help="Refresh N2YO launch dates before export. This is slow and disabled for default incremental updates.",
-    )
-    export_parser.add_argument(
-        "--skip-launch-dates",
-        action="store_true",
-        help="Skip the N2YO launch-date refresh in --all mode and reuse the existing local launch-date file.",
+        help=(
+            "Explicitly opt in to legacy N2YO HTML launch-date enrichment before export. "
+            "Disabled by default, including with --all; not approved for release evidence."
+        ),
     )
 
     decayed_parser = subparsers.add_parser("build-decayed-db", help="Build json/decayed/decayed.json from json/satcat.csv.")
@@ -1340,9 +1366,12 @@ def main(argv: list[str] | None = None) -> int:
     root = Path(args.root).resolve() if args.root else default_repo_root()
     try:
         if args.command == "export-tle":
-            refresh_launch_dates = args.refresh_launch_dates or (args.all and not args.skip_launch_dates)
-            if refresh_launch_dates:
-                _print_result(extract_launch_dates_all(root=root, dry_run=args.dry_run))
+            if args.refresh_launch_dates:
+                _print_result(extract_launch_dates_all(
+                    root=root,
+                    dry_run=args.dry_run,
+                    allow_n2yo=True,
+                ))
             result = export_tle_data(
                 root=root,
                 mode="all" if args.all else "incremental",
