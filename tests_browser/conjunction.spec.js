@@ -264,6 +264,185 @@ function utcClockSeconds(text) {
   return Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]);
 }
 
+test('full-catalog browser job uses authenticated API and exposes partial coverage', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'The authenticated full-catalog journey runs once on desktop Chromium.');
+  const browserErrors = monitorBrowserErrors(page);
+  let jobReads = 0;
+  const observedRequests = [];
+
+  await page.route('**/api/v1/**', async route => {
+    const incoming = route.request();
+    const url = new URL(incoming.url());
+    const headers = incoming.headers();
+    observedRequests.push({ method: incoming.method(), url: incoming.url(), headers });
+    if (url.pathname === '/api/v1/capabilities') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          api_version: '1.0.0',
+          full_catalog_screening: {
+            enabled: true,
+            authenticated: true,
+            worker_running: true,
+            current_catalog_revision_id: 'catalog:test-browser',
+            maturity: 'Experimental',
+            safety_class: 'non-operational',
+            collision_probability: 'UNAVAILABLE'
+          }
+        })
+      });
+      return;
+    }
+    if (url.pathname === '/api/v1/screening-jobs' && incoming.method() === 'POST') {
+      await route.fulfill({
+        status: 202,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          job_id: 'job-browser-v21',
+          state: 'QUEUED',
+          request: JSON.parse(incoming.postData() || '{}'),
+          progress_fraction: 0
+        })
+      });
+      return;
+    }
+    if (url.pathname === '/api/v1/screening-jobs/job-browser-v21/stream') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/event-stream',
+        body: [
+          'id: 11\nevent: job.progress\ndata: {"fraction":0.75,"stage":"REFINING_SLAB"}\n\n',
+          'id: 12\nevent: job.state\ndata: {"state":"SUCCEEDED"}\n\n'
+        ].join('')
+      });
+      return;
+    }
+    if (url.pathname === '/api/v1/screening-jobs/job-browser-v21') {
+      jobReads += 1;
+      const complete = jobReads > 1;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(complete ? {
+          job_id: 'job-browser-v21',
+          state: 'SUCCEEDED',
+          progress_fraction: 1,
+          progress_stage: 'PARTIAL',
+          request: { configuration: { max_results: 100 } },
+          result: {
+            event_count: 2,
+            summary: {
+              status: 'PARTIAL',
+              statistics: { pair_intervals_unscreened: 1492127 }
+            }
+          }
+        } : {
+          job_id: 'job-browser-v21',
+          state: 'RUNNING',
+          progress_fraction: 0.25,
+          progress_stage: 'SCREENING_SLAB'
+        })
+      });
+      return;
+    }
+    if (url.pathname === '/api/v1/conjunction-events') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          items: [
+            {
+              event_revision_id: 'event-browser-1',
+              job_id: 'job-browser-v21',
+              object_a_id: 'obx:norad:25544',
+              object_b_id: 'obx:norad:99999',
+              tca_utc: '2026-07-20T12:05:00Z',
+              miss_distance_km: 1.25,
+              relative_speed_km_s: 12.5
+            },
+            {
+              event_revision_id: 'event-browser-2',
+              job_id: 'job-browser-v21',
+              object_a_id: 'obx:norad:25544',
+              object_b_id: 'obx:norad:99999',
+              tca_utc: '2026-07-20T12:10:00Z',
+              miss_distance_km: 2.5,
+              relative_speed_km_s: 10.25
+            }
+          ],
+          next_cursor: null
+        })
+      });
+      return;
+    }
+    await route.fulfill({ status: 404, contentType: 'application/problem+json', body: '{}' });
+  });
+
+  await bootWithLocalDependencies(page, { catalogFixture: MOBILE_CONJUNCTION_CATALOG });
+  await page.locator('#conjunctionAccordionHeader').click();
+  await expect(page.locator('#fullCatalogWorkspace')).toBeVisible();
+  await expect(page.locator('.full-catalog-safety-note')).toContainText('Experimental and non-operational');
+  await expect(page.locator('.full-catalog-safety-note')).toContainText('Collision probability is unavailable');
+  await expect(page.locator('#fullCatalogCapabilityBadge')).toHaveText('Ready');
+
+  const fullRun = page.getByRole('button', { name: 'Start Full-Catalog Job', exact: true });
+  await expect(fullRun).toBeDisabled();
+  await page.getByLabel('Bearer token', { exact: true }).fill('analyst-browser-test-token');
+  await expect(fullRun).toBeEnabled();
+  await fullRun.click();
+
+  await expect(page.locator('#fullCatalogJobState')).toHaveText('SUCCEEDED');
+  await expect(page.locator('#fullCatalogCoverage')).toContainText('Partial');
+  await expect(page.locator('#fullCatalogCoverage')).toContainText('1,492,127 unscreened');
+  await expect(page.locator('#fullCatalogStatus')).toContainText('partial coverage');
+  await expect(page.locator('#fullCatalogResultRows tr')).toHaveCount(2);
+  await expect(page.locator('#fullCatalogResultsStatus')).toContainText('2 events loaded');
+
+  const submitted = observedRequests.find(item =>
+    item.method === 'POST' && new URL(item.url).pathname === '/api/v1/screening-jobs'
+  );
+  expect(submitted?.headers.authorization).toBe('Bearer analyst-browser-test-token');
+  expect(submitted?.headers['idempotency-key']).toMatch(/^browser-/);
+  expect(observedRequests.every(item => !item.url.includes('analyst-browser-test-token'))).toBe(true);
+  expect(observedRequests.every(item => !new URL(item.url).searchParams.has('access_token'))).toBe(true);
+
+  const layout = await page.locator('#fullCatalogWorkspace').evaluate(workspace => ({
+    workspaceWidth: workspace.getBoundingClientRect().width,
+    workspaceScrollWidth: workspace.scrollWidth,
+    viewportWidth: window.innerWidth,
+    documentWidth: document.documentElement.scrollWidth
+  }));
+  expect(layout.workspaceScrollWidth).toBeLessThanOrEqual(layout.workspaceWidth + 1);
+  expect(layout.documentWidth).toBeLessThanOrEqual(layout.viewportWidth + 1);
+  const menuGeometry = await page.evaluate(() => {
+    const controls = document.querySelector('#controlsContainer')?.getBoundingClientRect();
+    const toggle = document.querySelector('#menuToggleBtn')?.getBoundingClientRect();
+    return controls && toggle ? {
+      controlsWidth: controls.width,
+      controlsRight: controls.right,
+      toggleLeft: toggle.left,
+      overlap: !(
+        toggle.right <= controls.left || toggle.left >= controls.right ||
+        toggle.bottom <= controls.top || toggle.top >= controls.bottom
+      )
+    } : null;
+  });
+  expect(menuGeometry?.controlsWidth).toBeGreaterThanOrEqual(370);
+  expect(menuGeometry?.toggleLeft).toBeGreaterThanOrEqual((menuGeometry?.controlsRight || 0) + 8);
+  expect(menuGeometry?.overlap).toBe(false);
+  const accessibility = await new AxeBuilder({ page })
+    .include('#fullCatalogWorkspace')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag22aa'])
+    .analyze();
+  expect(accessibility.violations.filter(item => ['serious', 'critical'].includes(item.impact))).toEqual([]);
+  expectNoBrowserErrors(browserErrors);
+  await testInfo.attach('v2.1-full-catalog-development', {
+    body: await page.screenshot({ fullPage: false }),
+    contentType: 'image/png'
+  });
+});
+
 test('selected satellite screening runs in a Worker and renders a conjunction event', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'chromium', 'The full catalog screen runs once on the desktop profile.');
   test.setTimeout(240_000);

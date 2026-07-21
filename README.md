@@ -6,6 +6,8 @@ OpenBEXI Earth Orbit is a browser-based satellite visualization app built with p
 
 [OpenBEXI Earth Orbit on GitHub Pages](https://arcazj.github.io/openbexi_earth_orbit/index.html)
 
+GitHub Pages is the reduced static mode. It can run the selected-object browser screener but cannot provide authenticated durable full-catalog jobs.
+
 ## Features
 
 - 3D Earth globe with satellite markers propagated from TLE data.
@@ -46,14 +48,17 @@ OpenBEXI Earth Orbit is a browser-based satellite visualization app built with p
 - Faster initial startup path: the globe and core controls render before the full TLE sprite pass, while timelines and decay estimates are prepared as deferred work.
 - Optional startup timing diagnostics through `?perf=1` or `localStorage.openbexiStartupPerf = "1"`.
 - Version 2.0 preview adds Experimental TLE-based selected-object versus catalog close-approach screening in a cancellable Web Worker, with synchronized TCA playback, miss distance, relative speed, input age, provenance, and explicit quality states.
+- Version 2.1 development adds an optional authenticated server workspace for bounded full-catalog jobs, durable progress/cancellation/replay, paginated event history, and SSE with polling fallback. Static hosting retains the Version 2.0 selected-object workflow and reports that full-catalog service capability is unavailable.
 
-## Version 2.0 Preview Boundary
+## Version 2.1 Development Boundary
 
-Version `2.0.0` is a **local preview candidate** with **Experimental** scientific maturity and a **non-operational** safety classification. It has not passed the external and human release gates in `docs/engineering/RELEASE_CHECKLIST.md`. The conjunction workspace reports geometric close approaches from same-time SGP4/TEME state vectors. It does not predict physical collision, provide operational alerts, or recommend maneuvers.
+Version `2.1.0` is a **development build**, not a release candidate or release. Its scientific maturity is **Experimental** and its safety classification is **non-operational**. Version 2.1 implementation was explicitly authorized, but the open v2.0 external and human promotion gates in `docs/engineering/RELEASE_CHECKLIST.md` were not retroactively closed. The separate Version 2.1 gate is tracked in `docs/engineering/RELEASE_CHECKLIST_V2_1.md`.
 
-Collision probability is unavailable in v2.0 because the current TLE catalog does not supply validated covariance and hard-body-radius inputs. The application never substitutes a heuristic probability. Stale elements, incomplete propagation coverage, non-converged refinement, and nearly identical/common TLE geometry remain visible as quality conditions.
+Both screening modes report geometric close approaches from synchronized states. Version 2.0 screens one selected object in a browser Worker. Version 2.1 can submit a frozen catalog revision to a bounded single-node server worker, persist job attempts/candidates/events/errors, stream progress, cancel, retry, and replay the same request. Catalog refresh registration distinguishes new, changed, absent, and reappeared observations, but `ABSENT` is inferred only from a successful explicit full snapshot. The current bundled incremental metadata is `PARTIAL`, so startup and scheduled incremental refreshes never treat an omitted record as absent. A successful job can still contain a `PARTIAL` scientific result; propagation failures, unscreened intervals, motion-bound violations, caps, source status, and truncation remain material. The UI repeats `Experimental`, `non-operational`, and collision-probability-unavailable labels and displays partial coverage with its unscreened interval count.
 
-The implemented method, validation evidence, assumptions, and unresolved limits are documented in `docs/science/EXPERIMENTAL_CONJUNCTION_SCREENING_V2.md`. The compute-boundary decision is recorded in `docs/adr/0002-browser-selected-object-conjunction-screening.md`. The feature is auditable and reversible through `release/feature-flags.json`.
+Collision probability remains unavailable because no validated covariance and hard-body-radius pipeline exists. Version 2.1 does not implement CDM assessment, operational risk scoring, alerts, reports, maneuver simulation, or collision-avoidance recommendations. Those capabilities remain later work requiring separate approval, independent validation, and provider governance. The application never substitutes a heuristic probability.
+
+The browser method is documented in `docs/science/EXPERIMENTAL_CONJUNCTION_SCREENING_V2.md`; the full-catalog method and measured limitations are in `docs/science/EXPERIMENTAL_FULL_CATALOG_SCREENING_V2_1.md`. ADR 0003 records the durable compute boundary. Local deployment and rollback are documented in `docs/engineering/SERVER_DEPLOYMENT_V2_1.md` and `docs/engineering/ROLLBACK_V2_1.md`.
 
 `release/version.json` is the authoritative version record. `npm run version:sync` regenerates browser metadata, and `npm run check:version` rejects drift in package, browser, server, static API documentation, or feature-flag metadata.
 
@@ -120,6 +125,8 @@ Version 1.7.5 refreshes the Launch and Re-entry timelines around the newest data
 Version 1.7.6 fixes timeline data freshness and startup behavior without changing the release number. `Show Launch Timeline` continues to anchor on the newest valid loaded launch date, while the data tool's incremental TLE path queries bounded CelesTrak groups (`active` and `last-30-days`), merges missing or newer TLE epochs, and fills launch-date sidecar entries from local SATCAT data when available. `Show Re-entry Timeline` now becomes usable as soon as confirmed decayed records load, then runs active-satellite decay prediction only for filtered likely-decay candidates and reuses daily cached prediction results. SATCAT refreshes use stored `ETag` / `Last-Modified` metadata and skip repeated decayed DB rebuilds when the source reports unchanged. That historical release used a CDN-first browser bootstrap; Version 2.0 supersedes it with vendored dependencies first and exact-version CDN fallback only when a packaged source is unavailable.
 
 The Version 2.0.0 candidate implements strict catalog/domain contracts, a pure satellite.js propagation adapter, and Experimental selected-satellite close-approach screening in a Web Worker. The preview reports TCA, geometric miss distance, relative velocity, source/element age, configuration and algorithm provenance, quality flags, and synchronized 3D playback. It explicitly leaves collision probability unavailable, retains a non-operational safety class, and does not include full-catalog scheduled jobs, persistent event history, alerts, CDM/covariance analysis, or maneuver recommendations. Its legacy TLE feed also cannot represent newly issued six-digit catalog identifiers, so a successful run is not complete catalog coverage.
+
+The Version 2.1.0 development scope adds the optional single-node full-catalog service without changing those scientific claim limits. It uses private content-addressed catalog revisions, normalized bounded requests, SQLite job/attempt/event persistence, an isolated Node runner, conservative time-slab spatial hashing, authenticated `/api/v1` routes, signed pagination cursors, and resumable SSE progress. Multi-format contracts cover TLE JSON, CCSDS OMM JSON/KVN, CCSDS OEM KVN, and provider ephemeris JSON, but only the bundled TLE snapshot is registered automatically; no new provider feed or license is admitted by implementing an adapter. The current full-catalog runner requires selected records to be UTC/TEME.
 
 The selected satellite model axis convention is:
 
@@ -245,6 +252,17 @@ Optional API server mode:
 py server.py --host 127.0.0.1 --port 8000
 ```
 
+To enable authenticated Version 2.1 full-catalog jobs, configure at least an analyst token before startup. Values must be independently generated and at least 24 characters; `.env.example` is documentation only and is not loaded automatically:
+
+```powershell
+$env:OPENBEXI_API_ANALYST_TOKEN = "replace-with-an-independent-random-analyst-token"
+$env:OPENBEXI_API_VIEWER_TOKEN = "replace-with-an-independent-random-viewer-token"
+$env:OPENBEXI_API_ADMIN_TOKEN = "replace-with-an-independent-random-admin-token"
+npm run serve
+```
+
+The browser keeps the token entered in the Full-Catalog Screening workspace in page memory only. An analyst token can submit, read, cancel, retry, and replay local jobs. Viewer credentials are read-only; the administrator role is currently a superset reserved for later operator actions. Do not place tokens in URLs, browser storage, logs, or source files.
+
 Open:
 
 ```text
@@ -264,13 +282,23 @@ The Python server uses only the standard library. It serves the existing static 
 - `http://127.0.0.1:8000/docs`
 - `http://127.0.0.1:8000/openapi.json`
 
+Versioned v2.1 routes include:
+
+- `/api/v1/health/live`, `/api/v1/health/ready`, and `/api/v1/capabilities` for unauthenticated discovery;
+- `/api/v1/catalog-revisions` and `/api/v1/catalog-revisions/{revision_id}` for authenticated revision reads;
+- `/api/v1/screening-jobs` and `/api/v1/screening-jobs/{job_id}` for paginated job reads, submission, status, and cancellation;
+- `/api/v1/screening-jobs/{job_id}/retry`, `/replay`, and `/stream` for analyst retry/replay and authenticated resumable progress;
+- `/api/v1/conjunction-events` and `/api/v1/conjunction-events/{event_id}` for signed-cursor event queries and details.
+
+Job submission and replay require an `Idempotency-Key`. SSE resume uses `Last-Event-ID`; authentication stays in the request header, never a query parameter. `/api/v1/capabilities` publishes the normalized default configuration and structured min/max/integer limits so clients do not invent bounds. Catalog API responses omit private snapshot and metadata paths. The UI uses authenticated fetch streaming and automatically falls back to bounded polling. Worker progress persistence coalesces first-stage, 1% advancement, and bounded-heartbeat snapshots and enforces a hard limit of 512 progress records per attempt. The server stores private snapshots, SQLite state, and per-attempt artifacts under `runtime/` by default. Use `--runtime-dir` to choose another directory inside the project, or `--no-v21-service` to run the legacy/static API without opening the v2.1 store. See `docs/engineering/SERVER_DEPLOYMENT_V2_1.md` for the local-only deployment boundary.
+
 The API server binds to loopback by default and permits browser CORS requests only from loopback origins unless an origin is explicitly allowed. A non-loopback bind requires an explicit acknowledgement:
 
 ```powershell
 py server.py --host 0.0.0.0 --port 8000 --allow-public --cors-origin https://trusted.example
 ```
 
-Public exposure still requires an authenticated reverse proxy, TLS, request limits, and deployment-specific access controls. See `SECURITY.md` before exposing the server outside a trusted development machine.
+Public exposure still requires an authenticated reverse proxy, TLS, managed identity/secrets, quotas, monitoring, backups, retention, incident ownership, and deployment-specific access controls. The built-in bearer registry and rate limits are local development controls, not approval for a hosted multi-user service. See `SECURITY.md` and `docs/engineering/THREAT_MODEL_V2_1.md` before exposing the server outside a trusted development machine.
 
 Static Swagger/API documentation is also available without the Python server:
 
@@ -308,7 +336,7 @@ The server can run the same Python code in a background scheduler:
 py server.py --host 127.0.0.1 --port 8000 --update-data-on-schedule
 ```
 
-Scheduled updates are disabled by default. When enabled, startup only checks local freshness metadata; it queries remote TLE data only when the configured 24-hour server interval and the 2-hour CelesTrak guard both allow it. Decayed scheduled updates refresh `json/satcat.csv` first, then rebuild `json/decayed/decayed.json` only when the SATCAT source changed or a valid local decayed DB is missing. The scheduler runs in the background, uses `json/.satellite_data_update.lock` to avoid overlap, never uses `--all`, and exposes state at `/api/data-update-status`.
+Scheduled updates are disabled by default. When enabled, startup only checks local freshness metadata; it queries remote TLE data only when the configured 24-hour server interval and the 2-hour CelesTrak guard both allow it. Decayed scheduled updates refresh `json/satcat.csv` first, then rebuild `json/decayed/decayed.json` only when the SATCAT source changed or a valid local decayed DB is missing. After a successful TLE update, the v2.1 service snapshots and registers the new catalog revision and reconciles observed new, changed, and reappeared records; a failed or unchanged update does not fabricate a new revision. The scheduler never uses `--all`, so its incremental metadata is `PARTIAL` and cannot generate `ABSENT`; absence reconciliation is reserved for a successful explicitly registered full snapshot. The scheduler runs in the background, uses `json/.satellite_data_update.lock` to avoid overlap, and exposes state at `/api/data-update-status`.
 
 ## Testing
 
@@ -320,6 +348,15 @@ npm test
 ```
 
 For focused iteration, use `npm run test:unit`, `npm run test:python`, or `npm run test:browser`.
+
+Run the repeatable Version 2.1 full-catalog benchmark with a named output artifact:
+
+```powershell
+npm run benchmark:full-catalog -- --output artifacts/full-catalog-benchmark.json
+npm run benchmark:v21-service -- --output artifacts/v21-service-benchmark.json
+```
+
+The first command measures the engine directly. The second starts the real loopback HTTP service with a fresh private runtime and generated credentials, submits a durable job, records endpoint latency and SQLite growth, verifies persistence after shutdown, and deletes the runtime unless `--keep-runtime` is supplied. Both default to a 60-second development profile. Their wall time, memory, candidate reduction, result volume, persistence, and partial-coverage statistics are not portable service-level objectives.
 
 After changing `release/version.json`, regenerate browser metadata and verify all derived release surfaces:
 
@@ -342,7 +379,7 @@ npm run audit:dependencies
 npm run sbom -- --output artifacts/openbexi-node-sbom.cdx.json
 ```
 
-CI runs the same checks from a clean `npm ci` install. Run the manual regression checklist in `Test_and_Integration.md` and the gates in `docs/engineering/RELEASE_CHECKLIST.md` before considering a release complete.
+CI runs the same checks from a clean `npm ci` install. Run the manual regression checklist in `Test_and_Integration.md`, the retained v2.0 gates in `docs/engineering/RELEASE_CHECKLIST.md`, and the v2.1 gates in `docs/engineering/RELEASE_CHECKLIST_V2_1.md` before considering a candidate decision.
 
 ## Startup Performance
 
@@ -390,11 +427,16 @@ The Help section opens Swagger and API documentation in separate pages. `Swagger
 - `swagger.html`: Local standard Swagger/OpenAPI-style static API page that displays without starting `server.py`.
 - `css/`: Styling for the app, menu, filters, labels, and map layout.
 - `js/`: Browser modules for coordinates, satellite loading, models, menu, footprints, frames, day/night, Moon/Mars, timelines, and map rendering.
-- `server.py`: Optional standard-library Python server for static hosting, API endpoints, CORS, Swagger/OpenAPI docs, and server-backed data loading.
+- `server.py`: Optional standard-library Python server for static hosting, legacy reads, authenticated `/api/v1`, CORS, Swagger/OpenAPI docs, and server-backed data loading.
 - `js/startupPerformance.js`: Startup timing, deferred scheduling, and chunked-work helpers used to keep the first render responsive.
-- `js/domain/`: Versioned orbital domain contracts, identity, catalog validation, and frame/time policies.
-- `js/orbit/propagationService.js`: Rendering-independent TLE/SGP4 state-vector service.
-- `js/conjunction/`: Experimental worker protocol, screening engine, panel state, and display-only conjunction visualization.
+- `js/domain/`: Versioned orbital/job/source contracts, identity, catalog validation/lifecycle reconciliation, and frame/time policies.
+- `js/orbit/`: Rendering-independent TLE/OMM propagation and bounded ephemeris interpolation services.
+- `js/conjunction/`: Experimental selected-object Worker modules, full-catalog engine/client, panel state, and display-only conjunction visualization.
+- `services/v21/`: Local SQLite job store, migration, catalog snapshot registry, authenticated API service/router, security controls, and single-node worker manager.
+- `scripts/run-full-catalog-screening.mjs`: Isolated checksummed Version 2.1 job runner.
+- `scripts/benchmark-full-catalog.mjs`: Named-environment full-catalog development benchmark driver.
+- `tools/benchmark_v21_service.py`: Fresh-runtime loopback HTTP/store/worker/persistence benchmark driver.
+- `runtime/`: Private generated Version 2.1 database, catalog snapshots, and job artifacts; excluded from source and static artifacts.
 - `release/`: Authoritative version, feature-flag registry, and enforced asset budgets.
 - `docs/`: Architecture decisions, governance, validation, science limitations, performance, release, and rollback documentation.
 - `json/tle/`: TLE source data.
@@ -422,12 +464,16 @@ The Help section opens Swagger and API documentation in separate pages. `Swagger
 - `SECURITY.md`: Supported security boundary, reporting guidance, and public-server requirements.
 - `LICENSE.md`: Markdown copy of the MIT license used by the Help Licenses action.
 - `PROMPT_Instructions.md`: General execution prompt and project-compatible execution rules; dated implementation requests belong in prompt history or a clearly identified accepted standalone prompt.
-- `PROMPT_IMPLEMENT_ROADMAP_V2.md`: Archived accepted implementation prompt for the Version 2.0 roadmap; it does not authorize v2.1 while current release gates remain open.
+- `PROMPT_IMPLEMENT_ROADMAP_V2.md`: Archived accepted release-train prompt. Prompt history records the later explicit authorization for Version 2.1 development; its preserved body does not override current release metadata or gates.
 - `PROMPT4beamFormingSimulator3DWithMercatorMap_V2.MD`: Supplemental beam-forming/Mercator simulator prompt kept in the workspace when present.
-- `PROMPT_History.md`: Source-only dated implementation prompts and requirements, including the v2.0 candidate and startup follow-up; excluded from production artifacts.
-- `ROADMAP.md`: Evidence-based Version 2.0 improvement and feature roadmap.
+- `PROMPT_History.md`: Source-only dated implementation prompts and outcomes, including v2.0 and explicit v2.1 development authorization; excluded from production artifacts.
+- `ROADMAP.md`: Evidence-based Version 2 roadmap and current implementation/gate status.
 - `SWAGGER.md`: Local static Swagger/API Markdown companion; render with `markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API` without starting the Python server.
-- `Test_and_Integration.md`: Historical regression/manual record through Version 1.7.6; current v2.0 gates live in `docs/engineering/RELEASE_CHECKLIST.md` and package scripts.
+- `Test_and_Integration.md`: Historical regression/manual record through Version 1.7.6; current gates live in the v2.0 and v2.1 engineering checklists and package scripts.
+- `docs/science/EXPERIMENTAL_FULL_CATALOG_SCREENING_V2_1.md`: Version 2.1 method, partial-result meaning, benchmark evidence, and claim limits.
+- `docs/engineering/SERVER_DEPLOYMENT_V2_1.md`: Authenticated loopback deployment, roles, storage, health, and operational limits.
+- `docs/engineering/RELEASE_CHECKLIST_V2_1.md`: Development evidence and remaining candidate gates.
+- `docs/engineering/ROLLBACK_V2_1.md`: Service disablement, preservation, restoration, and rehearsal requirements.
 
 ## Development Notes
 
@@ -435,7 +481,7 @@ The Help section opens Swagger and API documentation in separate pages. `Swagger
 - Keep browser import maps synchronized: `three` and `three/addons/` must use the same verified Three.js version.
 - Keep `PROMPT_Instructions.md` limited to general project-compatible execution rules. Put dated prompt records in `PROMPT_History.md`, user-facing release summaries in `RELEASE_NOTES.md`, and preserve an accepted standalone prompt when it is a named project artifact.
 - Keep reusable coordinate, scale, orientation, and framing math in `js/sceneFrame.js` when practical so browser behavior and automated tests stay aligned.
-- Preserve `Test_and_Integration.md` as the historical regression record through Version 1.7.6. Record current v2.0 promotion criteria in `docs/engineering/RELEASE_CHECKLIST.md` and bind verification results under `release/evidence/`.
+- Preserve `Test_and_Integration.md` as the historical regression record through Version 1.7.6. Keep v2.0 and v2.1 promotion criteria separate in their engineering checklists and bind verification results to exact source/catalog/artifact hashes.
 - Keep `README.md` current when setup, usage, test commands, features, architecture, or known limitations change.
 - Avoid mixing generated assets, build outputs, or unrelated untracked files into feature changes.
 

@@ -182,9 +182,14 @@
         shareStateSummary,
         shareUrlContainsUnsafeLocalData
     } from './js/shareState.js';
-    import { createConjunctionPanel } from './js/conjunction/conjunctionPanel.js';
+    import { createConjunctionPanel, parseUtcDateTimeLocal } from './js/conjunction/conjunctionPanel.js';
     import { createConjunctionVisualization } from './js/conjunction/conjunctionVisualization.js';
     import { createConjunctionWorkerClient } from './js/conjunction/conjunctionWorkerClient.js';
+    import {
+        buildFullCatalogJobRequest,
+        createFullCatalogClient,
+        normalizeFullCatalogEvent
+    } from './js/conjunction/fullCatalogClient.js';
     import { createTlePropagationService } from './js/orbit/propagationService.js';
     import { normalizeNoradId, noradIdFromInternalObjectId } from './js/domain/objectIdentity.js';
     import { EXPERIMENTAL_CONJUNCTION_SCREENING_ENABLED } from './js/releaseVersion.js';
@@ -487,6 +492,7 @@
     let activeConjunctionSecondary = null;
     let selectedConjunctionEvent = null;
     let conjunctionCatalogMetadata = null;
+    let fullCatalogWorkspace = null;
 
     function satelliteScreeningRecord(satData) {
         if (!satData) return null;
@@ -669,6 +675,326 @@
         conjunctionPanel.setStartTime(SIM_DATE);
     }
 
+    function createFullCatalogWorkspace() {
+        const elements = {
+            workspace: document.getElementById('fullCatalogWorkspace'),
+            badge: document.getElementById('fullCatalogCapabilityBadge'),
+            capabilityStatus: document.getElementById('fullCatalogCapabilityStatus'),
+            refresh: document.getElementById('fullCatalogRefreshButton'),
+            form: document.getElementById('fullCatalogJobForm'),
+            token: document.getElementById('fullCatalogBearerToken'),
+            run: document.getElementById('fullCatalogRunButton'),
+            cancel: document.getElementById('fullCatalogCancelButton'),
+            jobStatusBlock: document.getElementById('fullCatalogJobStatusBlock'),
+            progress: document.getElementById('fullCatalogProgress'),
+            status: document.getElementById('fullCatalogStatus'),
+            jobId: document.getElementById('fullCatalogJobId'),
+            jobState: document.getElementById('fullCatalogJobState'),
+            jobStage: document.getElementById('fullCatalogJobStage'),
+            eventCount: document.getElementById('fullCatalogEventCount'),
+            coverage: document.getElementById('fullCatalogCoverage'),
+            results: document.getElementById('fullCatalogResults'),
+            resultRows: document.getElementById('fullCatalogResultRows'),
+            resultsStatus: document.getElementById('fullCatalogResultsStatus')
+        };
+        if (!elements.workspace || !elements.form) return null;
+
+        const client = createFullCatalogClient({ baseUrl: serverConnectionState.baseUrl || serverApiBaseUrl });
+        let capability = null;
+        let activeJob = null;
+        let submitting = false;
+        let disposed = false;
+        let discoveryController = null;
+        let watchController = null;
+
+        const activeState = () => ['QUEUED', 'RUNNING', 'CANCEL_REQUESTED'].includes(
+            String(activeJob?.state || '').toUpperCase()
+        );
+
+        const capabilityReadiness = () => {
+            const feature = capability?.full_catalog_screening;
+            return Boolean(
+                feature?.enabled &&
+                feature?.authenticated &&
+                feature?.worker_running &&
+                feature?.current_catalog_revision_id
+            );
+        };
+
+        const updateActionAvailability = () => {
+            const working = activeState();
+            elements.run.disabled = submitting || working || !capabilityReadiness() || !client.hasToken();
+            elements.cancel.disabled = submitting || !working || activeJob?.state === 'CANCEL_REQUESTED';
+            elements.token.disabled = working;
+        };
+
+        const setCapabilityBadge = (label, state) => {
+            elements.badge.textContent = label;
+            elements.badge.dataset.state = state;
+        };
+
+        const renderCapability = () => {
+            const feature = capability?.full_catalog_screening;
+            if (!client.baseUrl) {
+                setCapabilityBadge('Server required', 'unavailable');
+                elements.capabilityStatus.textContent = 'Full-catalog jobs are unavailable in static mode.';
+            } else if (!feature) {
+                setCapabilityBadge('Unavailable', 'unavailable');
+                elements.capabilityStatus.textContent = 'The connected server does not expose full-catalog screening.';
+            } else if (!feature.enabled) {
+                setCapabilityBadge('Disabled', 'unavailable');
+                elements.capabilityStatus.textContent = 'Full-catalog screening is disabled on this server.';
+            } else if (!feature.authenticated) {
+                setCapabilityBadge('Auth unavailable', 'unavailable');
+                elements.capabilityStatus.textContent = 'The server has no API credentials configured.';
+            } else if (!feature.worker_running) {
+                setCapabilityBadge('Worker offline', 'unavailable');
+                elements.capabilityStatus.textContent = 'The full-catalog worker is not ready.';
+            } else if (!feature.current_catalog_revision_id) {
+                setCapabilityBadge('No catalog', 'unavailable');
+                elements.capabilityStatus.textContent = 'No server catalog revision is available.';
+            } else {
+                setCapabilityBadge('Ready', 'ready');
+                elements.capabilityStatus.textContent = `Server catalog ${feature.current_catalog_revision_id}`;
+            }
+            updateActionAvailability();
+        };
+
+        const refreshCapabilities = async () => {
+            discoveryController?.abort();
+            const controller = new AbortController();
+            discoveryController = controller;
+            setCapabilityBadge('Checking', 'checking');
+            elements.capabilityStatus.textContent = 'Checking server capability.';
+            elements.refresh.disabled = true;
+            const timeout = setTimeout(() => controller.abort(), 3000);
+            try {
+                const discovered = await client.discoverCapabilities({ signal: controller.signal });
+                if (disposed || discoveryController !== controller) return;
+                capability = discovered;
+                renderCapability();
+            } catch (error) {
+                if (disposed || discoveryController !== controller) return;
+                capability = null;
+                setCapabilityBadge('Server required', 'unavailable');
+                if (error?.name === 'AbortError') {
+                    elements.capabilityStatus.textContent = 'Full-catalog capability check timed out.';
+                } else if (!error?.status || error.status === 404 || error.status === 503) {
+                    elements.capabilityStatus.textContent = 'Full-catalog service unavailable; selected-object screening remains available.';
+                } else {
+                    elements.capabilityStatus.textContent = error?.message || 'Full-catalog service is unavailable.';
+                }
+                updateActionAvailability();
+            } finally {
+                clearTimeout(timeout);
+                if (discoveryController === controller) discoveryController = null;
+                if (!disposed) elements.refresh.disabled = false;
+            }
+        };
+
+        const progressPercent = job => {
+            const fraction = Number(job?.progress_fraction);
+            return Number.isFinite(fraction) ? Math.max(0, Math.min(100, fraction * 100)) : 0;
+        };
+
+        const renderJob = (job, transport = '') => {
+            if (!job) return;
+            const previousJobId = activeJob?.job_id || null;
+            activeJob = job;
+            const state = String(job.state || 'UNKNOWN').toUpperCase();
+            const percent = progressPercent(job);
+            const resultCount = Number(job.result?.event_count);
+            const scientificStatus = String(job.result?.summary?.status || '').toUpperCase();
+            const unscreenedIntervals = Number(
+                job.result?.summary?.statistics?.pair_intervals_unscreened
+            );
+            elements.jobStatusBlock.hidden = false;
+            elements.progress.value = percent;
+            elements.jobId.textContent = job.job_id || 'Unavailable';
+            elements.jobState.textContent = state;
+            elements.jobStage.textContent = job.progress_stage || (state === 'QUEUED' ? 'Waiting' : 'Unavailable');
+            if (Number.isFinite(resultCount)) elements.eventCount.textContent = resultCount.toLocaleString();
+            else if (previousJobId !== job.job_id) elements.eventCount.textContent = '0';
+            if (scientificStatus === 'PARTIAL') {
+                elements.coverage.textContent = Number.isFinite(unscreenedIntervals)
+                    ? `Partial (${unscreenedIntervals.toLocaleString()} unscreened)`
+                    : 'Partial';
+            } else if (scientificStatus === 'COMPLETED') {
+                elements.coverage.textContent = 'Complete';
+            } else if (previousJobId !== job.job_id) {
+                elements.coverage.textContent = 'Pending';
+            }
+
+            if (state === 'QUEUED') elements.status.textContent = 'Full-catalog job queued.';
+            else if (state === 'RUNNING') elements.status.textContent = `Full-catalog job ${Math.round(percent)}% complete.`;
+            else if (state === 'CANCEL_REQUESTED') elements.status.textContent = 'Cancellation requested.';
+            else if (state === 'SUCCEEDED' && scientificStatus === 'PARTIAL') {
+                elements.status.textContent = Number.isFinite(unscreenedIntervals)
+                    ? `Job finished with partial coverage; ${unscreenedIntervals.toLocaleString()} pair intervals were not screened.`
+                    : 'Job finished with partial screening coverage.';
+            } else if (state === 'SUCCEEDED') elements.status.textContent = 'Full-catalog job completed with complete reported coverage.';
+            else if (state === 'CANCELLED') elements.status.textContent = 'Full-catalog job cancelled.';
+            else if (state === 'TIMED_OUT') elements.status.textContent = 'Full-catalog job timed out.';
+            else if (state === 'FAILED') elements.status.textContent = job.error?.message || 'Full-catalog job failed.';
+            else elements.status.textContent = `Full-catalog job state: ${state}.`;
+            if (transport === 'poll') elements.status.dataset.transport = 'poll';
+            updateActionAvailability();
+        };
+
+        const compactObjectId = objectId => String(objectId || 'Unknown').replace(/^obx:norad:/i, 'NORAD ');
+        const formatEventTime = value => {
+            const parsed = new Date(value);
+            return Number.isFinite(parsed.getTime())
+                ? parsed.toISOString().replace('T', ' ').replace('.000Z', 'Z')
+                : 'Unavailable';
+        };
+
+        const selectServerEvent = event => {
+            const normalized = normalizeFullCatalogEvent(event);
+            const primary = satelliteForConjunctionObject(normalized.primary_object_id);
+            const secondary = satelliteForConjunctionObject(normalized.secondary_object_id);
+            if (!primary || !secondary) {
+                elements.resultsStatus.textContent = 'Both event objects are not present in the browser catalog snapshot.';
+                return;
+            }
+            showConjunctionEvent(normalized);
+            elements.resultsStatus.textContent = `Displaying ${compactObjectId(normalized.primary_object_id)} and ${compactObjectId(normalized.secondary_object_id)} at TCA.`;
+        };
+
+        const renderEvents = ({ items, next_cursor: nextCursor }) => {
+            const events = Array.isArray(items) ? items : [];
+            elements.resultRows.replaceChildren();
+            events.forEach(event => {
+                const row = document.createElement('tr');
+                const tcaCell = document.createElement('td');
+                const eventButton = document.createElement('button');
+                eventButton.type = 'button';
+                eventButton.className = 'full-catalog-event-button';
+                eventButton.textContent = formatEventTime(event.tca);
+                eventButton.setAttribute(
+                    'aria-label',
+                    `Display event for ${compactObjectId(event.primary_object_id)} and ${compactObjectId(event.secondary_object_id)} at ${formatEventTime(event.tca)}`
+                );
+                eventButton.addEventListener('click', () => selectServerEvent(event));
+                tcaCell.appendChild(eventButton);
+
+                const pairCell = document.createElement('td');
+                pairCell.textContent = `${compactObjectId(event.primary_object_id)} / ${compactObjectId(event.secondary_object_id)}`;
+                const distanceCell = document.createElement('td');
+                const distance = Number(event.miss_distance_km);
+                distanceCell.textContent = Number.isFinite(distance) ? distance.toFixed(distance < 10 ? 3 : 1) : 'N/A';
+                row.append(tcaCell, pairCell, distanceCell);
+                elements.resultRows.appendChild(row);
+            });
+            elements.results.hidden = false;
+            elements.eventCount.textContent = events.length.toLocaleString();
+            if (!events.length) elements.resultsStatus.textContent = 'No close-approach events were returned for this job.';
+            else if (nextCursor) elements.resultsStatus.textContent = `Showing the first ${events.length.toLocaleString()} events.`;
+            else elements.resultsStatus.textContent = `${events.length.toLocaleString()} events loaded.`;
+        };
+
+        const loadCompletedEvents = async job => {
+            const requestedLimit = Number(job?.request?.configuration?.max_results);
+            const maxItems = Number.isFinite(requestedLimit)
+                ? Math.max(1, Math.min(10000, Math.trunc(requestedLimit)))
+                : 500;
+            elements.resultsStatus.textContent = 'Loading full-catalog events.';
+            const page = await client.loadJobEvents(job.job_id, { maxItems });
+            if (!disposed && activeJob?.job_id === job.job_id) renderEvents(page);
+        };
+
+        const monitorJob = async job => {
+            watchController?.abort();
+            const controller = new AbortController();
+            watchController = controller;
+            try {
+                const terminal = await client.watchJob(job.job_id, {
+                    signal: controller.signal,
+                    onJob: (update, context) => renderJob(update, context?.transport),
+                    onStreamEvent: frame => {
+                        if (frame.type === 'job.result') elements.status.textContent = 'Full-catalog result is available.';
+                    }
+                });
+                renderJob(terminal);
+                if (terminal.state === 'SUCCEEDED') await loadCompletedEvents(terminal);
+            } catch (error) {
+                if (!controller.signal.aborted && !disposed) {
+                    elements.status.textContent = error?.message || 'Full-catalog job monitoring stopped.';
+                }
+            } finally {
+                if (watchController === controller) watchController = null;
+                updateActionAvailability();
+            }
+        };
+
+        const buildRequestFromControls = () => {
+            const screeningForm = document.getElementById('conjunctionScreeningForm');
+            if (!screeningForm?.reportValidity()) throw new Error('Review the screening fields above.');
+            const start = parseUtcDateTimeLocal(document.getElementById('conjunctionStartTime')?.value);
+            return buildFullCatalogJobRequest({
+                startTime: start,
+                durationHours: document.getElementById('conjunctionDurationHours')?.value,
+                coarseStepSeconds: document.getElementById('conjunctionCoarseStepSeconds')?.value,
+                screeningRadiusKm: document.getElementById('conjunctionScreeningRadiusKm')?.value,
+                refinementToleranceSeconds: document.getElementById('conjunctionRefinementToleranceSeconds')?.value,
+                maxResults: document.getElementById('conjunctionMaxResults')?.value,
+                catalogRevisionId: capability?.full_catalog_screening?.current_catalog_revision_id || 'current'
+            });
+        };
+
+        elements.token.addEventListener('input', () => {
+            client.setToken(elements.token.value);
+            updateActionAvailability();
+        });
+        elements.refresh.addEventListener('click', () => void refreshCapabilities());
+        elements.form.addEventListener('submit', async event => {
+            event.preventDefault();
+            if (submitting || activeState()) return;
+            submitting = true;
+            elements.results.hidden = true;
+            elements.resultRows.replaceChildren();
+            elements.status.textContent = 'Submitting full-catalog job.';
+            elements.jobStatusBlock.hidden = false;
+            updateActionAvailability();
+            try {
+                const request = buildRequestFromControls();
+                const job = await client.submitJob(request, {
+                    idempotencyKey: client.createIdempotencyKey()
+                });
+                renderJob(job);
+                void monitorJob(job);
+            } catch (error) {
+                elements.status.textContent = error?.message || 'Full-catalog job submission failed.';
+            } finally {
+                submitting = false;
+                updateActionAvailability();
+            }
+        });
+        elements.cancel.addEventListener('click', async () => {
+            if (!activeJob?.job_id || !activeState()) return;
+            elements.cancel.disabled = true;
+            elements.status.textContent = 'Requesting cancellation.';
+            try {
+                renderJob(await client.cancelJob(activeJob.job_id));
+            } catch (error) {
+                elements.status.textContent = error?.message || 'Cancellation request failed.';
+                updateActionAvailability();
+            }
+        });
+
+        void refreshCapabilities();
+        return {
+            refreshCapabilities,
+            dispose() {
+                disposed = true;
+                discoveryController?.abort();
+                watchController?.abort();
+                client.clearToken();
+                elements.token.value = '';
+            }
+        };
+    }
+
     function initializeConjunctionWorkspace() {
         if (!EXPERIMENTAL_CONJUNCTION_SCREENING_ENABLED) {
             document.getElementById('conjunctionAccordionSection')?.setAttribute('hidden', '');
@@ -697,7 +1023,9 @@
             onPlaybackTimeChanged: updateConjunctionPlayback,
             onDiagnostic: diagnostic => console.info('[conjunction]', diagnostic)
         });
+        fullCatalogWorkspace = createFullCatalogWorkspace();
         window.addEventListener('beforeunload', () => {
+            fullCatalogWorkspace?.dispose();
             conjunctionPanel?.dispose();
             conjunctionWorkerClient?.terminate();
             conjunctionLayer?.dispose();

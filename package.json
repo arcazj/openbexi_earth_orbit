@@ -1,6 +1,6 @@
 {
   "name": "openbexi_orbit",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -9,11 +9,13 @@
   },
   "scripts": {
     "audit:dependencies": "npm audit --audit-level=high",
+    "benchmark:full-catalog": "node --expose-gc scripts/benchmark-full-catalog.mjs",
+    "benchmark:v21-service": "node scripts/python.mjs tools/benchmark_v21_service.py",
     "build": "node scripts/build-static.mjs",
     "check": "npm run check:syntax && npm run check:python && npm run check:version && npm run check:vendor && npm run check:artifact && npm run check:validation && npm run check:budgets",
     "check:artifact": "node scripts/build-static.mjs",
     "check:budgets": "node scripts/check-asset-budgets.mjs",
-    "check:python": "node scripts/python.mjs -m py_compile server.py tools/satellite_data_tools.py tools/generate_jpl_ephemeris.py tools/preprocess_star_catalog.py tools/save_obj_with_texture.py",
+    "check:python": "node scripts/python.mjs -m compileall -q server.py services tools",
     "check:syntax": "node scripts/check-js-syntax.mjs",
     "check:validation": "node scripts/check-validation-manifest.mjs",
     "check:vendor": "node scripts/vendor-browser-dependencies.mjs --check",

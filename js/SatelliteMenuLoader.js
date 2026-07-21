@@ -248,6 +248,55 @@ export function satelliteMenuLoader() {
             </div>
             <div class="conjunction-visual-note">Markers are visually exaggerated. Numeric distance is authoritative for this screening model.</div>
           </section>
+
+          <section id="fullCatalogWorkspace" class="full-catalog-workspace" aria-labelledby="fullCatalogTitle">
+            <div class="full-catalog-header">
+              <strong id="fullCatalogTitle">Full-catalog job</strong>
+              <span id="fullCatalogCapabilityBadge" class="full-catalog-state-badge" data-state="checking">Checking</span>
+              <button id="fullCatalogRefreshButton" type="button" class="conjunction-icon-button full-catalog-refresh-button" aria-label="Refresh full-catalog capability" title="Refresh capability">&#8635;</button>
+            </div>
+            <div id="fullCatalogCapabilityStatus" class="full-catalog-capability-status" role="status" aria-live="polite">Checking server capability.</div>
+            <div class="full-catalog-safety-note">Experimental and non-operational. Collision probability is unavailable.</div>
+
+            <form id="fullCatalogJobForm" class="full-catalog-form">
+              <label for="fullCatalogBearerToken">Bearer token
+                <input id="fullCatalogBearerToken" name="fullCatalogBearerToken" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="fullCatalogTokenNote">
+              </label>
+              <span id="fullCatalogTokenNote" class="full-catalog-token-note">Session memory only</span>
+              <div class="full-catalog-action-row">
+                <button id="fullCatalogRunButton" type="submit" class="menu-secondary-action" disabled>Start Full-Catalog Job</button>
+                <button id="fullCatalogCancelButton" type="button" class="menu-secondary-action" disabled>Cancel Job</button>
+              </div>
+            </form>
+
+            <div id="fullCatalogJobStatusBlock" class="full-catalog-job-status" hidden>
+              <progress id="fullCatalogProgress" max="100" value="0" aria-label="Full-catalog job progress"></progress>
+              <div id="fullCatalogStatus" class="full-catalog-status" role="status" aria-live="polite">No job submitted.</div>
+              <dl class="full-catalog-job-metrics">
+                <div><dt>Job</dt><dd id="fullCatalogJobId">Unavailable</dd></div>
+                <div><dt>State</dt><dd id="fullCatalogJobState">Unavailable</dd></div>
+                <div><dt>Stage</dt><dd id="fullCatalogJobStage">Waiting</dd></div>
+                <div><dt>Events</dt><dd id="fullCatalogEventCount">0</dd></div>
+                <div><dt>Coverage</dt><dd id="fullCatalogCoverage">Pending</dd></div>
+              </dl>
+            </div>
+
+            <div id="fullCatalogResults" class="full-catalog-results" hidden>
+              <div class="conjunction-table-scroll" tabindex="0" aria-label="Full-catalog close-approach events">
+                <table class="full-catalog-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">TCA</th>
+                      <th scope="col">Object pair</th>
+                      <th scope="col">Miss km</th>
+                    </tr>
+                  </thead>
+                  <tbody id="fullCatalogResultRows"></tbody>
+                </table>
+              </div>
+              <div id="fullCatalogResultsStatus" class="full-catalog-results-status" role="status" aria-live="polite"></div>
+            </div>
+          </section>
         </div>
       </section>
 

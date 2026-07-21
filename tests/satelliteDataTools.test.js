@@ -50,7 +50,7 @@ function run() {
   assert(tool.includes('has not updated since your last successful'), 'CelesTrak no-new-data throttles are treated as not modified');
   assert(tool.includes('"https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle"'), 'legacy source list starts with Starlink');
   assert(!tool.includes('"http://celestrak.org/'), 'active CelesTrak source configuration contains no HTTP URLs');
-  assert(tool.includes('HTTP_USER_AGENT = "OpenBEXI-Earth-Orbit/2.0.0'), 'data fetches identify the v2.0.0 client');
+  assert(tool.includes('HTTP_USER_AGENT = "OpenBEXI-Earth-Orbit/%s'), 'data fetches derive their client version from release metadata');
   assert(tool.includes('allow_n2yo: bool = False'), 'N2YO enrichment requires an explicit API opt-in');
   assert(tool.includes('INCREMENTAL_TLE_GROUPS = ("active", "last-30-days")'), 'default TLE update uses optimized incremental groups');
   assert(tool.includes('CELESTRAK_SATCAT_CSV_URL = "https://celestrak.org/pub/satcat.csv"'), 'tool knows the CelesTrak raw SATCAT CSV source');
@@ -148,7 +148,7 @@ finally:
     s.request.urlopen = original_urlopen
 assert fetched.text == "fixture"
 assert captured_request["request"].get_header("User-agent") == s.HTTP_USER_AGENT
-assert "2.0.0" in s.HTTP_USER_AGENT
+assert "2.1.0" in s.HTTP_USER_AGENT
 
 all_args = s.build_parser().parse_args(["export-tle", "--all"])
 incremental_args = s.build_parser().parse_args(["export-tle"])

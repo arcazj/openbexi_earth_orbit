@@ -483,7 +483,7 @@
     <header class="hero">
       <h1>
         OpenBEXI Earth Orbit API
-        <span class="badge version">2.0.0</span>
+        <span class="badge version">2.1.0</span>
         <span class="badge oas">OAS 3.0.3</span>
       </h1>
       <p class="description">
@@ -539,10 +539,10 @@
               <pre><code>{
   "status": "ok",
   "app": "OpenBEXI Earth Orbit",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "release_date": null,
-  "candidate_date": "2026-07-19",
-  "publication_state": "candidate"
+  "candidate_date": null,
+  "publication_state": "development"
 }</code></pre>
             </div>
             <div>
@@ -574,16 +574,16 @@
           </table>
           <h3>Example Response</h3>
           <pre><code>{
-  "app_version": "2.0.0",
-  "api_version": "2.0.0",
+  "app_version": "2.1.0",
+  "api_version": "1.0.0",
   "release_date": null,
-  "candidate_date": "2026-07-19",
-  "publication_state": "candidate",
-  "release_channel": "preview",
+  "candidate_date": null,
+  "publication_state": "development",
+  "release_channel": "development",
   "maturity": "experimental",
   "safety_class": "non-operational",
   "repository": "https://github.com/arcazj/openbexi_earth_orbit",
-  "server": "OpenBEXIHTTP/2.0.0 Python"
+  "server": "OpenBEXIHTTP/2.1.0"
 }</code></pre>
         </div>
       </details>
@@ -807,6 +807,95 @@
       </details>
     </section>
 
+    <section class="tag-section" aria-labelledby="screening-tag">
+      <h2 id="screening-tag" class="tag-title">screening v1 <span>Authenticated durable full-catalog jobs and immutable event history</span></h2>
+
+      <details class="operation get" open>
+        <summary>
+          <span class="method get">GET</span>
+          <span class="path">/api/v1/capabilities</span>
+          <span class="summary-text">Discover Experimental server capability, bounds, and availability.</span>
+        </summary>
+        <div class="operation-body">
+          <p>Public discovery response. Liveness is available at <code>/api/v1/health/live</code>; readiness is available at <code>/api/v1/health/ready</code>.</p>
+          <h3>Responses</h3>
+          <table class="response-table"><tbody><tr><td>200</td><td>Capability document.</td><td>application/json</td></tr></tbody></table>
+        </div>
+      </details>
+
+      <details class="operation get">
+        <summary>
+          <span class="method get">GET</span>
+          <span class="path">/api/v1/catalog-revisions</span>
+          <span class="summary-text">List immutable catalog revisions with signed keyset cursors.</span>
+        </summary>
+        <div class="operation-body">
+          <p>Requires a viewer, analyst, or administrator bearer token. Supports <code>limit</code>, <code>cursor</code>, <code>source_id</code>, and <code>source_status</code>.</p>
+          <h3>Related</h3>
+          <p><code>GET /api/v1/catalog-revisions/{revision_id}</code> reads one revision; use <code>current</code> for the active revision.</p>
+        </div>
+      </details>
+
+      <details class="operation post">
+        <summary>
+          <span class="method post">POST</span>
+          <span class="path">/api/v1/screening-jobs</span>
+          <span class="summary-text">Submit an idempotent bounded full-catalog screening job.</span>
+        </summary>
+        <div class="operation-body">
+          <p>Requires an analyst or administrator bearer token plus an <code>Idempotency-Key</code>. The request freezes catalog revision, scope, start time, numerical configuration, resource caps, timeout, and attempt budget.</p>
+          <h3>Responses</h3>
+          <table class="response-table"><tbody>
+            <tr><td>202</td><td>Queued or idempotently replayed job.</td><td>application/json</td></tr>
+            <tr><td>400</td><td>Invalid or unbounded request.</td><td>application/problem+json</td></tr>
+            <tr><td>401 / 403</td><td>Missing credential or insufficient role.</td><td>application/problem+json</td></tr>
+            <tr><td>409</td><td>Idempotency key reused for different content.</td><td>application/problem+json</td></tr>
+          </tbody></table>
+        </div>
+      </details>
+
+      <details class="operation get">
+        <summary>
+          <span class="method get">GET</span>
+          <span class="path">/api/v1/screening-jobs/{job_id}</span>
+          <span class="summary-text">Read state, attempts, progress, and the scientific result summary.</span>
+        </summary>
+        <div class="operation-body">
+          <p><code>GET /api/v1/screening-jobs</code> lists jobs. <code>DELETE</code> on the detail URL requests cancellation. <code>POST .../retry</code> retries an eligible attempt and <code>POST .../replay</code> creates a new job from the frozen inputs.</p>
+        </div>
+      </details>
+
+      <details class="operation get">
+        <summary>
+          <span class="method get">GET</span>
+          <span class="path">/api/v1/screening-jobs/{job_id}/stream</span>
+          <span class="summary-text">Resume authenticated progress using Server-Sent Events.</span>
+        </summary>
+        <div class="operation-body">
+          <p>Requires an Authorization header. Resume with <code>Last-Event-ID</code>; tokens in URLs are rejected. Browser clients use streaming <code>fetch</code>, not native <code>EventSource</code>.</p>
+          <h3>Response</h3>
+          <p><code>200 text/event-stream</code> with durable <code>job.state</code>, <code>job.progress</code>, and <code>job.result</code> records.</p>
+        </div>
+      </details>
+
+      <details class="operation get">
+        <summary>
+          <span class="method get">GET</span>
+          <span class="path">/api/v1/conjunction-events</span>
+          <span class="summary-text">Query filtered immutable event revisions.</span>
+        </summary>
+        <div class="operation-body">
+          <p>Supports signed cursor pagination, job/object filters, TCA bounds, maximum miss distance, and stable TCA or miss-distance ordering. Read one revision at <code>/api/v1/conjunction-events/{event_id}</code>.</p>
+          <p>Results remain Experimental geometric screening. Collision probability is unavailable.</p>
+        </div>
+      </details>
+
+      <div class="notice">
+        <strong>Authentication</strong>
+        <p>Configure role tokens with <code>OPENBEXI_API_VIEWER_TOKEN</code>, <code>OPENBEXI_API_ANALYST_TOKEN</code>, and <code>OPENBEXI_API_ADMIN_TOKEN</code>. Send tokens only in the <code>Authorization: Bearer</code> header.</p>
+      </div>
+    </section>
+
     <section class="tag-section" aria-labelledby="docs-tag">
       <h2 id="docs-tag" class="tag-title">docs <span>OpenAPI schema and live Swagger route</span></h2>
 
@@ -831,7 +920,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "OpenBEXI Earth Orbit API",
-    "version": "2.0.0"
+    "version": "2.1.0"
   },
   "paths": {
     "/api/health": {},
@@ -862,7 +951,7 @@
     </section>
 
     <footer>
-      Static local documentation for OpenBEXI Earth Orbit 2.0.0. Companion Markdown: <a href="markdown_viewer.html?source=SWAGGER.md&amp;title=Swagger%20API">SWAGGER.md</a>.
+      Static local documentation for OpenBEXI Earth Orbit 2.1.0 development. Companion Markdown: <a href="markdown_viewer.html?source=SWAGGER.md&amp;title=Swagger%20API">SWAGGER.md</a>.
     </footer>
   </main>
 

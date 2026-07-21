@@ -1,5 +1,53 @@
 # Prompt History
 
+## Implementation Record: 2026-07-21  Version 2.1.0 Development Scope
+
+The user asked, `can we implement v 2.1?`, providing the explicit human authorization required by the archived release-train prompt. This authorization applied only to Version 2.1 development. It did not promote Version 2.0, close its outstanding external gates, approve a Version 2.1 candidate/release, or authorize Version 2.2.
+
+Implemented development outcome:
+
+1. Added Version 2.1 source/job/configuration and lifecycle contracts, bounded adapters for TLE JSON, CCSDS OMM JSON/KVN, CCSDS OEM KVN, provider ephemeris JSON, and matching multi-format propagation/interpolation policy.
+2. Added content-addressed private catalog snapshots, startup and successful-scheduled-refresh registration, `NEW`/`CHANGED`/`ABSENT`/`REAPPEARED` observation reconciliation, and SQLite WAL persistence for catalog revisions, jobs, attempts, progress, candidates, immutable event revisions, errors, outbox records, and audit history. The registry marks current incremental metadata `PARTIAL`; only a successful explicit full (`mode=all`) snapshot may generate `ABSENT`.
+3. Added durable idempotent submission, state transitions, worker/attempt fencing, cancellation, bounded retry, timeout, restart recovery, atomic checksum-bound import, and frozen-input replay. Progress persistence records first-stage, 1% advancement, and bounded-heartbeat snapshots, reserves the latest pre-terminal snapshot, and is capped at 512 records per attempt. Persisted event-revision IDs are job/attempt scoped so completed replay retains engine identity without colliding with the original history.
+4. Added an isolated full-catalog runner using synchronized time slabs, curvature- and threshold-expanded swept spatial bounds, canonical pair admission, relative-chord filtering, and shared bounded TCA refinement. The production runner has no unbounded global all-pairs broad phase.
+5. Added `/api/v1` health, capabilities with defaults/structured configuration limits, path-scrubbed catalog revisions, jobs, cancel/retry/replay, filtered event queries, event details, signed pagination, structured problem responses, and resumable SSE progress.
+6. Added viewer/analyst/administrator bearer roles, local rate and body/query limits, query-token rejection, loopback/private-path protections, and an explicit screening-subprocess environment allowlist that excludes API/provider secrets and `NODE_OPTIONS`.
+7. Added the browser Full-Catalog Screening workspace with page-memory bearer input, capability/readiness states, explicit Experimental/non-operational/Pc-unavailable labels, job submission, progress, cancellation, authenticated fetch-based SSE, polling fallback, partial/unscreened coverage counts, event listing, and existing TCA visualization handoff. Static hosting retains Version 2.0 selected-object screening and reports that the server is required for durable jobs.
+8. Added checksum-bound Version 2.1 development validation artifacts, deterministic brute-force/analytic tests, isolated runner/API/store/manager/security tests, direct-engine and end-to-end HTTP/service benchmark commands, and `release/evidence/openbexi-node-sbom-2.1.0-development.cdx.json`.
+9. Recorded a direct-engine 16,443-object, 60-second local observation: about 2.973 seconds wall time, 309,398 spatial pair checks, 835 coarse candidates, 214 events, and a correct `PARTIAL` result with 1,492,127 unscreened pair intervals. A separate end-to-end HTTP/store/worker observation completed in about 4.392 seconds, retained 22 progress rows and 26 total outbox rows after coalescing, occupied about 38.1 MB after shutdown, and propagated the incremental source as `PARTIAL`/`PARTIAL_SOURCE_DATASET`. These are development observations, not percentile, accuracy, or operational evidence.
+10. Added separate Version 2.1 scientific limitations, source governance, threat model, performance record, deployment, rollback, and release-gate documentation while preserving the independent v2.0 gate history.
+
+Current boundary:
+
+- `release/version.json` remains the authority: Version `2.1.0`, `development`, `experimental`, `non-operational`, with null candidate and release dates.
+- Only the bundled TLE snapshot is registered automatically. Implemented OMM/OEM/provider adapters do not admit a provider feed or resolve licensing, storage, retention, or redistribution rights.
+- Collision probability, CCSDS CDM/covariance and hard-body-radius assessment, operational risk scoring, alert delivery, report workflow, and maneuver recommendations are absent.
+- Clean-clone evidence, representative one/six-hour and projected-scale profiles, current-source admission, independent scientific/security review, backup/restore, and rollback rehearsal remain open in `docs/engineering/RELEASE_CHECKLIST_V2_1.md`.
+- No Version 2.2 work may begin without separate explicit human approval.
+
+## Authorization Date: 2026-07-20  Version 2.1.0 Development
+
+Begin implementation of Version `2.1.0` after explicit human approval to continue beyond the Version 2.0 preview gate.
+
+Authorized scope:
+
+1. Move full-catalog screening beyond reliable browser limits into a bounded server-side asynchronous pipeline.
+2. Add immutable catalog revisions, source-specific adapters, object lifecycle reconciliation, and explicit provenance for payload, rocket-body, debris, and unknown records.
+3. Add durable jobs with versioned configuration, idempotency, progress, cancellation, retry, timeout, restart recovery, and reproducible replay from frozen inputs.
+4. Use conservative time-partitioned spatial indexing or swept-volume candidate generation. Do not introduce an unbounded global all-pairs production path.
+5. Persist catalog revisions, job attempts, admitted candidates, refined events, structured errors, and algorithm/configuration metadata.
+6. Add authenticated `/api/v1` health, capability, catalog, job, event, pagination, and live progress endpoints while retaining the existing unversioned read API during the compatibility window.
+7. Keep static deployment functional with the Version 2.0 selected-object browser workflow and clearly reduced capabilities when the optional server is absent.
+8. Add deterministic replay, brute-force recall comparison on tractable catalogs, resource-limit, API, migration, security, SSE, and performance evidence.
+9. Document incomplete legacy TLE catalog coverage, supported data formats, broad-phase assumptions, partial-result semantics, and the local single-node deployment boundary.
+
+Release constraints:
+
+- Version 2.1 remains `Experimental` and `non-operational`.
+- Existing open v2.0 clean-clone, independent scientific/security review, licensing, performance, public-deployment, and rollback-rehearsal gates remain open; this authorization does not mark v2.0 released.
+- Collision probability, CDM/covariance assessment, operational risk scoring, alert delivery, and maneuver analysis remain deferred to later explicitly approved releases.
+- No v2.2 work begins without a separate human approval after the v2.1 completion report.
+
 ## Release Date: 2026-07-20  Version 2.0.0 Preview Candidate - Startup Reliability Follow-up
 
 Stabilize the Version `2.0.0` preview startup path after a reported black screen at `http://127.0.0.1:8000/index.html`.

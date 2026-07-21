@@ -13,13 +13,21 @@ import hashlib
 import ipaddress
 import json
 import mimetypes
+import os
 import re
+import secrets
 import threading
 import time
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path, PurePosixPath
 from urllib.parse import quote, unquote, urlparse
+
+from services.v21.api import V21ApiService, configured_authenticator
+from services.v21.feature_flags import load_server_feature_flag
+from services.v21.http_api import V21HttpRouter
+from services.v21.job_manager import ScreeningJobManager
+from services.v21.job_store import JobStore
 
 
 ROOT = Path(__file__).resolve().parent
@@ -31,6 +39,7 @@ CANDIDATE_DATE = RELEASE_METADATA.get("candidateAt")
 RELEASE_DATE = RELEASE_METADATA.get("releasedAt")
 PUBLICATION_DATE = RELEASE_DATE or CANDIDATE_DATE
 REPO_URL = "https://github.com/arcazj/openbexi_earth_orbit"
+API_V1_VERSION = "1.0.0"
 
 STATIC_ROOT_FILE_ALLOWLIST = frozenset(
     {
@@ -146,6 +155,33 @@ def _data_update_status_snapshot() -> dict[str, object]:
 
 def _json_bytes(payload: object) -> bytes:
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+
+
+def _private_cursor_secret(runtime_root: Path) -> bytes:
+    """Load or create a private stable cursor-signing key for this runtime."""
+
+    configured = os.environ.get("OPENBEXI_CURSOR_SECRET")
+    if configured:
+        raw = configured.encode("utf-8")
+        if len(raw) < 24:
+            raise RuntimeError("OPENBEXI_CURSOR_SECRET must contain at least 24 bytes")
+        return raw
+    runtime_root.mkdir(parents=True, exist_ok=True)
+    path = runtime_root / "cursor-signing.key"
+    if path.exists():
+        raw = path.read_bytes().strip()
+        if len(raw) < 24:
+            raise RuntimeError("private cursor signing key is invalid")
+        return raw
+    raw = secrets.token_urlsafe(48).encode("ascii")
+    temporary = path.with_suffix(".tmp")
+    temporary.write_bytes(raw + b"\n")
+    try:
+        os.chmod(temporary, 0o600)
+    except OSError:
+        pass
+    os.replace(temporary, path)
+    return raw
 
 
 def _safe_json_file(path: Path) -> bytes:
@@ -436,8 +472,14 @@ def _display_satellite_model_manifest() -> dict[str, object]:
 
 
 class DataUpdateScheduler:
-    def __init__(self, *, interval_hours: float = DEFAULT_SERVER_UPDATE_INTERVAL_HOURS):
+    def __init__(
+        self,
+        *,
+        interval_hours: float = DEFAULT_SERVER_UPDATE_INTERVAL_HOURS,
+        on_updated=None,
+    ):
         self.interval_hours = max(1.0, float(interval_hours))
+        self.on_updated = on_updated
         self.stop_event = threading.Event()
         self.thread = threading.Thread(target=self._run, name="openbexi-data-update", daemon=True)
 
@@ -479,12 +521,163 @@ class DataUpdateScheduler:
             )
             return
         state = "skipped" if result.get("skipped") else "succeeded"
+        registration_error = None
+        if state == "succeeded" and self.on_updated is not None:
+            try:
+                self.on_updated()
+            except Exception as exc:
+                registration_error = str(exc)
+                state = "degraded"
         _set_data_update_status(
             state=state,
             last_result=result,
-            last_error=None,
+            last_error=registration_error,
             last_finished_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         )
+
+
+def _openapi_v1_paths(json_object_schema: dict[str, object]) -> dict[str, object]:
+    bearer = [{"bearerAuth": []}]
+    problem = {
+        "description": "RFC 9457-style problem response",
+        "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}},
+    }
+    idempotency = {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": True,
+        "schema": {"type": "string", "minLength": 8, "maxLength": 128},
+    }
+    job_request = {
+        "required": True,
+        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ScreeningJobRequest"}}},
+    }
+    return {
+        "/api/v1/health/live": {
+            "get": {"summary": "Check API process liveness", "responses": {"200": {"description": "Process is live"}}}
+        },
+        "/api/v1/health/ready": {
+            "get": {
+                "summary": "Check screening-service readiness",
+                "responses": {"200": {"description": "Service is ready"}, "503": problem},
+            }
+        },
+        "/api/v1/capabilities": {
+            "get": {
+                "summary": "Discover versioned screening capabilities and bounds",
+                "responses": {"200": {"description": "Capability document", "content": {"application/json": {"schema": json_object_schema}}}},
+            }
+        },
+        "/api/v1/catalog-revisions": {
+            "get": {
+                "summary": "List catalog revisions with keyset pagination",
+                "security": bearer,
+                "parameters": [
+                    {"name": "limit", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 200}},
+                    {"name": "cursor", "in": "query", "schema": {"type": "string"}},
+                    {"name": "source_id", "in": "query", "schema": {"type": "string"}},
+                    {"name": "source_status", "in": "query", "schema": {"type": "string", "enum": ["COMPLETE", "PARTIAL", "DEGRADED"]}},
+                ],
+                "responses": {"200": {"description": "Catalog revision page"}, "401": problem},
+            }
+        },
+        "/api/v1/catalog-revisions/{revision_id}": {
+            "get": {
+                "summary": "Read one catalog revision",
+                "security": bearer,
+                "parameters": [{"name": "revision_id", "in": "path", "required": True, "schema": {"type": "string"}}],
+                "responses": {"200": {"description": "Catalog revision"}, "401": problem, "404": problem},
+            }
+        },
+        "/api/v1/screening-jobs": {
+            "get": {
+                "summary": "List durable screening jobs",
+                "security": bearer,
+                "parameters": [
+                    {"name": "limit", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 200}},
+                    {"name": "cursor", "in": "query", "schema": {"type": "string"}},
+                    {"name": "state", "in": "query", "schema": {"type": "array", "items": {"type": "string"}}},
+                ],
+                "responses": {"200": {"description": "Screening-job page"}, "401": problem},
+            },
+            "post": {
+                "summary": "Submit an idempotent full-catalog screening job",
+                "security": bearer,
+                "parameters": [idempotency],
+                "requestBody": job_request,
+                "responses": {"202": {"description": "Job accepted"}, "400": problem, "401": problem, "403": problem, "409": problem},
+            },
+        },
+        "/api/v1/screening-jobs/{job_id}": {
+            "get": {
+                "summary": "Read a durable screening job",
+                "security": bearer,
+                "parameters": [{"name": "job_id", "in": "path", "required": True, "schema": {"type": "string"}}],
+                "responses": {"200": {"description": "Job detail"}, "401": problem, "404": problem},
+            },
+            "delete": {
+                "summary": "Request screening-job cancellation",
+                "security": bearer,
+                "parameters": [{"name": "job_id", "in": "path", "required": True, "schema": {"type": "string"}}],
+                "responses": {"202": {"description": "Cancellation accepted"}, "401": problem, "403": problem, "404": problem},
+            },
+        },
+        "/api/v1/screening-jobs/{job_id}/retry": {
+            "post": {
+                "summary": "Retry an eligible job within its attempt budget",
+                "security": bearer,
+                "parameters": [{"name": "job_id", "in": "path", "required": True, "schema": {"type": "string"}}],
+                "responses": {"202": {"description": "Retry queued"}, "409": problem},
+            }
+        },
+        "/api/v1/screening-jobs/{job_id}/replay": {
+            "post": {
+                "summary": "Replay the frozen request and catalog revision",
+                "security": bearer,
+                "parameters": [
+                    {"name": "job_id", "in": "path", "required": True, "schema": {"type": "string"}},
+                    idempotency,
+                ],
+                "responses": {"202": {"description": "Replay accepted"}, "409": problem},
+            }
+        },
+        "/api/v1/screening-jobs/{job_id}/stream": {
+            "get": {
+                "summary": "Resume authenticated job progress as Server-Sent Events",
+                "security": bearer,
+                "parameters": [
+                    {"name": "job_id", "in": "path", "required": True, "schema": {"type": "string"}},
+                    {"name": "Last-Event-ID", "in": "header", "schema": {"type": "integer", "minimum": 0}},
+                ],
+                "responses": {"200": {"description": "SSE stream", "content": {"text/event-stream": {"schema": {"type": "string"}}}}, "401": problem},
+            }
+        },
+        "/api/v1/conjunction-events": {
+            "get": {
+                "summary": "Query immutable conjunction event revisions",
+                "security": bearer,
+                "parameters": [
+                    {"name": "limit", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 200}},
+                    {"name": "cursor", "in": "query", "schema": {"type": "string"}},
+                    {"name": "job_id", "in": "query", "schema": {"type": "string"}},
+                    {"name": "object_id", "in": "query", "schema": {"type": "string"}},
+                    {"name": "tca_from", "in": "query", "schema": {"type": "string", "format": "date-time"}},
+                    {"name": "tca_to", "in": "query", "schema": {"type": "string", "format": "date-time"}},
+                    {"name": "max_miss_distance_km", "in": "query", "schema": {"type": "number", "minimum": 0}},
+                    {"name": "order", "in": "query", "schema": {"type": "string", "enum": ["tca_asc", "tca_desc", "miss_distance_asc", "miss_distance_desc"]}},
+                ],
+                "responses": {"200": {"description": "Conjunction event page"}, "401": problem},
+            }
+        },
+        "/api/v1/conjunction-events/{event_id}": {
+            "get": {
+                "summary": "Read one immutable conjunction event revision",
+                "security": bearer,
+                "parameters": [{"name": "event_id", "in": "path", "required": True, "schema": {"type": "string"}}],
+                "responses": {"200": {"description": "Conjunction event"}, "401": problem, "404": problem},
+            }
+        },
+    }
 
 
 def _openapi_document(host: str) -> dict[str, object]:
@@ -497,7 +690,8 @@ def _openapi_document(host: str) -> dict[str, object]:
         "openapi": "3.0.3",
         "info": {
             "title": "OpenBEXI Earth Orbit API",
-            "version": APP_VERSION,
+            "version": API_V1_VERSION,
+            "x-application-version": APP_VERSION,
             "description": (
                 "Local API for OpenBEXI Earth Orbit satellite data, "
                 "TLE data, metadata, and health/status checks."
@@ -630,6 +824,37 @@ def _openapi_document(host: str) -> dict[str, object]:
                     "responses": {"200": {"description": "HTML documentation"}},
                 }
             },
+            **_openapi_v1_paths(json_object_schema),
+        },
+        "components": {
+            "securitySchemes": {
+                "bearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "opaque local token"}
+            },
+            "schemas": {
+                "Problem": {
+                    "type": "object",
+                    "required": ["type", "title", "status", "detail", "code"],
+                    "properties": {
+                        "type": {"type": "string", "format": "uri"},
+                        "title": {"type": "string"},
+                        "status": {"type": "integer"},
+                        "detail": {"type": "string"},
+                        "code": {"type": "string"},
+                        "instance": {"type": "string"},
+                    },
+                },
+                "ScreeningJobRequest": {
+                    "type": "object",
+                    "required": ["schema_version", "catalog_revision_id", "catalog_scope", "configuration"],
+                    "properties": {
+                        "schema_version": {"type": "string", "enum": ["2.1.0"]},
+                        "catalog_revision_id": {"type": "string"},
+                        "catalog_scope": {"type": "object"},
+                        "configuration": {"type": "object"},
+                    },
+                    "additionalProperties": False,
+                },
+            },
         },
     }
 
@@ -737,10 +962,12 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
         *args,
         serve_static: bool = True,
         cors_origins: tuple[str, ...] = (),
+        v21_router: V21HttpRouter | None = None,
         **kwargs,
     ):
         self.serve_static = serve_static
         self.cors_origins = tuple(origin.rstrip("/") for origin in cors_origins if origin)
+        self.v21_router = v21_router
         self._response_status = HTTPStatus.OK
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
@@ -755,8 +982,11 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
         if cors_origin_is_allowed(origin, self.cors_origins):
             allowed_origin = "*" if "*" in self.cors_origins else origin.rstrip("/")
             self.send_header("Access-Control-Allow-Origin", allowed_origin)
-            self.send_header("Access-Control-Allow-Methods", "GET,HEAD,OPTIONS")
-            self.send_header("Access-Control-Allow-Headers", "Accept,Content-Type")
+            self.send_header("Access-Control-Allow-Methods", "GET,HEAD,POST,DELETE,OPTIONS")
+            self.send_header(
+                "Access-Control-Allow-Headers",
+                "Accept,Authorization,Content-Type,Idempotency-Key,Last-Event-ID",
+            )
             self.send_header("Access-Control-Max-Age", "600")
         self.send_header("Cache-Control", cache_control_for_path(self.path, self._response_status))
         self.send_header("X-Content-Type-Options", "nosniff")
@@ -795,6 +1025,16 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
             return
         super().do_HEAD()
 
+    def do_POST(self) -> None:
+        if self._handle_api(head_only=False):
+            return
+        self.send_error(HTTPStatus.NOT_FOUND, "Unknown API route")
+
+    def do_DELETE(self) -> None:
+        if self._handle_api(head_only=False):
+            return
+        self.send_error(HTTPStatus.NOT_FOUND, "Unknown API route")
+
     def list_directory(self, path: str):
         self.send_error(HTTPStatus.NOT_FOUND, "Directory listing is disabled")
         return None
@@ -832,6 +1072,31 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
         path = parsed.path.rstrip("/") or "/"
         host = safe_request_host(self.headers.get("Host"), self.server.server_port)
 
+        if path.startswith("/api/v1"):
+            if self.v21_router is not None:
+                return self.v21_router.handle(
+                    self,
+                    method=self.command,
+                    head_only=head_only,
+                )
+            body = _json_bytes(
+                {
+                    "type": "https://openbexi.example/problems/capability-unavailable",
+                    "title": "Capability unavailable",
+                    "status": 503,
+                    "detail": "The optional authenticated API v1 service is not running.",
+                    "code": "CAPABILITY_UNAVAILABLE",
+                    "instance": parsed.path,
+                }
+            )
+            self._send_bytes(
+                body,
+                content_type="application/problem+json; charset=utf-8",
+                status=HTTPStatus.SERVICE_UNAVAILABLE,
+                head_only=head_only,
+            )
+            return True
+
         try:
             if path == "/api/health":
                 self._send_json(
@@ -850,7 +1115,7 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
                 self._send_json(
                     {
                         "app_version": APP_VERSION,
-                        "api_version": APP_VERSION,
+                        "api_version": API_V1_VERSION,
                         "release_date": RELEASE_DATE,
                         "candidate_date": CANDIDATE_DATE,
                         "publication_state": PUBLICATION_STATE,
@@ -930,12 +1195,17 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
         return super().guess_type(path) or mimetypes.guess_type(path)[0] or "application/octet-stream"
 
 
-def make_handler(serve_static: bool, cors_origins: tuple[str, ...] = ()):
+def make_handler(
+    serve_static: bool,
+    cors_origins: tuple[str, ...] = (),
+    v21_router: V21HttpRouter | None = None,
+):
     def handler(*args, **kwargs):
         return OpenBexiHandler(
             *args,
             serve_static=serve_static,
             cors_origins=cors_origins,
+            v21_router=v21_router,
             **kwargs,
         )
 
@@ -982,6 +1252,16 @@ def parse_args() -> argparse.Namespace:
         type=float,
         help="Minimum age before scheduled data updates run. Default: 24.",
     )
+    parser.add_argument(
+        "--runtime-dir",
+        default="runtime",
+        help="Private v2.1 database and job-artifact directory. Default: runtime.",
+    )
+    parser.add_argument(
+        "--no-v21-service",
+        action="store_true",
+        help="Disable the optional authenticated API v1 screening service.",
+    )
     args = parser.parse_args()
     if not is_loopback_host(args.host) and not args.allow_public:
         parser.error("non-loopback --host requires --allow-public")
@@ -991,13 +1271,58 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     cors_origins = tuple(origin.rstrip("/") for origin in args.cors_origin if origin)
+    v21_service = None
+    v21_store = None
+    v21_router = None
+    if not args.no_v21_service:
+        try:
+            runtime_root = (ROOT / args.runtime_dir).resolve()
+            if ROOT != runtime_root and ROOT not in runtime_root.parents:
+                raise RuntimeError("--runtime-dir must resolve inside the project root")
+            runtime_root.mkdir(parents=True, exist_ok=True)
+            feature_flag = load_server_feature_flag(
+                ROOT,
+                "experimental_full_catalog_screening",
+            )
+            v21_store = JobStore(runtime_root / "openbexi-v21.sqlite3")
+            manager = ScreeningJobManager(
+                root=ROOT,
+                runtime_root=runtime_root,
+                store=v21_store,
+            )
+            v21_service = V21ApiService(
+                root=ROOT,
+                runtime_root=runtime_root,
+                store=v21_store,
+                feature_flag=feature_flag,
+                authenticator=configured_authenticator(),
+                cursor_secret=_private_cursor_secret(runtime_root),
+                manager=manager,
+            )
+            v21_service.start()
+            v21_router = V21HttpRouter(v21_service)
+        except Exception as exc:
+            if v21_service:
+                v21_service.stop()
+            if v21_store:
+                v21_store.close()
+            v21_service = None
+            v21_store = None
+            print(f"API v1 screening service unavailable: {exc}")
     server = ThreadingHTTPServer(
         (args.host, args.port),
-        make_handler(serve_static=not args.no_static, cors_origins=cors_origins),
+        make_handler(
+            serve_static=not args.no_static,
+            cors_origins=cors_origins,
+            v21_router=v21_router,
+        ),
     )
     scheduler = None
     if args.update_data_on_schedule and not args.no_data_update:
-        scheduler = DataUpdateScheduler(interval_hours=args.data_update_interval_hours)
+        scheduler = DataUpdateScheduler(
+            interval_hours=args.data_update_interval_hours,
+            on_updated=v21_service.bootstrap_bundled_catalog if v21_service else None,
+        )
         scheduler.start()
     else:
         _set_data_update_status(
@@ -1011,6 +1336,11 @@ def main() -> None:
     print(f"OpenBEXI Earth Orbit server {APP_VERSION} listening on {url}")
     print(f"App:  {url}/index.html")
     print(f"Docs: {url}/docs")
+    if v21_service:
+        auth_state = "configured" if v21_service.authenticator.configured else "not configured"
+        print(f"API v1: {url}/api/v1/capabilities (bearer credentials {auth_state})")
+    else:
+        print("API v1: disabled or unavailable")
     if scheduler:
         print(f"Data updates: enabled every {args.data_update_interval_hours:g} hours after freshness checks")
     else:
@@ -1022,7 +1352,11 @@ def main() -> None:
     finally:
         if scheduler:
             scheduler.stop()
+        if v21_service:
+            v21_service.stop()
         server.server_close()
+        if v21_store:
+            v21_store.close()
 
 
 if __name__ == "__main__":

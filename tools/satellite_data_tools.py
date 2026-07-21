@@ -33,7 +33,20 @@ MINUTES_PER_DAY = 1440.0
 CELESTRAK_MIN_REFRESH_HOURS = 2.0
 DEFAULT_SERVER_UPDATE_INTERVAL_HOURS = 24.0
 DEFAULT_HTTP_TIMEOUT_SECONDS = 30.0
-HTTP_USER_AGENT = "OpenBEXI-Earth-Orbit/2.0.0 (Experimental; non-operational)"
+
+
+def _release_version() -> str:
+    try:
+        metadata = json.loads((Path(__file__).resolve().parents[1] / "release" / "version.json").read_text(encoding="utf-8"))
+        version = str(metadata.get("version", "")).strip()
+        if re.fullmatch(r"\d+\.\d+\.\d+", version):
+            return version
+    except (OSError, ValueError, TypeError):
+        pass
+    return "development"
+
+
+HTTP_USER_AGENT = "OpenBEXI-Earth-Orbit/%s (Experimental; non-operational)" % _release_version()
 
 TLE_RELATIVE_PATH = Path("json") / "tle" / "TLE.json"
 TLE_META_RELATIVE_PATH = Path("json") / "tle" / "TLE.meta.json"

@@ -1,6 +1,6 @@
 # Implementation Prompt: Full Roadmap Starting with v2.0
 
-> **Status:** This is the archived accepted execution prompt. The v2.0 local preview slice has been implemented and stopped at its external and human approval gates. This document does not authorize v2.1; current status is recorded in `release/version.json`, `ROADMAP.md`, and `docs/engineering/RELEASE_CHECKLIST.md`. The prompt body below is preserved unchanged.
+> **Status:** This is the archived accepted execution prompt. Version 2.1 development was explicitly authorized on 2026-07-20 and its local development implementation is recorded on 2026-07-21. It is not a candidate or release; v2.0 external promotion gates remain open, and v2.2 is not authorized. Current status is recorded in `release/version.json`, `ROADMAP.md`, `PROMPT_History.md`, and the separate v2.0/v2.1 release checklists. The prompt body below is preserved unchanged.
 
 ```text
 Implement the complete plan in `ROADMAP.md` as an incremental release train beginning with version 2.0. Do not stop after analyzing the repository or writing another plan. Make the code, test, documentation, data-contract, and deployment changes required by each release, and verify every release gate before moving to the next one.

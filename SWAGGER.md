@@ -47,6 +47,22 @@ http://127.0.0.1:8000
 | `GET` | `/api/data-update-status` | Yes | Returns optional background satellite data update scheduler status. |
 | `GET` | `/openapi.json` | Yes | Returns the generated OpenAPI 3.0.3 schema. |
 | `GET` | `/docs` | Yes | Serves the live Swagger UI page. |
+| `GET` | `/api/v1/health/live` | Yes | Process liveness for API v1. |
+| `GET` | `/api/v1/health/ready` | Yes | Store, catalog, feature, and worker readiness. |
+| `GET` | `/api/v1/capabilities` | Yes | Public capability and limit discovery without private paths. |
+| `GET` | `/api/v1/catalog-revisions` | Yes | Authenticated, paginated catalog revision history. |
+| `GET` | `/api/v1/catalog-revisions/{revision_id}` | Yes | Authenticated catalog revision details. |
+| `POST` | `/api/v1/screening-jobs` | Yes | Submit an idempotent full-catalog screening job. |
+| `GET` | `/api/v1/screening-jobs` | Yes | Query jobs with stable keyset pagination. |
+| `GET` | `/api/v1/screening-jobs/{job_id}` | Yes | Read job state, attempts, progress, and result summary. |
+| `DELETE` | `/api/v1/screening-jobs/{job_id}` | Yes | Request cancellation of a queued or running job. |
+| `POST` | `/api/v1/screening-jobs/{job_id}/retry` | Yes | Retry an eligible failed or timed-out job. |
+| `POST` | `/api/v1/screening-jobs/{job_id}/replay` | Yes | Create an idempotent deterministic replay from the frozen request and catalog. |
+| `GET` | `/api/v1/screening-jobs/{job_id}/stream` | Yes | Authenticated Server-Sent Events with `Last-Event-ID` resume. |
+| `GET` | `/api/v1/conjunction-events` | Yes | Filtered, stably ordered, paginated event revisions. |
+| `GET` | `/api/v1/conjunction-events/{event_id}` | Yes | Read one immutable event revision. |
+
+API v1 uses bearer credentials configured through `OPENBEXI_API_VIEWER_TOKEN`, `OPENBEXI_API_ANALYST_TOKEN`, and `OPENBEXI_API_ADMIN_TOKEN`. Tokens must contain at least 24 characters. Supply them only in the `Authorization: Bearer ...` header; query-string credentials are rejected. Job submission and replay also require an `Idempotency-Key` header. Browser clients use authenticated `fetch` for SSE because native `EventSource` cannot attach the required header.
 
 ## Examples
 
@@ -63,10 +79,10 @@ Example response:
 {
   "status": "ok",
   "app": "openbexi_earth_orbit",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "release_date": null,
-  "candidate_date": "2026-07-19",
-  "publication_state": "candidate"
+  "candidate_date": null,
+  "publication_state": "development"
 }
 ```
 
@@ -81,16 +97,16 @@ Example response:
 
 ```json
 {
-  "app_version": "2.0.0",
-  "api_version": "2.0.0",
+  "app_version": "2.1.0",
+  "api_version": "1.0.0",
   "release_date": null,
-  "candidate_date": "2026-07-19",
-  "publication_state": "candidate",
-  "release_channel": "preview",
+  "candidate_date": null,
+  "publication_state": "development",
+  "release_channel": "development",
   "maturity": "experimental",
   "safety_class": "non-operational",
   "repository": "https://github.com/arcazj/openbexi_earth_orbit",
-  "server": "OpenBEXIHTTP/2.0.0 Python"
+  "server": "OpenBEXIHTTP/2.1.0"
 }
 ```
 

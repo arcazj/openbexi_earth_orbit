@@ -2,9 +2,9 @@
 
 ## Scope and Security Posture
 
-This model covers the v2.0 preview browser application, its module Worker, local read-only Python server, catalog-update tooling, curated static artifact, exports, and shipped browser dependencies. The capability is Experimental and non-operational. The model documents implemented controls and residual risk; it has not received independent security review.
+This model covers the v2.0 preview browser application, its module Worker, legacy local read APIs, catalog-update tooling, curated static artifact, exports, and shipped browser dependencies. The capability is Experimental and non-operational. Version 2.1 authentication, durable jobs, SQLite, subprocess, and SSE boundaries are modeled separately in `THREAT_MODEL_V2_1.md`. Neither model has received independent security review.
 
-The v2.0 server has no login, write API, shared workspace, alert destination, or credential store. Those capabilities require a new authorization and threat-model review before implementation.
+The v2.0 capability has no login, write API, shared workspace, alert destination, or credential store. Version 2.1 development adds a separate local authenticated job boundary; it does not change the v2.0 static/browser trust claim.
 
 ## Assets and Trust Boundaries
 
@@ -67,4 +67,4 @@ Before public or stable deployment, the release owner must obtain independent se
 
 ## Review Triggers
 
-Review this model before adding any write route, authentication, user upload/import, shared state, event persistence, notification destination, webhook, provider credential, CDM/covariance parser, background job, or public server deployment. Each new trust boundary requires negative authorization, object-access, resource-limit, injection, audit, and secret-rotation tests appropriate to that feature.
+Review this model and `THREAT_MODEL_V2_1.md` before changing a write route, authentication, user upload/import, shared state, event persistence, notification destination, webhook, provider credential, CDM/covariance parser, background job, or public server deployment. Each new trust boundary requires negative authorization, object-access, resource-limit, injection, audit, and secret-rotation tests appropriate to that feature.

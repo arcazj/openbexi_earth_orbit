@@ -1,0 +1,351 @@
+{
+  "schemaVersion": 1,
+  "corpusId": "openbexi-earth-orbit-full-catalog-development-evidence",
+  "corpusVersion": "2.1.0-development",
+  "releaseVersion": "2.1.0",
+  "generatedAt": "2026-07-21",
+  "publicationState": "development",
+  "scientificMaturity": "experimental",
+  "safetyClass": "non-operational",
+  "review": {
+    "status": "pending",
+    "reviewer": null,
+    "reviewedAt": null,
+    "scope": "Independent review of broad-phase completeness, orbital-source handling, performance evidence, and scientific limitations has not been completed."
+  },
+  "claims": {
+    "accuracy": false,
+    "operationalUse": false,
+    "performance": "The included measurement is a single named-machine development observation, not a portable service-level objective.",
+    "acceptanceUse": "These artifacts support v2.1 development checks only and do not authorize a release candidate or operational use."
+  },
+  "conventions": {
+    "timeScale": "UTC",
+    "screeningFrame": "TEME",
+    "positionUnits": "km",
+    "velocityUnits": "km/s",
+    "missDistanceUnits": "km",
+    "relativeSpeedUnits": "km/s"
+  },
+  "executables": [
+    {
+      "id": "full-catalog-engine-oracles",
+      "command": "node tests/fullCatalogScreening.test.js",
+      "artifacts": [
+        "js/conjunction/fullCatalogScreening.js",
+        "tests/fullCatalogScreening.test.js"
+      ]
+    },
+    {
+      "id": "isolated-runner-integration",
+      "command": "node tests/fullCatalogRunner.test.js",
+      "artifacts": [
+        "scripts/run-full-catalog-screening.mjs",
+        "tests/fullCatalogRunner.test.js"
+      ]
+    },
+    {
+      "id": "multi-format-source-adapters",
+      "command": "node tests/orbitalSourceAdapters.test.js && node tests/multiFormatPropagationService.test.js",
+      "artifacts": [
+        "js/domain/orbitalSourceAdapters.js",
+        "tests/orbitalSourceAdapters.test.js",
+        "js/orbit/multiFormatPropagationService.js",
+        "tests/multiFormatPropagationService.test.js"
+      ]
+    },
+    {
+      "id": "durable-service-contracts",
+      "command": "npm run test:python",
+      "artifacts": [
+        "server.py",
+        "services/v21/api.py",
+        "services/v21/catalog_registry.py",
+        "services/v21/feature_flags.py",
+        "services/v21/http_api.py",
+        "services/v21/job_manager.py",
+        "services/v21/job_store.py",
+        "services/v21/security.py",
+        "services/v21/migrations/0001_initial.sql",
+        "tests_python/test_v21_api.py",
+        "tests_python/test_v21_catalog_registry.py",
+        "tests_python/test_v21_feature_flags.py",
+        "tests_python/test_v21_job_manager.py",
+        "tests_python/test_v21_job_store.py",
+        "tests_python/test_v21_security.py"
+      ]
+    },
+    {
+      "id": "repeatable-local-scale-benchmark",
+      "command": "npm run benchmark:full-catalog -- --output validation/v2.1.0/benchmarks/local-full-catalog-60s-2026-07-20.json",
+      "artifacts": [
+        "scripts/benchmark-full-catalog.mjs"
+      ]
+    },
+    {
+      "id": "repeatable-durable-service-benchmark",
+      "command": "npm run benchmark:v21-service -- --output validation/v2.1.0/benchmarks/local-v21-service-2026-07-20.json",
+      "artifacts": [
+        "tools/benchmark_v21_service.py",
+        "server.py",
+        "services/v21/api.py",
+        "services/v21/catalog_registry.py",
+        "services/v21/feature_flags.py",
+        "services/v21/http_api.py",
+        "services/v21/job_manager.py",
+        "services/v21/job_store.py",
+        "services/v21/security.py",
+        "services/v21/migrations/0001_initial.sql"
+      ]
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "js/conjunction/fullCatalogScreening.js",
+      "role": "full-catalog-screening-engine",
+      "sha256": "a7d7c7b343882786b98bacf0d1de8a614bee344ff04e9a68bc8bd8d818921fa5"
+    },
+    {
+      "path": "tests/fullCatalogScreening.test.js",
+      "role": "deterministic-engine-oracles",
+      "sha256": "6ff0a4f18ccb2dbf386881c3f2d2b2a520693e5f1e5bca810594454aed583ac6"
+    },
+    {
+      "path": "scripts/run-full-catalog-screening.mjs",
+      "role": "isolated-job-runner",
+      "sha256": "cbbc41078f24273cafba6e5e18e8566bc7499e2bed6f4e40ca48e7e1f7ddee8b"
+    },
+    {
+      "path": "tests/fullCatalogRunner.test.js",
+      "role": "runner-contract-tests",
+      "sha256": "de7bbf66367639e2ca7775cef3137679fe5b95177db9c39e3e528ee9e63028a4"
+    },
+    {
+      "path": "js/domain/orbitalSourceAdapters.js",
+      "role": "source-adapter-implementation",
+      "sha256": "e336f358e030c374b18e15694fd84b8e62626ff908ab6f63d95e43a1690d29c1"
+    },
+    {
+      "path": "tests/orbitalSourceAdapters.test.js",
+      "role": "source-adapter-contract-tests",
+      "sha256": "236158de70bc5c65839afe3137baa5bb639cd7675265223133b49a653b8107c9"
+    },
+    {
+      "path": "js/orbit/multiFormatPropagationService.js",
+      "role": "multi-format-propagation-dispatch",
+      "sha256": "60b04a048c77c0a383455f7a1b3cdfc425c00de422319c761b5e423ea8a47bb8"
+    },
+    {
+      "path": "tests/multiFormatPropagationService.test.js",
+      "role": "multi-format-propagation-tests",
+      "sha256": "c5774cfbaf032788c5cf4570865793b7b3b709bf985b1fb0ce44621ccb02c5dc"
+    },
+    {
+      "path": "scripts/benchmark-full-catalog.mjs",
+      "role": "repeatable-benchmark-driver",
+      "sha256": "d335b72d876ad11e16ce5c8976d1151e1b856b451bec5b3621fa491adb39ab49"
+    },
+    {
+      "path": "validation/v2.1.0/benchmarks/local-full-catalog-60s-2026-07-20.json",
+      "role": "named-machine-development-observation",
+      "sha256": "fa65cc6acdcfa1fab8f53e1243876a3a9c62d3044e62074292b4e3c784f1cf3d"
+    },
+    {
+      "path": "tools/benchmark_v21_service.py",
+      "role": "durable-service-benchmark-driver",
+      "sha256": "4af446f20b813dc8d1149a72e32e2544b26a46745c0adb88544693a9f5193d5d"
+    },
+    {
+      "path": "validation/v2.1.0/benchmarks/local-v21-service-2026-07-20.json",
+      "role": "durable-service-development-observation",
+      "sha256": "b05f2f96a852a456bb6d192cacd4bf7bd13d59a801e31c93eedd36ea583f3487"
+    },
+    {
+      "path": "server.py",
+      "role": "http-service-host",
+      "sha256": "3b8d8520c3b390230809f8eec27ed1bab33e061f415a6b6da08fa974e5e0756a"
+    },
+    {
+      "path": "services/v21/api.py",
+      "role": "versioned-service-contract",
+      "sha256": "532f2d18603582468caa043a4498676daae706b278bd0625a6b118e620ff83c6"
+    },
+    {
+      "path": "services/v21/catalog_registry.py",
+      "role": "private-catalog-registry",
+      "sha256": "76c0d36a11f0621e72b91d90552261358a5b69a942948547bfff3b518f144c32"
+    },
+    {
+      "path": "services/v21/feature_flags.py",
+      "role": "server-feature-admission",
+      "sha256": "076ca8f4fc312ee882696a6f6bcc4b0849acac0bce9abb0a53db18ad5972c64e"
+    },
+    {
+      "path": "services/v21/http_api.py",
+      "role": "versioned-http-router",
+      "sha256": "017c1b06bee8a892ac4c59b5e73f677a3f4b562e97f12014561d7f01940dc2fe"
+    },
+    {
+      "path": "services/v21/job_manager.py",
+      "role": "isolated-job-supervisor",
+      "sha256": "3b04db1f45a9826050a7de5fce6111df16a564786a509a9d329bb8aa878e04f4"
+    },
+    {
+      "path": "services/v21/job_store.py",
+      "role": "durable-job-event-store",
+      "sha256": "835c759d889fbcfbe2744770b38046a72fdf142fef82f74a75d7a2c2addd4c2f"
+    },
+    {
+      "path": "services/v21/security.py",
+      "role": "authentication-pagination-and-rate-limits",
+      "sha256": "e3c9f376256a63605bcd92c26d2ea196fd7a250de94462ed2da43ec05fbbe428"
+    },
+    {
+      "path": "services/v21/migrations/0001_initial.sql",
+      "role": "durable-schema-migration",
+      "sha256": "096a6f1c5858ca0efa69ccfa5d6c3a91f06e65cb405354330b2fe9089c9cd580"
+    },
+    {
+      "path": "tests_python/test_v21_api.py",
+      "role": "versioned-api-integration-tests",
+      "sha256": "67ed0037dcdfb5127e415dc5d6737aa069e8bb24c65beb01a6c15a348dd8636d"
+    },
+    {
+      "path": "tests_python/test_v21_catalog_registry.py",
+      "role": "catalog-registry-contract-tests",
+      "sha256": "55be5687c057709f097e5e10248f26285c788e76f72314a4d61866df28cb8c7d"
+    },
+    {
+      "path": "tests_python/test_v21_feature_flags.py",
+      "role": "server-feature-flag-tests",
+      "sha256": "5dd68f638dc178dc5eeb3baaf4948df5a02d74e660c27d3590aa9e588173de03"
+    },
+    {
+      "path": "tests_python/test_v21_job_manager.py",
+      "role": "job-supervisor-integration-tests",
+      "sha256": "d37d7545ff6b4cc36f741e2101c1d35485037ef0ddc11409ed1596983d6acdd9"
+    },
+    {
+      "path": "tests_python/test_v21_job_store.py",
+      "role": "durable-store-contract-tests",
+      "sha256": "17bef44b15cde9ed40cbf819cdb19f4ad4af46554e21111f9b43785097dc8ed5"
+    },
+    {
+      "path": "tests_python/test_v21_security.py",
+      "role": "service-security-contract-tests",
+      "sha256": "552d1ee0a343fd1fd758cbbdf5b50f5826739dc0a602e25964c86a8698d51ded"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "broad-phase.brute-force-chord-recall",
+      "classification": "synthetic-oracle",
+      "artifact": "tests/fullCatalogScreening.test.js",
+      "locator": "bruteForceChordCandidates",
+      "expected": {
+        "missedCandidateIntervals": 0,
+        "comparison": "exact canonical pair and slab identity"
+      },
+      "limitations": "The deterministic synthetic catalog is deliberately small and is not an independent orbital truth set."
+    },
+    {
+      "id": "refinement.analytic-linear-events",
+      "classification": "synthetic-oracle",
+      "artifact": "tests/fullCatalogScreening.test.js",
+      "locator": "analyticLinearEventPairs",
+      "expected": {
+        "missedEventPairs": 0
+      },
+      "limitations": "Analytic linear motion does not establish accuracy for real perturbed trajectories."
+    },
+    {
+      "id": "runner.immutable-input-and-result",
+      "classification": "integration",
+      "artifact": "tests/fullCatalogRunner.test.js",
+      "locator": "CATALOG_CHECKSUM_MISMATCH",
+      "expected": {
+        "checksumMismatchRejected": true,
+        "pathEscapeRejected": true,
+        "atomicResultIdentityChecked": true
+      }
+    },
+    {
+      "id": "sources.multi-format-contracts",
+      "classification": "integration",
+      "artifact": "tests/orbitalSourceAdapters.test.js",
+      "locator": "parseCcsdsOmmKvn",
+      "expected": {
+        "formats": [
+          "TLE_JSON",
+          "CCSDS_OMM_JSON",
+          "CCSDS_OMM_KVN",
+          "CCSDS_OEM_KVN",
+          "PROVIDER_EPHEMERIS_JSON"
+        ],
+        "strictFrameAndTimeValidation": true
+      }
+    },
+    {
+      "id": "scale.local-full-catalog-60-seconds",
+      "classification": "development-performance-observation",
+      "artifact": "validation/v2.1.0/benchmarks/local-full-catalog-60s-2026-07-20.json",
+      "expected": {
+        "selectedRecordCount": 16443,
+        "pairIntervals": 135177903,
+        "resultStatus": "PARTIAL",
+        "unscreenedIntervalsReported": true,
+        "candidateReductionMeasured": true,
+        "memoryMeasured": true,
+        "resultVolumeMeasured": true
+      },
+      "limitations": "The source contained propagation failures and kinematic-bound violations, so the engine correctly reported PARTIAL rather than a complete catalog result."
+    },
+    {
+      "id": "service.full-catalog-http-and-persistence",
+      "classification": "development-service-observation",
+      "artifact": "validation/v2.1.0/benchmarks/local-v21-service-2026-07-20.json",
+      "expected": {
+        "catalogObjectCount": 16443,
+        "infrastructureState": "SUCCEEDED",
+        "scientificStatus": "PARTIAL",
+        "eventQueryMatchesPersistedCount": true,
+        "endpointLatencyMeasured": true,
+        "cleanShutdownPersistenceMeasured": true,
+        "progressRecordsBoundedPerAttempt": true
+      },
+      "limitations": "This is one loopback HTTP run on an uncontrolled development machine with a 60-second horizon; it is not a service-level objective or operational capacity result."
+    },
+    {
+      "id": "service.durable-contracts",
+      "classification": "integration",
+      "artifact": "tests_python/test_v21_job_manager.py",
+      "locator": "test_completed_job_replay_persists_repeated_engine_event_ids",
+      "expected": {
+        "replayPersistsDistinctServiceEventRevisions": true,
+        "progressRecordsBoundedPerAttempt": true,
+        "runnerEnvironmentAllowlisted": true
+      },
+      "limitations": "The service tests exercise one local SQLite process and do not establish hosted multi-user, failover, or operational behavior."
+    },
+    {
+      "id": "service.store-fencing-and-atomicity",
+      "classification": "integration",
+      "artifact": "tests_python/test_v21_job_store.py",
+      "locator": "test_stale_worker_cannot_mutate_a_reclaimed_attempt",
+      "expected": {
+        "staleWorkerFencingTested": true,
+        "atomicResultImportTested": true,
+        "retentionConflictsTested": true
+      },
+      "limitations": "SQLite transactional tests do not establish behavior for a future distributed database or multi-worker queue."
+    }
+  ],
+  "knownGaps": [
+    "No independently generated full-catalog conjunction truth set has been accepted.",
+    "No collision-probability or covariance implementation exists in v2.1.",
+    "No operational alerting, maneuver recommendation, or autonomous decision capability exists.",
+    "Scale and service evidence cover one machine, one 60-second slab, and one catalog snapshot.",
+    "Source-data license compatibility review is pending.",
+    "Independent scientific reviewer approval is pending."
+  ]
+}

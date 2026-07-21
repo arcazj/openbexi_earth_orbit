@@ -338,7 +338,7 @@ function run() {
   assert(css.includes('#mercatorContainer.globe-overlay'), 'Globe + Mercator mode has a dedicated Mercator overlay style');
   assert(css.includes('#mercatorContainer.globe-overlay') && css.includes('bottom: 10px;') && css.includes('right: 10px;'), 'Mercator overlay is anchored to the bottom-right of the globe canvas');
   assert(css.includes('top: 50px !important'), 'narrow viewport time slider is moved away from top controls');
-  assert(css.includes('top: 88px'), 'narrow viewport menu starts below the time slider');
+  assert(css.includes('top: 132px'), 'narrow viewport menu starts below the time slider and external toggle');
   assert(css.includes('.menu-accordion-heading-satellite { border-left-color: #35b9a9; }'), 'Satellite keeps the legacy teal accent');
   assert(css.includes('.menu-accordion-heading-view { border-left-color: #f0b429; }'), 'View keeps the legacy yellow accent');
   assert(css.includes('.menu-accordion-heading-timelines { border-left-color: #d45187; }'), 'Timelines keeps the legacy pink accent');
