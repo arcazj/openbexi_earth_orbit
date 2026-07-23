@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "package": "three",
+  "version": "0.184.0",
+  "source": "npm:three@0.184.0",
+  "npmIntegrity": "sha512-wtTRjG92pM5eUg/KuUnHsqSAlPM296brTOcLgMRqEeylYTh/CdtvKUvCyyCQTzFuStieWxvZb8mVTMvdPyUpxg==",
+  "license": "MIT",
+  "files": {
+    "build/three.core.js": "368dc78835287709a48939e8eb9a7a61d0732098bdf916e56840d458aae9ccf3",
+    "build/three.module.js": "61134198639a10885daf893fb29669ca26386e2a4cde76e8399f51e329f741f2",
+    "examples/jsm/controls/OrbitControls.js": "faabb4e8dfd9235ee4a9fd7c9a3d75f90f1689dbd4944bd6fd32117dacec5f93",
+    "examples/jsm/loaders/GLTFLoader.js": "97642d720f16cc9a0c9844934198e4d0c023bea8e89576d0f7545d03b2d103d2",
+    "examples/jsm/loaders/MTLLoader.js": "f1f8f0c6fcfa09671cb609954ea436521d835606853c110c5aff2dc8188f5e61",
+    "examples/jsm/loaders/OBJLoader.js": "86c8384e269b75a21d502d438e3f0dc2e09dc61b6e6da6b81947f5b119112bf8",
+    "examples/jsm/renderers/CSS2DRenderer.js": "dc5f4c5075a3a330b7e679da943343dd86a0f2d745422194b5287e48d7204197",
+    "examples/jsm/utils/BufferGeometryUtils.js": "d700b4c4584b9ff53a04692624d2363019f6d1df2978a207389168c6ae647a65",
+    "examples/jsm/utils/SkeletonUtils.js": "b1632a703206c3d830de9fcbe515696770d04b71a15ee6b50afa6d2c3298c86f",
+    "LICENSE": "8b378ebe60e2fe500158cb0ac71cb5e8b7d92953c2abcc63a0eb90499653b5bc"
+  }
+}

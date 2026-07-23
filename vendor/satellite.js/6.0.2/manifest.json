@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "package": "satellite.js",
+  "version": "6.0.2",
+  "source": "npm:satellite.js@6.0.2",
+  "npmIntegrity": "sha512-XWKxtqVF5xiJ1xAeiYeT/oSSzsukoCLWvk6nO/WFy4un0M3g4djAU9TAtOCqJLtYW9vxx9pkPJ1L9ITOc607GA==",
+  "license": "MIT",
+  "files": {
+    "satellite.es.js": "34f95ebd07f6ae947e73b441ad23e0c93693f1d610530a8bcf18fabb9c8e189f",
+    "satellite.min.js": "14488fc910920924e6616f07f950ba307586e08fbb837407d8fe04c939b2059f",
+    "LICENSE.md": "1432ff8b94b91db9f242d908e09f2ecb1a0804a03f76ba844cf052c7bb614d9e"
+  }
+}
