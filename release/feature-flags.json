@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "releaseVersion": "2.1.0",
+  "flags": [
+    {
+      "id": "experimental_conjunction_screening",
+      "description": "Browser-based selected-object versus catalog TLE close-approach screening",
+      "enabled": true,
+      "enabledChannels": [
+        "development",
+        "preview"
+      ],
+      "scope": "browser",
+      "scientificMaturity": "Experimental",
+      "safetyClass": "non-operational",
+      "owner": "project-maintainers",
+      "limitationsDocument": "docs/science/EXPERIMENTAL_CONJUNCTION_SCREENING_V2.md",
+      "rollback": {
+        "action": "Set enabled to false, regenerate browser metadata, build and checksum a new artifact, run the release checks, and redeploy that disabled artifact.",
+        "dataImpact": "None. Version 2.0 does not persist screening results or modify source catalog data.",
+        "fallback": "Satellite visualization, selection, and catalog diagnostics remain available without screening."
+      }
+    },
+    {
+      "id": "experimental_full_catalog_screening",
+      "description": "Authenticated durable server-side full-catalog close-approach screening",
+      "enabled": true,
+      "enabledChannels": [
+        "development"
+      ],
+      "scope": "server",
+      "scientificMaturity": "Experimental",
+      "safetyClass": "non-operational",
+      "owner": "project-maintainers",
+      "limitationsDocument": "docs/science/EXPERIMENTAL_FULL_CATALOG_SCREENING_V2_1.md",
+      "rollback": {
+        "action": "Stop new job admission, cancel active jobs, set this flag to false, regenerate release metadata, run the release checks, and restart the server.",
+        "dataImpact": "Catalog snapshots and completed job history remain private and readable; no source catalog is modified.",
+        "fallback": "The v2.0 browser selected-object screener and all visualization workflows remain available."
+      }
+    }
+  ]
+}

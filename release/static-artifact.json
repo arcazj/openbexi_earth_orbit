@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "outputDirectory": "dist",
+  "entrypoint": "index.html",
+  "files": [
+    "index.html",
+    "markdown_viewer.html",
+    "swagger.html",
+    "README.md",
+    "RELEASE_NOTES.md",
+    "LICENSE.md",
+    "SWAGGER.md",
+    "json/decayed/decayed.json",
+    "json/tle/TLE.json",
+    "json/tle/TLE.meta.json",
+    "icons/ob_satellite.png",
+    "icons/server_checking.svg",
+    "icons/server_connected.svg",
+    "icons/server_error.svg",
+    "icons/server_offline.svg",
+    "textures/1_earth_16k.jpg",
+    "textures/earthmap1k.jpg",
+    "textures/jupiter.jpg",
+    "textures/March_8k.jpg",
+    "textures/mercury.png",
+    "textures/moon_map2.jpg",
+    "textures/venus.png",
+    "textures/planets/saturn.jpg",
+    "textures/planets/saturn_ring.png",
+    "textures/planets/sun.jpg",
+    "textures/planets/uranus.jpg"
+  ],
+  "optionalFiles": [],
+  "trees": [
+    {
+      "path": "css",
+      "extensions": [".css"]
+    },
+    {
+      "path": "data/ephemeris",
+      "extensions": [".json"]
+    },
+    {
+      "path": "data/stars",
+      "extensions": [".js"]
+    },
+    {
+      "path": "js",
+      "extensions": [".js", ".mjs"],
+      "exclude": [
+        "conjunction/fullCatalogScreening.js",
+        "domain/catalogLifecycle.js",
+        "domain/index.js",
+        "domain/orbitalSourceAdapters.js",
+        "domain/v21Contracts.js",
+        "orbit/multiFormatPropagationService.js"
+      ]
+    },
+    {
+      "path": "json/satellites",
+      "extensions": [".json"]
+    },
+    {
+      "path": "obj",
+      "extensions": [".glb", ".gltf", ".jpg", ".jpeg", ".mtl", ".obj", ".png", ".webp"]
+    }
+  ],
+  "vendorManifests": [
+    "vendor/satellite.js/6.0.2/manifest.json",
+    "vendor/three/0.184.0/manifest.json"
+  ]
+}

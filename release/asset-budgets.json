@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "policy": "regression-ceiling",
+  "files": {
+    "index.html": 250000,
+    "json/tle/TLE.json": 10500000,
+    "data/ephemeris/solar_system_jpl_horizons_2020_2035_6h.json": 17500000,
+    "obj/ISS.glb": 45000000,
+    "textures/1_earth_16k.jpg": 35000000,
+    "textures/March_8k.jpg": 12000000
+  },
+  "groups": {
+    "browserJavaScript": {
+      "roots": ["js"],
+      "extensions": [".js", ".mjs"],
+      "exclude": [
+        "js/conjunction/fullCatalogScreening.js",
+        "js/domain/catalogLifecycle.js",
+        "js/domain/index.js",
+        "js/domain/orbitalSourceAdapters.js",
+        "js/domain/v21Contracts.js",
+        "js/orbit/multiFormatPropagationService.js"
+      ],
+      "maxBytes": 660000
+    },
+    "vendoredBrowserRuntime": {
+      "roots": ["vendor"],
+      "extensions": [".js", ".mjs"],
+      "maxBytes": 2600000
+    }
+  }
+}

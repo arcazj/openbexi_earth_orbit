@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "product": "openbexi-earth-orbit",
+  "version": "2.1.0",
+  "baselineRuntimeVersion": "1.7.6",
+  "channel": "development",
+  "publicationState": "development",
+  "maturity": "experimental",
+  "safetyClass": "non-operational",
+  "candidateAt": null,
+  "releasedAt": null,
+  "runtimeVersionMigration": "complete"
+}
