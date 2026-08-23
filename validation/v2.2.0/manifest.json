@@ -228,12 +228,12 @@
     {
       "path": "tools/satellite_data_tools.py",
       "role": "gp-omm-ingest",
-      "sha256": "dfc2e2dfdf2e38f2b7de92aa4ef86cefb939cf248ac6f0a70b2512d3eaf9f7fc"
+      "sha256": "9452ee5e1637eb2e9b1fd09acc49e8bbc931e0445a64180d116f8ad94185a955"
     },
     {
       "path": "server.py",
       "role": "local-api",
-      "sha256": "affaeddd5a44ae60af536ac70d648257632406482f2214c6600627b6b08428f2"
+      "sha256": "7e4bb15789ba0a2b4c1c704bf74baa706d833a640b0c5d08c9ecd064a712fdc7"
     },
     {
       "path": "services/v21/api.py",
@@ -248,32 +248,32 @@
     {
       "path": "index.html",
       "role": "browser-integration",
-      "sha256": "50dd8d7fc520472cbe432685b07e9778b93760d6cadf5aa40bc7c3b1265cd791"
+      "sha256": "5afb4a0abd175fa963bfa74628f48cb541633d77def11a68dc59c63d6367818e"
     },
     {
       "path": "js/satelliteTLELoader.js",
       "role": "mixed-catalog-loader",
-      "sha256": "556e8e0fd06d4a737bd579529b7b371a29c6319967d7946d1e26ee75df8fba30"
+      "sha256": "e11e882322935b74ab1be3dd8f32e6a4e1b8e3475beb87bfb5ec09cc7782bde1"
     },
     {
       "path": "js/ganttTimelineLoader.js",
       "role": "launch-timeline",
-      "sha256": "a390562909425a25d78b452717892881fbc313a85f37af3a9701a524d6d00f31"
+      "sha256": "a013b2db89c4a4a5eea11614dea7bcc79d35fe505a1353be50b637adacb9a7cb"
     },
     {
       "path": "js/decayPredictor.js",
       "role": "decay-cache",
-      "sha256": "986b2058cc58a0aa2ff626530ac170d6a4823cf7efbe428c549a83cbf72dc375"
+      "sha256": "3468adfabb7e1424eab29e36600ab42d79f6da836bbb7786410339654d5d7063"
     },
     {
       "path": "js/reentryTimeline.js",
       "role": "reentry-timeline",
-      "sha256": "1d99ae8abe43b76005065590744cf65f503e1e62ed42e7399bc038366b6920fa"
+      "sha256": "8854f731ca3f40b8c9d6581333884e93db11e47a9525628270f2c67c9fb6414f"
     },
     {
       "path": "js/serverConnection.js",
       "role": "browser-api-client",
-      "sha256": "6fdd071395764c50af890ffed690a1018f7b44b2b4a5d52448d15c4224225b0d"
+      "sha256": "3adc370bd2cc6836dbb8bc7d83914d514dce22dc5cd35b773737a60b90ad89e0"
     },
     {
       "path": "js/dependencyBootstrap.js",
@@ -318,7 +318,7 @@
     {
       "path": "tests/satelliteDataTools.test.js",
       "role": "ingest-fixtures",
-      "sha256": "3529560fff97a082a0d26cbcf7bf42150c1687c3aac108e688454d305f304e2a"
+      "sha256": "da14cea401b0c7cb5044cfe2edbe64f2277333707c6be4edee8d6e1f89b9638b"
     },
     {
       "path": "tests/gpCatalogLoader.test.js",
@@ -343,7 +343,7 @@
     {
       "path": "tests/serverConnection.test.js",
       "role": "api-client-fixtures",
-      "sha256": "f729a3cf557fff04051fbfccbc397f4e2933a7fd375ce5a4545161c9af2060fa"
+      "sha256": "5da9613068fbc8353e59261098ba82e314cc3d587337a9d79326a109c234f500"
     },
     {
       "path": "tests/conjunctionWorkerProtocol.test.js",
@@ -393,17 +393,17 @@
     {
       "path": "package.json",
       "role": "command-and-dependency-policy",
-      "sha256": "8bd821ea94f2e5c7e12b62c1bb0d8603f91a3876a85bff1196840da7a77b9613"
+      "sha256": "85f82a5ec8c7549ed84b89b1081c53f318821952bacc30b42fb10c94544e4d8c"
     },
     {
       "path": "package-lock.json",
       "role": "locked-node-dependencies",
-      "sha256": "5eabde89fba626a45d2ec0bbe862cee51c4085c26ac164487957a467b25094ea"
+      "sha256": "b9c45a4893286eb8183a3f2d4a4d9339a0942a15f6ade0bbdd9bea287f12fbaf"
     },
     {
       "path": "release/version.json",
       "role": "release-identity",
-      "sha256": "c73f351bcdbfc865f9b47781c76a806ba33d5d67bca5a1c9ae5e5dfcdd41d841"
+      "sha256": "10aff9ee670aa0d80c1efa1d5a8566a15cc67b58207459d47daf5714022719b2"
     },
     {
       "path": "release/feature-flags.json",
@@ -423,22 +423,22 @@
     {
       "path": "css/style.css",
       "role": "mixed-catalog-browser-layout",
-      "sha256": "312ab98d67657a7f2cafead7c832c60e736cd70fbb29ae388fe7cb68b5152759"
+      "sha256": "f82ddb1f8130b7dcc591d633cc15bdf5a8622f0ac2bf8391a6511863be0f9daa"
     },
     {
       "path": "js/SatelliteConfigurationLoader.js",
       "role": "mixed-element-details",
-      "sha256": "8d1692d7f54a6a701b868d81aeef20e79754d6771885752e73f4117f49e06eaf"
+      "sha256": "0d2a9ebcfc9b5b146f214a7c0d1fa2bc9ea4d0cf310fb089da693be1111fad0e"
     },
     {
       "path": "js/SatelliteMenuLoader.js",
       "role": "catalog-selection-ui",
-      "sha256": "92902556a55fdeb6ad97c13e8cb7e2557114ef6be78cff7a3ec88c256c3f0155"
+      "sha256": "f65af46f919e26bee55a8ce75b4bffefb970fa8a2bf7676dd8ce2eac81a1c9c5"
     },
     {
       "path": "js/mercatorMapLoader.js",
       "role": "mixed-catalog-map-renderer",
-      "sha256": "03d4e4124a4d057b84aba75fbb7c04922107ac04232e99abf1a9359cb49f51aa"
+      "sha256": "e0032d528b41ee7fcf6c5e3f585d88d7baa00e28940e95c1e1cdf2ae77e8fe72"
     },
     {
       "path": "js/releaseVersion.js",
@@ -498,12 +498,12 @@
     {
       "path": "swagger.html",
       "role": "static-api-documentation",
-      "sha256": "8d94ad915f105b9b770a57d17672be25891151ec644834fe33be5770c4817785"
+      "sha256": "d359fad6496b4462b1cb276f1e187e7794ad10d5d6fc54ac3853972d2e4c2295"
     },
     {
       "path": "tests/runAll.js",
       "role": "unit-test-discovery",
-      "sha256": "fe4dc0dd08e8f0d9704682bffe4d7339b5c0112f637ff1695049d01b5ee367e5"
+      "sha256": "59b83e0de01db5e22f7a7bb2d644bb2eb67408781afe11cb1e69a7bf6e64cfa1"
     },
     {
       "path": "tests/catalogLoaderIntegration.test.js",
@@ -528,17 +528,17 @@
     {
       "path": "tests/menuUx.test.js",
       "role": "timeline-and-selection-ux-fixtures",
-      "sha256": "808b3b8382776bf2d0f2f3e03c03ace83048d21605d8f274615e79aefb4f6b7f"
+      "sha256": "259a2ef95bb9785264cb72ace245084ef84f4d27b71a0de151b6f754231962e2"
     },
     {
       "path": "tests/releaseStructure.test.js",
       "role": "release-structure-fixtures",
-      "sha256": "9b4766179cf794c30f05bcd312fe3de9ed59baacfa5ef6e962f3e7f4c3be2c38"
+      "sha256": "c6a96a2c2bf15478759351e26969970eec632f5326a3ff7d0e5698b894c947c7"
     },
     {
       "path": "tests/serverApiStructure.test.js",
       "role": "composite-api-fixtures",
-      "sha256": "360eb60bc3642a7c97e707ed6d8be5cdc06f9bf278828047b715bc9010bec03c"
+      "sha256": "86e0307e996b25b1dc3bd7dbcefd19d6c8efb49a824a80e10562d57994c47223"
     },
     {
       "path": "tests_browser/timelines.spec.js",
@@ -578,12 +578,12 @@
     {
       "path": "display_satellite.html",
       "role": "model-viewer-runtime",
-      "sha256": "d0ebc81d21a4b316becbdcb626b0a825b4a720b06e9aca780ed2e4771812877a"
+      "sha256": "afc4fdc36cb3365c19dfa6264ba211bfdff314a9b79fb65cae9cf8ddaa2fe437"
     },
     {
       "path": "json/display_satellite_models.json",
       "role": "model-asset-manifest",
-      "sha256": "a4c789e7e6f1900d822d67f73c4d360d7b3a8c61cb92e4400141b55c6df90330"
+      "sha256": "ce11cbbb77d447df68510b3ab50b93b9901fce4ae8f3c3286fc5820347662cf7"
     },
     {
       "path": "obj/SSL_1300.glb",
@@ -593,12 +593,12 @@
     {
       "path": "js/satelliteModelLoader.js",
       "role": "selected-model-loader",
-      "sha256": "40b9dd8f15f7c0c629526e7cf061b9c168cea03728efb0f7dd68e04915e198f7"
+      "sha256": "8f98217395910f348dc8fd443fe2dfed9a017e71452ef383b206d5f6da35070e"
     },
     {
       "path": "js/satelliteModelResolver.js",
       "role": "selected-model-resolution",
-      "sha256": "346b47f56923d998038d4789c0464d40e3ec990a1394f7f6e6d5067b70a9b9de"
+      "sha256": "448033f016a61049f60880b504812a5488e0cbdde7c0a914e628cf562062e6d9"
     },
     {
       "path": "js/satelliteCategoryFilter.js",
@@ -613,17 +613,17 @@
     {
       "path": "js/satelliteFootprintLoader.js",
       "role": "exact-selected-footprint-consumer",
-      "sha256": "3c89c56ea8d599da92f8b96c024f33cac131e17ebf157441ef6f0f7882a5fdd1"
+      "sha256": "297069bde6f032931326fc93d6b7698584f806ecc3fb2384a23adcedbf9661f8"
     },
     {
       "path": "js/sceneFrame.js",
       "role": "visualization-frame-transform",
-      "sha256": "b26cb0951b91f3f354e61e4b7e0dea63455455dc11b1cdd16e836ce6d1bd48c1"
+      "sha256": "182f35aef237885a71b5403159dc00e0063d8accf42b1e2c2aa9c26fa2c351f6"
     },
     {
       "path": "js/shareState.js",
       "role": "normalized-browser-share-state",
-      "sha256": "c3f5300119256e0b86c82a6d991bc646120df506f33e2feb51f7075eadbb5615"
+      "sha256": "65780fcfc09b5eb427d0e792ac50701589530a075e4b344dc6550cf8917ef854"
     },
     {
       "path": "js/solarSystemEphemeris.js",
@@ -638,7 +638,7 @@
     {
       "path": "js/startupPerformance.js",
       "role": "progressive-startup-instrumentation",
-      "sha256": "0a473180ff491593fa725a563d36e627dd8d2a89cae6d66ddc60f034104fd12d"
+      "sha256": "937ae1075a81951ebcd96f55e9853e58c4c494bb21c67b5a4b1068259a8c18cc"
     },
     {
       "path": "js/orbit/orbitLinkGeometry.js",
@@ -673,7 +673,7 @@
     {
       "path": "tests/displaySatelliteViewer.test.js",
       "role": "canonical-model-inventory-fixtures",
-      "sha256": "4c1926d87a536c9cb447a07928800adef770c07d071e58a01b6c9b2fb8271e8f"
+      "sha256": "ce1e8eaf8fef1ae38f964654a32049d2bbfb3ed02b857db9b47d88093dbdcc16"
     },
     {
       "path": "tests/mercatorMotionReuse.test.js",
@@ -708,7 +708,7 @@
     {
       "path": "tests/shareState.test.js",
       "role": "share-state-fixtures",
-      "sha256": "6473e73fffe7c221e1ce30543888898a0b8ed9331b0a4706798c2a3fbac4ad46"
+      "sha256": "1ba13ca0f840d5f00a76e07e0f71329419ee510b5a0d4c66af15dc89f3a5b112"
     },
     {
       "path": "tests/simulationClock.test.js",
@@ -728,12 +728,12 @@
     {
       "path": "tests/startupPerformance.test.js",
       "role": "startup-performance-fixtures",
-      "sha256": "2527f2e9af83fff9af389b860416b9ee083e2116aac80d212fa12b665ca36407"
+      "sha256": "4fc047006a06664ad8871b2cebc3c45a030430204204bdefd1a433969b8ed365"
     },
     {
       "path": "tests/startupStructure.test.js",
       "role": "browser-cleanup-structure-fixtures",
-      "sha256": "f941af826aad5dc7bf5e37d85cf8b8f3de1c17e7c386673854a159fadba16f95"
+      "sha256": "9f0b0af36c9fb3fdca9c999a7d1d34292a20966c162f914cbb5fcefd3dba8faf"
     },
     {
       "path": "tests_browser/satelliteFilters.spec.js",
@@ -793,7 +793,7 @@
     {
       "path": "json/satcat.csv",
       "role": "frozen-satcat-source-snapshot",
-      "sha256": "d3cf8a9454e2b01811ac3f11cb60d56190eb5173c1c4bac68c764d7193046ef9"
+      "sha256": "3b7559b3c2a38cac88b1eecbfae309708110fd6abd68ce462ca3fbedc8e8a4a4"
     },
     {
       "path": "json/satcat.meta.json",
@@ -808,7 +808,7 @@
     {
       "path": "data/ephemeris/solar_system_jpl_horizons_reference_samples.json",
       "role": "ephemeris-reference-vectors",
-      "sha256": "9939901ee9c68bb0dd77640400b8023f6655f32776a40137d03fbb1af607bcad"
+      "sha256": "2dc10a1e25f8d36aa0dec5ce9d4fee9319f2130f66887d21bc9ed6cdf650d0f4"
     }
   ],
   "evidence": [
