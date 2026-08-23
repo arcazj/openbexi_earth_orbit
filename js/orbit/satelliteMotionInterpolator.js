@@ -251,7 +251,9 @@ export function createSatelliteMotionController(options = {}) {
         if (object.mesh) {
             object.mesh.userData ??= {};
             object.mesh.userData.positionReady = true;
-            if (filterAllowsObject(object)) object.mesh.visible = true;
+            if (filterAllowsObject(object) && object.mesh.userData.pointMarkerSuppressed !== true) {
+                object.mesh.visible = true;
+            }
         }
     };
 

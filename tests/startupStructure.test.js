@@ -3,6 +3,7 @@ import fs from 'fs';
 
 function run() {
   const indexHtml = fs.readFileSync('index.html', 'utf8');
+  const motionInterpolator = fs.readFileSync('js/orbit/satelliteMotionInterpolator.js', 'utf8');
   const moduleStart = indexHtml.indexOf('id="openbexi-main-module" type="text/openbexi-module"');
   assert(moduleStart >= 0, 'index.html contains the deferred main module template');
   assert(indexHtml.includes('openbexiBootFromTemplate'), 'index.html boots the deferred module after dependency resolution');
@@ -79,7 +80,9 @@ function run() {
   assert(tleLoader.includes('const denseMode = drawnCount > 1000'), 'large globe catalogs use the compact point-cloud style');
   assert(tleLoader.includes('const nextMap = denseMode ? null : satellitePointCloud.userData.iconMap'), 'small catalogs retain icons while large catalogs avoid texture overdraw');
   assert(indexHtml.includes('s.mesh.userData.filterVisible = includedInDisplay'), 'logical display membership remains separate from point-marker visibility');
-  assert(indexHtml.includes('s.mesh.visible = includedInDisplay && !isDetailedModelForThisSat && satelliteMarkerCanRender(s)'), 'filter membership does not bypass detailed-model replacement or current-time marker readiness');
+  assert(indexHtml.includes('s.mesh.userData.pointMarkerSuppressed = !!isDetailedModelForThisSat'), 'detailed-model replacement records durable point-marker suppression');
+  assert(indexHtml.includes('s.mesh.visible = includedInDisplay && !s.mesh.userData.pointMarkerSuppressed && satelliteMarkerCanRender(s)'), 'filter membership does not bypass detailed-model replacement or current-time marker readiness');
+  assert(motionInterpolator.includes('object.mesh.userData.pointMarkerSuppressed !== true'), 'motion propagation cannot re-enable a detailed model\'s duplicate point marker');
   assert(!tleLoader.includes('getOrbitECIPoints'), 'obsolete TLE-only orbit sampler is removed');
 
   console.log('startupStructure tests passed');

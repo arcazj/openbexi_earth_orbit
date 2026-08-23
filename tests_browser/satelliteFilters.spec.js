@@ -337,6 +337,15 @@ test('category unions, dependent tags, counts, selection, and GP revisions stay 
     { timeout: 45_000 }
   );
   await setCheckbox(page, '#showOnlySelectedSatellite', false);
+  await page.evaluate(() => new Promise(resolve => {
+    let remainingFrames = 5;
+    const waitForFrame = () => {
+      remainingFrames -= 1;
+      if (remainingFrames <= 0) resolve();
+      else requestAnimationFrame(waitForFrame);
+    };
+    requestAnimationFrame(waitForFrame);
+  }));
   expect(await page.evaluate(() => window.openbexiSimulation.markerState('110003'))).toMatchObject({
     filterVisible: true,
     visible: false

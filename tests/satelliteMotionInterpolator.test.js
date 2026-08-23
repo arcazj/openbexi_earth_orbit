@@ -414,6 +414,40 @@ function run() {
   });
   assert(Math.abs(jumpObject.mesh.position.x - 93_400) < 1e-9, 'paused resample remains stable after the async job');
 
+  const suppressedScheduler = createScheduler();
+  const suppressedObject = {
+    satrec: { phase: 0 },
+    mesh: {
+      visible: false,
+      userData: { filterVisible: true, pointMarkerSuppressed: true },
+      position: positionObject()
+    }
+  };
+  const suppressedController = createSatelliteMotionController({
+    propagate,
+    toSceneSample,
+    now: () => realTimeMs,
+    schedule: callback => suppressedScheduler.schedule(callback),
+    cancelSchedule: id => suppressedScheduler.cancel(id)
+  });
+  suppressedController.update([suppressedObject], {
+    selectedObject: suppressedObject,
+    simTimeMs: epoch,
+    rate: 1,
+    realTimeMs
+  });
+  assert.strictEqual(suppressedObject.motionPositionReady, true, 'a suppressed detailed-model proxy still receives exact motion state');
+  assert.strictEqual(suppressedObject.mesh.visible, false, 'selected propagation cannot re-enable a detailed model\'s duplicate point marker');
+  suppressedObject.mesh.userData.pointMarkerSuppressed = false;
+  realTimeMs += 16;
+  suppressedController.update([suppressedObject], {
+    selectedObject: suppressedObject,
+    simTimeMs: epoch + 1,
+    rate: 1,
+    realTimeMs
+  });
+  assert.strictEqual(suppressedObject.mesh.visible, true, 'the point marker can return after detailed-model suppression clears');
+
   const diagnosticCatalog = [
     {
       norad_id: '1',

@@ -4280,6 +4280,7 @@
                 simParams.selectedSatelliteNoradId = tleSatData.norad_id?.toString() || null;
                 tleSatData.isSelected = true;
                 if (tleSatData.mesh) {
+                    tleSatData.mesh.userData.pointMarkerSuppressed = true;
                     tleSatData.mesh.visible = false;
                 }
 
@@ -4340,6 +4341,7 @@
             if (oldNoradId) {
                 const tleSat = satellites.find(s => s.norad_id.toString() === oldNoradId.toString());
                 if (tleSat?.mesh) {
+                    tleSat.mesh.userData.pointMarkerSuppressed = false;
                     tleSat.mesh.visible = tleSat.mesh.userData?.filterVisible === true &&
                         satelliteMarkerCanRender(tleSat);
                 }
@@ -5157,7 +5159,8 @@
             }
 
             s.mesh.userData.filterVisible = includedInDisplay;
-            s.mesh.visible = includedInDisplay && !isDetailedModelForThisSat && satelliteMarkerCanRender(s);
+            s.mesh.userData.pointMarkerSuppressed = !!isDetailedModelForThisSat;
+            s.mesh.visible = includedInDisplay && !s.mesh.userData.pointMarkerSuppressed && satelliteMarkerCanRender(s);
         });
         renderableSatellites = satellites.filter(s => s.mesh?.userData?.filterVisible === true);
 

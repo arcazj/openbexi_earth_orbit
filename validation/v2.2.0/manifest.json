@@ -248,7 +248,7 @@
     {
       "path": "index.html",
       "role": "browser-integration",
-      "sha256": "5afb4a0abd175fa963bfa74628f48cb541633d77def11a68dc59c63d6367818e"
+      "sha256": "b99797798f7dca5323719bea1cf1a81be59644eaf214b659161526fc343d89e8"
     },
     {
       "path": "js/satelliteTLELoader.js",
@@ -383,7 +383,7 @@
     {
       "path": "tests_browser/conjunction.spec.js",
       "role": "browser-conjunction-fixtures",
-      "sha256": "4213a5e577c20392bbae7764aebf504c56b80e6434498f4e91eee0334b45f0fd"
+      "sha256": "aa34d9b8dc4da7c73ae3336bc26829c51c9d743fbd9f060cfc8d6e89a23dbd8c"
     },
     {
       "path": "tests_browser/staticDeployment.spec.js",
@@ -528,7 +528,7 @@
     {
       "path": "tests/menuUx.test.js",
       "role": "timeline-and-selection-ux-fixtures",
-      "sha256": "259a2ef95bb9785264cb72ace245084ef84f4d27b71a0de151b6f754231962e2"
+      "sha256": "dcc06b2d3d8d9702d349d874e6b7b6052f36aaae330225cd3b7c1f45de3fe698"
     },
     {
       "path": "tests/releaseStructure.test.js",
@@ -648,7 +648,7 @@
     {
       "path": "js/orbit/satelliteMotionInterpolator.js",
       "role": "bounded-display-motion",
-      "sha256": "c085995dd60bb06f3fe3f37168d69e097a501f7409bf7b7b96536c67fe829515"
+      "sha256": "cd2f1409d80234f5b34f0f7577651314ff12349e23ee0c88f202e7ac5b53d32e"
     },
     {
       "path": "scripts/check-js-syntax.mjs",
@@ -693,7 +693,7 @@
     {
       "path": "tests/satelliteMotionInterpolator.test.js",
       "role": "motion-readiness-recovery-fixtures",
-      "sha256": "77285dd4fc8666dd62e30819672505a714e6c259bd6779d838603fb96fd1a5bf"
+      "sha256": "a43eb80d61d569c598f3024011a40843b7051ac02378fed14149bf5e39bfa1ef"
     },
     {
       "path": "tests/satelliteOrbitOcclusion.test.js",
@@ -733,17 +733,17 @@
     {
       "path": "tests/startupStructure.test.js",
       "role": "browser-cleanup-structure-fixtures",
-      "sha256": "9f0b0af36c9fb3fdca9c999a7d1d34292a20966c162f914cbb5fcefd3dba8faf"
+      "sha256": "633832976a7d17ae6cd718b150537a15575431d0918fa484fc38fb9ad0a2eace"
     },
     {
       "path": "tests_browser/satelliteFilters.spec.js",
       "role": "browser-category-details-layering-fixtures",
-      "sha256": "dfaa81669ab9797870c3955454333723b9407916b24d11b058c1d3ad60b0a560"
+      "sha256": "2951d4dbf498426c8969003562a49e028e56976b2a8ad679936661b5051c7352"
     },
     {
       "path": "tests_browser/timeSimulation.spec.js",
       "role": "browser-signed-time-motion-fixtures",
-      "sha256": "f5c5f85cd1140380afe399936bd743faa1ccc131fdabe677b92bea04bb3dd7a8"
+      "sha256": "94faed513fdeaafc7908241458af98b671825722d3714997479f3a021c7dc331"
     },
     {
       "path": "tests_browser/smoke.spec.js",
