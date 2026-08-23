@@ -1,1 +1,2 @@
 * text=auto eol=lf
+vendor/satellite.js/6.0.2/LICENSE.md -text -diff
