@@ -1,0 +1,62 @@
+{
+  "schema_version": "2.2.0",
+  "parser_version": "2.2.0",
+  "dataset_format": "CCSDS_OMM_JSON",
+  "source_format": "CCSDS_OMM_JSON",
+  "provider": "CelesTrak",
+  "fetched_at": "2026-08-23T01:58:06.888576Z",
+  "retrieval_timestamp": "2026-08-23T01:58:06.888576Z",
+  "last_success_at": "2026-08-23T01:58:06.888576Z",
+  "last_attempt_at": "2026-08-23T01:58:06.888576Z",
+  "last_status": "ok",
+  "last_error": null,
+  "source_status": "COMPLETE",
+  "partial_update": false,
+  "mode": "all",
+  "source_urls": [
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=json"
+  ],
+  "celestrak_min_refresh_hours": 2.0,
+  "catalog_revision": "sha256:e381b64544e64ed93fd74320ec837440cc4b3004cb27d276e0b73d418d9292a5",
+  "dataset_hash": "sha256:e381b64544e64ed93fd74320ec837440cc4b3004cb27d276e0b73d418d9292a5",
+  "newest_orbital_epoch": "2026-08-23T11:46:36.980Z",
+  "newest_launch_date": "2026-08-20",
+  "counts": {
+    "existing": 0,
+    "fetched": 16400,
+    "added": 16400,
+    "updated": 0,
+    "retained": 0,
+    "duplicates": 0,
+    "quarantined": 0,
+    "total": 16400,
+    "omm": 16400,
+    "tle": 0,
+    "six_digit_ids": 331,
+    "nine_digit_ids": 0,
+    "tag_enriched": 0,
+    "tag_source_matches": 13549,
+    "tagged": 13549,
+    "tag_unmatched": 2851,
+    "orbit_reclassified": 0
+  },
+  "quarantine": [],
+  "quarantine_truncated": 0,
+  "urls": {
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=json": {
+      "status": 200,
+      "last_attempt_at": "2026-08-23T01:58:06.888576Z"
+    }
+  },
+  "tag_enrichment": {
+    "source": "json/tle/TLE.json",
+    "source_catalog_revision": "sha256:380a9d31b7a8c3498c33dff6d23a2970d21647d4de6f4966ae7170cbba996d1f",
+    "tag_map_revision": "sha256:82d117b020d013d6d9e77f385403ab536cb1b373f9f927c027c005282a39aa68",
+    "available_tags": 13936,
+    "matched_records": 13549,
+    "tagged_records": 13549,
+    "unmatched_records": 2851
+  },
+  "last_local_enrichment_at": "2026-08-23T02:30:00Z",
+  "last_tag_metadata_refresh_at": "2026-08-23T02:45:00Z"
+}

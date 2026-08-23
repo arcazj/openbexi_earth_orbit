@@ -11,6 +11,11 @@
     "LICENSE.md",
     "SWAGGER.md",
     "json/decayed/decayed.json",
+    "json/decayed/decayed.meta.json",
+    "json/gp/GP.json",
+    "json/gp/GP.meta.json",
+    "json/launches/launches.json",
+    "json/launches/launches.meta.json",
     "json/tle/TLE.json",
     "json/tle/TLE.meta.json",
     "icons/ob_satellite.png",
@@ -50,10 +55,7 @@
       "exclude": [
         "conjunction/fullCatalogScreening.js",
         "domain/catalogLifecycle.js",
-        "domain/index.js",
-        "domain/orbitalSourceAdapters.js",
-        "domain/v21Contracts.js",
-        "orbit/multiFormatPropagationService.js"
+        "domain/index.js"
       ]
     },
     {

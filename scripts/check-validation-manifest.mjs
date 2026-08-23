@@ -164,6 +164,7 @@ if (!Array.isArray(v21Manifest.artifacts) || v21Manifest.artifacts.length < 27) 
   fail('v2.1 evidence must hash the engine, runner, source adapters, tests, scale, and service observations');
 }
 const v21ArtifactPaths = new Set();
+const v21DriftedSourceArtifacts = new Set();
 for (const artifact of v21Manifest.artifacts) {
   if (typeof artifact.path !== 'string' || v21ArtifactPaths.has(artifact.path)) {
     fail(`v2.1 has an invalid or duplicate artifact ${artifact.path}`);
@@ -172,7 +173,10 @@ for (const artifact of v21Manifest.artifacts) {
   if (!/^[a-f0-9]{64}$/.test(artifact.sha256 ?? '')) fail(`${artifact.path} has an invalid v2.1 SHA-256`);
   const actual = sha256(read(artifact.path));
   if (actual !== artifact.sha256) {
-    fail(`${artifact.path} drifted from v2.1 evidence: expected ${artifact.sha256}, found ${actual}`);
+    if (artifact.path.startsWith('validation/v2.1.0/')) {
+      fail(`${artifact.path} drifted from immutable v2.1 evidence: expected ${artifact.sha256}, found ${actual}`);
+    }
+    v21DriftedSourceArtifacts.add(artifact.path);
   }
 }
 if (!Array.isArray(v21Manifest.executables) || v21Manifest.executables.length < 6) {
@@ -197,7 +201,7 @@ for (const evidence of v21Manifest.evidence) {
   v21EvidenceIds.add(evidence.id);
   requireNonEmptyObject(evidence.expected, `${evidence.id}.expected`);
   const artifactText = read(evidence.artifact).toString('utf8');
-  if (evidence.locator && !artifactText.includes(evidence.locator)) {
+  if (evidence.locator && !v21DriftedSourceArtifacts.has(evidence.artifact) && !artifactText.includes(evidence.locator)) {
     fail(`${evidence.id} locator no longer matches ${evidence.artifact}`);
   }
 }
@@ -294,5 +298,275 @@ if (!v21Manifest.knownGaps?.some(gap => /independent scientific reviewer approva
 
 console.log(
   `Validation evidence passed: ${v21Manifest.corpusVersion}, ${v21EvidenceIds.size} evidence records, ` +
-  `${v21Manifest.artifacts.length} hashed artifacts, review ${v21Manifest.review.status}`
+  `${v21Manifest.artifacts.length} historical hashes, ${v21DriftedSourceArtifacts.size} source files superseded, ` +
+  `review ${v21Manifest.review.status}`
+);
+
+const v22ManifestPath = 'validation/v2.2.0/manifest.json';
+const v22DigestPath = 'validation/v2.2.0/manifest.sha256';
+const v22ManifestBytes = read(v22ManifestPath);
+const v22Manifest = JSON.parse(v22ManifestBytes.toString('utf8'));
+const v22Sidecar = read(v22DigestPath).toString('utf8').trim();
+const v22SidecarMatch = v22Sidecar.match(/^([a-f0-9]{64})  manifest\.json$/);
+if (!v22SidecarMatch || v22SidecarMatch[1] !== sha256(v22ManifestBytes)) {
+  fail('v2.2 development manifest does not match its sidecar digest');
+}
+if (v22Manifest.schemaVersion !== 1 || v22Manifest.corpusVersion !== '2.2.0-development' ||
+    v22Manifest.releaseVersion !== '2.2.0' || v22Manifest.publicationState !== 'development') {
+  fail('v2.2 development corpus identity is invalid');
+}
+if (v22Manifest.scientificMaturity !== 'experimental' || v22Manifest.safetyClass !== 'non-operational' ||
+    v22Manifest.claims?.accuracy !== false || v22Manifest.claims?.operationalUse !== false) {
+  fail('v2.2 evidence must remain experimental, non-operational, and free of accuracy claims');
+}
+if (v22Manifest.review?.status !== 'pending' || v22Manifest.review?.reviewer !== null ||
+    v22Manifest.review?.reviewedAt !== null) {
+  fail('v2.2 independent review must remain explicitly pending');
+}
+const v22Conventions = v22Manifest.conventions ?? {};
+if (v22Conventions.timeScale !== 'UTC' || v22Conventions.frame !== 'TEME' ||
+    v22Conventions.positionUnits !== 'km' || v22Conventions.velocityUnits !== 'km/s') {
+  fail('v2.2 evidence must declare UTC, TEME, km, and km/s conventions');
+}
+
+if (!Array.isArray(v22Manifest.artifacts) || v22Manifest.artifacts.length < 115) {
+  fail('v2.2 evidence must hash ingest, browser, timeline, API, propagation, packaging, and test artifacts');
+}
+const v22ArtifactPaths = new Set();
+for (const artifact of v22Manifest.artifacts) {
+  if (typeof artifact.path !== 'string' || v22ArtifactPaths.has(artifact.path)) {
+    fail(`v2.2 has an invalid or duplicate artifact ${artifact.path}`);
+  }
+  if (typeof artifact.role !== 'string' || artifact.role.trim().length < 3) {
+    fail(`v2.2 artifact ${artifact.path} has no meaningful role`);
+  }
+  v22ArtifactPaths.add(artifact.path);
+  if (!/^[a-f0-9]{64}$/.test(artifact.sha256 ?? '')) fail(`${artifact.path} has an invalid v2.2 SHA-256`);
+  const actual = sha256(read(artifact.path));
+  if (actual !== artifact.sha256) {
+    fail(`${artifact.path} drifted from v2.2 evidence: expected ${artifact.sha256}, found ${actual}`);
+  }
+}
+for (const requiredPath of [
+  '.github/workflows/ci.yml',
+  '.github/dependabot.yml',
+  '.nvmrc',
+  'package.json',
+  'package-lock.json',
+  'release/version.json',
+  'release/feature-flags.json',
+  'release/static-artifact.json',
+  'release/asset-budgets.json',
+  'release/evidence/openbexi-node-sbom-2.2.0-development.cdx.json',
+  'tools/satellite_data_tools.py',
+  'tools/benchmark_v21_service.py',
+  'server.py',
+  'services/v21/api.py',
+  'services/v21/catalog_registry.py',
+  'index.html',
+  'display_satellite.html',
+  'css/style.css',
+  'js/SatelliteConfigurationLoader.js',
+  'js/SatelliteMenuLoader.js',
+  'js/satelliteCategoryFilter.js',
+  'js/simulationClock.js',
+  'js/satelliteTLELoader.js',
+  'js/ganttTimelineLoader.js',
+  'js/decayPredictor.js',
+  'js/reentryTimeline.js',
+  'js/mercatorMapLoader.js',
+  'js/satelliteFootprintLoader.js',
+  'js/satelliteModelLoader.js',
+  'js/satelliteModelResolver.js',
+  'js/sceneFrame.js',
+  'js/shareState.js',
+  'js/solarSystemEphemeris.js',
+  'js/solarSystemOverviewLoader.js',
+  'js/startupPerformance.js',
+  'js/serverConnection.js',
+  'js/dependencyBootstrap.js',
+  'js/releaseVersion.js',
+  'js/domain/orbitalSourceAdapters.js',
+  'js/domain/v21Contracts.js',
+  'js/orbit/multiFormatPropagationService.js',
+  'js/orbit/orbitLinkGeometry.js',
+  'js/orbit/satelliteMotionInterpolator.js',
+  'js/conjunction/conjunctionScreening.js',
+  'js/conjunction/conjunctionWorker.js',
+  'js/conjunction/conjunctionWorkerClient.js',
+  'js/conjunction/fullCatalogScreening.js',
+  'scripts/build-static.mjs',
+  'scripts/benchmark-full-catalog.mjs',
+  'scripts/orbital-catalog-input.mjs',
+  'scripts/python-discovery.mjs',
+  'scripts/python.mjs',
+  'scripts/run-browser-tests.mjs',
+  'scripts/run-full-catalog-screening.mjs',
+  'scripts/check-validation-manifest.mjs',
+  'scripts/check-asset-budgets.mjs',
+  'scripts/check-js-syntax.mjs',
+  'scripts/check-version.mjs',
+  'scripts/generate-sbom.mjs',
+  'scripts/sync-version.mjs',
+  'scripts/vendor-browser-dependencies.mjs',
+  'playwright.config.js',
+  'swagger.html',
+  'tests/runAll.js',
+  'tests/satelliteDataTools.test.js',
+  'tests/gpCatalogLoader.test.js',
+  'tests/multiFormatPropagationService.test.js',
+  'tests/launchTimelineCatalog.test.js',
+  'tests/decayCacheRefresh.test.js',
+  'tests/serverConnection.test.js',
+  'tests/serverApiStructure.test.js',
+  'tests/catalogLoaderIntegration.test.js',
+  'tests/catalogArtifactClassification.test.js',
+  'tests/fullCatalogRunner.test.js',
+  'tests/fullCatalogBenchmark.test.js',
+  'tests/conjunctionWorkerProtocol.test.js',
+  'tests/conjunctionUx.test.js',
+  'tests/menuUx.test.js',
+  'tests/displaySatelliteViewer.test.js',
+  'tests/mercatorMotionReuse.test.js',
+  'tests/orbitLinkGeometry.test.js',
+  'tests/releaseStructure.test.js',
+  'tests/satelliteCategoryFilter.test.js',
+  'tests/satelliteMotionInterpolator.test.js',
+  'tests/satelliteOrbitOcclusion.test.js',
+  'tests/sceneFrameRoundTrip.test.js',
+  'tests/shareState.test.js',
+  'tests/simulationClock.test.js',
+  'tests/solarSystemEphemeris.test.js',
+  'tests/solarSystemOverview.test.js',
+  'tests/startupPerformance.test.js',
+  'tests/startupStructure.test.js',
+  'tests/staticArtifact.test.js',
+  'tests_python/test_server_security.py',
+  'tests_python/test_v21_api.py',
+  'tests_python/test_v21_catalog_registry.py',
+  'tests_python/test_satellite_data_scheduler.py',
+  'tests_browser/conjunction.spec.js',
+  'tests_browser/staticDeployment.spec.js',
+  'tests_browser/timelines.spec.js',
+  'tests_browser/satelliteFilters.spec.js',
+  'tests_browser/timeSimulation.spec.js',
+  'tests_browser/smoke.spec.js',
+  'json/display_satellite_models.json',
+  'json/gp/GP.json',
+  'json/gp/GP.meta.json',
+  'json/launches/launches.json',
+  'json/launches/launches.meta.json',
+  'json/decayed/decayed.json',
+  'json/decayed/decayed.meta.json',
+  'json/tle/TLE.json',
+  'json/tle/TLE.meta.json',
+  'json/satcat.csv',
+  'json/satcat.meta.json',
+  'data/ephemeris/solar_system_jpl_horizons_2020_2035_6h.json',
+  'data/ephemeris/solar_system_jpl_horizons_reference_samples.json',
+  'obj/SSL_1300.glb'
+]) {
+  if (!v22ArtifactPaths.has(requiredPath)) fail(`v2.2 evidence is missing material artifact ${requiredPath}`);
+}
+if (fs.existsSync(path.join(ROOT, 'obj/loral.glb'))) {
+  fail('v2.2 static/model evidence must not restore the byte-identical obj/loral.glb duplicate');
+}
+const canonicalSsl1300 = read('obj/SSL_1300.glb');
+if (canonicalSsl1300.length !== 8517244 ||
+    sha256(canonicalSsl1300) !== '651b30cebf57bd08fedcfb34c31127f7a466b7897ccac2aafa8ea9908cccfcf0') {
+  fail('v2.2 canonical obj/SSL_1300.glb size or checksum is invalid');
+}
+if (!Array.isArray(v22Manifest.executables) || v22Manifest.executables.length < 16) {
+  fail('v2.2 must declare ingest, browser, timeline, API, static, and Python executables');
+}
+const v22ExecutableIds = new Set();
+for (const executable of v22Manifest.executables) {
+  if (!executable.id || v22ExecutableIds.has(executable.id) ||
+      typeof executable.command !== 'string' || executable.command.length < 5 ||
+      !Array.isArray(executable.artifacts) || executable.artifacts.length === 0 ||
+      executable.artifacts.some(artifact => !v22ArtifactPaths.has(artifact))) {
+    fail(`v2.2 executable ${executable.id ?? '<missing>'} has invalid artifact references`);
+  }
+  v22ExecutableIds.add(executable.id);
+}
+for (const requiredId of [
+  'gp-omm-export-fixtures',
+  'mixed-browser-catalog',
+  'timeline-refresh-fixtures',
+  'server-browser-contracts',
+  'static-runtime-closure',
+  'python-service-regressions',
+  'multi-format-worker-regressions',
+  'browser-integration-regressions',
+  'durable-registry-acquisitions',
+  'gp-omm-benchmark-fixtures',
+  'independent-data-scheduler',
+  'python-discovery-and-data-tools',
+  'static-timeline-and-network-closure',
+  'browser-state-motion-unit-regressions',
+  'browser-filter-time-density-regressions',
+  'generated-data-and-model-integrity'
+]) {
+  if (!v22ExecutableIds.has(requiredId)) fail(`v2.2 executable evidence is missing ${requiredId}`);
+}
+
+if (!Array.isArray(v22Manifest.evidence) || v22Manifest.evidence.length < 34) {
+  fail('v2.2 must include OMM ingest, mixed-loader, timeline, API, and static evidence');
+}
+const v22EvidenceIds = new Set();
+for (const evidence of v22Manifest.evidence) {
+  if (!evidence.id || v22EvidenceIds.has(evidence.id) || !v22ArtifactPaths.has(evidence.artifact)) {
+    fail(`v2.2 has invalid evidence ${evidence.id ?? '<missing>'}`);
+  }
+  v22EvidenceIds.add(evidence.id);
+  requireNonEmptyObject(evidence.expected, `${evidence.id}.expected`);
+  if (evidence.locator && !read(evidence.artifact).toString('utf8').includes(evidence.locator)) {
+    fail(`${evidence.id} locator no longer matches ${evidence.artifact}`);
+  }
+}
+for (const requiredId of [
+  'ingest.omm-identities-and-quarantine',
+  'browser.mixed-catalog-propagation',
+  'timeline.launch-details-only-refresh',
+  'timeline.decay-cache-revision',
+  'api.gp-launch-health-contracts',
+  'static.omm-runtime-closure',
+  'api.composite-data-revisions',
+  'api.health-fallback-availability',
+  'static.same-origin-revision-watcher',
+  'browser.static-timeline-same-document-refresh',
+  'service.immutable-acquisition-history',
+  'service.malformed-gp-tle-bootstrap',
+  'benchmark.gp-omm-input',
+  'scheduler.independent-launch-decay',
+  'tooling.shared-python-discovery',
+  'static.offline-network-closure',
+  'browser.unified-category-point-layer',
+  'browser.tag-category-name-collision',
+  'browser.selected-details-mercator-layering',
+  'browser.authoritative-time-ephemeris',
+  'motion.current-epoch-readiness-recovery',
+  'motion.selected-same-time-invalidation-recovery',
+  'render.batched-globe-density',
+  'render.mercator-density',
+  'render.point-resource-ownership',
+  'motion.selected-orbit-in-place',
+  'cleanup.obsolete-tle-orbit-sampler',
+  'assets.canonical-ssl1300-only',
+  'data.generated-catalog-classification',
+  'static.browser-state-runtime-closure',
+  'tooling.browser-server-ownership'
+]) {
+  if (!v22EvidenceIds.has(requiredId)) fail(`v2.2 evidence is missing ${requiredId}`);
+}
+if (!v22Manifest.knownGaps?.some(gap => /independent scientific reviewer approval is pending/i.test(gap)) ||
+    !v22Manifest.knownGaps?.some(gap => /redistribution approval is pending/i.test(gap)) ||
+    !v22Manifest.knownGaps?.some(gap => /fallback-tle state reports packaged-file availability only/i.test(gap)) ||
+    !v22Manifest.knownGaps?.some(gap => /strict fixed-column, checksum, adapter, and propagation validation remains a runner boundary/i.test(gap))) {
+  fail('v2.2 evidence must retain independent-review, redistribution, and fallback-validation gaps');
+}
+
+console.log(
+  `Validation evidence passed: ${v22Manifest.corpusVersion}, ${v22EvidenceIds.size} evidence records, ` +
+  `${v22Manifest.artifacts.length} hashed artifacts, review ${v22Manifest.review.status}`
 );

@@ -46,11 +46,20 @@ async function bootWithLocalDependencies(page, options = {}) {
   const { catalogFixture = null, emptyCatalog = false, waitForInteractive = true } = options;
   await page.route('**/node_modules/**', route => route.abort('blockedbyclient'));
   if (catalogFixture || emptyCatalog) {
-    await page.route('**/json/tle/TLE.json', route => route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(catalogFixture || [])
-    }));
+    const fixtureBody = JSON.stringify(catalogFixture || []);
+    for (const catalogUrl of [
+      '**/json/gp/GP.json',
+      '**/json/tle/TLE.json',
+      '**/api/gp',
+      '**/api/tle',
+      '**/api/satellites'
+    ]) {
+      await page.route(catalogUrl, route => route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: fixtureBody
+      }));
+    }
   }
   await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => {
@@ -64,6 +73,19 @@ async function bootWithLocalDependencies(page, options = {}) {
         .some(entry => entry.name === 'first-interactive-ui')
     ));
   }
+}
+
+async function includeLeoAndEnableIssShortcut(page) {
+  const meoFilter = page.locator('#orbitTypeFilter [data-orbit-filter="MEO"]');
+  const leoFilter = page.locator('#orbitTypeFilter [data-orbit-filter="LEO"]');
+  const issShortcut = page.locator('#selectIssButton');
+  await expect(meoFilter).toHaveAttribute('aria-pressed', 'true');
+  await expect(leoFilter).toHaveAttribute('aria-pressed', 'false');
+  await expect(issShortcut).toBeDisabled();
+  await leoFilter.click();
+  await expect(leoFilter).toHaveAttribute('aria-pressed', 'true');
+  await expect(issShortcut).toBeEnabled({ timeout: 30_000 });
+  return issShortcut;
 }
 
 async function setScreeningInputs(page, values) {
@@ -461,8 +483,7 @@ test('selected satellite screening runs in a Worker and renders a conjunction ev
   expect(dependencySources.threeAddonsUrl).toContain('/vendor/three/0.184.0/examples/jsm/');
   const beforeScreening = await collectBrowserEvidence(page);
 
-  const issShortcut = page.locator('#selectIssButton');
-  await expect(issShortcut).toBeEnabled({ timeout: 30_000 });
+  const issShortcut = await includeLeoAndEnableIssShortcut(page);
   await issShortcut.click();
 
   const conjunctionHeader = page.locator('#conjunctionAccordionHeader');
@@ -601,8 +622,8 @@ test('mobile conjunction workflow screens, renders, and fits without horizontal 
   test.setTimeout(120_000);
   const browserErrors = monitorBrowserErrors(page);
   await bootWithLocalDependencies(page, { catalogFixture: MOBILE_CONJUNCTION_CATALOG });
-  await expect(page.locator('#selectIssButton')).toBeEnabled();
-  await page.locator('#selectIssButton').click();
+  const issShortcut = await includeLeoAndEnableIssShortcut(page);
+  await issShortcut.click();
   await expect(page.locator('#conjunctionAccordionHeader')).toBeVisible();
   await page.locator('#conjunctionAccordionHeader').click();
   await expect(page.locator('#conjunctionContent')).toBeVisible();
@@ -664,7 +685,8 @@ test('conjunction workspace reflows at named CSS widths', async ({ page }, testI
   const browserErrors = monitorBrowserErrors(page);
   await page.setViewportSize({ width: 768, height: 1024 });
   await bootWithLocalDependencies(page, { catalogFixture: MOBILE_CONJUNCTION_CATALOG });
-  await page.locator('#selectIssButton').click();
+  const issShortcut = await includeLeoAndEnableIssShortcut(page);
+  await issShortcut.click();
   await page.locator('#conjunctionAccordionHeader').click();
   await setScreeningInputs(page, {
     conjunctionDurationHours: '1',
@@ -702,5 +724,8 @@ test('invalid catalog is rejected with an explicit non-runnable state', async ({
   await expect(page.locator('#conjunctionStatus')).toContainText('Catalog unavailable: no accepted objects');
   await expect(page.locator('#conjunctionRunButton')).toBeDisabled();
   await expect(page.locator('#selectIssButton')).toBeDisabled();
-  expectNoBrowserErrors(browserErrors);
+  expect(browserErrors.pageErrors).toEqual([]);
+  expect(browserErrors.consoleErrors).toEqual([
+    'GP and TLE catalogs contain no usable records; preserving the last known good satellite catalog.'
+  ]);
 });

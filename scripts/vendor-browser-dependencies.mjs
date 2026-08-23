@@ -12,7 +12,7 @@ const DEPENDENCIES = Object.freeze([
       { source: 'LICENSE.md', target: 'LICENSE.md' }
     ],
     module: 'satellite.es.js',
-    exports: ['gstime', 'propagate', 'twoline2satrec']
+    exports: ['gstime', 'json2satrec', 'propagate', 'twoline2satrec']
   },
   {
     packageName: 'three',

@@ -357,7 +357,8 @@ export function initReentryTimeline(rawSatellites, onSelect, options = {}) {
     const toggle = document.getElementById('reentryTimelineToggle');
     const { container, filterSelect, status, detailCanvas, overviewCanvas, tooltip } = createHudElements();
     let confirmedDecays = options.confirmedDecays || null;
-    let timelineData = buildReentryTimelineData(rawSatellites, confirmedDecays);
+    let satelliteRecords = rawSatellites;
+    let timelineData = buildReentryTimelineData(satelliteRecords, confirmedDecays);
     let latestEvent = getLatestReentryEvent(timelineData);
     let statusNote = options.statusNote || '';
     const statusText = (event, count) => {
@@ -417,9 +418,10 @@ export function initReentryTimeline(rawSatellites, onSelect, options = {}) {
         status.textContent = statusText(latestEvent, filtered.length);
     };
 
-    const rebuildData = (nextConfirmedDecays = confirmedDecays) => {
+    const rebuildData = (nextConfirmedDecays = confirmedDecays, nextSatellites = satelliteRecords) => {
         confirmedDecays = nextConfirmedDecays;
-        timelineData = buildReentryTimelineData(rawSatellites, confirmedDecays);
+        satelliteRecords = Array.isArray(nextSatellites) ? nextSatellites : satelliteRecords;
+        timelineData = buildReentryTimelineData(satelliteRecords, confirmedDecays);
         latestEvent = getLatestReentryEvent(timelineData);
         updateStatusFromFilteredData();
         if (!hasCustomRange) resetRangesFromData();

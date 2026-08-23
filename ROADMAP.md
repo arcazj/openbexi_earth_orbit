@@ -1,6 +1,6 @@
 # OpenBEXI Earth Orbit Roadmap
 
-Last reviewed: 2026-07-21
+Last reviewed: 2026-08-23
 
 ## Purpose
 
@@ -12,17 +12,17 @@ The roadmap deliberately separates three capability levels:
 2. **Collision-likelihood assessment**: probability of collision (Pc) computed from validated state uncertainty, covariance, coordinate frames, and hard-body radii.
 3. **Operational decision support**: risk policy, alerting, maneuver analysis, and audited workflows suitable for trained operators.
 
-The v2.0 preview implements the first level for one selected object against the schema-validated eligible subset of the loaded browser catalog. Version 2.1 development extends the same geometric claim to bounded, durable server-side full-catalog jobs. Neither version can responsibly claim the second or third level. Until the relevant validation gates are passed, all conjunction output remains labeled **experimental orbital-data screening**, not collision prediction or operational collision avoidance.
+The v2.0 preview implements the first level for one selected object against the schema-validated eligible subset of the loaded browser catalog. Version 2.1 development extends the same geometric claim to bounded, durable server-side full-catalog jobs. Version 2.2 addresses catalog continuity with preferred GP/OMM ingestion and lossless six-digit identities, then adds a bounded browser-correctness follow-up for filtering, details, layering, simulation time, visual interpolation, and ephemeris limits; none of that advances the scientific claim level. Until the relevant validation gates are passed, all conjunction output remains labeled **experimental orbital-data screening**, not collision prediction or operational collision avoidance.
 
-## Current v2.0 and v2.1 Implementation Status
+## Current v2.0-v2.2 Implementation Status
 
-Status at 2026-07-21: **Version 2.1.0 development scope is implemented for local evaluation; it is not a candidate or release**. The authoritative record is `release/version.json`: channel and publication state are `development`, scientific maturity is `Experimental`, safety class is `non-operational`, and candidate/release dates are null. Explicit authorization covered v2.1 implementation only. It did not approve v2.0 public/stable promotion, close any outstanding v2.0 gate, or authorize v2.2.
+Status at 2026-08-23: **Version 2.2.0 GP/OMM and bounded browser-correctness development is authorized for local evaluation; it is not a candidate or release**. The authoritative record is `release/version.json`: channel and publication state are `development`, scientific maturity is `Experimental`, safety class is `non-operational`, and candidate/release dates are null. This authorization does not approve v2.0/v2.1 promotion, close their gates, admit public data redistribution, or authorize collision probability, CDM/covariance, alerts, reports, or maneuver work.
 
 | Roadmap scope | Current status | Evidence and remaining gate |
 | --- | --- | --- |
-| FND-1 reproducibility/CI | Implemented locally; external gate open | Locked dependencies, discovered unit/Python/browser suites, static checks, dependency audit, Version 2.1 development SBOM, and repeatable benchmark commands exist; a clean-clone v2.1 evidence bundle bound to immutable source is still required |
-| FND-2 contracts, identity, validation | Implemented for v2.1 source/job envelope | `js/domain/` now covers TLE/OMM/OEM/provider source formats, normalized full-catalog requests, lifecycle observations, stable identity, provenance, units/frames, bounds, and job states; CDM/covariance/HBR contracts and an admitted current OMM provider remain absent |
-| FND-3/FND-4 propagation and compute boundary | Implemented for browser and local full-catalog paths | Pure TLE and multi-format propagation services, browser Worker boundary, isolated Node runner, bounded time-slab spatial engine, ADRs 0002/0003, and checksum-bound import exist; non-TEME frame conversion and higher-fidelity propagation remain open |
+| FND-1 reproducibility/CI | Implemented locally; external gate open | Locked dependencies, discovered unit/Python/browser suites, static checks, dependency audit, Version 2.1 and Version 2.2 development SBOMs, and repeatable benchmark commands exist; clean-clone evidence bound to immutable source remains required for the applicable promotion gates |
+| FND-2 contracts, identity, validation | Implemented for the v2.2 catalog and v2.1 source/job envelopes | `js/domain/` now covers complete string identity, TLE/OMM/OEM/provider source formats, normalized full-catalog requests, lifecycle observations, provenance, units/frames, bounds, and job states; CDM/covariance/HBR contracts and an admitted current OMM provider remain absent |
+| FND-3/FND-4 propagation and compute boundary | Implemented for browser and local full-catalog paths | Pure TLE/OMM SGP4 and multi-format propagation services, browser Worker boundary, isolated Node runner, bounded time-slab spatial engine, ADRs 0002/0003, and checksum-bound import exist; non-TEME frame conversion and higher-fidelity propagation remain open |
 | FND-6 durable jobs/API | Implemented for single-node development | SQLite WAL persists catalog revisions, attempts, bounded/coalesced progress, candidates, event revisions, errors, outbox, and audit; `/api/v1` provides path-scrubbed catalog reads, configuration-limit discovery, jobs, replay, cancellation, SSE, signed pagination, and event reads; screening schedules, multi-node execution, report export, hosted SLOs, outbox acknowledgement/pruning, and production retention automation remain open |
 | FND-7 security/deployment | Partially implemented | Loopback default, bearer role hierarchy, body/query/rate bounds, token-in-URL rejection, private path confinement, an explicit runner environment allowlist that excludes API/provider secrets and `NODE_OPTIONS`, structured problems, and static negative-exposure tests exist; public TLS/identity, token lifecycle, tenant authorization, quotas, monitoring, backups, and independent review remain gates |
 | CA-1 terminology/data quality | Implemented | UI, exports, feature flag, and science documentation retain Experimental/non-operational labels and `collision_probability: null` |
@@ -30,12 +30,13 @@ Status at 2026-07-21: **Version 2.1.0 development scope is implemented for local
 | CA-4 full-catalog screening | Implemented for bounded local development | Time slabs, swept spatial hashes, canonical pair/chord admission, shared TCA refinement, work caps, deterministic ordering, cancellation, and explicit partial coverage exist; small-catalog brute-force recall tests and one 60-second named-machine profile exist, but scheduled runs, representative horizons/2x scale, independent truth comparison, and review remain open |
 | CA-5 event UI/playback | Implemented for v2.0; v2.1 event handoff added | The browser repeats Experimental/non-operational/Pc-unavailable labels, shows partial coverage and unscreened counts, lists returned server events, and hands pairs present in its snapshot to existing TCA visualization; full server-history search UX, event-correlation revisions, reports, and cross-catalog object resolution remain later work |
 | CA-8 persistence/API slice | Partially implemented | Immutable per-job event revisions, filtered signed-cursor API reads, durable replay, audit records, and SSE progress exist; exports, acknowledgement/assignment, correlated event evolution, alert policy, and delivery are not implemented |
-| FEAT-1 catalog diagnostics | Partially implemented | Source/provenance, path-scrubbed revisions, current identity, counts, freshness, quality, and `NEW`/`CHANGED`/`ABSENT`/`REAPPEARED` semantics are available; startup and successful scheduled TLE refreshes register revisions, but current incremental snapshots are `PARTIAL` and cannot infer `ABSENT`; only the bundled TLE source is operational and broader provider governance/history remain open |
+| FEAT-1 catalog diagnostics | Partially implemented | Source/provenance, path-scrubbed revisions, current identity, counts, freshness, quality, and `NEW`/`CHANGED`/`ABSENT`/`REAPPEARED` semantics are available; Version 2.2 adds preferred OMM format/six-digit/quarantine/newest-date health fields and revision-driven refresh. Incremental snapshots remain `PARTIAL` and cannot infer `ABSENT`; provider admission, public redistribution, and broader history remain open |
+| v2.2 GP/OMM and browser continuity | Development scope implemented and locally evidenced; candidate gates open | Preferred GP/OMM, lossless six-digit identity, deterministic compatibility-tag enrichment/orbit reclassification, SATCAT-backed launch events, composite-revision refresh, truthful data health, deprecated TLE compatibility, unified category/search state with qualified labels for colliding raw tags, consolidated selected details, batched Globe and density-aware Mercator rendering, one signed clock, current-epoch readiness/recovery, bounded visual interpolation, and explicit ephemeris limits are implemented. Frozen-tree checks, 56 JavaScript and 69 Python cases, the 18-pass/9-intentional-skip Playwright matrix, two GP-backed benchmarks, and the 117-artifact/34-evidence validation manifest bind the local development result; provider/redistribution approval, independent review, named-hardware repeated/2x performance, and rollback rehearsal remain open. |
 | v2.0 scientific/performance gate | Locally evidenced; external gate open | The checksum-consistent candidate manifest and official Vallado numeric TEME comparisons cover near-Earth, deep-space non-resonant, HEO half-day resonance, GEO synchronous resonance, and negative-BSTAR cases. Immutability still requires a committed/tagged publication. A fresh loopback run meets the initial visible-globe target, while the catalog-dependent interactive target remains unmet; neither single SwiftShader result is percentile evidence. Independent review, external clean-clone CI, 2x-catalog and hardware-GPU profiles, and human approval remain required before stronger maturity claims |
 | v2.1 scientific/performance gate | Initial development evidence; candidate gate open | The checksum-bound evidence includes deterministic brute-force candidate recall, analytic refinement, isolated runner/adapters, a direct-engine profile, and an end-to-end HTTP/store/worker profile. Both 16,443-object 60-second results were correctly `PARTIAL`; after bounded coalescing, the service run persisted 22 progress rows and 26 total outbox rows. Representative horizons, 2x scale, acknowledgement/pruning and retention budgets, independent review/truth comparison, provider licensing, security review, and rollback/restore rehearsal remain open |
-| CA-6/CA-7/CA-9 and alert/report portions of CA-8 | Not implemented and not authorized | CDM/covariance/HBR, Pc/risk policy, alert delivery, operational reporting, and maneuver what-if/recommendations remain v2.2+ or research work requiring separate approval |
+| CA-6/CA-7/CA-9 and alert/report portions of CA-8 | Not implemented and not authorized | CDM/covariance/HBR, Pc/risk policy, alert delivery, operational reporting, and maneuver what-if/recommendations remain later separately authorized work; the Version 2.2 catalog and browser-correctness scope does not include them |
 
-Detailed method and validation limits are in `docs/science/EXPERIMENTAL_CONJUNCTION_SCREENING_V2.md` and `docs/science/EXPERIMENTAL_FULL_CATALOG_SCREENING_V2_1.md`. Auditable switches and rollback behavior are in `release/feature-flags.json`, `docs/engineering/ROLLBACK.md`, and `docs/engineering/ROLLBACK_V2_1.md`.
+Detailed method and validation limits are in `docs/science/EXPERIMENTAL_CONJUNCTION_SCREENING_V2.md` and `docs/science/EXPERIMENTAL_FULL_CATALOG_SCREENING_V2_1.md`. ADR 0004 records the v2.2 catalog boundary and ADR 0005 records browser state/time/motion continuity. Auditable switches and rollback behavior are in `release/feature-flags.json`, `docs/engineering/ROLLBACK.md`, `docs/engineering/ROLLBACK_V2_1.md`, and `docs/engineering/ROLLBACK_V2_2.md`.
 
 Sections 1 through 8 retain the original audit baseline and longer-term roadmap so implementation decisions remain traceable. The status table above is the current record; baseline evidence below does not override implemented behavior or approve a later phase.
 
@@ -56,29 +57,29 @@ Sections 1 through 8 retain the original audit baseline and longer-term roadmap 
 | Tests | Node test loader, deterministic math tests, source-structure assertions, Python subprocess tests, and a large manual checklist | `tests/runAll.js:1-14`, `tests/satelliteDataTools.test.js`, `Test_and_Integration.md` |
 | Legacy/experimental surface | Java data exporters remain after Python replacement; numerous standalone viewers and beam-forming prototypes remain beside the main app | `README.md:105`, `pom.xml`, repository root HTML files |
 
-### 1.2 Current data flow
+### 1.2 Recorded baseline data flow
 
-The present flow is:
+The pre-v2.0 flow recorded by this audit was:
 
 `CelesTrak GP/SATCAT -> satellite_data_tools.py -> flat JSON/CSV -> static fetch or Python file API -> satellite.js satrec -> Three.js`
 
-The browser starts rendering before all deferred work, loads the local TLE file in chunks, parses every accepted row, creates a sprite for every object, and mutates the exported global `satellites` array (see `index.html:4580-4617` and `js/satelliteTLELoader.js:386-456`). A server connection is checked after the local interface is ready; server data is loaded only on reconnect.
+At that baseline, the browser started rendering before deferred work, loaded the local TLE file in chunks, parsed accepted rows, created one sprite per object, and mutated the exported global `satellites` array. It checked the server after the local interface was ready and loaded server data only on reconnect. Version 2.2 supersedes that path with complete mixed-catalog validation before scene replacement, preferred GP/OMM, MEO-first chunk publication, hidden-until-finite markers, and composite-revision refresh.
 
-At the review date:
+At the baseline review date:
 
 - `json/tle/TLE.meta.json:12-21` reports 16,347 catalog records.
 - `json/tle/TLE.json` is about 9.28 MB and contains unique NORAD IDs in the inspected snapshot.
 - Records contain TLEs and derived orbit fields, but no covariance, hard-body radius, CDM, maneuverability, or uncertainty model.
 - The latest successful generated metadata in the workspace is dated 2026-07-12 (see `json/tle/TLE.meta.json:2-4`). Freshness must be evaluated at analysis time, not inferred from a file name.
-- Default incremental refresh uses only the CelesTrak `active` and `last-30-days` groups (see `tools/satellite_data_tools.py:103`). Existing records that disappear from those feeds are retained by the merge, so catalog status and completeness are not equivalent to a current full space-object catalog.
+- Version 2.2 supersedes the baseline update path: default preferred GP and compatibility TLE maintenance each issue one CelesTrak request for the complete `active` group. The overlapping `last-30-days` request was removed after its endpoint returned HTTP 404. These updates remain incremental/`PARTIAL`; retained or omitted records do not make the catalog equivalent to a current authoritative full space-object snapshot.
 
 ### 1.3 Runtime behavior and scaling
 
-- Every visible satellite is propagated in the browser animation loop (see `index.html:4404-4416`).
-- Mercator rendering repeats propagation at roughly 30 FPS (see `index.html:4535-4551` and `js/mercatorMapLoader.js:301-328`).
-- All TLE rows receive individual Three.js sprites with cloned materials (see `js/satelliteTLELoader.js:411-444`).
-- Selected orbit paths are display geometry sampled over one period. Their samples discard timestamps, and their geometric nearest-point helper does not establish simultaneity (see `js/satelliteTLELoader.js:108-177`).
-- Legacy globe and Mercator propagation still run on the main thread. The v2.0 conjunction workflow now uses a module Web Worker, but no server-side analysis process, spatial index, conjunction job queue, or event store exists.
+- At the baseline, every visible satellite was propagated in the browser animation loop.
+- Mercator repeated catalog propagation at roughly 30 FPS.
+- All TLE rows received individual Three.js sprites with cloned materials.
+- Selected orbit paths were display geometry sampled over one period. Their samples discarded timestamps, and their geometric nearest-point helper did not establish simultaneity.
+- Globe and Mercator propagation ran on the main thread, with no server-side analysis process, spatial index, conjunction job queue, or event store. The current v2.0-v2.2 Worker/service and shared-position behavior is recorded in the status table and FND-5 above.
 
 A catalog of 16,347 objects has 133,604,031 unordered pairs at a single time sample. A naive all-pairs scan, especially inside the render loop, is not viable.
 
@@ -170,7 +171,7 @@ Each item below is a roadmap item with its own value, evidence, implementation d
 ### FND-5. Scalable propagation and rendering pipeline
 
 - **Objective and user value:** Keep the UI responsive with large catalogs and create a safe execution path for screening.
-- **Evidence:** All records still become sprites with cloned materials, visible objects are propagated per animation frame, and Mercator repeats the work. The v2.0 conjunction screen now has a dedicated Worker; shared render-state buffers and a spatial index remain open.
+- **Evidence:** Version 2.2 retains one stable `Object3D` state/selection proxy per accepted record and renders filter-visible, current-epoch-ready Globe markers through one batched `THREE.Points` layer instead of individual cloned-material sprites. Up to 1,000 drawn markers use the icon texture; denser views use compact per-marker colors. Replaced point resources are disposed under explicit loader-versus-caller material ownership. It materializes fresh-page-default `MEO` records first, publishes the first MEO-bearing chunk while catalog loading continues, and keeps every marker out of the point layer until a finite shared-motion sample covering the current simulation epoch makes it render-ready. Filter re-admission after a paused UTC jump cannot reveal an old sample; rate/selection/job changes preserve usable in-window interpolation while superseded work is discarded. It samples non-selected filter-visible SGP4 states asynchronously and Hermite-interpolates their scene positions, while the selected satellite remains exact per simulation frame and can recover at the same UTC after a bounded failure retry. Mercator reuses those positions, adapts redraw cadence, and above 1,000 drawable records replaces per-object icons/sorting/labels with one compact density path plus the detailed selected marker. It caches the selected track; a failed same-satellite rebuild clears the prior path and caches the failed instant. Propagation failures hide and retry rather than freezing stale markers. The hidden selector no longer materializes the full catalog, and the byte-identical `loral.glb` model duplicate is removed. The v2.0 conjunction screen has a dedicated Worker, but typed shared state buffers, moving propagation fully off the UI thread, and a spatial index remain open.
 - **Recommended approach:** Separate catalog data, propagated-state buffers, and render objects. Use Web Workers for browser screening/propagation, transfer typed arrays, share one state snapshot between globe and Mercator, update at an adaptive cadence, use Points/instancing and shared materials, cap device-pixel ratio, and add label/camera culling. Use background jobs for full-catalog screening.
 - **Dependencies and prerequisites:** FND-3; agreed performance profiles and budgets.
 - **Risks and limitations:** Worker/module loading must work both on GitHub Pages and with the optional server; premature optimization can obscure correctness.
@@ -351,8 +352,8 @@ Screening must not use rendered orbit-path intersections or `selectedOrbitNeares
 
 - **Objective and user value:** Track how an event evolves, integrate it with other tools, and notify users when configured conditions are met.
 - **Evidence:** Version 2.1 now persists per-job immutable event revisions with catalog/request/attempt identity, provides filtered signed-cursor REST reads, durable request replay, audit records, and resumable SSE job progress. The browser lists completed server events and can visualize a pair when both objects exist in its loaded snapshot. It does not correlate the same physical encounter across jobs, export server reports, acknowledge events, schedule screens, or deliver alerts.
-- **Implemented and recommended approach:** Retain the implemented immutable per-job revision and paginated API foundation. Next add a reviewed cross-run conjunction identity/current-event view, machine-readable and human-readable qualified reports, acknowledgement/assignment notes, and scheduled screening. Alert delivery remains later work after v2.2 likelihood/risk policy, with deduplication, escalation, quiet periods, retries, audit, and failure visibility.
-- **Dependencies and prerequisites:** The local FND-6/FND-7 slice and CA-5 handoff exist. Provider retention policy, user/tenant model, report threat model, scheduling, validated v2.2 risk policy, and notification provider remain prerequisites.
+- **Implemented and recommended approach:** Retain the implemented immutable per-job revision and paginated API foundation. Next add a reviewed cross-run conjunction identity/current-event view, machine-readable and human-readable qualified reports, acknowledgement/assignment notes, and scheduled screening. Alert delivery remains later work after a separately authorized and validated likelihood/risk policy, with deduplication, escalation, quiet periods, retries, audit, and failure visibility.
+- **Dependencies and prerequisites:** The local FND-6/FND-7 slice and CA-5 handoff exist. Provider retention policy, user/tenant model, report threat model, scheduling, a future validated risk policy, and notification provider remain prerequisites.
 - **Risks and limitations:** Recomputed data can spam users; sensitive CDMs may not be exportable; notification failure can create false assurance.
 - **Effort / priority / phase:** **Large / High / Advanced Features**
 - **Acceptance criteria:** Current v2.1 acceptance covers reproducible per-job revisions, filtered API reads, replay, and resumable progress. Full CA-8 completion still requires traceable supersession across runs, qualified exports, tested alert policy/deduplication, audited delivery/acknowledgement, retention approval, and visible failure.
@@ -510,7 +511,7 @@ Delivered v2.0 slice:
 
 Gate status: bounded local reference-corpus recall and TCA/miss tolerances pass, Worker execution provides progress and cancellation with provisional browser-responsiveness evidence, and results are reproducible and explicitly screening-only. Independent scientific review, external clean-clone evidence, and repeated percentile performance remain open. Human approval now authorizes v2.1 development, but not a `Validated` claim or v2.0 public promotion.
 
-### Phase 3: Advanced Features (v2.1 Durable Screening Slice Implemented)
+### Phase 3: Advanced Features (v2.1 Durable Screening and v2.2 Catalog/Browser Continuity)
 
 Primary items: CA-4, CA-6, CA-7, CA-8, full FND-6, FEAT-2, FEAT-3, FEAT-5.
 
@@ -525,14 +526,24 @@ Delivered v2.1 development slice:
 
 Remaining advanced scope:
 
-- Scheduled screening and an admitted current OMM/provider ingestion workflow.
+- Scheduled screening and provider/public-redistribution admission for the Version 2.2 OMM workflow.
 - Representative one/six-hour, projected-scale, API, database, recovery, and retention budgets.
 - Consumer acknowledgement/pruning policy, retention automation, and representative validation of the progress-record cap.
 - Cross-run event correlation, qualified report exports, acknowledgement, and audited operator workflow.
-- CDM/covariance/HBR ingestion, independently validated Pc, and policy-versioned risk assessment under a separately authorized v2.2.
+- CDM/covariance/HBR ingestion, independently validated Pc, and policy-versioned risk assessment under a separately authorized later milestone.
 - Alert delivery only after validated risk policy; optional ground-station and historical analysis workflows remain later roadmap items.
 
-Exit gate: the v2.1 portion requires independent recall/method review, representative performance and storage budgets, current source admission, clean-clone evidence, security review, and rehearsed restore/rollback. Pc and alert gates cannot be satisfied by v2.1 and remain tied to separately approved later releases.
+Version 2.2 development slice:
+
+- Preferred CelesTrak GP OMM JSON without synthetic TLE conversion or identifier truncation, plus exact full-string NORAD group/tag enrichment from the one-release compatibility catalog and consistent numeric orbit reclassification.
+- Mixed TLE/OMM propagation with deterministic newest-epoch deduplication and per-record quarantine.
+- SATCAT-backed launch events independent of orbit availability plus confirmed-decay cache invalidation.
+- Composite GP/launch/decay `data_revision` browser refresh, primary `/api/gp`, data-health reporting, and deprecated TLE compatibility.
+- One category-selection contract for `ALL`, `GEO`, `MEO`, `LEO`, UI-labeled `HRO`/domain `HEO`, `Debris`, and `Others`, with fresh-page-load `MEO`, union selection, debris precedence, filtered search/count parity, share-state compatibility, safe clearing when a filter excludes the selected object, and a virtualized hidden-selector bridge.
+- One de-duplicated selected-satellite GP/details surface; a combined Globe/Mercator overlay above timeline/detail visualization layers; and fixed `Time x`/server controls that remain usable above Mercator-only fullscreen.
+- MEO-first catalog materialization with partial-startup publication, stable per-record state/selection proxies, one density-aware batched Globe point layer, and a current-epoch finite-position render-readiness gate, plus one signed authoritative simulation clock, exact selected-satellite SGP4 state, bounded visible-catalog Hermite interpolation with failure retry/recovery, Mercator position reuse/density path/adaptive redraw/failed-track cache handling, bounded in-place selected-orbit refresh, explicit JPL ephemeris clamp/pause boundaries, and removal of duplicate clock/staggered-sprite/menu-detail paths.
+
+Exit gate: the v2.1 portion still requires independent recall/method review, representative performance and storage budgets, clean-clone evidence, security review, and rehearsed restore/rollback. The v2.2 portion additionally requires its complete automated matrix, controlled data verification, provider/redistribution admission, coherent static packaging, and rollback rehearsal. Pc and alert gates remain tied to separately approved later releases.
 
 ### Phase 4: Long-Term Research
 
@@ -659,7 +670,7 @@ The second implemented milestone is **Experimental Durable Full-Catalog Close-Ap
 It adds:
 
 1. Bounded TLE/OMM/OEM/provider source adapters with explicit provenance, classifications, frame/time/unit policy, original-record preservation, and SATCAT enrichment safeguards.
-2. Content-addressed private catalog snapshots plus startup/successful-refresh registration and deterministic new/changed/absent/reappeared semantics. Current bundled and scheduled incremental snapshots are `PARTIAL`; absence is allowed only for a successful explicit full snapshot.
+2. Content-addressed private catalog snapshots plus startup/successful-refresh registration and deterministic new/changed/absent/reappeared semantics. A bundled revision takes `COMPLETE`, `PARTIAL`, or `DEGRADED` from the first metadata frozen for that catalog byte hash. Scheduled GP refreshes are incremental and therefore `PARTIAL`; only a successfully registered `COMPLETE` full (`mode=all`) snapshot may reconcile absence.
 3. Versioned catalog scope/configuration, durable SQLite jobs/attempts/progress/candidates/event revisions/errors/outbox/audit, idempotency, cancellation, retry, timeout, recovery, and replay.
 4. One isolated Node runner using synchronized time slabs, swept spatial hashing, canonical relative-chord admission, and the shared bounded TCA refinement path.
 5. Public `/api/v1` liveness, readiness, and configuration-limit capability discovery; role-authenticated path-scrubbed catalog reads, jobs, events, replay/cancel/retry, signed pagination, structured problems, and resumable SSE progress.
@@ -667,4 +678,22 @@ It adds:
 7. A static deployment fallback that excludes server-only modules and retains selected-object browser screening.
 8. Checksum-bound development validation with brute-force/analytic oracles and one named-machine 16,443-object, 60-second `PARTIAL` observation.
 
-This milestone remains in development publication state. It is not promotion-complete until the v2.1 checklist's clean-clone, source licensing/admission, representative scale, independent scientific/security review, backup/restore, and rollback gates close. It does not implement or authorize v2.2 Pc/CDM/covariance work, alert delivery, or maneuver recommendations.
+This milestone remains in development publication state. It is not promotion-complete until the v2.1 checklist's clean-clone, source licensing/admission, representative scale, independent scientific/security review, backup/restore, and rollback gates close. It did not authorize Pc/CDM/covariance work, alert delivery, or maneuver recommendations.
+
+## v2.2 Development Milestone Authorized for Evaluation
+
+The third development milestone is **GP/OMM Catalog Continuity with a bounded browser-correctness follow-up**, not validated collision-likelihood assessment.
+
+It adds or requires:
+
+1. Preferred CelesTrak GP OMM JSON ingestion with canonical fields, documented default normalization, complete string NORAD identity, newest-epoch deduplication, quarantine, provenance, atomic writes, last-known-good recovery, deterministic orbit reclassification, and compatibility-tag enrichment whose source/tag-map revisions remain auditable.
+2. Mixed OMM/TLE browser propagation through the matching satellite.js APIs without fabricating TLE or silently excluding OMM from shared consumers.
+3. A SATCAT-backed launch catalog independent of orbit availability, safe details-only events, and confirmed decay data under its established policy.
+4. Composite GP/launch/decay data-revision reload for orbit and timelines so stale module/browser caches do not require a hard refresh, including same-origin metadata polling in unconfigured static mode without direct provider access.
+5. Primary GP command/file/API contracts, temporary deprecated TLE compatibility, complete static packaging, data-health reporting, and regression coverage across unit, Python, browser, and artifact suites.
+6. Unified `ALL`/`GEO`/`MEO`/`LEO`/`HRO` (`HEO` domain)/`Debris`/`Others` filtering with `MEO` as the fresh-page-load default, union behavior, object-type-aware debris precedence, compatible shared links, one filtered search/count source, and no full-catalog hidden-select option list.
+7. One consolidated selected-satellite GP/details panel, removal of the duplicate menu details path, a clickable combined Globe/Mercator overlay above timeline/detail visualization layers, and fixed `Time x`/server controls above Mercator-only fullscreen.
+8. MEO-first catalog materialization and partial-startup publication, with stable per-record `Object3D` state/selection proxies feeding one density-aware batched Globe point layer and filter-eligible markers withheld until a finite current-epoch position makes them render-ready; preservation of valid in-window interpolation across sampling-job changes; a single signed simulation clock for every time-dependent browser layer; exact per-frame selected SGP4 state; bounded asynchronous sampling and Hermite display interpolation for other visible satellites; stale-job rejection; finite failure retry/recovery; Mercator reuse with a compact above-1,000 density path plus adaptive redraw/track budgets and failed-track cache clearing; bounded in-place selected-orbit refresh; and no use of scene interpolation in screening.
+9. Explicit Solar System ephemeris bounds that clamp and pause rather than extrapolate, allow inward reversal, preserve labeled fallback for unavailable data, and remove obsolete duplicate-clock and staggered-sprite update paths.
+
+ADR 0004 defines the catalog architecture and ADR 0005 defines the bounded browser state/time/motion architecture. `docs/engineering/RELEASE_CHECKLIST_V2_2.md` and `ROLLBACK_V2_2.md` define the open gates and recovery procedure. The milestone remains Experimental, non-operational, and development-only. It does not close earlier gates, approve redistribution or complete-authoritative-catalog claims, or authorize Pc/CDM/covariance, operational risk, alerts, reports, or maneuver recommendations.

@@ -21,7 +21,7 @@ import {
     freshnessStatus,
     normalizeUtcInstant
 } from '../domain/orbitalPolicy.js';
-import { createTlePropagationService } from '../orbit/propagationService.js';
+import { createMultiFormatPropagationService } from '../orbit/multiFormatPropagationService.js';
 
 export const CONJUNCTION_SCREENING_ALGORITHM = 'openbexi-selected-object-catalog-screening';
 export const CONJUNCTION_SCREENING_VERSION = '2.0.0';
@@ -341,8 +341,9 @@ function normalizeRunInput(request, propagationService) {
     const catalogMaterial = request.catalog.map(record => {
         const line1 = record?.element_set?.line1 ?? record?.tle_line1 ?? record?.tleLine1 ?? '';
         const line2 = record?.element_set?.line2 ?? record?.tle_line2 ?? record?.tleLine2 ?? '';
+        const omm = record?.element_set?.omm ?? record?.elementSet?.omm ?? null;
         const id = record?.object_id ?? record?.norad_id ?? record?.NORAD_CAT_ID ?? '';
-        return [String(id), String(line1), String(line2)].join('|');
+        return [String(id), String(line1), String(line2), omm ? stableJson(omm) : ''].join('|');
     }).sort();
     const datasetId = String(request.dataset_id ?? request.datasetId ??
         request.primary?.provenance?.dataset_id ?? 'dataset:inline-catalog');
@@ -491,10 +492,18 @@ function preparedFreshness(prepared, timeMs) {
 
 function participantFreshnessFlags(prepared, timeMs, participant) {
     const status = preparedFreshness(prepared, timeMs).status;
-    if (status === 'STALE') return [`${participant}_TLE_STALE_AT_TCA`];
-    if (status === 'FUTURE') return [`${participant}_TLE_EPOCH_AFTER_TCA`];
-    if (status === 'UNUSABLE') return [`${participant}_TLE_EPOCH_UNAVAILABLE`];
+    const format = prepared?.route === 'OMM' ? 'OMM' : 'TLE';
+    if (status === 'STALE') return [`${participant}_${format}_STALE_AT_TCA`];
+    if (status === 'FUTURE') return [`${participant}_${format}_EPOCH_AFTER_TCA`];
+    if (status === 'UNUSABLE') return [`${participant}_${format}_EPOCH_UNAVAILABLE`];
     return [];
+}
+
+function sgp4ScreeningQualityFlag(...preparedObjects) {
+    const routes = new Set(preparedObjects.map(item => item?.route).filter(Boolean));
+    if (routes.size === 1 && routes.has('TLE')) return 'TLE_SGP4_SCREENING_ONLY';
+    if (routes.size === 1 && routes.has('OMM')) return 'CCSDS_OMM_SGP4_SCREENING';
+    return 'MIXED_TLE_OMM_SGP4_SCREENING';
 }
 
 function collectWindowFreshnessFlags(target, prepared, startMs, endMs) {
@@ -539,6 +548,7 @@ function buildEvent(run, secondary, refined, coarse) {
     const relativeSpeedKmS = vectorMagnitude(refined.relative.relative_velocity_km_s);
     const commonTle = !!run.primary.line1 && !!run.primary.line2 &&
         run.primary.line1 === secondary.line1 && run.primary.line2 === secondary.line2;
+    const commonElementSet = run.primary.element_set_id === secondary.element_set_id;
     const colocatedGeometry = missDistanceKm <= COLOCATED_MISS_DISTANCE_KM &&
         relativeSpeedKmS <= COLOCATED_RELATIVE_SPEED_KM_S;
     const qualityFlags = Object.freeze([...new Set([
@@ -546,9 +556,9 @@ function buildEvent(run, secondary, refined, coarse) {
         'COLLISION_PROBABILITY_UNAVAILABLE',
         'SAME_TIME_TEME_STATES',
         'SUBDIVIDED_LOCAL_MINIMUM_SEARCH',
-        'TLE_SGP4_SCREENING_ONLY',
+        sgp4ScreeningQualityFlag(run.primary, secondary),
         ...(!refined.converged ? ['REFINEMENT_NOT_CONVERGED'] : []),
-        ...(commonTle || colocatedGeometry ? ['COLOCATED_OR_COMMON_TLE_GEOMETRY'] : []),
+        ...(commonTle || commonElementSet || colocatedGeometry ? ['COLOCATED_OR_COMMON_TLE_GEOMETRY'] : []),
         ...(run.dataset_provenance.source_status === 'PARTIAL' || run.dataset_provenance.partial_update
             ? ['PARTIAL_SOURCE_DATASET'] : []),
         ...(run.dataset_provenance.source_status === 'DEGRADED' ? ['DEGRADED_SOURCE_DATASET'] : []),
@@ -931,7 +941,7 @@ export function deduplicatePairEvents(events, refinementToleranceSeconds) {
 }
 
 export async function screenSelectedObjectAgainstCatalog(request, runtime = {}) {
-    const propagationService = runtime.propagationService ?? createTlePropagationService({
+    const propagationService = runtime.propagationService ?? createMultiFormatPropagationService({
         satelliteLib: runtime.satelliteLib
     });
     const run = normalizeRunInput(request, propagationService);
@@ -1009,6 +1019,7 @@ export async function screenSelectedObjectAgainstCatalog(request, runtime = {}) 
     let duplicateCatalogObjectsSkipped = 0;
     const events = [];
     const screenedElementSetIds = new Set([run.primary.element_set_id]);
+    const screenedPreparedObjects = [run.primary];
     const screenedInputQualityFlags = new Set(run.primary.input_quality_flags ?? []);
     const screeningTimeQualityFlags = new Set();
     collectWindowFreshnessFlags(screeningTimeQualityFlags, run.primary, startMs, endMs);
@@ -1069,6 +1080,7 @@ export async function screenSelectedObjectAgainstCatalog(request, runtime = {}) 
         checkCancellation();
         const { secondary, catalog_index: catalogIndex } = preparedCatalog[preparedIndex];
         screenedElementSetIds.add(secondary.element_set_id);
+        screenedPreparedObjects.push(secondary);
         for (const flag of secondary.input_quality_flags ?? []) screenedInputQualityFlags.add(flag);
         collectWindowFreshnessFlags(screeningTimeQualityFlags, secondary, startMs, endMs);
         candidatesExamined += 1;
@@ -1164,7 +1176,7 @@ export async function screenSelectedObjectAgainstCatalog(request, runtime = {}) 
     const qualityFlags = [
         'COLLISION_PROBABILITY_UNAVAILABLE',
         'SELECTED_OBJECT_VS_CATALOG',
-        'TLE_SGP4_SCREENING_ONLY'
+        sgp4ScreeningQualityFlag(...screenedPreparedObjects)
     ];
     if (propagationFailures > 0) qualityFlags.push('INCOMPLETE_PROPAGATION_COVERAGE');
     if (truncatedEventCount > 0) qualityFlags.push('RESULT_LIMIT_APPLIED');

@@ -20,6 +20,46 @@ ANALYST_TOKEN = "analyst-token-000000000000000"
 ADMIN_TOKEN = "administrator-token-0000000000"
 
 
+def gp_record(norad_id="100001"):
+    return {
+        "satellite_name": "SIX DIGIT SAT",
+        "norad_id": norad_id,
+        "international_designator": "2026-001A",
+        "object_type": "PAYLOAD",
+        "lifecycle_status": "ACTIVE",
+        "element_set": {
+            "format": "OMM",
+            "epoch": "2026-08-20T00:00:00.000Z",
+            "time_scale": "UTC",
+            "native_frame": "TEME",
+            "propagation_theory": "SGP4",
+            "omm": {
+                "CCSDS_OMM_VERS": "2.0",
+                "OBJECT_NAME": "SIX DIGIT SAT",
+                "OBJECT_ID": "2026-001A",
+                "CENTER_NAME": "EARTH",
+                "REF_FRAME": "TEME",
+                "TIME_SYSTEM": "UTC",
+                "MEAN_ELEMENT_THEORY": "SGP4",
+                "NORAD_CAT_ID": norad_id,
+                "EPOCH": "2026-08-20T00:00:00.000Z",
+                "MEAN_MOTION": 15.5,
+                "ECCENTRICITY": 0.001,
+                "INCLINATION": 51.6,
+                "RA_OF_ASC_NODE": 12.0,
+                "ARG_OF_PERICENTER": 13.0,
+                "MEAN_ANOMALY": 14.0,
+                "EPHEMERIS_TYPE": 0,
+                "ELEMENT_SET_NO": 7,
+                "REV_AT_EPOCH": 42,
+                "BSTAR": 0.00001,
+                "MEAN_MOTION_DOT": 0.00002,
+                "MEAN_MOTION_DDOT": 0,
+            },
+        },
+    }
+
+
 def auth(token):
     return {"Authorization": "Bearer " + token}
 
@@ -195,6 +235,33 @@ class V21HttpApiTests(V21ApiFixture):
         reappeared = _source_observations([first], "2026-07-20T04:00:00Z", reappeared_previous)
         self.assertEqual(reappeared[0]["observation_status"], "REAPPEARED")
 
+    def test_catalog_observations_accept_canonical_omm_without_tle_lines(self):
+        record = {
+            "satellite_name": "SIX DIGIT SAT",
+            "norad_id": "100001",
+            "international_designator": "2026-001A",
+            "object_type": "PAYLOAD",
+            "lifecycle_status": "ACTIVE",
+            "tle_line1": None,
+            "tle_line2": None,
+            "element_set": {
+                "format": "OMM",
+                "epoch": "2026-08-20T00:00:00.000Z",
+                "omm": {
+                    "NORAD_CAT_ID": "100001",
+                    "EPOCH": "2026-08-20T00:00:00.000Z",
+                    "MEAN_MOTION": 15.5,
+                },
+            },
+        }
+
+        observations = _source_observations([record], "2026-08-20T01:00:00Z")
+
+        self.assertEqual(len(observations), 1)
+        self.assertEqual(observations[0]["object_id"], "obx:norad:100001")
+        self.assertEqual(observations[0]["international_designator"], "2026-001A")
+        self.assertTrue(observations[0]["element_set_id"].startswith("elset:sha256:"))
+
     def test_incremental_catalog_bootstrap_does_not_mark_missing_objects_absent(self):
         previous_revision_id = self.store.get_current_catalog_revision()["revision_id"]
         previous_objects = self.store.list_current_objects()
@@ -232,6 +299,78 @@ class V21HttpApiTests(V21ApiFixture):
         self.assertNotIn("ABSENT", {item["observation_status"] for item in observations})
         retained = self.store.get_current_object(missing_object["object_id"])
         self.assertEqual(retained["current_revision_id"], previous_revision_id)
+
+    def test_bundled_catalog_bootstrap_prefers_gp_omm_when_available(self):
+        source_root = self.runtime_root / "gp-source"
+        gp_root = source_root / "json" / "gp"
+        gp_root.mkdir(parents=True)
+        record = gp_record()
+        (gp_root / "GP.json").write_text(json.dumps([record]), encoding="utf-8")
+        (gp_root / "GP.meta.json").write_text(json.dumps({
+            "last_status": "ok",
+            "mode": "all",
+            "fetched_at": "2026-08-20T01:00:00Z",
+            "source_format": "CCSDS_OMM_JSON",
+        }), encoding="utf-8")
+        service = V21ApiService(
+            root=source_root,
+            runtime_root=self.runtime_root,
+            store=self.store,
+            feature_flag=self.service.feature_flag,
+            authenticator=self.service.authenticator,
+            cursor_secret=b"gp-bootstrap-test-cursor-secret-32-bytes",
+            manager=None,
+        )
+
+        catalog = service.bootstrap_bundled_catalog()
+        observations = self.store.get_catalog_observations(catalog["revision_id"])
+        present = [item for item in observations if item["observation_status"] != "ABSENT"]
+
+        self.assertEqual(catalog["dataset_format"], "CCSDS_OMM_JSON")
+        self.assertEqual(catalog["metadata"]["schema_version"], "2.2.0")
+        self.assertEqual(len(present), 1)
+        self.assertEqual(present[0]["object_id"], "obx:norad:100001")
+
+    def test_bundled_catalog_bootstrap_falls_back_from_malformed_gp_to_valid_tle(self):
+        source_root = self.runtime_root / "malformed-gp-source"
+        gp_root = source_root / "json" / "gp"
+        tle_root = source_root / "json" / "tle"
+        gp_root.mkdir(parents=True)
+        tle_root.mkdir(parents=True)
+        (gp_root / "GP.json").write_text(json.dumps([{
+            "norad_id": "100001",
+            "element_set": {"format": "OMM", "omm": {"NORAD_CAT_ID": "100001"}},
+        }]), encoding="utf-8")
+        (gp_root / "GP.meta.json").write_text(json.dumps({
+            "last_status": "ok",
+            "mode": "all",
+            "source_status": "COMPLETE",
+        }), encoding="utf-8")
+        tle_records = json.loads((server.ROOT / "json" / "tle" / "TLE.json").read_text(encoding="utf-8"))[:2]
+        (tle_root / "TLE.json").write_text(json.dumps(tle_records), encoding="utf-8")
+        (tle_root / "TLE.meta.json").write_text(json.dumps({
+            "last_status": "not-modified",
+            "mode": "all",
+            "source_status": "COMPLETE",
+            "last_success_at": "2026-07-20T00:00:00Z",
+        }), encoding="utf-8")
+        service = V21ApiService(
+            root=source_root,
+            runtime_root=self.runtime_root,
+            store=self.store,
+            feature_flag=self.service.feature_flag,
+            authenticator=self.service.authenticator,
+            cursor_secret=b"malformed-gp-fallback-secret-32-bytes",
+            manager=None,
+        )
+
+        catalog = service.bootstrap_bundled_catalog()
+        observations = self.store.get_catalog_observations(catalog["revision_id"])
+
+        self.assertEqual(catalog["dataset_format"], "TLE_JSON")
+        self.assertEqual(catalog["source_status"], "COMPLETE")
+        self.assertEqual(catalog["metadata"]["source_format"], "TLE_JSON")
+        self.assertEqual(len([item for item in observations if item["observation_status"] != "ABSENT"]), 2)
 
     def test_authentication_roles_and_problem_details(self):
         status, headers, body = request(self.port, "GET", "/api/v1/screening-jobs")

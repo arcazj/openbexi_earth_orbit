@@ -67,7 +67,12 @@
     }
 
     function hasSatelliteGlobal() {
-        return Boolean(global.satellite?.propagate && global.satellite?.twoline2satrec && global.satellite?.gstime);
+        return Boolean(
+            global.satellite?.propagate &&
+            global.satellite?.twoline2satrec &&
+            global.satellite?.json2satrec &&
+            global.satellite?.gstime
+        );
     }
 
     async function loadSatelliteSource(options, timeoutMs, allowCdn) {

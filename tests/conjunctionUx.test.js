@@ -8,9 +8,9 @@ const index = fs.readFileSync('index.html', 'utf8');
 const css = fs.readFileSync('css/style.css', 'utf8');
 
 assert(menu.includes('id="conjunctionAccordionSection"'), 'close-approach workspace exists');
-assert(menu.includes('Experimental TLE-based screening'), 'experimental maturity is visible');
+assert(menu.includes('Experimental SGP4 close-approach screening'), 'experimental maturity is visible');
 assert(menu.includes('Collision probability: unavailable'), 'missing probability is explicit');
-assert(menu.includes('Legacy TLE coverage omits six-digit catalog objects'), 'catalog-format incompleteness is explicit');
+assert(menu.includes('GP/OMM catalog with legacy TLE fallback'), 'catalog compatibility path is explicit');
 assert(menu.includes('id="conjunctionRunButton"') && menu.includes('id="conjunctionCancelButton"'), 'run and cancellation controls exist');
 assert(menu.includes('id="conjunctionScreeningRadiusKm"') && menu.includes('id="conjunctionRefinementToleranceSeconds"'), 'screening and refinement thresholds are configurable');
 assert(menu.includes('id="conjunctionResultRows"') && menu.includes('id="conjunctionPlaybackOffset"'), 'event table and playback controls exist');

@@ -6,11 +6,11 @@ import {
   SOLAR_SYSTEM_PLANETS,
   SOLAR_SYSTEM_TEXTURE_ATTRIBUTIONS,
   SOLAR_SYSTEM_TEXTURE_PATHS,
-  advanceSolarSystemSimulationMillis,
   solarSystemLabelScaleFactorForDistance,
   solarSystemLabelScreenHeightPxForScale,
   planetPositionAtDate
 } from '../js/solarSystemOverviewLoader.js';
+import { createSimulationClock } from '../js/simulationClock.js';
 
 function jpegDimensions(filePath) {
   const buffer = fs.readFileSync(filePath);
@@ -172,11 +172,20 @@ function run() {
   assert(earthMotionSevenDays > earthMotionOneDay, 'larger simulation-time changes produce larger Earth orbital motion');
   assert(planetPositionAtDate(mars, t0).distanceTo(planetPositionAtDate(mars, t7)) > 0, 'Mars moves when the simulation date advances');
   assert(planetPositionAtDate(moon, t0).distanceTo(planetPositionAtDate(moon, t1)) > 0, 'Moon moves around Earth when the simulation date advances');
-  assert.strictEqual(advanceSolarSystemSimulationMillis(1000, 10, 0), 1000, 'Time x = 0 freezes simulation milliseconds');
-  assert.strictEqual(advanceSolarSystemSimulationMillis(1000, 2, 1), 121000, 'Time x = 1 advances one simulation minute per real second');
-  assert.strictEqual(advanceSolarSystemSimulationMillis(1000, 2, 60), 7201000, 'Time x = 60 advances sixty simulation minutes per real second');
-  assert(indexHtml.includes('advanceSolarSystemSimulationMillis(simMillis, dtReal, simParams.timeWarp)'), 'main app simulation time is driven by the Time x helper');
-  assert(indexHtml.includes('updateSolarSystemOverview(solarSystemOverview, SIM_DATE)'), 'integrated Solar System updates from the shared simulation date');
+  const simulationClock = createSimulationClock({ initialTimeMs: 1000, initialRate: 0, maxFrameGapSeconds: 10 });
+  simulationClock.tick(10);
+  assert.strictEqual(simulationClock.state().timeMs, 1000, 'Time x = 0 freezes simulation milliseconds');
+  simulationClock.setRate(1);
+  simulationClock.tick(2);
+  assert.strictEqual(simulationClock.state().timeMs, 121000, 'Time x = 1 advances one simulation minute per real second');
+  simulationClock.reset(1000, 60);
+  simulationClock.tick(2);
+  assert.strictEqual(simulationClock.state().timeMs, 7201000, 'Time x = 60 advances sixty simulation minutes per real second');
+  simulationClock.reset(1000, -60);
+  simulationClock.tick(2);
+  assert.strictEqual(simulationClock.state().timeMs, -7199000, 'Time x = -60 reverses sixty simulation minutes per real second');
+  assert(indexHtml.includes('simulationClock.tick(dtReal)'), 'main app simulation time is driven by the authoritative Time x clock');
+  assert(indexHtml.includes('updateSolarSystemOverview(solarSystemOverview, SIM_DATE'), 'integrated Solar System updates from the shared simulation date');
 
   [
     { distance: 20, viewportHeight: 900 },
@@ -200,12 +209,16 @@ function run() {
 
   const release = JSON.parse(fs.readFileSync('release/version.json', 'utf8'));
   assert(indexHtml.includes('const versionNumber = APP_VERSION;'), 'index.html uses authoritative browser release metadata');
-  assert.strictEqual(release.version, '2.1.0', 'Solar System remains available during Version 2.1 development');
+  assert.strictEqual(release.version, '2.2.0', 'Solar System remains available during Version 2.2 development');
 
-  assert(readme.includes('## Solar System Overview'), 'README documents the standalone Solar System Overview page');
-  assert(readme.includes('http://127.0.0.1:8000/SolarSystemOverview.html'), 'README documents the local SolarSystemOverview URL');
-  assert(readme.includes('Version 1.6.2 integrates `Solar System Overview`'), 'README documents integrated Solar System Overview release behavior');
-  assert(readme.includes('Version 1.7 upgrades Solar System textures and uses bundled JPL-derived ephemeris data'), 'README documents Version 1.7 Solar System ephemeris release behavior');
+  assert(
+    readme.includes('bounded JPL-derived Solar System ephemeris'),
+    'README lists the current bounded Solar System ephemeris feature'
+  );
+  assert(
+    readme.includes('[Solar System Ephemeris](data/ephemeris/README.md)'),
+    'README links the Solar System ephemeris documentation'
+  );
   assert(integration.includes('### Standalone Solar System Overview'), 'integration plan documents standalone Solar System Overview checks');
   assert(integration.includes('Solar System Overview Integration'), 'integration plan documents integrated Solar System Overview checks');
   assert(indexHtml.includes('activateMoonFromSolarSystemSelection'), 'integrated Solar System maps Moon selection to the existing Moon mode');

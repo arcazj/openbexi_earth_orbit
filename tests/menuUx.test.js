@@ -18,6 +18,7 @@ function run() {
   const reentryTimeline = fs.readFileSync('js/reentryTimeline.js', 'utf8');
   const marsFrameLoader = fs.readFileSync('js/MarsFrameLoader.js', 'utf8');
   const mercatorMapLoader = fs.readFileSync('js/mercatorMapLoader.js', 'utf8');
+  const satelliteCategoryFilter = fs.readFileSync('js/satelliteCategoryFilter.js', 'utf8');
   const release = JSON.parse(fs.readFileSync('release/version.json', 'utf8'));
 
   assert(!html.includes('role="tablist"'), 'main menu no longer exposes a tablist');
@@ -140,6 +141,10 @@ function run() {
   assert(!/>\s*Active\s*</i.test(html), 'filter menu does not expose an Active control');
   assert(indexHtml.includes('EXCLUDED_COMPANY_FILTER_OPTIONS'), 'index defines generated company/tag exclusions');
   assert(indexHtml.includes("new Set(['ACTIVE'])"), 'Active is excluded from generated company/tag chips');
+  assert(indexHtml.includes('GEO: "Geosynchronous group"'), 'the GEO catalog tag is distinct from the GEO orbit category');
+  ['MEO group', 'LEO group', 'HEO group', 'HRO group', 'Debris group', 'Other group', 'Others group'].forEach(label => {
+    assert(indexHtml.includes(`"${label}"`), `${label} qualifies a category-colliding catalog tag`);
+  });
   assert(html.includes('id="satelliteSearchInput"'), 'satellite search input is present');
   assert(!html.includes('Select Satellite:'), 'old Select Satellite visible label is removed');
   assert(!html.includes('Search by name, NORAD ID, orbit type, or tag.'), 'old satellite selection helper text is removed');
@@ -151,7 +156,7 @@ function run() {
   assert(html.includes('role="listbox"'), 'satellite search results use listbox semantics');
   assert(html.includes('id="satelliteSearchClear"'), 'satellite search clear action is present');
   assert(html.includes('Satellites Selection - Found'), 'Satellite Selection heading includes found-count text');
-  assert(html.includes('id="satelliteCountDisplay" class="satellite-found-count" aria-live="polite" aria-label="Satellites found: 0"'), 'found count is in the Satellite Selection heading with live accessible text');
+  assert(html.includes('id="satelliteCountDisplay" class="satellite-found-count" aria-live="polite" aria-label="0 satellites match active filters out of 0 total satellites">0 / 0'), 'found count starts with explicit filtered and total semantics');
   assert(html.includes('id="resetFiltersButton"'), 'reset filters action is present');
   assert(!html.includes('id="debrisFilter"'), 'old standalone debris filter group is removed');
   assert(!html.includes('data-debris-filter'), 'old debris filter buttons are removed');
@@ -179,16 +184,22 @@ function run() {
       orbitLeoButton < orbitHroButton && orbitHroButton < orbitDebrisButton && orbitDebrisButton < orbitOthersButton,
     'orbit/category row order is ALL, GEO, MEO, LEO, HRO, Debris, Others'
   );
-  assert(indexHtml.includes('const ORBIT_DEBRIS_OPTION = "DEBRIS"'), 'index defines Debris as a visible orbit/category option');
-  assert(indexHtml.includes('return isDebrisSatellite(satData);'), 'Debris orbit/category option filters to debris candidates only');
-  assert(indexHtml.includes('value !== ORBIT_DEBRIS_OPTION'), 'normal orbit clicks switch away from the exclusive Debris filter');
+  assert(indexHtml.includes('toggleSatelliteCategorySelection(simParams.orbitTypeFilter, changedValue)'), 'all category buttons use one union-selection transition');
+  assert(indexHtml.includes('satelliteMatchesCategorySelection(satDataOrOrbitType, selection)'), 'index delegates category matching to one classifier');
+  assert(!indexHtml.includes('debrisMatchesSelection'), 'obsolete debris-only matcher is removed');
+  assert(!indexHtml.includes('debrisFilter:'), 'obsolete debris-only runtime state is removed');
+  assert(satelliteCategoryFilter.includes('SATELLITE_CATEGORY_OPTIONS'), 'category module defines the complete category set');
+  assert(satelliteCategoryFilter.includes('if (isDebrisSatellite(recordOrOrbitType))'), 'Debris classification takes precedence over orbit class');
+  assert(satelliteCategoryFilter.includes("SATELLITE_CATEGORY.OTHER"), 'unknown orbit values map to Other');
   assert(indexHtml.includes('function buildFilteredSatellitesBySelection()'), 'index has one canonical filtered satellite builder');
   assert(indexHtml.includes('const filteredTLEs = buildFilteredSatellitesBySelection();'), 'updateSatelliteList uses the canonical filtered satellite set');
   assert(indexHtml.includes("import { buildSatelliteSearchMatches } from './js/satelliteSearchUtils.js';"), 'index imports shared satellite search matching helper');
   assert(indexHtml.includes('renderSatelliteSearchResults(filteredTLEs, false)'), 'visible search results are rendered from the canonical filtered satellite set');
-  assert(indexHtml.includes('filteredTLEs.forEach(s => {'), 'hidden legacy select options are built from the canonical filtered satellite set');
+  assert(indexHtml.includes('satelliteSelectDropdown.replaceChildren(noneOption)'), 'hidden legacy select is virtualized to its None option before restoring one active NORAD');
+  assert(!indexHtml.includes('dropdownFragment'), 'filter changes do not materialize the catalog as hidden select options');
   assert(indexHtml.includes('renderSatelliteSearchResults(buildFilteredSatellitesBySelection(), true)'), 'user search interactions reopen results from active filters');
-  assert(indexHtml.includes('setSatelliteFoundCountLabel(searchState.countLabel)'), 'visible search count is derived from the same search state as dropdown results');
+  assert(indexHtml.includes('setSatelliteCatalogCount(searchState)'), 'search counts retain filtered and total catalog context');
+  assert(indexHtml.includes('activeFilteredSatelliteCount') && indexHtml.includes('activeTotalSatelliteCount'), 'found count distinguishes filtered and total satellites');
   assert(indexHtml.includes('setSatelliteFoundCountLabel('), 'found count updates use one accessible helper');
 
   const satelliteSelection = indexOfOrFail(html, 'Satellites Selection - Found', 'satellite selection section exists');
@@ -337,8 +348,12 @@ function run() {
   assert(!css.includes('#menuTimeWarpSlider'), 'removed menu Time x slider id CSS is gone');
   assert(css.includes('#mercatorContainer.globe-overlay'), 'Globe + Mercator mode has a dedicated Mercator overlay style');
   assert(css.includes('#mercatorContainer.globe-overlay') && css.includes('bottom: 10px;') && css.includes('right: 10px;'), 'Mercator overlay is anchored to the bottom-right of the globe canvas');
+  assert(css.includes('z-index: 3150'), 'Mercator globe overlay renders above timelines, selected details, and menu controls');
+  assert(css.includes('#mercatorContainer.fullscreen') && css.includes('z-index: 2900'), 'full-screen Mercator renders above timelines and selected details');
+  assert(css.includes('body:has(#mercatorContainer.fullscreen) #controlsContainer'), 'fixed menu and server controls remain above full-screen Mercator');
+  assert(css.includes('#mercatorContainer.fullscreen .mercator-fullscreen-exit'), 'full-screen Mercator reveals its in-map exit');
   assert(css.includes('top: 50px !important'), 'narrow viewport time slider is moved away from top controls');
-  assert(css.includes('top: 132px'), 'narrow viewport menu starts below the time slider and external toggle');
+  assert(css.includes('top: 132px') && css.includes('top: 172px'), 'narrow viewport menu toggle and panel start below the full Time x control');
   assert(css.includes('.menu-accordion-heading-satellite { border-left-color: #35b9a9; }'), 'Satellite keeps the legacy teal accent');
   assert(css.includes('.menu-accordion-heading-view { border-left-color: #f0b429; }'), 'View keeps the legacy yellow accent');
   assert(css.includes('.menu-accordion-heading-timelines { border-left-color: #d45187; }'), 'Timelines keeps the legacy pink accent');
@@ -398,6 +413,8 @@ function run() {
   assert(indexHtml.includes('timeWarpSlider?.addEventListener'), 'canvas Time x slider drives simulation speed');
   assert(indexHtml.includes("mercatorContainer.classList.toggle('globe-overlay', show3D)"), 'Mercator overlay class is enabled when Globe and Mercator are both selected');
   assert(indexHtml.includes("mercatorContainer.classList.remove('fullscreen', 'globe-overlay')"), 'Mercator view classes are cleared when Mercator is disabled');
+  assert(indexHtml.includes('id="mercatorExitFullscreenButton"'), 'full-screen Mercator provides an accessible in-map exit');
+  assert(indexHtml.includes('handleMercatorFullscreenKeydown'), 'Escape exits full-screen Mercator');
   assert(indexHtml.includes('id="selectedSatelliteDetailPanel"'), 'index defines the selected satellite detail panel');
   assert(indexHtml.includes('updateSelectedSatelliteDetailPanel'), 'index updates the right-side selected satellite detail panel');
   assert(indexHtml.includes('syncSelectedSatelliteDetailPanelWidth'), 'index syncs the selected detail panel width to the UTC clock');
@@ -406,6 +423,12 @@ function run() {
   assert(indexHtml.includes('panel.style.right = `${clockRight}px`'), 'right-side panels align horizontally with the UTC clock');
   assert(indexHtml.includes('panel.style.top = `${panelTop}px`'), 'right-side panels align directly below the UTC clock');
   assert(indexHtml.includes('SELECTED_DETAIL_DUPLICATE_KEYS'), 'index excludes duplicated selected-detail fields from the metadata table');
+  assert(indexHtml.includes('SELECTED_OMM_DUPLICATE_KEYS'), 'index excludes OMM identity fields already rendered canonically');
+  assert(!indexHtml.includes("['Name', satData.satellite_name"), 'selected satellite name is rendered only in the panel header');
+  assert(!indexHtml.includes("['Object ID',"), 'object id and international designator are consolidated into one identity row');
+  assert(indexHtml.includes('hasSatelliteDetailValue(value)'), 'absent optional detail values are omitted instead of rendered as N/A rows');
+  assert(!html.includes('id="selectedSatelliteSummary"'), 'duplicate condensed selected-satellite summary is removed');
+  assert(!css.includes('.selected-satellite-summary'), 'obsolete condensed selected-satellite summary CSS is removed');
   assert(indexHtml.includes("'tle_line1'"), 'TLE line 1 is excluded from duplicate metadata rows');
   assert(indexHtml.includes("'tle_line2'"), 'TLE line 2 is excluded from duplicate metadata rows');
   assert(indexHtml.includes('selected-satellite-tle-block'), 'selected satellite detail panel includes TLE details');
@@ -437,8 +460,9 @@ function run() {
   assert(indexHtml.includes('updateSelectedSatelliteControlsVisibility'), 'index gates selected-satellite controls by selection state');
   assert(indexHtml.includes("'shareContent'"), 'Share starts collapsed with other non-default accordion sections');
   assert(indexHtml.includes("'helpContent'"), 'Help starts collapsed with other non-default accordion sections');
-  assert(indexHtml.includes('checkAndLoadServerTleData'), 'index implements server connection and TLE fallback flow');
-  assert(indexHtml.includes('tleDataOverride: serverTleData'), 'index passes server TLE data to the existing TLE loader only when available');
+  assert(indexHtml.includes('checkAndLoadServerCatalogData'), 'index implements the GP-first server catalog connection flow');
+  assert(indexHtml.includes('loadGpDataFromServer') && indexHtml.includes('loadTleDataFromServer'), 'index retains an explicit deprecated TLE fallback');
+  assert(indexHtml.includes("serverCatalog.kind === 'GP'") && indexHtml.includes('gpDataOverride: serverCatalog.records') && indexHtml.includes('tleDataOverride: serverCatalog.records'), 'index dispatches server GP and compatibility TLE records to the mixed loader');
   assert(indexHtml.includes('copyCurrentShareLink'), 'index implements Copy Link behavior');
   assert(indexHtml.includes('preserveDrawingBuffer: true'), 'WebGL renderer keeps drawing buffer for Share image capture');
   assert(indexHtml.includes('canvas.toBlob'), 'Share image capture uses canvas.toBlob');
@@ -455,17 +479,23 @@ function run() {
   assert(!/yawSlider\.value\s*=\s*0/.test(indexHtml), 'satellite selection does not reset yaw slider value');
   assert(!/pitchSlider\.value\s*=\s*0/.test(indexHtml), 'satellite selection does not reset pitch slider value');
   assert(!/rollSlider\.value\s*=\s*0/.test(indexHtml), 'satellite selection does not reset roll slider value');
-  assert(indexHtml.includes('buildSatelliteSearchMatches(filteredTLEs, satelliteSearchInput.value'), 'index uses shared satellite search matching');
+  assert(indexHtml.includes('const searchState = buildSatelliteSearchMatches('), 'index uses shared satellite search matching');
+  assert(indexHtml.includes('selectedLabelIsNotQuery ? \'\' : satelliteSearchInput.value'), 'a selected label does not masquerade as an active search query in counts');
   assert(indexHtml.includes('resetFiltersToDefaults'), 'index implements filter reset');
   assert(indexHtml.includes('setShowOnlySelectedSatellite(true)'), 'selecting a satellite auto-enables show-only-selected mode');
   assert(indexHtml.includes('setShowOnlySelectedSatellite(false)'), 'clearing a satellite disables show-only-selected mode');
   assert(indexHtml.includes('showOnlySelectedSatelliteCheckbox.checked'), 'show-only-selected checkbox is synchronized with simParams');
+  assert(indexHtml.includes("option.value = norad || `name:${satData.satellite_name || 'unknown'}`"), 'virtualized hidden satellite option uses a stable NORAD value instead of a duplicate name');
+  assert(indexHtml.includes('satelliteSelectDropdown.selectedIndex = Array.from(satelliteSelectDropdown.options).indexOf(option)'), 'satellite selection targets the exact NORAD option');
   assert(indexHtml.includes('enableHighDefForSelectedSatelliteIfNeeded(tleSatData)'), 'non-MEO/GEO selections auto-enable High Def Earth');
   assert(indexHtml.includes("orbitType === 'MEO' || orbitType === 'GEO'"), 'MEO and GEO selections do not force High Def on');
   assert(indexHtml.includes('clearSatelliteSearchInputForNextSelection'), 'search field clears the prior selected label before a new search');
   assert(indexHtml.includes('satelliteSearchClearedForNextSelection'), 'search clearing preserves the current selected satellite');
+  assert(indexHtml.includes('closeSatelliteSearchResults();\n                renderSatelliteSearchResults(buildFilteredSatellitesBySelection(), false);'), 'clear search closes the result overlay so filter controls remain clickable');
   assert(indexHtml.includes('findFirstStarlinkSatellite'), 'Satellite Selection shortcut can locate the first Starlink satellite');
   assert(indexHtml.includes('findIssSatellite'), 'Satellite Selection shortcut can locate ISS/ZARYA');
+  assert(indexHtml.includes('return buildFilteredSatellitesBySelection().find(s => {'), 'Starlink shortcut respects active category and tag filters');
+  assert(indexHtml.includes('const filteredSatellites = buildFilteredSatellitesBySelection();'), 'ISS shortcut respects active category and tag filters');
   assert(indexHtml.includes('selectSatelliteViaShortcut'), 'Satellite Selection shortcuts use the normal satellite selection path');
   assert(indexHtml.includes('starlinkShortcutState(findFirstStarlinkSatellite())'), 'Starlink shortcut uses dynamic state helper');
   assert(indexHtml.includes('issShortcutState(findIssSatellite())'), 'ISS shortcut uses dynamic state helper');

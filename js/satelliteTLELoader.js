@@ -1,5 +1,3 @@
-// js/satelliteTLELoader.js
-// -----------------------------------------------------------
 import * as THREE from 'three';
 import { eciToSceneVector } from './sceneFrame.js';
 import {
@@ -10,17 +8,28 @@ import {
 import { EARTH_RADIUS_KM, EARTH_SCENE_RADIUS } from './SatelliteConstantLoader.js';
 import { processInChunks } from './startupPerformance.js';
 import { orbitClassFromMeanMotion, radToDeg } from './orbit/orbitLinkGeometry.js';
-import { stableFingerprint } from './domain/objectIdentity.js';
+import { normalizeNoradId, stableFingerprint } from './domain/objectIdentity.js';
 import { normalizeDatasetProvenance } from './domain/contracts.js';
-import { normalizeUtcInstant } from './domain/orbitalPolicy.js';
+import {
+    LIFECYCLE_STATUS,
+    OBJECT_TYPE,
+    ORBIT_CLASS,
+    normalizeLifecycleStatus,
+    normalizeObjectType,
+    normalizeOrbitClass,
+    normalizeUtcInstant
+} from './domain/orbitalPolicy.js';
 import { validateCatalog } from './domain/catalogValidation.js';
+import { parseCcsdsOmmJson } from './domain/orbitalSourceAdapters.js';
 
 export let satellites = [];
 export let activeCatalogValidationSnapshot = null;
 export let activeCatalogQualitySummary = null;
+export let activeCatalogKind = null;
 export let lastCatalogValidationSnapshot = null;
 export let lastCatalogQualitySummary = null;
 let orbitLine = null;
+let satellitePointCloud = null;
 export let usingLocalAssets = false;
 let textureLoader = new THREE.TextureLoader();
 const MIN_ORBIT_RADIUS_KM = EARTH_RADIUS_KM;
@@ -28,11 +37,118 @@ const ORBIT_OCCLUSION_RADIUS_PADDING = 0.002;
 const DEFAULT_ORBIT_PERIOD_MINUTES = 96;
 const MIN_VALID_ORBIT_PERIOD_MINUTES = 1;
 const MAX_VALID_ORBIT_PERIOD_MINUTES = 45 * 24 * 60;
+const SATELLITE_POINT_CLOUD_NAME = 'satellitePointCloud';
+
+function removeSatellitePointCloud(scene) {
+    if (!satellitePointCloud) return;
+    scene.remove(satellitePointCloud);
+    satellitePointCloud.geometry?.dispose?.();
+    satellitePointCloud.material?.dispose?.();
+    const sourceMaterial = satellitePointCloud.userData.sourceMaterial;
+    if (sourceMaterial?.userData?.openbexiOwned) {
+        sourceMaterial.map?.dispose?.();
+        sourceMaterial.dispose?.();
+    }
+    satellitePointCloud = null;
+}
+
+function createSatellitePointCloud(scene, capacity, baseMaterial) {
+    const geometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(Math.max(1, capacity) * 3);
+    const colors = new Float32Array(Math.max(1, capacity) * 3);
+    const positionAttribute = new THREE.BufferAttribute(positions, 3);
+    const colorAttribute = new THREE.BufferAttribute(colors, 3);
+    positionAttribute.setUsage(THREE.DynamicDrawUsage);
+    colorAttribute.setUsage(THREE.DynamicDrawUsage);
+    geometry.setAttribute('position', positionAttribute);
+    geometry.setAttribute('color', colorAttribute);
+    geometry.setDrawRange(0, 0);
+
+    const scale = satelliteConfig.scale || [0.1, 0.1, 0.1];
+    const material = new THREE.PointsMaterial({
+        color: 0xffffff,
+        map: baseMaterial.map || null,
+        size: Math.max(0.02, Number(scale[0]) || 0.1),
+        sizeAttenuation: true,
+        transparent: true,
+        alphaTest: Math.max(0.01, Number(baseMaterial.alphaTest) || 0.05),
+        depthTest: baseMaterial.depthTest !== false,
+        depthWrite: baseMaterial.depthWrite !== false,
+        vertexColors: true
+    });
+    satellitePointCloud = new THREE.Points(geometry, material);
+    satellitePointCloud.name = SATELLITE_POINT_CLOUD_NAME;
+    satellitePointCloud.frustumCulled = false;
+    satellitePointCloud.userData.capacity = capacity;
+    satellitePointCloud.userData.drawnCount = 0;
+    satellitePointCloud.userData.sourceMaterial = baseMaterial;
+    satellitePointCloud.userData.iconMap = material.map;
+    satellitePointCloud.userData.baseSize = material.size;
+    scene.add(satellitePointCloud);
+}
+
+function pointCloudRecordReady(record) {
+    const position = record?.mesh?.position;
+    return record?.mesh?.visible === true && record.motionPositionReady === true &&
+        Number.isFinite(position?.x) && Number.isFinite(position?.y) && Number.isFinite(position?.z);
+}
+
+export function syncSatellitePointCloud(sourceSatellites = satellites) {
+    if (!satellitePointCloud) return 0;
+    const positionAttribute = satellitePointCloud.geometry.getAttribute('position');
+    const colorAttribute = satellitePointCloud.geometry.getAttribute('color');
+    let drawnCount = 0;
+    for (const satelliteRecord of sourceSatellites) {
+        const position = satelliteRecord?.mesh?.position;
+        if (!pointCloudRecordReady(satelliteRecord)) continue;
+        positionAttribute.setXYZ(drawnCount, position.x, position.y, position.z);
+        if (satelliteRecord.isSelected) colorAttribute.setXYZ(drawnCount, 1, 0.1, 0.1);
+        else colorAttribute.setXYZ(drawnCount, 1, 1, 1);
+        drawnCount += 1;
+    }
+    satellitePointCloud.geometry.setDrawRange(0, drawnCount);
+    positionAttribute.needsUpdate = true;
+    colorAttribute.needsUpdate = true;
+    satellitePointCloud.visible = drawnCount > 0;
+    satellitePointCloud.userData.drawnCount = drawnCount;
+    const denseMode = drawnCount > 1000;
+    const nextMap = denseMode ? null : satellitePointCloud.userData.iconMap;
+    if (satellitePointCloud.material.map !== nextMap) {
+        satellitePointCloud.material.map = nextMap;
+        satellitePointCloud.material.needsUpdate = true;
+    }
+    satellitePointCloud.material.size = denseMode ? 0.025 : satellitePointCloud.userData.baseSize;
+    return drawnCount;
+}
+
+export function getSatellitePointCloudDiagnostics(sourceSatellites = satellites) {
+    const position = satellitePointCloud?.geometry?.getAttribute?.('position')?.array;
+    const drawnCount = satellitePointCloud?.geometry?.drawRange?.count || 0;
+    const uploadedNoradIds = [];
+    let cursor = 0;
+    for (const record of sourceSatellites) {
+        if (!pointCloudRecordReady(record) || cursor >= drawnCount) continue;
+        const p = record.mesh.position;
+        const offset = cursor * 3;
+        if (Math.hypot(position[offset] - p.x, position[offset + 1] - p.y, position[offset + 2] - p.z) < 1e-4) {
+            uploadedNoradIds.push(record.norad_id?.toString());
+        }
+        cursor += 1;
+    }
+    return {
+        drawnCount,
+        matchedPositionCount: uploadedNoradIds.length,
+        uploadedNoradIds,
+        markerMode: satellitePointCloud?.material?.map ? 'detailed' : 'density',
+        pointSize: satellitePointCloud?.material?.size || 0
+    };
+}
 const MIN_ORBIT_SAMPLE_COUNT = 96;
 const MAX_ORBIT_SAMPLE_COUNT = 720;
 const ORBIT_SAMPLE_MINUTES_PER_POINT = 4;
 const MIN_ORBIT_REFRESH_INTERVAL_MS = 60_000;
 const MAX_ORBIT_REFRESH_INTERVAL_MS = 5 * 60_000;
+const MIN_RUNNING_ORBIT_REFRESH_REAL_MS = 1_000;
 export const STATIC_DEPLOYMENT_MODE = 'static';
 
 export function resolveCatalogRuntimePolicy(options = {}) {
@@ -73,11 +189,14 @@ export async function computeTleDatasetHash(records, options = {}) {
     return `fnv1a64:${stableFingerprint(material)}`;
 }
 
+export const computeGpDatasetHash = computeTleDatasetHash;
+
 function metadataSourceStatus(metadata) {
     if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
         return { source_status: 'DEGRADED', partial_update: false };
     }
     const status = String(metadata.last_status ?? '').trim().toLowerCase();
+    const explicitSourceStatus = String(metadata.source_status ?? '').trim().toUpperCase();
     const mode = String(metadata.mode ?? '').trim().toLowerCase();
     const rejected = Number(metadata.counts?.rejected ?? 0);
     const fetched = Number(metadata.counts?.fetched);
@@ -85,6 +204,18 @@ function metadataSourceStatus(metadata) {
     const isIncremental = mode === 'incremental' || (
         Number.isFinite(fetched) && Number.isFinite(total) && fetched < total
     );
+    const hasFailure = !!String(metadata.last_error ?? '').trim() || status === 'error' || status === 'failed';
+    if (status === 'not-modified' && !hasFailure &&
+        (explicitSourceStatus === 'COMPLETE' || explicitSourceStatus === 'PARTIAL')) {
+        return {
+            source_status: explicitSourceStatus,
+            partial_update: explicitSourceStatus === 'PARTIAL' || metadata.partial_update === true
+        };
+    }
+    if (status === 'ok' && explicitSourceStatus === 'COMPLETE' &&
+        metadata.partial_update !== true && rejected === 0) {
+        return { source_status: 'COMPLETE', partial_update: false };
+    }
     if (status === 'ok' && rejected === 0 && !isIncremental) {
         return { source_status: 'COMPLETE', partial_update: false };
     }
@@ -118,15 +249,25 @@ export async function buildTleDatasetProvenance(records, metadata, options = {})
     });
 }
 
+export async function buildGpDatasetProvenance(records, metadata, options = {}) {
+    const datasetHash = await computeGpDatasetHash(records, options);
+    return buildTleDatasetProvenance(records, metadata, {
+        ...options,
+        source_id: options.source_id ?? options.sourceId ?? 'celestrak-gp-catalog',
+        dataset_id: options.dataset_id ?? options.datasetId ?? `gp-catalog:${datasetHash.split(':')[1].slice(0, 16)}`
+    });
+}
+
 export async function validateTleCatalogForDisplay(records, metadata, options = {}) {
     const referenceTime = normalizeUtcInstant(
         options.reference_time ?? options.referenceTime ?? options.now?.() ?? new Date(),
         'catalog reference time'
     );
-    const provenance = await buildTleDatasetProvenance(records, metadata, {
-        ...options,
-        reference_time: referenceTime
-    });
+    const provenance = options.provenance_override ?? options.provenanceOverride ??
+        await buildTleDatasetProvenance(records, metadata, {
+            ...options,
+            reference_time: referenceTime
+        });
     const satelliteLib = options.satelliteLib ?? options.satellite_lib ?? globalThis.satellite;
     const sgp4Initializer = options.sgp4_initializer ?? options.sgp4Initializer ??
         (typeof satelliteLib?.twoline2satrec === 'function'
@@ -153,12 +294,254 @@ export async function validateTleCatalogForDisplay(records, metadata, options = 
     });
 }
 
+function orbitalRecordFormat(record) {
+    const declared = String(
+        record?.element_set?.format ?? record?.elementSet?.format ?? record?.source_format ?? ''
+    ).trim().toUpperCase();
+    if (declared === 'OMM' || declared === 'CCSDS_OMM_JSON') return 'OMM';
+    if (declared === 'TLE' || declared === 'TLE_JSON') return 'TLE';
+    if (record?.element_set?.omm || record?.omm || record?.EPOCH) return 'OMM';
+    return 'TLE';
+}
+
+function canonicalOmmInput(record) {
+    const supplied = record?.element_set?.omm ?? record?.elementSet?.omm ?? record?.omm ?? record;
+    const norad = record?.norad_id ?? record?.noradId ?? record?.NORAD_CAT_ID ?? supplied?.NORAD_CAT_ID;
+    return {
+        CCSDS_OMM_VERS: '2.0',
+        CENTER_NAME: 'EARTH',
+        REF_FRAME: 'TEME',
+        TIME_SYSTEM: 'UTC',
+        MEAN_ELEMENT_THEORY: 'SGP4',
+        ...supplied,
+        OBJECT_NAME: supplied?.OBJECT_NAME ?? record?.satellite_name ?? record?.name,
+        OBJECT_ID: supplied?.OBJECT_ID ?? record?.international_designator ?? record?.object_id,
+        NORAD_CAT_ID: norad == null ? norad : String(norad).trim(),
+        EPOCH: supplied?.EPOCH ?? record?.element_set?.epoch ?? record?.elementSet?.epoch,
+        OBJECT_TYPE: supplied?.OBJECT_TYPE ?? record?.object_type,
+        OPS_STATUS_CODE: supplied?.OPS_STATUS_CODE ?? record?.operational_status ?? record?.lifecycle_status
+    };
+}
+
+function inheritDisplayClassifications(catalogObject, displayRecord) {
+    const classifications = [
+        {
+            key: 'object_type',
+            unknown: OBJECT_TYPE.UNKNOWN,
+            flag: 'OBJECT_TYPE_UNKNOWN',
+            canonical: normalizeObjectType(catalogObject?.object_type),
+            display: normalizeObjectType(
+                displayRecord?.object_type ?? displayRecord?.objectType ?? displayRecord?.OBJECT_TYPE
+            )
+        },
+        {
+            key: 'orbit_class',
+            unknown: ORBIT_CLASS.UNKNOWN,
+            flag: 'ORBIT_CLASS_UNKNOWN',
+            canonical: normalizeOrbitClass(catalogObject?.orbit_class),
+            display: normalizeOrbitClass(
+                displayRecord?.orbit_class ?? displayRecord?.orbitClass ??
+                displayRecord?.ORBIT_CLASS ?? displayRecord?.type
+            )
+        },
+        {
+            key: 'lifecycle_status',
+            unknown: LIFECYCLE_STATUS.UNKNOWN,
+            flag: 'LIFECYCLE_STATUS_UNKNOWN',
+            canonical: normalizeLifecycleStatus(catalogObject?.lifecycle_status),
+            display: normalizeLifecycleStatus(
+                displayRecord?.lifecycle_status ?? displayRecord?.lifecycleStatus ??
+                displayRecord?.operational_status ?? displayRecord?.operationalStatus
+            )
+        }
+    ];
+    const inherited = {};
+    let changed = false;
+    for (const classification of classifications) {
+        const value = classification.canonical === classification.unknown &&
+            classification.display !== classification.unknown
+            ? classification.display
+            : classification.canonical;
+        inherited[classification.key] = value;
+        if (value !== catalogObject?.[classification.key]) changed = true;
+    }
+    if (!changed) return catalogObject;
+
+    const resolvedFlags = new Set(catalogObject?.quality_flags ?? []);
+    classifications.forEach(classification => {
+        if (inherited[classification.key] !== classification.unknown) {
+            resolvedFlags.delete(classification.flag);
+        }
+    });
+    return Object.freeze({
+        ...catalogObject,
+        ...inherited,
+        quality_flags: Object.freeze([...resolvedFlags].sort())
+    });
+}
+
+function validInitializedSatrec(satrec) {
+    if (!satrec || (Number.isFinite(satrec.error) && satrec.error !== 0)) return false;
+    return ['epochyr', 'epochdays', 'jdsatepoch', 'inclo', 'nodeo', 'ecco', 'argpo', 'mo', 'no']
+        .every(field => Number.isFinite(satrec[field]));
+}
+
+function mixedCatalogQuality(total, accepted, quarantine) {
+    const formats = { TLE: 0, OMM: 0 };
+    accepted.forEach(record => {
+        const format = orbitalRecordFormat(record.catalogObject ?? record);
+        formats[format] = (formats[format] ?? 0) + 1;
+    });
+    const reasonCounts = {};
+    quarantine.forEach(item => (item.reason_codes ?? []).forEach(code => {
+        reasonCounts[code] = (reasonCounts[code] ?? 0) + 1;
+    }));
+    return Object.freeze({
+        total_records: total,
+        accepted_records: accepted.length,
+        quarantined_records: quarantine.length,
+        duplicate_records: reasonCounts.DUPLICATE_OBJECT_ID ?? 0,
+        by_format: Object.freeze(formats),
+        quarantine_reason_counts: Object.freeze(reasonCounts)
+    });
+}
+
+function recordEpochMillis(record) {
+    const value = record?.catalogObject?.element_set?.epoch ?? record?.element_set?.epoch ??
+        record?.elementSet?.epoch ?? record?.element_set?.omm?.EPOCH ?? record?.EPOCH;
+    const millis = Date.parse(value);
+    return Number.isFinite(millis) ? millis : Number.NEGATIVE_INFINITY;
+}
+
+function recordNoradId(record) {
+    const value = record?.catalogObject?.norad_id ?? record?.norad_id ?? record?.NORAD_CAT_ID ??
+        record?.element_set?.omm?.NORAD_CAT_ID;
+    try {
+        return normalizeNoradId(value);
+    } catch {
+        return null;
+    }
+}
+
+export async function validateGpCatalogForDisplay(records, metadata, options = {}) {
+    const sourceRecords = Array.isArray(records) ? records : [];
+    const referenceTime = normalizeUtcInstant(
+        options.reference_time ?? options.referenceTime ?? options.now?.() ?? new Date(),
+        'catalog reference time'
+    );
+    const provenance = await buildGpDatasetProvenance(sourceRecords, metadata, {
+        ...options,
+        reference_time: referenceTime
+    });
+    const satelliteLib = options.satelliteLib ?? options.satellite_lib ?? globalThis.satellite;
+    const accepted = [];
+    const quarantine = [];
+
+    for (const [sourceIndex, record] of sourceRecords.entries()) {
+        if (orbitalRecordFormat(record) === 'TLE') {
+            const validated = await validateTleCatalogForDisplay([record], metadata, {
+                ...options,
+                reference_time: referenceTime,
+                provenance_override: provenance
+            });
+            if (validated.records.length) {
+                accepted.push({ ...validated.records[0], sourceIndex });
+            } else {
+                quarantine.push(Object.freeze({
+                    source_index: sourceIndex,
+                    norad_id: recordNoradId(record),
+                    format: 'TLE',
+                    reason_codes: Object.freeze(
+                        validated.snapshot?.quarantine?.[0]?.reason_codes ?? ['TLE_RECORD_INVALID']
+                    )
+                }));
+            }
+            continue;
+        }
+
+        try {
+            if (!satelliteLib?.json2satrec) throw Object.assign(
+                new Error('satellite.js with json2satrec is required for OMM.'),
+                { code: 'OMM_LIBRARY_UNAVAILABLE' }
+            );
+            const bundle = parseCcsdsOmmJson(canonicalOmmInput(record), { source: provenance });
+            const catalogObject = inheritDisplayClassifications(bundle.records[0], record);
+            const satrec = satelliteLib.json2satrec(catalogObject.element_set.omm);
+            if (!validInitializedSatrec(satrec)) {
+                throw Object.assign(new Error('OMM SGP4 initialization failed.'), { code: 'OMM_SGP4_INITIALIZATION_FAILED' });
+            }
+            accepted.push({ ...record, catalogObject, sourceIndex });
+        } catch (error) {
+            quarantine.push(Object.freeze({
+                source_index: sourceIndex,
+                norad_id: recordNoradId(record),
+                format: 'OMM',
+                reason_codes: Object.freeze([String(error?.code || 'OMM_RECORD_INVALID')]),
+                message: error?.message || String(error)
+            }));
+        }
+    }
+
+    const newestByNorad = new Map();
+    for (const record of accepted) {
+        const norad = recordNoradId(record);
+        if (!norad) continue;
+        const current = newestByNorad.get(norad);
+        if (!current || recordEpochMillis(record) > recordEpochMillis(current)) newestByNorad.set(norad, record);
+    }
+    const deduplicated = [];
+    for (const record of accepted) {
+        const norad = recordNoradId(record);
+        if (!norad || newestByNorad.get(norad) === record) {
+            deduplicated.push(record);
+            continue;
+        }
+        quarantine.push(Object.freeze({
+            source_index: record.sourceIndex,
+            norad_id: norad,
+            format: orbitalRecordFormat(record.catalogObject ?? record),
+            reason_codes: Object.freeze(['DUPLICATE_OBJECT_ID']),
+            message: 'A newer element epoch for this NORAD ID was retained.'
+        }));
+    }
+
+    const recordsForDisplay = deduplicated.map(({ sourceIndex, ...record }) => record);
+    const quality = mixedCatalogQuality(sourceRecords.length, recordsForDisplay, quarantine);
+    const sourceStatus = metadataSourceStatus(metadata);
+    const status = recordsForDisplay.length === 0
+        ? 'INVALID'
+        : quarantine.length || sourceStatus.partial_update
+            ? 'PARTIAL'
+            : sourceStatus.source_status === 'DEGRADED'
+                ? 'DEGRADED'
+                : 'VALID';
+    const snapshot = Object.freeze({
+        status,
+        reference_time: referenceTime,
+        provenance,
+        objects: Object.freeze(recordsForDisplay.map(record => record.catalogObject)),
+        accepted_record_indices: Object.freeze(deduplicated.map(record => record.sourceIndex)),
+        quarantine: Object.freeze(quarantine),
+        quality
+    });
+    return Object.freeze({
+        result: Object.freeze({ valid: recordsForDisplay.length > 0, value: snapshot, issues: Object.freeze([]) }),
+        snapshot,
+        quality,
+        records: Object.freeze(recordsForDisplay)
+    });
+}
+
 export function getActiveCatalogValidationSnapshot() {
     return activeCatalogValidationSnapshot;
 }
 
 export function getActiveCatalogQualitySummary() {
     return activeCatalogQualitySummary;
+}
+
+export function getActiveCatalogKind() {
+    return activeCatalogKind;
 }
 
 export function getLastCatalogValidationSnapshot() {
@@ -384,15 +767,18 @@ export function splitOrbitSegmentsByEarthOcclusion(
     return visibleSegments;
 }
 
-function createOrbitLineSegment(points) {
-    const geometry = new THREE.BufferGeometry().setFromPoints(points);
-    const material = new THREE.LineBasicMaterial({
+function createOrbitLineMaterial() {
+    return new THREE.LineBasicMaterial({
         color: 0xff0000,
         depthTest: true,
         depthWrite: true,
         transparent: false,
         opacity: 1
     });
+}
+
+function createOrbitLineSegment(points, material = createOrbitLineMaterial()) {
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
     const line = new THREE.Line(geometry, material);
     line.name = 'selectedOrbitTrajectory';
     line.renderOrder = 0;
@@ -400,17 +786,12 @@ function createOrbitLineSegment(points) {
     return line;
 }
 
-function disposeOrbitLineChildren(group) {
+function trimOrbitLineChildren(group, targetCount) {
     if (!group?.children) return;
-    while (group.children.length > 0) {
+    while (group.children.length > targetCount) {
         const child = group.children[group.children.length - 1];
         group.remove(child);
         child.geometry?.dispose?.();
-        if (Array.isArray(child.material)) {
-            child.material.forEach(material => material?.dispose?.());
-        } else {
-            child.material?.dispose?.();
-        }
     }
 }
 
@@ -437,8 +818,18 @@ export function refreshSelectedOrbitOcclusion(camera, options = {}) {
         cameraPosition,
         earthRadiusScene
     );
-    disposeOrbitLineChildren(orbitLine);
-    visibleSegments.forEach(segment => orbitLine.add(createOrbitLineSegment(segment)));
+    const material = orbitLine.userData.material || createOrbitLineMaterial();
+    orbitLine.userData.material = material;
+    visibleSegments.forEach((segment, index) => {
+        const existing = orbitLine.children[index];
+        if (existing) {
+            existing.geometry.setFromPoints(segment);
+            existing.geometry.computeBoundingSphere();
+        } else {
+            orbitLine.add(createOrbitLineSegment(segment, material));
+        }
+    });
+    trimOrbitLineChildren(orbitLine, visibleSegments.length);
     orbitLine.userData.occlusionCameraSignature = cameraSignature;
     orbitLine.userData.visibleSegments = visibleSegments;
     orbitLine.userData.visibleSegmentCount = visibleSegments.length;
@@ -450,12 +841,8 @@ function clearOrbitLine(scene) {
         scene?.remove?.(orbitLine);
         orbitLine.traverse?.(child => {
             child.geometry?.dispose?.();
-            if (Array.isArray(child.material)) {
-                child.material.forEach(material => material?.dispose?.());
-            } else {
-                child.material?.dispose?.();
-            }
         });
+        orbitLine.userData?.material?.dispose?.();
         orbitLine.geometry?.dispose?.();
         if (Array.isArray(orbitLine.material)) {
             orbitLine.material.forEach(material => material?.dispose?.());
@@ -492,12 +879,16 @@ export function updateOrbitTrajectory(scene, simParams, satData, options = {}) {
     orbitLine.name = 'selectedOrbitTrajectoryRoot';
     orbitLine.renderOrder = 0;
     orbitLine.userData.depthOccludedByEarth = true;
+    orbitLine.userData.material = createOrbitLineMaterial();
     orbitLine.userData.sourceSegments = orbitSegments.map(segment => segment.map(point => point.clone()));
     orbitLine.userData.satelliteKey = orbitSatelliteKey(satData);
     orbitLine.userData.startTimeMs = new Date(simDate).getTime();
     orbitLine.userData.periodMinutes = periodMinutes;
     orbitLine.userData.sampleCount = sampleCount;
     orbitLine.userData.refreshIntervalMillis = getOrbitRefreshIntervalMillis(periodMinutes, sampleCount);
+    orbitLine.userData.lastRefreshRealMs = Number.isFinite(options.realTimeMs)
+        ? options.realTimeMs
+        : (globalThis.performance?.now?.() ?? Date.now());
     orbitLine.userData.occlusionCameraSignature = '';
 
     scene.add(orbitLine);
@@ -519,186 +910,291 @@ export function refreshOrbitTrajectoryIfNeeded(scene, simParams, satData, option
     const staleForTime = !Number.isFinite(startTimeMs) ||
         Math.abs(simTimeMs - startTimeMs) >= refreshIntervalMillis;
 
-    if (staleForSatellite || staleForTime) {
+    if (staleForSatellite) {
         return updateOrbitTrajectory(scene, simParams, satData, options);
+    }
+
+    if (staleForTime) {
+        const timeWarp = Number(simParams.timeWarp);
+        const running = Number.isFinite(timeWarp) && timeWarp !== 0;
+        const realTimeMs = Number.isFinite(options.realTimeMs)
+            ? options.realTimeMs
+            : (globalThis.performance?.now?.() ?? Date.now());
+        const lastRefreshRealMs = orbitLine.userData?.lastRefreshRealMs;
+        const runningRefreshRealMillis = Math.max(
+            100,
+            options.runningRefreshRealMillis ?? MIN_RUNNING_ORBIT_REFRESH_REAL_MS
+        );
+        if (running && Number.isFinite(lastRefreshRealMs) &&
+            realTimeMs - lastRefreshRealMs < runningRefreshRealMillis) {
+            return orbitLine;
+        }
+
+        const periodMinutes = getOrbitDurationMinutes(satData.satrec);
+        const sampleCount = getOrbitSampleCount(periodMinutes);
+        const orbitSegments = generateOrbitScenePointSegments(satData.satrec, new Date(simTimeMs), {
+            ...options,
+            periodMinutes,
+            numPoints: sampleCount
+        });
+        if (orbitSegments.length === 0) return orbitLine;
+
+        orbitLine.userData.sourceSegments = orbitSegments.map(segment => segment.map(point => point.clone()));
+        orbitLine.userData.startTimeMs = simTimeMs;
+        orbitLine.userData.periodMinutes = periodMinutes;
+        orbitLine.userData.sampleCount = sampleCount;
+        orbitLine.userData.refreshIntervalMillis = getOrbitRefreshIntervalMillis(periodMinutes, sampleCount);
+        orbitLine.userData.lastRefreshRealMs = realTimeMs;
+        orbitLine.userData.occlusionCameraSignature = '';
+        orbitLine.userData.visibleSegments = null;
     }
 
     return orbitLine;
 }
 
-async function processSatellites(scene, tleData, baseMaterial, options = {}) {
+async function processSatellites(scene, catalogData, baseMaterial, options = {}) {
     const {
         chunkSize = 300,
         onProgress = null,
+        onCatalogChunk = null,
+        priorityRecordPredicate = null,
         schedulerOptions = { timeout: 16 },
         satelliteLib = globalThis.satellite
     } = options;
-    if (!Array.isArray(tleData) || tleData.length === 0) {
-        console.warn("No TLE data to process.");
-        if (typeof updateSatelliteList === "function") updateSatelliteList(); // Update UI
+    if (!Array.isArray(catalogData) || catalogData.length === 0) {
+        console.warn("No orbital catalog data to process.");
         return satellites;
     }
     if (!baseMaterial) {
         throw new Error('Base material for satellites is not available.');
     }
-    if (!satelliteLib?.twoline2satrec) {
-        throw new Error('satellite.js with twoline2satrec is required to process the validated catalog.');
+    if (!satelliteLib?.propagate) {
+        throw new Error('satellite.js with orbit propagation is required to process the validated catalog.');
     }
 
-    // Commit only after the replacement catalog and rendering dependencies are ready.
     satellites.forEach(s => {
         if (s.mesh) scene.remove(s.mesh);
     });
+    removeSatellitePointCloud(scene);
     satellites.length = 0;
+    createSatellitePointCloud(scene, catalogData.length, baseMaterial);
 
-    await processInChunks(tleData, (item) => {
+    let processingOrder = catalogData;
+    if (typeof priorityRecordPredicate === 'function') {
+        const prioritized = [];
+        const remaining = [];
+        catalogData.forEach(item => {
+            if (priorityRecordPredicate(item)) prioritized.push(item);
+            else remaining.push(item);
+        });
+        processingOrder = prioritized.concat(remaining);
+    }
+
+    await processInChunks(processingOrder, (item) => {
         const {company, satellite_name, norad_id, type, launch_date, catalogObject} = item;
-        const tle_line1 = catalogObject?.element_set?.line1 ?? item.tle_line1 ?? item.tleLine1 ?? item.TLE_LINE1;
-        const tle_line2 = catalogObject?.element_set?.line2 ?? item.tle_line2 ?? item.tleLine2 ?? item.TLE_LINE2;
-        if (!tle_line1 || !tle_line2) {
-            console.warn(`Skipping satellite ${satellite_name || norad_id}: missing TLE line1 or line2.`);
-            return;
-        }
+        const elementSet = catalogObject?.element_set ?? item.element_set ?? item.elementSet ?? null;
+        const format = String(elementSet?.format ?? orbitalRecordFormat(item)).trim().toUpperCase();
+        const tle_line1 = elementSet?.line1 ?? item.tle_line1 ?? item.tleLine1 ?? item.TLE_LINE1 ?? null;
+        const tle_line2 = elementSet?.line2 ?? item.tle_line2 ?? item.tleLine2 ?? item.TLE_LINE2 ?? null;
+        const catalogOrbitClass = String(catalogObject?.orbit_class ?? '').trim().toUpperCase();
+        const resolvedOrbitClass = catalogOrbitClass && !['UNKNOWN', 'N/A'].includes(catalogOrbitClass)
+            ? catalogOrbitClass
+            : (item.orbit_class || type || catalogOrbitClass || 'UNKNOWN');
         try {
-            const satrec = satelliteLib.twoline2satrec(tle_line1, tle_line2);
-            // Check for common error: epoch year. satellite.js might parse ' yyddd...' as 19yy if yy > 56.
-            // Modern TLEs use 'yyddd...'. If satrec.epochyr < 2000 (and yy > 56), it's likely 20yy.
-            // This is a heuristic. satellite.js handles most cases, but good to be aware.
-            // No direct fix here, assuming satellite.js handles it.
-
-            if (!satrec) { // satellite.js returns false if TLE is fundamentally invalid
-                throw new Error("Failed to parse TLE (twoline2satrec returned false).");
+            let satrec;
+            if (format === 'OMM') {
+                if (!satelliteLib.json2satrec || !elementSet?.omm) {
+                    throw new Error('satellite.js json2satrec and canonical OMM fields are required.');
+                }
+                satrec = satelliteLib.json2satrec(elementSet.omm);
+            } else {
+                if (!satelliteLib.twoline2satrec || !tle_line1 || !tle_line2) {
+                    throw new Error('satellite.js twoline2satrec and both TLE lines are required.');
+                }
+                satrec = satelliteLib.twoline2satrec(tle_line1, tle_line2);
             }
+            if (!validInitializedSatrec(satrec)) throw new Error(`${format} SGP4 initialization failed.`);
 
-
-            const sprite = new THREE.Sprite(baseMaterial.clone()); // Clone material for individual control if needed
-            sprite.scale.set(...(satelliteConfig.scale || [0.1, 0.1, 0.1]));
-            scene.add(sprite);
+            const markerProxy = new THREE.Object3D();
+            markerProxy.material = baseMaterial;
+            markerProxy.scale.set(...(satelliteConfig.scale || [0.1, 0.1, 0.1]));
+            markerProxy.visible = false;
+            markerProxy.userData.filterVisible = false;
+            markerProxy.userData.positionReady = false;
 
             satellites.push({
-                mesh: sprite, // The THREE.Sprite object
-                satrec: satrec, // The parsed TLE data from satellite.js
-                orbitType: catalogObject?.orbit_class || item.orbit_class || type || "N/A",
+                mesh: markerProxy,
+                satrec,
+                orbitType: resolvedOrbitClass,
                 company: company || "N/A",
-                satellite_name: satellite_name || `NORAD ${norad_id}`, // Use NORAD ID if name is missing
+                satellite_name: satellite_name || `NORAD ${norad_id}`,
                 norad_id: catalogObject?.norad_id ?? norad_id,
                 object_id: catalogObject?.object_id ?? item.object_id ?? null,
                 international_designator: catalogObject?.international_designator ?? item.international_designator ?? null,
                 object_type: catalogObject?.object_type ?? item.object_type ?? 'UNKNOWN',
-                orbit_class: catalogObject?.orbit_class ?? item.orbit_class ?? type ?? 'UNKNOWN',
+                orbit_class: resolvedOrbitClass,
                 lifecycle_status: catalogObject?.lifecycle_status ?? item.lifecycle_status ?? 'UNKNOWN',
                 launch_date: launch_date || "N/A",
+                launch_site: item.launch_site ?? item.LAUNCH_SITE ?? null,
+                operational_status: item.operational_status ?? item.OPS_STATUS_CODE ?? null,
+                decay_date: item.decay_date ?? item.DECAY_DATE ?? null,
+                source_format: catalogObject?.source_format ?? item.source_format ?? (format === 'OMM' ? 'CCSDS_OMM_JSON' : 'TLE_JSON'),
                 tle_line1: tle_line1,
                 tle_line2: tle_line2,
-                element_set: catalogObject?.element_set ?? item.element_set ?? null,
+                element_set: elementSet,
                 provenance: catalogObject?.provenance ?? item.provenance ?? null,
                 covariance: catalogObject?.covariance ?? item.covariance ?? null,
                 hard_body_radius_km: catalogObject?.hard_body_radius_km ?? item.hard_body_radius_km ?? null,
                 quality_flags: catalogObject?.quality_flags ?? item.quality_flags ?? [],
                 catalogObject: catalogObject ?? null,
-                isSelected: false // Track selection state
+                motionPositionReady: false,
+                isSelected: false
             });
         } catch (e) {
-            console.error(`Error processing TLE for ${satellite_name || norad_id} (NORAD: ${norad_id}): ${e.message}. TLE1: ${tle_line1}, TLE2: ${tle_line2}`);
-            // Optionally, skip adding this satellite or add it with an error state
+            console.error(`Error processing ${format} for ${satellite_name || norad_id} (NORAD: ${norad_id}): ${e.message}`);
         }
     }, {
         chunkSize,
-        afterChunk: onProgress,
+        afterChunk: progress => {
+            if (typeof onProgress === 'function') onProgress(progress);
+            if (typeof onCatalogChunk === 'function') {
+                onCatalogChunk({ ...progress, loadedSatellites: satellites });
+            }
+        },
         schedulerOptions
     });
     console.log(`${satellites.length} satellites processed and added to the scene.`);
-    //if (typeof updateSatelliteList === "function") updateSatelliteList(); // Update UI elements
     return satellites;
 }
 
 
 export async function setupTLESatellites(scene, options = {}) {
     const {
+        gpDataOverride = null,
+        gpMetaOverride = null,
         tleDataOverride = null,
         tleMetaOverride = null,
+        gpDataSource = null,
         tleDataSource = 'local files',
         satelliteMaterialOverride = null
     } = options;
     const catalogRuntimePolicy = resolveCatalogRuntimePolicy(options);
-    let TLE_BASE_URL = "json/tle/";
-    console.log("Attempting to load TLE data from:", TLE_BASE_URL);
+    const GP_BASE_URL = 'json/gp/';
+    const TLE_BASE_URL = 'json/tle/';
+    console.log('Attempting to load GP/OMM data from:', GP_BASE_URL);
+    const primaryGpUrl = GP_BASE_URL + 'GP.json';
     const primaryTleUrl = TLE_BASE_URL + 'TLE.json';
+    const catalogFetchOptions = options.forceCatalogRefresh ? { cache: 'no-store' } : {};
+    const fetchCatalogJson = (url) => fetchJSON(url, catalogFetchOptions);
 
     try {
-        let tleData = Array.isArray(tleDataOverride) && tleDataOverride.length > 0
-            ? tleDataOverride
-            : await fetchJSON(primaryTleUrl);
-        if (Array.isArray(tleDataOverride) && tleDataOverride.length > 0) {
-            console.info(`Using ${tleData.length} TLE records from ${tleDataSource}.`);
+        let catalogData = null;
+        let catalogKind = 'GP';
+        const catalogDataSource = gpDataSource || tleDataSource;
+        if (Array.isArray(gpDataOverride) && gpDataOverride.length > 0) {
+            catalogData = gpDataOverride;
+        } else if (Array.isArray(tleDataOverride) && tleDataOverride.length > 0) {
+            catalogData = tleDataOverride;
+            catalogKind = 'TLE';
+        } else {
+            catalogData = await fetchCatalogJson(primaryGpUrl);
+            if (!Array.isArray(catalogData) || catalogData.length === 0) {
+                console.warn(`GP catalog ${primaryGpUrl} is unavailable; using the deprecated TLE fallback.`);
+                catalogData = await fetchCatalogJson(primaryTleUrl);
+                catalogKind = 'TLE';
+            }
+        }
+        if ((Array.isArray(gpDataOverride) && gpDataOverride.length > 0) ||
+            (Array.isArray(tleDataOverride) && tleDataOverride.length > 0)) {
+            console.info(`Using ${catalogData.length} ${catalogKind} records from ${catalogDataSource}.`);
         }
 
-        if (!Array.isArray(tleData) || tleData.length === 0) {
-            //console.warn(`TLE data from ${primaryTleUrl} failed or is empty.`);
+        if (!Array.isArray(catalogData) || catalogData.length === 0) {
             if (catalogRuntimePolicy.allow_remote_catalog_fallback) {
-                const backupTleUrl = GITHUB_REPO_RAW_BASE_URL + "json/tle/" + 'TLE.json'; // Assuming backup is in the same base
-                console.log("Attempting backup TLE from GitHub:", backupTleUrl);
-                tleData = await fetchJSON(backupTleUrl);
-                if (!Array.isArray(tleData) || tleData.length === 0) {
-                    console.warn(`Backup TLE data from ${backupTleUrl} also failed or is empty.`);
-                } else {
-                    console.log("Loaded TLE data from GitHub backup source.");
+                const backupGpUrl = GITHUB_REPO_RAW_BASE_URL + 'json/gp/GP.json';
+                console.log('Attempting backup GP catalog from GitHub:', backupGpUrl);
+                catalogData = await fetchCatalogJson(backupGpUrl);
+                if (!Array.isArray(catalogData) || catalogData.length === 0) {
+                    const backupTleUrl = GITHUB_REPO_RAW_BASE_URL + 'json/tle/TLE.json';
+                    catalogData = await fetchCatalogJson(backupTleUrl);
+                    catalogKind = 'TLE';
                 }
             } else if (catalogRuntimePolicy.packaged_catalog_required) {
-                console.error('Packaged TLE catalog is unavailable; static deployment prohibits remote fallback.');
+                console.error('Packaged GP and TLE catalogs are unavailable; static deployment prohibits remote fallback.');
             }
-            // If still no data (either local failed, or both GitHub primary/backup failed)
-            if (!Array.isArray(tleData) || tleData.length === 0) {
+            if (!Array.isArray(catalogData) || catalogData.length === 0) {
                 const userMessage = catalogRuntimePolicy.packaged_catalog_required
                     ? 'Critical Error: The packaged satellite catalog is missing or invalid. Remote fallback is disabled for static deployment.'
-                    : 'Critical Error: Failed to load satellite TLE data from all available sources. Satellites will not be displayed.';
+                    : 'Critical Error: Failed to load satellite GP or TLE data from all available sources. Satellites will not be displayed.';
                 console.error(userMessage);
-                // Display user-facing error
+                if (options.throwOnFailure) throw new Error(userMessage);
                 const errorDiv = document.createElement('div');
                 errorDiv.style.cssText = "position:fixed; top:10px; left:10px; padding:10px; background:red; color:white; z-index:1000;";
                 errorDiv.innerText = userMessage;
                 document.body.appendChild(errorDiv);
-                // No need for setTimeout, this is a critical error.
-                await processSatellites(scene, [], null, options); // Process with empty data
+                await processSatellites(scene, [], null, options);
                 return satellites;
             }
         }
 
-        const tleMetadata = tleMetaOverride !== null
-            ? tleMetaOverride
-            : await fetchJSON(TLE_BASE_URL + 'TLE.meta.json');
-        const catalogValidation = await validateTleCatalogForDisplay(tleData, tleMetadata, {
+        const validationOptions = {
             ...options,
             reference_time: options.catalogReferenceTime ?? options.referenceTime ?? options.now?.() ?? new Date()
-        });
+        };
+        const validateCatalogCandidate = async (kind, records) => {
+            const metadata = kind === 'GP'
+                ? (gpMetaOverride !== null ? gpMetaOverride : await fetchCatalogJson(GP_BASE_URL + 'GP.meta.json'))
+                : (tleMetaOverride !== null ? tleMetaOverride : await fetchCatalogJson(TLE_BASE_URL + 'TLE.meta.json'));
+            return validateGpCatalogForDisplay(records, metadata, validationOptions);
+        };
+        const logCatalogValidation = (kind, sourceRecords, validation) => {
+            if (validation.snapshot?.quarantine.length > 0) {
+                console.warn(
+                    `${kind} catalog validation quarantined ${validation.snapshot.quarantine.length} of ${sourceRecords.length} records.`,
+                    validation.quality.quarantine_reason_counts
+                );
+            }
+            console.info(
+                `${kind} catalog ${validation.snapshot?.status || 'INVALID'}: ${validation.records.length} accepted, ` +
+                `${validation.snapshot?.quarantine.length || 0} quarantined.`
+            );
+        };
+
+        let catalogValidation = await validateCatalogCandidate(catalogKind, catalogData);
+        logCatalogValidation(catalogKind, catalogData, catalogValidation);
+        if (catalogKind === 'GP' && catalogValidation.records.length === 0) {
+            console.warn('GP catalog contains no usable records; attempting the deprecated TLE fallback.');
+            const fallbackData = Array.isArray(tleDataOverride) && tleDataOverride.length > 0
+                ? tleDataOverride
+                : await fetchCatalogJson(primaryTleUrl);
+            if (Array.isArray(fallbackData) && fallbackData.length > 0) {
+                const fallbackValidation = await validateCatalogCandidate('TLE', fallbackData);
+                logCatalogValidation('TLE', fallbackData, fallbackValidation);
+                if (fallbackValidation.records.length > 0) {
+                    catalogData = fallbackData;
+                    catalogKind = 'TLE';
+                    catalogValidation = fallbackValidation;
+                }
+            }
+        }
         lastCatalogValidationSnapshot = catalogValidation.snapshot;
         lastCatalogQualitySummary = catalogValidation.quality;
         if (!catalogValidation.snapshot) {
-            throw new Error('TLE catalog validation could not produce a snapshot.');
+            throw new Error('GP/TLE catalog validation could not produce a snapshot.');
         }
-        if (catalogValidation.snapshot.quarantine.length > 0) {
-            console.warn(
-                `TLE catalog validation quarantined ${catalogValidation.snapshot.quarantine.length} of ${tleData.length} records.`,
-                catalogValidation.quality.quarantine_reason_counts
-            );
-        }
-        tleData = catalogValidation.records;
-        console.info(
-            `TLE catalog ${catalogValidation.snapshot.status}: ${tleData.length} accepted, ` +
-            `${catalogValidation.snapshot.quarantine.length} quarantined.`
-        );
-        if (tleData.length === 0) {
+        catalogData = catalogValidation.records;
+        if (catalogData.length === 0) {
+            const error = new Error('GP and TLE catalogs contain no usable records; preserving the last known good satellite catalog.');
+            console.error(error.message);
+            if (options.throwOnFailure) throw error;
             return satellites;
         }
 
         const satIconFullUrl = getFullGitHubUrl('icons/ob_satellite.png', GITHUB_REPO_RAW_BASE_URL);
         let satMaterial = satelliteMaterialOverride;
 
-        if (satMaterial) {
-            // A material override keeps validation and processing independently testable.
-        } else if (!satIconFullUrl) {
+        if (!satMaterial && !satIconFullUrl) {
             console.error("3D Satellite icon path is null (check satelliteConfig.icon). Using placeholder material.");
-            // Create a very simple placeholder material if texture path is null
             const placeholderCanvas = document.createElement('canvas');
             placeholderCanvas.width = 32;
             placeholderCanvas.height = 32;
@@ -712,117 +1208,46 @@ export async function setupTLESatellites(scene, options = {}) {
             ctx.fillText('S', 16, 16);
             const placeholderTexture = new THREE.CanvasTexture(placeholderCanvas);
             satMaterial = new THREE.SpriteMaterial({map: placeholderTexture});
-        } else {
+        } else if (!satMaterial) {
             satMaterial = new THREE.SpriteMaterial({
                 map: textureLoader.load(satIconFullUrl,
-                    () => { /* onLoad */
+                    () => {
                         console.log("3D Satellite icon loaded from:", satIconFullUrl);
                     },
-                    undefined, // onProgress
-                    (err) => { // onError
+                    undefined,
+                    (err) => {
                         console.error('Error loading 3D satellite icon from:', satIconFullUrl, err, '. Using placeholder.');
-                        if (satMaterial) { // Ensure satMaterial exists
-                            const errorPlaceholderUrl = 'https://placehold.co/32x32/ff0000/ffffff?text=S_ERR';
-                            satMaterial.map = textureLoader.load(errorPlaceholderUrl); // Load placeholder
+                        if (satMaterial) {
+                            satMaterial.map = null;
+                            satMaterial.color?.set?.(0xff3333);
                             satMaterial.needsUpdate = true;
                         }
-                    })
+                })
             });
         }
-        const loadedSatellites = await processSatellites(scene, tleData, satMaterial, options);
+        if (!satelliteMaterialOverride) satMaterial.userData.openbexiOwned = true;
+        const loadedSatellites = await processSatellites(scene, catalogData, satMaterial, options);
         activeCatalogValidationSnapshot = catalogValidation.snapshot;
         activeCatalogQualitySummary = catalogValidation.quality;
+        activeCatalogKind = catalogKind;
         return loadedSatellites;
 
     } catch (err) {
-        console.error("Error in setupTLESatellites (fetching/processing TLEs):", err);
+        console.error("Error in setupTLESatellites (fetching/processing GP/TLE catalog):", err);
         const userMessage = "Error setting up satellite data. Some satellites may not display correctly. Check console for details.";
         const errorDiv = document.createElement('div');
         errorDiv.style.cssText = "position:fixed; top:10px; left:10px; padding:10px; background:orange; color:black; z-index:1000;";
         errorDiv.innerText = userMessage;
         document.body.appendChild(errorDiv);
         setTimeout(() => errorDiv.remove(), 7000);
-        await processSatellites(scene, [], null, options); // Attempt to continue with empty data
+        await processSatellites(scene, [], null, options);
+        if (options.throwOnFailure) throw err;
         return satellites;
     }
 }
 
+export const setupGPSatellites = setupTLESatellites;
+
 export function removeAllGeometry(scene) {
     clearOrbitLine(scene);
-    // Add removal for other types of geometry if needed
-}
-
-export function getOrbitECIPoints(tleLine1, tleLine2, startTime, endTime, timeStepMinutes, satelliteLib = globalThis.satellite) {
-    const satLib = getSatelliteLib(satelliteLib);
-    const satrec = satLib.twoline2satrec(tleLine1, tleLine2);
-
-    // Error handling for TLE parsing
-    if (!satrec) {
-        console.error("Error: Could not parse TLE data.");
-        // Depending on application flow, might return null, an empty array, or throw an error
-        return;
-    }
-    // Check for specific TLE parsing errors if satrec.error is populated by twoline2satrec
-    // (Note: satellite.js typically sets satrec.error during propagation, not always during parsing)
-
-    let orbitECIPoints = [];
-    let currentTime = new Date(startTime.getTime()); // Create a mutable copy of startTime
-
-    while (currentTime <= endTime) {
-        // Propagate to the current time to get ECI position and velocity
-        // The position is in ECI coordinates (TEME frame), in kilometers.
-        const positionAndVelocity = satLib.propagate(satrec, currentTime);
-
-        if (isUsableOrbitPosition(positionAndVelocity?.position)) {
-            // Add the ECI position object {x, y, z} to our array
-            orbitECIPoints.push(positionAndVelocity.position);
-        } else {
-            // Propagation might fail if, for example, the satellite has decayed
-            // satrec.error provides a numerical code for the error type
-            // (Refer to satellite.js documentation for SatRecError enum values)
-            let errorMessage = "Propagation failed";
-            if (satrec.error && satLib.SatRecError) { // Check if SatRecError enum exists
-                // Attempt to get a string representation if available (not standard in satellite.js)
-                // Or handle based on numeric satrec.error codes directly
-                switch (satrec.error) {
-                    case satLib.SatRecError.Ok: // Should not happen if positionAndVelocity is null/invalid
-                        errorMessage = "Propagation OK but no position data.";
-                        break;
-                    case satLib.SatRecError.MeanElements:
-                        errorMessage = "Propagation failed: Mean elements, check TLE.";
-                        break;
-                    case satLib.SatRecError.LockheedProp:
-                        errorMessage = "Propagation failed: Lockheed propagator error.";
-                        break;
-                    case satLib.SatRecError.NearSingular:
-                        errorMessage = "Propagation failed: Near singular elements.";
-                        break;
-                    case satLib.SatRecError.NoSupport:
-                        errorMessage = "Propagation failed: No support for this TLE.";
-                        break;
-                    case satLib.SatRecError.Recovered:
-                        errorMessage = "Propagation recovered but position might be suspect.";
-                        // Decide if to include this point or not
-                        break;
-                    case satLib.SatRecError.Decayed:
-                        errorMessage = `Satellite decayed at or before ${currentTime.toISOString()}. No further points will be generated.`;
-                        console.warn(errorMessage);
-                        // Optionally, break the loop if the satellite has decayed
-                        // and no further valid points can be generated.
-                        return orbitECIPoints; // Return points up to decay
-                    default:
-                        errorMessage = `Propagation failed with error code ${satrec.error}.`;
-                }
-            }
-            console.warn(`Warning for satellite defined by TLE starting with "${tleLine1.substring(0, 20)}..." at ${currentTime.toISOString()}: ${errorMessage}`);
-            // Depending on requirements, one might choose to break, continue, or push a null/special marker.
-            // For a continuous orbit line, it's often better to stop generating points after a persistent failure.
-        }
-
-        // Increment current time by the time step
-        currentTime.setMinutes(currentTime.getMinutes() + timeStepMinutes);
-    }
-
-    // Return the array of ECI coordinate points
-    return orbitECIPoints;
 }

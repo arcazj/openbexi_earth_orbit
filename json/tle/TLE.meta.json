@@ -1,0 +1,33 @@
+{
+  "fetched_at": "2026-08-23T17:42:02.137630Z",
+  "last_success_at": "2026-08-23T17:42:02.137630Z",
+  "last_attempt_at": "2026-08-23T19:27:11.532783Z",
+  "last_status": "not-modified",
+  "mode": "incremental",
+  "source_urls": [
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle"
+  ],
+  "celestrak_min_refresh_hours": 2.0,
+  "counts": {
+    "existing": 16517,
+    "fetched": 16063,
+    "added": 0,
+    "updated": 16063,
+    "retained": 454,
+    "rejected": 0,
+    "total": 16517,
+    "sidecar_added": 0,
+    "sidecar_updated": 0,
+    "satellite_launch_dates_updated": 0,
+    "orbit_reclassified": 0
+  },
+  "urls": {
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle": {
+      "status": 304,
+      "last_attempt_at": "2026-08-23T19:27:11.532783Z"
+    }
+  },
+  "catalog_revision": "sha256:380a9d31b7a8c3498c33dff6d23a2970d21647d4de6f4966ae7170cbba996d1f",
+  "dataset_hash": "sha256:380a9d31b7a8c3498c33dff6d23a2970d21647d4de6f4966ae7170cbba996d1f",
+  "last_local_enrichment_at": "2026-08-23T17:50:00Z"
+}

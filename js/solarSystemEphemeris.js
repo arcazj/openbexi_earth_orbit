@@ -21,7 +21,8 @@ export function createSolarSystemEphemerisState() {
         error: null,
         promise: null,
         lastMode: 'approximate visual fallback',
-        lastWarning: 'JPL-derived ephemeris has not loaded yet.'
+        lastWarning: 'JPL-derived ephemeris has not loaded yet.',
+        rangeBoundary: null
     };
 }
 
@@ -154,9 +155,12 @@ export function interpolateBodyVectorKm(ephemerisData, bodyKey, simDate) {
 }
 
 export function solarSystemScenePositionForBody(ephemerisData, bodyKey, simDate) {
+    const clampedDate = clampSolarSystemEphemerisDate(ephemerisData, simDate);
+    if (!clampedDate.date) return clampedDate;
+    const effectiveDate = clampedDate.date;
     if (bodyKey === 'moon') {
-        const earth = interpolateBodyVectorKm(ephemerisData, 'earth', simDate);
-        const moon = interpolateBodyVectorKm(ephemerisData, 'moon', simDate);
+        const earth = interpolateBodyVectorKm(ephemerisData, 'earth', effectiveDate);
+        const moon = interpolateBodyVectorKm(ephemerisData, 'moon', effectiveDate);
         if (earth.status !== 'ok') return earth;
         if (moon.status !== 'ok') return moon;
         const earthPosition = heliocentricVectorKmToScene(earth.vector);
@@ -172,16 +176,53 @@ export function solarSystemScenePositionForBody(ephemerisData, bodyKey, simDate)
             position: earthPosition.add(relativeScene),
             vectorKm: moon.vector,
             relativeToEarthKm: relativeKm,
-            mode: 'JPL-derived ephemeris'
+            mode: 'JPL-derived ephemeris',
+            boundary: clampedDate.boundary,
+            warning: clampedDate.warning,
+            effectiveDate
         };
     }
-    const result = interpolateBodyVectorKm(ephemerisData, bodyKey, simDate);
+    const result = interpolateBodyVectorKm(ephemerisData, bodyKey, effectiveDate);
     if (result.status !== 'ok') return result;
     return {
         status: 'ok',
         position: heliocentricVectorKmToScene(result.vector),
         vectorKm: result.vector,
-        mode: 'JPL-derived ephemeris'
+        mode: 'JPL-derived ephemeris',
+        boundary: clampedDate.boundary,
+        warning: clampedDate.warning,
+        effectiveDate
+    };
+}
+
+export function solarSystemEphemerisBounds(ephemerisData) {
+    const times = ephemerisData?.timeMs;
+    if (!Array.isArray(times) || times.length < 2) return null;
+    const minTimeMs = times[0];
+    const maxTimeMs = times[times.length - 1];
+    if (!Number.isFinite(minTimeMs) || !Number.isFinite(maxTimeMs) || minTimeMs > maxTimeMs) return null;
+    return { minTimeMs, maxTimeMs };
+}
+
+export function clampSolarSystemEphemerisDate(ephemerisData, simDate) {
+    const timeMs = simDate instanceof Date ? simDate.getTime() : Date.parse(simDate);
+    if (!Number.isFinite(timeMs)) {
+        return { status: 'invalid-date', boundary: null, warning: 'Invalid simulation date' };
+    }
+    const bounds = solarSystemEphemerisBounds(ephemerisData);
+    if (!bounds) {
+        return { status: 'unavailable', boundary: null, warning: 'Ephemeris date range is unavailable' };
+    }
+    const effectiveTimeMs = Math.min(bounds.maxTimeMs, Math.max(bounds.minTimeMs, timeMs));
+    const boundary = timeMs < bounds.minTimeMs ? 'start' : timeMs > bounds.maxTimeMs ? 'end' : null;
+    return {
+        status: boundary ? 'clamped' : 'ok',
+        boundary,
+        date: boundary || !(simDate instanceof Date) ? new Date(effectiveTimeMs) : simDate,
+        timeMs: effectiveTimeMs,
+        warning: boundary
+            ? `Simulation time was clamped to the ${boundary} of ${ephemerisDateRangeText(ephemerisData)}`
+            : ''
     };
 }
 
@@ -203,6 +244,9 @@ export function ephemerisDateRangeText(ephemerisData) {
 export function solarSystemEphemerisStatusText(state) {
     if (!state) return 'Ephemeris: approximate visual fallback';
     if (state.status === 'ready' && state.data) {
+        if (state.rangeBoundary && state.lastWarning) {
+            return `Ephemeris boundary: ${state.lastWarning}`;
+        }
         if (state.lastMode === 'approximate visual fallback' && state.lastWarning) {
             return `Ephemeris warning: ${state.lastWarning}; using approximate visual fallback`;
         }

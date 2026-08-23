@@ -21,6 +21,7 @@ import {
 } from '../js/domain/v21Contracts.js';
 import { createMultiFormatPropagationService } from '../js/orbit/multiFormatPropagationService.js';
 import { createTlePropagationService } from '../js/orbit/propagationService.js';
+import { prepareCatalogAdapterInput } from './orbital-catalog-input.mjs';
 
 const MAX_ENVELOPE_BYTES = 2 * 1024 * 1024;
 const MAX_CATALOG_BYTES = 100 * 1024 * 1024;
@@ -301,10 +302,15 @@ function adaptCatalog(bytes, revision) {
     };
     let adapted;
     try {
-        adapted = adaptOrbitalSource(sourceInput(bytes, revision.source_format), {
+        const prepared = prepareCatalogAdapterInput(
+            sourceInput(bytes, revision.source_format),
+            revision.source_format
+        );
+        adapted = adaptOrbitalSource(prepared.input, {
             format: revision.source_format,
             source,
-            limits: { max_input_bytes: MAX_CATALOG_BYTES }
+            limits: { max_input_bytes: MAX_CATALOG_BYTES },
+            ...(prepared.satcat_records ? { satcat_records: prepared.satcat_records } : {})
         });
     } catch (error) {
         if (error instanceof RunnerError) throw error;

@@ -23,12 +23,6 @@ function safeIdentifier(value) {
     return /^[A-Za-z0-9:._-]+$/.test(normalized) ? normalized : '';
 }
 
-function safeDebrisFilter(value, orbitTypeFilter = []) {
-    const orbitSelection = safeList(orbitTypeFilter).map(item => item.toUpperCase());
-    if (orbitSelection.includes('DEBRIS')) return 'only';
-    return value === 'only' ? 'only' : 'show';
-}
-
 export function buildShareState(simParams = {}, selectedSatellite = null, selectedConjunctionEvent = null) {
     const orbitTypeFilter = safeList(simParams.orbitTypeFilter);
     return {
@@ -46,7 +40,6 @@ export function buildShareState(simParams = {}, selectedSatellite = null, select
         viewMercator: !!simParams.viewMercator,
         orbitTypeFilter,
         companyFilter: safeList(simParams.companyFilter),
-        debrisFilter: safeDebrisFilter(simParams.debrisFilter, orbitTypeFilter),
         simDate: simParams.simDate instanceof Date
             ? simParams.simDate.toISOString()
             : (simParams.simDate ? new Date(simParams.simDate).toISOString() : ''),
@@ -79,7 +72,7 @@ export function encodeShareState(params, state) {
     params.set('mercator', boolValue(state.viewMercator));
     if (state.orbitTypeFilter?.length) params.set('orbit', state.orbitTypeFilter.join(','));
     if (state.companyFilter?.length) params.set('tags', state.companyFilter.join(','));
-    params.set('debris', safeDebrisFilter(state.debrisFilter, state.orbitTypeFilter));
+    params.delete('debris');
     if (state.simDate) params.set('time', state.simDate);
     params.set('showOrbit', boolValue(state.showOrbit));
     params.set('footprint', boolValue(state.showFootprint));
@@ -111,7 +104,10 @@ export function parseShareStateFromSearch(search = '') {
 
     const timeValue = params.get('time') || '';
     const time = timeValue ? new Date(timeValue) : null;
-    const orbitTypeFilter = safeList((params.get('orbit') || '').split(','));
+    const explicitOrbitTypeFilter = safeList((params.get('orbit') || '').split(','));
+    const orbitTypeFilter = explicitOrbitTypeFilter.length === 0 && params.get('debris') === 'only'
+        ? ['DEBRIS']
+        : explicitOrbitTypeFilter;
     return {
         selectedSatelliteNoradId: params.get('sat') || '',
         selectedSatelliteName: params.get('satName') || '',
@@ -121,7 +117,6 @@ export function parseShareStateFromSearch(search = '') {
         viewMercator: parseBool(params.get('mercator')),
         orbitTypeFilter,
         companyFilter: safeList((params.get('tags') || '').split(',')),
-        debrisFilter: safeDebrisFilter(params.get('debris'), orbitTypeFilter),
         simDate: time && !Number.isNaN(time.getTime()) ? time : null,
         showOrbit: parseBool(params.get('showOrbit')),
         showFootprint: parseBool(params.get('footprint')),

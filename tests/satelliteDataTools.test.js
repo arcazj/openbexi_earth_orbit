@@ -3,22 +3,10 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { spawnSync } from 'child_process';
+import { resolvePythonCommand } from '../scripts/python-discovery.mjs';
 
 function read(filePath) {
   return fs.readFileSync(filePath, 'utf8');
-}
-
-function findPython() {
-  const candidates = [
-    { command: 'py', prefix: ['-3'] },
-    { command: 'python', prefix: [] },
-    { command: 'python3', prefix: [] }
-  ];
-  for (const candidate of candidates) {
-    const result = spawnSync(candidate.command, [...candidate.prefix, '--version'], { encoding: 'utf8' });
-    if (!result.error && result.status === 0) return candidate;
-  }
-  return null;
 }
 
 function runPython(candidate, script, tempRoot) {
@@ -52,7 +40,7 @@ function run() {
   assert(!tool.includes('"http://celestrak.org/'), 'active CelesTrak source configuration contains no HTTP URLs');
   assert(tool.includes('HTTP_USER_AGENT = "OpenBEXI-Earth-Orbit/%s'), 'data fetches derive their client version from release metadata');
   assert(tool.includes('allow_n2yo: bool = False'), 'N2YO enrichment requires an explicit API opt-in');
-  assert(tool.includes('INCREMENTAL_TLE_GROUPS = ("active", "last-30-days")'), 'default TLE update uses optimized incremental groups');
+  assert(tool.includes('INCREMENTAL_TLE_GROUPS = ("active",)'), 'default TLE compatibility update uses one complete active-group request');
   assert(tool.includes('CELESTRAK_SATCAT_CSV_URL = "https://celestrak.org/pub/satcat.csv"'), 'tool knows the CelesTrak raw SATCAT CSV source');
   assert(tool.includes('CELESTRAK_MIN_REFRESH_HOURS = 2.0'), 'tool enforces a 2-hour CelesTrak refresh guard');
   assert(tool.includes('UPDATE_LOCK_RELATIVE_PATH'), 'tool defines a lock file for scheduled updates');
@@ -65,27 +53,55 @@ function run() {
   assert(tool.includes('If-Modified-Since'), 'tool sends conditional Last-Modified request headers');
   assert(tool.includes('merge_launch_date_sidecar_from_satcat'), 'incremental TLE updates can fill launch-date sidecars from SATCAT');
   assert(tool.includes('Decayed DB rebuild skipped; SATCAT source has not changed.'), 'unchanged SATCAT skips decayed rebuilds');
+  assert(tool.includes('GP_RELATIVE_PATH = Path("json") / "gp" / "GP.json"'), 'GP/OMM output has a format-correct path');
+  assert(tool.includes('GP_SOURCE_GROUPS = ("active",)'), 'GP export avoids overlapping group downloads');
+  assert(tool.includes('output_format="json"'), 'GP export requests CelesTrak JSON');
+  assert(tool.includes('def canonicalize_omm_record('), 'GP export canonicalizes OMM records');
+  assert(tool.includes('def load_gp_company_tag_enrichment('), 'GP export restores stable group tags from the compatibility catalog');
+  assert(tool.includes('def build_launch_catalog('), 'SATCAT launch events have an independent catalog builder');
+  assert(tool.includes('if launches_due:'), 'scheduled launch work has an independent due branch');
+  assert(!tool.includes('elif launches_due:'), 'scheduled decay work does not suppress due launch work');
+  assert(tool.includes('"parser_version": "2.2.0"'), 'GP metadata records the parser version');
 
   assert(server.includes('--update-data-on-schedule'), 'server exposes scheduled update opt-in flag');
   assert(server.includes('--no-data-update'), 'server exposes scheduled update disable flag');
   assert(server.includes('--data-update-interval-hours'), 'server exposes update interval control');
   assert(server.includes('maybe_update_satellite_data'), 'server imports the Python data update function directly');
   assert(server.includes('/api/data-update-status'), 'server exposes data update status endpoint');
+  assert(server.includes('/api/gp'), 'server exposes the GP/OMM catalog endpoint');
+  assert(server.includes('/api/launches'), 'server exposes the launch-event catalog endpoint');
+  assert(server.includes('catalog_revision'), 'server data health exposes the catalog revision');
   assert(server.includes('"state": "disabled"'), 'server data update scheduler is disabled by default');
 
   assert(readme.includes('tools/satellite_data_tools.py'), 'README documents the Python data tool');
-  assert(readme.includes('py tools/satellite_data_tools.py export-tle --all'), 'README documents standalone export-tle usage');
-  assert(readme.includes('py tools/satellite_data_tools.py refresh-satcat --force'), 'README documents SATCAT refresh usage');
-  assert(readme.includes('build-decayed-db --refresh-satcat --force'), 'README documents decayed rebuild with SATCAT refresh');
-  assert(readme.includes('fills or updates `json/tle/satellite_launch_dates.json`'), 'README documents incremental launch sidecar updates');
-  assert(readme.includes('If-None-Match'), 'README documents conditional SATCAT requests');
+  for (const command of [
+    'export-gp',
+    'export-tle',
+    'refresh-satcat',
+    'build-launches',
+    'build-decayed-db',
+    'maybe-update'
+  ]) {
+    assert(readme.includes(command), `README documents the ${command} subcommand`);
+  }
+  for (const option of [
+    '--root',
+    '--all',
+    '--force',
+    '--dry-run',
+    '--allow-space-track-fallback',
+    '--refresh-launch-dates',
+    '--refresh-satcat',
+    '--interval-hours'
+  ]) {
+    assert(readme.includes(option), `README documents the satellite data tool ${option} option`);
+  }
   assert(readme.includes('--update-data-on-schedule'), 'README documents scheduled server updates');
-  assert(readme.includes('CelesTrak is unavailable'), 'README documents CelesTrak fallback behavior');
   assert(integration.includes('Data Maintenance Tools'), 'integration plan includes data maintenance tests');
   assert(swagger.includes('/api/data-update-status'), 'SWAGGER.md documents data update status');
   assert(swaggerHtml.includes('/api/data-update-status'), 'swagger.html documents data update status');
 
-  const python = findPython();
+  const python = resolvePythonCommand();
   assert(python, 'Python runner is available for satellite data tool tests');
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'openbexi-data-tool-'));
   const script = `
@@ -111,11 +127,12 @@ def blocked_fetcher(url, headers=None):
     blocked_fetch_calls.append(url)
     raise AssertionError("non-HTTPS URL reached the fetcher")
 
-blocked_responses, blocked_errors = s.fetch_tle_sources(
+blocked_responses, blocked_not_modified, blocked_errors = s.fetch_tle_sources(
     ["http://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle"],
     fetcher=blocked_fetcher,
 )
 assert blocked_responses == []
+assert blocked_not_modified == []
 assert blocked_fetch_calls == []
 assert len(blocked_errors) == 1 and "non-HTTPS" in blocked_errors[0]
 try:
@@ -148,14 +165,195 @@ finally:
     s.request.urlopen = original_urlopen
 assert fetched.text == "fixture"
 assert captured_request["request"].get_header("User-agent") == s.HTTP_USER_AGENT
-assert "2.1.0" in s.HTTP_USER_AGENT
+assert "2.2.0" in s.HTTP_USER_AGENT
 
 all_args = s.build_parser().parse_args(["export-tle", "--all"])
 incremental_args = s.build_parser().parse_args(["export-tle"])
 explicit_n2yo_args = s.build_parser().parse_args(["export-tle", "--all", "--refresh-launch-dates"])
+gp_args = s.build_parser().parse_args(["export-gp", "--all", "--dry-run"])
+launch_args = s.build_parser().parse_args(["build-launches", "--dry-run"])
 assert all_args.refresh_launch_dates is False
 assert incremental_args.refresh_launch_dates is False
 assert explicit_n2yo_args.refresh_launch_dates is True
+assert gp_args.command == "export-gp" and gp_args.all is True and gp_args.dry_run is True
+assert launch_args.command == "build-launches" and launch_args.dry_run is True
+
+def omm(norad_id, epoch="2026-08-20T12:00:00Z", **overrides):
+    record = {
+        "OBJECT_NAME": f"OBJECT {norad_id}",
+        "OBJECT_ID": "2026-001A",
+        "EPOCH": epoch,
+        "MEAN_MOTION": 15.5,
+        "ECCENTRICITY": 0.001,
+        "INCLINATION": 51.6,
+        "RA_OF_ASC_NODE": 12.0,
+        "ARG_OF_PERICENTER": 13.0,
+        "MEAN_ANOMALY": 14.0,
+        "EPHEMERIS_TYPE": 0,
+        "NORAD_CAT_ID": norad_id,
+        "ELEMENT_SET_NO": 7,
+        "REV_AT_EPOCH": 42,
+        "BSTAR": 0.00001,
+        "MEAN_MOTION_DOT": 0.00002,
+        "MEAN_MOTION_DDOT": 0,
+        "OBJECT_TYPE": "PAYLOAD",
+    }
+    record.update(overrides)
+    return record
+
+for norad_id in (69999, 100000, "100001", 999999999):
+    canonical = s.canonicalize_omm_record(omm(norad_id))
+    assert canonical["NORAD_CAT_ID"] == str(norad_id)
+    assert canonical["CCSDS_OMM_VERS"] == "2.0"
+    assert canonical["CENTER_NAME"] == "EARTH"
+    assert canonical["REF_FRAME"] == "TEME"
+    assert canonical["TIME_SYSTEM"] == "UTC"
+    assert canonical["MEAN_ELEMENT_THEORY"] == "SGP4"
+    assert canonical["EPOCH"] == "2026-08-20T12:00:00.000Z"
+
+invalid_omm_records = (
+    omm(0),
+    omm("A0001"),
+    omm(100001, EPOCH="not-a-date"),
+    omm(100001, MEAN_MOTION="not-a-number"),
+    omm(100001, CENTER_NAME="MARS"),
+    omm(100001, REF_FRAME="GCRF"),
+    omm(100001, TIME_SYSTEM="TAI"),
+    omm(100001, MEAN_ELEMENT_THEORY="SDP4"),
+    omm(100001, EPHEMERIS_TYPE=1),
+)
+for invalid in invalid_omm_records:
+    try:
+        s.canonicalize_omm_record(invalid)
+    except s.SatelliteDataError:
+        pass
+    else:
+        raise AssertionError(f"invalid OMM record was accepted: {invalid}")
+
+gps = s.transform_satellite_omm_object(
+    omm(24876, MEAN_MOTION=2.0056, ECCENTRICITY=0.01, INCLINATION=55.0),
+    {},
+)
+geo = s.transform_satellite_omm_object(
+    omm(41866, MEAN_MOTION=1.0027, ECCENTRICITY=0.0002, INCLINATION=0.1),
+    {},
+)
+molniya = s.transform_satellite_omm_object(
+    omm(100003, MEAN_MOTION=2.0, ECCENTRICITY=0.7, INCLINATION=63.4),
+    {},
+)
+assert gps["orbit_class"] == "MEO"
+assert geo["orbit_class"] == "GEO"
+assert molniya["orbit_class"] == "HEO"
+
+satcat_text = (
+    "OBJECT_NAME,OBJECT_ID,NORAD_CAT_ID,OBJECT_TYPE,OPS_STATUS_CODE,LAUNCH_DATE,LAUNCH_SITE,DECAY_DATE\\n"
+    "NEW GP SAT,2026-001A,100001,PAY,+,2026-08-19,AFETR,\\n"
+    "TIMELINE ONLY,2026-002A,100401,PAY,+,2026-08-20,AFETR,\\n"
+    "ROCKET BODY,2026-002B,100402,R/B,D,2026-08-20,AFETR,2026-08-20\\n"
+)
+satcat_records = s.satcat_records_from_text(satcat_text)
+omm_response = s.FetchResponse(
+    url=s.make_celestrak_group_url("active", output_format="json"),
+    text=json.dumps([
+        omm(100001, "2026-08-19T00:00:00Z"),
+        omm(100001, "2026-08-20T00:00:00Z"),
+        omm(999999999),
+        omm(100002, REF_FRAME="GCRF"),
+    ]),
+    headers={"etag": "gp-etag", "last-modified": "Thu, 20 Aug 2026 12:00:00 GMT"},
+)
+omm_records, omm_counts, quarantine = s.build_satellites_from_omm_responses(
+    [("ACTIVE", omm_response)], satcat_records, existing=[], mode="all"
+)
+assert [record["norad_id"] for record in omm_records] == ["100001", "999999999"]
+assert omm_records[0]["satellite_name"] == "NEW GP SAT"
+assert omm_records[0]["launch_date"] == "2026-08-19"
+assert omm_records[0]["element_set"]["format"] == "OMM"
+assert omm_records[0]["element_set"]["omm"]["NORAD_CAT_ID"] == "100001"
+assert omm_records[0]["tle_line1"] is None and omm_records[0]["tle_line2"] is None
+assert omm_records[0]["element_set"]["epoch"] == "2026-08-20T00:00:00.000Z"
+assert omm_counts["duplicates"] == 1
+assert omm_counts["quarantined"] == 1
+assert omm_counts["six_digit_ids"] == 2
+assert len(quarantine) == 1 and "REF_FRAME" in quarantine[0]["reason"]
+
+gp_root = root / "gp"
+(gp_root / "json" / "gp").mkdir(parents=True)
+(gp_root / "json" / "tle").mkdir(parents=True)
+(gp_root / "json").mkdir(exist_ok=True)
+(gp_root / "json" / "satcat.csv").write_text(satcat_text, encoding="utf-8")
+(gp_root / "json" / "tle" / "TLE.json").write_text(
+    json.dumps([{"norad_id": "100001", "company": "STARLINK"}]),
+    encoding="utf-8",
+)
+(gp_root / "json" / "tle" / "TLE.meta.json").write_text(
+    json.dumps({"catalog_revision": "sha256:tle-tags"}),
+    encoding="utf-8",
+)
+gp_calls = []
+def gp_fetcher(url, headers=None):
+    gp_calls.append((url, headers or {}))
+    return s.FetchResponse(url=url, text=omm_response.text, headers=omm_response.headers)
+
+gp_export = s.export_gp_data(
+    root=gp_root,
+    mode="all",
+    force=True,
+    fetcher=gp_fetcher,
+    now=dt.datetime(2026, 8, 20, 13, 0, tzinfo=dt.timezone.utc),
+)
+assert gp_export.changed is True
+assert len(gp_calls) == 1 and "GROUP=active" in gp_calls[0][0] and "FORMAT=json" in gp_calls[0][0]
+gp_json_path = gp_root / "json" / "gp" / "GP.json"
+gp_meta_path = gp_root / "json" / "gp" / "GP.meta.json"
+written_gp = json.loads(gp_json_path.read_text(encoding="utf-8"))
+written_meta = json.loads(gp_meta_path.read_text(encoding="utf-8"))
+assert written_gp[0]["norad_id"] == "100001"
+assert written_gp[0]["company"] == "STARLINK"
+assert next(item for item in written_gp if item["norad_id"] == "999999999")["company"] == "ACTIVE"
+assert written_meta["schema_version"] == "2.2.0"
+assert written_meta["parser_version"] == "2.2.0"
+assert written_meta["source_format"] == "CCSDS_OMM_JSON"
+assert written_meta["catalog_revision"].startswith("sha256:")
+assert written_meta["dataset_hash"] == written_meta["catalog_revision"]
+assert written_meta["newest_orbital_epoch"] == "2026-08-20T12:00:00.000Z"
+assert written_meta["tag_enrichment"]["source"] == "json/tle/TLE.json"
+assert written_meta["tag_enrichment"]["matched_records"] == 1
+
+written_gp[0]["company"] = "ACTIVE"
+gp_json_path.write_text(json.dumps(written_gp), encoding="utf-8")
+no_fetch_calls = []
+def no_fetch(url, headers=None):
+    no_fetch_calls.append(url)
+    raise AssertionError("fresh local enrichment must not fetch the provider")
+local_enrichment = s.export_gp_data(
+    root=gp_root,
+    mode="incremental",
+    fetcher=no_fetch,
+    now=dt.datetime(2026, 8, 20, 13, 30, tzinfo=dt.timezone.utc),
+)
+assert local_enrichment.changed is True and local_enrichment.skipped is True
+assert no_fetch_calls == []
+locally_enriched_gp = json.loads(gp_json_path.read_text(encoding="utf-8"))
+assert locally_enriched_gp[0]["company"] == "STARLINK"
+
+previous_gp = gp_json_path.read_text(encoding="utf-8")
+def gp_404_fetcher(url, headers=None):
+    return s.FetchResponse(url=url, text="missing", status=404)
+failed_gp = s.export_gp_data(root=gp_root, mode="all", force=True, fetcher=gp_404_fetcher)
+assert failed_gp.skipped is True and failed_gp.errors
+assert gp_json_path.read_text(encoding="utf-8") == previous_gp
+failed_meta = json.loads(gp_meta_path.read_text(encoding="utf-8"))
+assert failed_meta["last_status"] == "failed"
+
+launch_result = s.build_launch_catalog(root=gp_root, now=dt.datetime(2026, 8, 20, tzinfo=dt.timezone.utc))
+launch_json = json.loads((gp_root / "json" / "launches" / "launches.json").read_text(encoding="utf-8"))
+timeline_only = next(item for item in launch_json if item["norad_id"] == "100401")
+assert launch_result.counts["records"] == 2
+assert all(item["norad_id"] != "100402" for item in launch_json)
+assert timeline_only["launch_date"] == "2026-08-20"
+assert timeline_only["details_only"] is True and timeline_only["orbit_available"] is False
 
 n2yo_calls = []
 def n2yo_fetcher(url, headers=None):
@@ -299,7 +497,28 @@ sidecar_launch_dates = json.loads((sidecar_root / "json" / "tle" / "satellite_la
 assert sidecar_launch_dates == [{"norad_id":"70001","name":"FRESH SAT","launch_date":"2026-06-01"}]
 sidecar_tle_json = json.loads((sidecar_root / "json" / "tle" / "TLE.json").read_text(encoding="utf-8"))
 assert sidecar_tle_json[0]["launch_date"] == "2026-06-01"
-assert all("GROUP=active" in call[0] or "GROUP=last-30-days" in call[0] for call in tle_fetch_calls)
+assert len(tle_fetch_calls) == 1 and "GROUP=active" in tle_fetch_calls[0][0]
+sidecar_tle_meta = json.loads((sidecar_root / "json" / "tle" / "TLE.meta.json").read_text(encoding="utf-8"))
+assert sidecar_tle_meta["catalog_revision"].startswith("sha256:")
+assert sidecar_tle_meta["dataset_hash"] == sidecar_tle_meta["catalog_revision"]
+
+def sidecar_not_modified_fetcher(url, headers=None):
+    assert (headers or {}).get("If-None-Match") == "tle-etag"
+    return s.FetchResponse(url=url, text="", status=304, headers={"etag":"tle-etag"}, not_modified=True)
+
+sidecar_not_modified = s.export_tle_data(
+    root=sidecar_root,
+    mode="incremental",
+    force=True,
+    fetcher=sidecar_not_modified_fetcher,
+    now=dt.datetime(2026, 6, 15, 13, 30, tzinfo=dt.timezone.utc),
+)
+assert sidecar_not_modified.skipped is True
+unchanged_tle_meta = json.loads((sidecar_root / "json" / "tle" / "TLE.meta.json").read_text(encoding="utf-8"))
+assert unchanged_tle_meta["last_status"] == "not-modified"
+assert unchanged_tle_meta["catalog_revision"] == sidecar_tle_meta["catalog_revision"]
+assert unchanged_tle_meta["dataset_hash"] == sidecar_tle_meta["dataset_hash"]
+assert unchanged_tle_meta["urls"][tle_fetch_calls[0][0]]["status"] == 304
 
 fresh_root = root / "fresh"
 (fresh_root / "json" / "decayed").mkdir(parents=True, exist_ok=True)

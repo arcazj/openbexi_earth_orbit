@@ -217,6 +217,51 @@ try {
   assert.equal(ommArtifact.snapshot_identity.source_format, 'CCSDS_OMM_JSON');
   assert.equal(ommArtifact.statistics.catalog_objects, 2);
 
+  const packagedOmmCatalog = ommCatalog.map((record, index) => {
+    const noradId = String(100001 + index);
+    const omm = {
+      ...record,
+      OBJECT_NAME: `PACKAGED-OMM-${index + 1}`,
+      OBJECT_ID: `2026-00${index + 1}A`,
+      NORAD_CAT_ID: noradId,
+      MEAN_ANOMALY: Number(record.MEAN_ANOMALY) + index
+    };
+    return {
+      name: omm.OBJECT_NAME,
+      satellite_name: omm.OBJECT_NAME,
+      object_id: `obx:norad:${noradId}`,
+      norad_id: noradId,
+      object_type: 'PAYLOAD',
+      lifecycle_status: 'ACTIVE',
+      orbit_class: 'LEO',
+      source_format: 'CCSDS_OMM_JSON',
+      tle_line1: null,
+      tle_line2: null,
+      element_set: {
+        format: 'OMM',
+        epoch: omm.EPOCH,
+        time_scale: 'UTC',
+        native_frame: 'TEME',
+        propagation_theory: 'SGP4',
+        omm
+      }
+    };
+  });
+  const packagedOmmFixture = createFixture(path.join(temporary, 'packaged-omm'), 'packaged-omm-job', {
+    catalog: packagedOmmCatalog,
+    sourceFormat: 'CCSDS_OMM_JSON',
+    objectIds: ['obx:norad:100001', 'obx:norad:100002'],
+    lifecycleStatuses: ['ACTIVE'],
+    startTime: '2019-06-05T12:12:58.000Z'
+  });
+  const packagedOmmRun = runRunner(packagedOmmFixture);
+  assert.equal(packagedOmmRun.status, 0, packagedOmmRun.stderr || packagedOmmRun.stdout);
+  const packagedOmmArtifact = JSON.parse(readFileSync(packagedOmmFixture.outputPath, 'utf8'));
+  assert.equal(packagedOmmArtifact.snapshot_identity.source_format, 'CCSDS_OMM_JSON');
+  assert.equal(packagedOmmArtifact.snapshot_identity.source_record_count, 2);
+  assert.equal(packagedOmmArtifact.snapshot_identity.scoped_record_count, 2);
+  assert.equal(packagedOmmArtifact.statistics.catalog_objects, 2);
+
   const providerCatalog = ['frame-a', 'frame-b'].map((providerObjectId, index) => ({
     name: `Provider ${providerObjectId}`,
     provider_object_id: providerObjectId,

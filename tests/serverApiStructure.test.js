@@ -14,6 +14,9 @@ function run() {
     '"/api/health"',
     '"/api/version"',
     '"/api/tle"',
+    '"/api/gp"',
+    '"/api/gp-metadata"',
+    '"/api/launches"',
     '"/api/satellites"',
     '"/api/satellite-metadata"',
     '"/api/display-satellite-models"',
@@ -36,6 +39,11 @@ function run() {
   assert(serverPy.includes('--no-data-update'), 'server.py exposes data update disable flag');
   assert(serverPy.includes('--data-update-interval-hours'), 'server.py exposes data update interval flag');
   assert(serverPy.includes('maybe_update_satellite_data'), 'server.py imports the data tool function directly');
+  assert(serverPy.includes('"data_revision": _composite_data_revision('), 'server.py exposes a deterministic composite data revision');
+  assert(serverPy.includes('"gp_revision": gp_revision'), 'server.py exposes the GP dataset revision');
+  assert(serverPy.includes('"launch_revision": launch_revision'), 'server.py exposes the launch dataset revision');
+  assert(serverPy.includes('"decay_revision": decay_revision'), 'server.py exposes the decay dataset revision');
+  assert((serverPy.match(/"\/api\/gp-metadata"/g) || []).length >= 2, 'GP metadata is present in routing and OpenAPI');
   assert(serverPy.includes('"state": "disabled"'), 'server.py keeps data updates disabled by default');
   assert(serverPy.includes('SwaggerUIBundle'), 'server docs page initializes Swagger UI when CDN is available');
   assert(serverPy.includes('.swagger-ui .opblock .opblock-summary-path'), 'server docs override Swagger route text contrast');
@@ -50,42 +58,23 @@ function run() {
     assert(fs.existsSync(iconPath), `${iconPath} exists`);
     assert(fs.readFileSync(iconPath, 'utf8').includes('<svg'), `${iconPath} is an SVG icon`);
   });
-  assert(readme.includes('py server.py --host 127.0.0.1 --port 8000'), 'README documents Python server startup');
-  assert(readme.includes('Version 1.5.21 makes the right-side selected-satellite data and TLE sections collapsible'), 'README documents Version 1.5.21 UI changes');
-  assert(readme.includes('Version 1.5.22 keeps the Earth-centered scene frame fixed'), 'README documents Version 1.5.22 Earth/Moon camera changes');
-  assert(readme.includes('Version 1.5.23 adds `Mars` to `Other Selections`'), 'README documents Version 1.5.23 Mars changes');
-  assert(readme.includes('Version 1.6 adds an optional `Stars & Milky Way` checkbox'), 'README documents Version 1.6 Stars & Milky Way changes');
-  assert(readme.includes('Version 1.6.1 removes the integrated main-app `Magnitude limit` slider'), 'README documents Version 1.6.1 star catalog changes');
-  assert(readme.includes('Version 1.6.2 integrates `Solar System Overview`'), 'README documents Version 1.6.2 Solar System integration');
-  assert(readme.includes('Version 1.7 upgrades Solar System textures and uses bundled JPL-derived ephemeris data'), 'README documents Version 1.7 ephemeris and texture changes');
-  assert(readme.includes('Version 1.7.1 consolidates satellite filters into `Satellites Selection - Found`'), 'README documents Version 1.7.1 menu consolidation');
-  assert(readme.includes('Version 1.7.2 moves `Debris` into the orbit/category row'), 'README documents Version 1.7.2 menu changes');
-  assert(readme.includes('Version 1.7.3 corrects 3D `Show Orbit`'), 'README documents Version 1.7.3 orbit changes');
-  assert(readme.includes('Version 1.7.4 replaces the legacy Java satellite data maintenance workflows'), 'README documents Version 1.7.4 data tool changes');
-  assert(readme.includes('Version 1.7.5 refreshes the Launch and Re-entry timelines'), 'README documents Version 1.7.5 timeline freshness changes');
-  assert(readme.includes('Version 1.7.6 fixes timeline data freshness'), 'README documents Version 1.7.6 timeline/data fixes');
-  assert(readme.includes('tools/satellite_data_tools.py'), 'README documents the Python data tool');
-  assert(readme.includes('--update-data-on-schedule'), 'README documents scheduled update opt-in');
-  assert(readme.includes('/api/data-update-status'), 'README documents the data update status API');
-  assert(readme.includes('/api/display-satellite-models'), 'README documents the display satellite model manifest API');
-  assert(readme.includes('swagger.html'), 'README documents the local standard Swagger UI page');
-  assert(readme.includes('SWAGGER.md'), 'README documents the local Swagger Markdown companion');
-  assert(readme.includes('markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API'), 'README documents static Swagger Markdown companion rendering');
-  assert(readme.includes('displays all 46 bundled reference stars'), 'README documents the bundled star count');
-  assert(readme.includes('textures/March.jpg'), 'README documents the local Mars texture path');
-  assert(readme.includes('Mars texture loading is silent during initial `index.html` launch while Earth is active'), 'README documents silent Mars texture loading on launch');
-  assert(readme.includes('the app shows a centered progress bar labeled `Loading Mars map/texture...`'), 'README documents centered Mars texture loading progress after selection');
-  assert(readme.includes('shows a short confirmation state if the texture already loaded silently before selection'), 'README documents already-loaded Mars selection feedback');
-  assert(readme.includes('keeps it visible long enough for fast cached/local loads to be seen'), 'README documents minimum Mars loading visibility');
-  assert(readme.includes('Mars context also switches the Mercator background to the shared Mars texture'), 'README documents Mars Mercator map behavior');
-  assert(readme.includes('textures/March_8k.jpg'), 'README documents the optimized Mars runtime texture path');
-  assert(readme.includes('source/license to be confirmed'), 'README documents Mars texture provenance limitation');
-  assert(readme.includes('TEME-like coordinates'), 'README documents TEME-as-ECI visualization approximation');
-  assert(readme.includes('README and Releases History open through `markdown_viewer.html`'), 'README documents separate-page Markdown rendering');
-  assert(readme.includes('SolarSystemOverview.html'), 'README documents the standalone Solar System Overview page');
-  assert(readme.includes('The main app also integrates Solar System Overview starting in Version 1.6.2'), 'README documents SolarSystemOverview is now integrated while standalone remains available');
-  assert(readme.includes('data/ephemeris/solar_system_jpl_horizons_2020_2035_6h.json'), 'README documents the local JPL-derived ephemeris file');
-  assert(readme.includes('SSL_1300.glb` resolves only for `INTELSAT 20 (IS-20)` and `INTELSAT 18 (IS-18)`'), 'README documents SSL_1300 IS-20/IS-18 gating');
+  [
+    ['## API', 'README includes the compact API section'],
+    ['py server.py --host 127.0.0.1 --port 8000', 'README documents Python server startup'],
+    ['[Static Swagger UI](swagger.html)', 'README links the static Swagger UI'],
+    ['[API reference](SWAGGER.md)', 'README links the static API reference'],
+    ['markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API', 'README links the rendered API reference'],
+    ['/api/gp', 'README documents the primary GP API'],
+    ['/api/gp-metadata', 'README documents GP metadata'],
+    ['/api/launches', 'README documents launch events'],
+    ['/api/data-update-status', 'README documents data health'],
+    ['/api/display-satellite-models', 'README documents the model manifest'],
+    ['Deprecated, reduced-coverage TLE compatibility catalog', 'README labels the TLE API as deprecated'],
+    ['tools/satellite_data_tools.py', 'README documents the Python data tool'],
+    ['--update-data-on-schedule', 'README documents scheduled update opt-in']
+  ].forEach(([text, message]) => {
+    assert(readme.includes(text), message);
+  });
   assert(readme.includes('LICENSE.md'), 'README documents the Markdown license file');
   assert(fs.existsSync('LICENSE.md'), 'LICENSE.md exists for the Help Licenses action');
   assert(markdownViewer.includes('ALLOWED_MARKDOWN_SOURCES'), 'Markdown viewer restricts renderable sources');

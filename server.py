@@ -67,6 +67,10 @@ STATIC_PREFIX_SUFFIX_ALLOWLIST = (
 STATIC_JSON_FILE_ALLOWLIST = frozenset(
     {
         ("json", "decayed", "decayed.json"),
+        ("json", "gp", "gp.json"),
+        ("json", "gp", "gp.meta.json"),
+        ("json", "launches", "launches.json"),
+        ("json", "launches", "launches.meta.json"),
         ("json", "tle", "tle.json"),
         ("json", "tle", "tle.meta.json"),
     }
@@ -150,7 +154,116 @@ def _set_data_update_status(**updates: object) -> None:
 
 def _data_update_status_snapshot() -> dict[str, object]:
     with DATA_UPDATE_STATUS_LOCK:
-        return dict(DATA_UPDATE_STATUS)
+        snapshot = dict(DATA_UPDATE_STATUS)
+    health = _catalog_data_health(ROOT)
+    if not snapshot.get("last_error"):
+        snapshot["last_error"] = health.get("last_error")
+    snapshot.update({key: value for key, value in health.items() if key != "last_error"})
+    return snapshot
+
+
+def _load_metadata(path: Path) -> dict[str, object]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _metadata_count(meta: dict[str, object], *names: str) -> int:
+    counts = meta.get("counts")
+    if not isinstance(counts, dict):
+        return 0
+    for name in names:
+        value = counts.get(name)
+        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+            return value
+    return 0
+
+
+def _metadata_revision(meta: dict[str, object]) -> str | None:
+    for name in ("catalog_revision", "dataset_hash"):
+        value = meta.get(name)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+def _composite_data_revision(*, gp: str | None, launch: str | None, decay: str | None) -> str:
+    components = {
+        "decay_revision": decay,
+        "gp_revision": gp,
+        "launch_revision": launch,
+    }
+    canonical = json.dumps(components, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return f"sha256:{hashlib.sha256(canonical).hexdigest()}"
+
+
+def _catalog_artifact_available(path: Path) -> bool:
+    try:
+        return path.is_file() and path.stat().st_size > 2
+    except OSError:
+        return False
+
+
+def _catalog_data_health(root: Path) -> dict[str, object]:
+    gp_meta = _load_metadata(root / "json" / "gp" / "GP.meta.json")
+    launch_meta = _load_metadata(root / "json" / "launches" / "launches.meta.json")
+    decay_meta = _load_metadata(root / "json" / "decayed" / "decayed.meta.json")
+    satcat_meta = _load_metadata(root / "json" / "satcat.meta.json")
+    tle_meta = _load_metadata(root / "json" / "tle" / "TLE.meta.json")
+    primary_errors = [
+        meta.get("last_error")
+        for meta in (gp_meta, satcat_meta, launch_meta, decay_meta)
+        if isinstance(meta.get("last_error"), str) and str(meta.get("last_error")).strip()
+    ]
+    primary_statuses = {
+        str(meta.get("last_status") or "unknown").lower()
+        for meta in (gp_meta, launch_meta, decay_meta)
+        if meta
+    }
+    if not gp_meta:
+        catalog_state = (
+            "fallback-tle"
+            if _catalog_artifact_available(root / "json" / "tle" / "TLE.json")
+            else "unavailable"
+        )
+    elif primary_errors or primary_statuses.intersection({"failed", "partial"}):
+        catalog_state = "degraded"
+    elif str(gp_meta.get("source_status") or "").upper() == "PARTIAL" or gp_meta.get("partial_update") is True:
+        catalog_state = "partial"
+    else:
+        catalog_state = "current"
+    gp_revision = _metadata_revision(gp_meta)
+    launch_revision = _metadata_revision(launch_meta)
+    decay_revision = _metadata_revision(decay_meta)
+    return {
+        "catalog_state": catalog_state,
+        "catalog_source_status": gp_meta.get("source_status"),
+        "data_revision": _composite_data_revision(
+            gp=gp_revision,
+            launch=launch_revision,
+            decay=decay_revision,
+        ),
+        "catalog_revision": gp_revision,
+        "gp_revision": gp_revision,
+        "launch_revision": launch_revision,
+        "decay_revision": decay_revision,
+        "datasets": {
+            "gp": {"revision": gp_revision},
+            "launch": {"revision": launch_revision},
+            "decay": {"revision": decay_revision},
+        },
+        "retrieval_timestamp": gp_meta.get("retrieval_timestamp") or gp_meta.get("fetched_at") or satcat_meta.get("fetched_at"),
+        "newest_orbital_epoch": gp_meta.get("newest_orbital_epoch"),
+        "newest_launch_date": launch_meta.get("newest_launch_date") or gp_meta.get("newest_launch_date"),
+        "newest_confirmed_decay_date": decay_meta.get("newest_confirmed_decay_date"),
+        "tle_count": _metadata_count(tle_meta, "total", "records"),
+        "omm_count": _metadata_count(gp_meta, "omm", "total"),
+        "six_digit_id_count": _metadata_count(gp_meta, "six_digit_ids"),
+        "quarantined_count": _metadata_count(gp_meta, "quarantined"),
+        "last_error": primary_errors[0] if primary_errors else None,
+    }
 
 
 def _json_bytes(payload: object) -> bytes:
@@ -189,6 +302,13 @@ def _safe_json_file(path: Path) -> bytes:
     if not resolved.is_file() or ROOT not in resolved.parents:
         raise FileNotFoundError(path)
     return resolved.read_bytes()
+
+
+def _preferred_catalog_path(root: Path = ROOT) -> Path:
+    gp_path = root / "json" / "gp" / "GP.json"
+    if _catalog_artifact_available(gp_path):
+        return gp_path
+    return root / "json" / "tle" / "TLE.json"
 
 
 def _decode_request_path(raw_path: str) -> str | None:
@@ -520,7 +640,7 @@ class DataUpdateScheduler:
                 last_finished_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             )
             return
-        state = "skipped" if result.get("skipped") else "succeeded"
+        state = "degraded" if result.get("degraded") else ("skipped" if result.get("skipped") else "succeeded")
         registration_error = None
         if state == "succeeded" and self.on_updated is not None:
             try:
@@ -694,7 +814,7 @@ def _openapi_document(host: str) -> dict[str, object]:
             "x-application-version": APP_VERSION,
             "description": (
                 "Local API for OpenBEXI Earth Orbit satellite data, "
-                "TLE data, metadata, and health/status checks."
+                "GP/OMM and legacy TLE data, metadata, and health/status checks."
             ),
         },
         "servers": [{"url": f"http://{host}"}],
@@ -723,7 +843,7 @@ def _openapi_document(host: str) -> dict[str, object]:
             },
             "/api/tle": {
                 "get": {
-                    "summary": "Load the TLE dataset used by the frontend",
+                    "summary": "Load the deprecated compatibility TLE dataset",
                     "responses": {
                         "200": {
                             "description": "TLE satellite records",
@@ -732,9 +852,33 @@ def _openapi_document(host: str) -> dict[str, object]:
                     },
                 }
             },
+            "/api/gp": {
+                "get": {
+                    "summary": "Load the primary CelesTrak GP/OMM dataset",
+                    "responses": {
+                        "200": {
+                            "description": "GP/OMM satellite records",
+                            "content": {"application/json": {"schema": json_array_schema}},
+                        },
+                        "404": {"description": "GP/OMM catalog has not been exported yet"},
+                    },
+                }
+            },
+            "/api/gp-metadata": {
+                "get": {
+                    "summary": "Load primary GP/OMM catalog metadata",
+                    "responses": {
+                        "200": {
+                            "description": "GP/OMM source, revision, freshness, and normalization metadata",
+                            "content": {"application/json": {"schema": json_object_schema}},
+                        },
+                        "404": {"description": "GP/OMM metadata has not been exported yet"},
+                    },
+                }
+            },
             "/api/satellites": {
                 "get": {
-                    "summary": "Alias for the current satellite/TLE dataset",
+                    "summary": "Load the preferred GP/OMM catalog with legacy TLE fallback",
                     "responses": {
                         "200": {
                             "description": "Satellite records",
@@ -822,6 +966,18 @@ def _openapi_document(host: str) -> dict[str, object]:
                 "get": {
                     "summary": "Swagger/OpenAPI documentation page",
                     "responses": {"200": {"description": "HTML documentation"}},
+                }
+            },
+            "/api/launches": {
+                "get": {
+                    "summary": "Load SATCAT-backed launch timeline records",
+                    "responses": {
+                        "200": {
+                            "description": "Normalized launch event records",
+                            "content": {"application/json": {"schema": json_array_schema}},
+                        },
+                        "404": {"description": "Launch catalog has not been built yet"},
+                    },
                 }
             },
             **_openapi_v1_paths(json_object_schema),
@@ -1128,8 +1284,20 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
                     head_only=head_only,
                 )
                 return True
-            if path in {"/api/tle", "/api/satellites"}:
+            if path == "/api/gp":
+                self._send_json_file(ROOT / "json" / "gp" / "GP.json", head_only=head_only)
+                return True
+            if path == "/api/gp-metadata":
+                self._send_json_file(ROOT / "json" / "gp" / "GP.meta.json", head_only=head_only)
+                return True
+            if path == "/api/tle":
                 self._send_json_file(ROOT / "json" / "tle" / "TLE.json", head_only=head_only)
+                return True
+            if path == "/api/satellites":
+                self._send_json_file(_preferred_catalog_path(), head_only=head_only)
+                return True
+            if path == "/api/launches":
+                self._send_json_file(ROOT / "json" / "launches" / "launches.json", head_only=head_only)
                 return True
             if path == "/api/satellite-metadata":
                 self._send_json(
@@ -1239,7 +1407,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--update-data-on-schedule",
         action="store_true",
-        help="Enable background TLE/decayed-data updates after freshness checks.",
+        help="Enable background GP/OMM, launch, and decay data updates after freshness checks.",
     )
     parser.add_argument(
         "--no-data-update",

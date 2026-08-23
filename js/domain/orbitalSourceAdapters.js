@@ -20,7 +20,7 @@ import {
 } from './orbitalPolicy.js';
 import { ORBITAL_SOURCE_FORMAT, V21_SCHEMA_VERSION } from './v21Contracts.js';
 
-export const ORBITAL_SOURCE_ADAPTER_VERSION = '2.1.0';
+export const ORBITAL_SOURCE_ADAPTER_VERSION = '2.2.0';
 
 export const ORBITAL_SOURCE_LIMITS = Object.freeze({
     max_input_bytes: 32 * 1024 * 1024,

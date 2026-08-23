@@ -13,6 +13,8 @@ import calendar
 import contextlib
 import csv
 import datetime as dt
+import hashlib
+import io
 import json
 import math
 import os
@@ -51,6 +53,10 @@ HTTP_USER_AGENT = "OpenBEXI-Earth-Orbit/%s (Experimental; non-operational)" % _r
 TLE_RELATIVE_PATH = Path("json") / "tle" / "TLE.json"
 TLE_META_RELATIVE_PATH = Path("json") / "tle" / "TLE.meta.json"
 LAUNCH_DATES_RELATIVE_PATH = Path("json") / "tle" / "satellite_launch_dates.json"
+GP_RELATIVE_PATH = Path("json") / "gp" / "GP.json"
+GP_META_RELATIVE_PATH = Path("json") / "gp" / "GP.meta.json"
+LAUNCHES_RELATIVE_PATH = Path("json") / "launches" / "launches.json"
+LAUNCHES_META_RELATIVE_PATH = Path("json") / "launches" / "launches.meta.json"
 SATCAT_RELATIVE_PATH = Path("json") / "satcat.csv"
 SATCAT_META_RELATIVE_PATH = Path("json") / "satcat.meta.json"
 DECAYED_RELATIVE_PATH = Path("json") / "decayed" / "decayed.json"
@@ -114,7 +120,42 @@ LEGACY_TLE_SOURCE_URLS = [
     "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle",
 ]
 
-INCREMENTAL_TLE_GROUPS = ("active", "last-30-days")
+INCREMENTAL_TLE_GROUPS = ("active",)
+
+# The active GP group is a complete current propagatable catalog. Fetching it
+# once avoids the extensive overlap and duplicate traffic of the legacy TLE
+# group list while supporting numeric catalog identifiers through nine digits.
+GP_SOURCE_GROUPS = ("active",)
+
+PLACEHOLDER_COMPANY_TAGS = {
+    "",
+    "ACTIVE",
+    "CELESTRAK",
+    "LAST-30-DAYS",
+    "N/A",
+    "NO DATA",
+    "UNKNOWN",
+}
+
+OMM_DEFAULTS = {
+    "CCSDS_OMM_VERS": "2.0",
+    "CENTER_NAME": "EARTH",
+    "REF_FRAME": "TEME",
+    "TIME_SYSTEM": "UTC",
+    "MEAN_ELEMENT_THEORY": "SGP4",
+}
+OMM_REQUIRED_NUMBERS = {
+    "MEAN_MOTION": (0.0, 25.0, True),
+    "ECCENTRICITY": (0.0, 1.0, False),
+    "INCLINATION": (0.0, 180.0, False),
+    "RA_OF_ASC_NODE": (None, None, False),
+    "ARG_OF_PERICENTER": (None, None, False),
+    "MEAN_ANOMALY": (None, None, False),
+    "BSTAR": (None, None, False),
+    "MEAN_MOTION_DOT": (None, None, False),
+    "MEAN_MOTION_DDOT": (None, None, False),
+}
+OMM_INTEGER_FIELDS = ("EPHEMERIS_TYPE", "ELEMENT_SET_NO", "REV_AT_EPOCH")
 DECAYED_COLUMNS = (
     "OBJECT_NAME",
     "OBJECT_ID",
@@ -189,6 +230,21 @@ def parse_iso_datetime(value: object) -> dt.datetime | None:
 
 def repo_path(root: Path | str, relative: Path) -> Path:
     return Path(root).resolve() / relative
+
+
+def update_result_for_metadata(result: UpdateResult, root: Path | str) -> dict[str, object]:
+    """Serialize an update result without exposing host-specific repository paths."""
+
+    root_path = Path(root).resolve()
+    payload = result.to_dict()
+    relative_paths: dict[str, str] = {}
+    for name, raw_path in result.paths.items():
+        try:
+            relative_paths[name] = Path(raw_path).resolve().relative_to(root_path).as_posix()
+        except (OSError, ValueError):
+            relative_paths[name] = raw_path
+    payload["paths"] = relative_paths
+    return payload
 
 
 def default_repo_root() -> Path:
@@ -422,18 +478,289 @@ def determine_orbit(metrics: dict[str, object]) -> str:
     if not isinstance(mean_motion, (int, float)):
         return "no data"
     eccentricity = metrics.get("eccentricity") if isinstance(metrics.get("eccentricity"), (int, float)) else 0.0
+    inclination_deg = metrics.get("inclination_deg") if isinstance(metrics.get("inclination_deg"), (int, float)) else 0.0
+    period_min = metrics.get("period_min") if isinstance(metrics.get("period_min"), (int, float)) else MINUTES_PER_DAY / mean_motion
+    altitude_km = metrics.get("estimated_altitude_km") if isinstance(metrics.get("estimated_altitude_km"), (int, float)) else math.nan
     perigee_km = metrics.get("perigee_km") if isinstance(metrics.get("perigee_km"), (int, float)) else math.nan
     apogee_km = metrics.get("apogee_km") if isinstance(metrics.get("apogee_km"), (int, float)) else math.nan
 
     if math.isfinite(perigee_km) and perigee_km < 120:
         return "DECAYING"
-    if eccentricity > 0.25 or (math.isfinite(apogee_km) and apogee_km > 50000):
-        return "HEO"
-    if mean_motion < 2.5:
+
+    is_near_geo_period = abs(period_min - 1436.1) <= 90.0
+    is_near_geo_inclination = abs(inclination_deg) <= 15.0
+    is_near_circular = eccentricity < 0.08
+    if is_near_geo_period and is_near_geo_inclination and is_near_circular:
         return "GEO"
+
+    is_molniya_like = (
+        600.0 <= period_min <= 900.0
+        and 50.0 <= abs(inclination_deg) <= 75.0
+        and eccentricity >= 0.1
+    )
+    is_highly_eccentric = eccentricity >= 0.25
+    is_long_elliptical = eccentricity >= 0.12 and period_min > 225.0
+    if is_highly_eccentric or is_molniya_like or is_long_elliptical:
+        return "HEO"
+
+    if math.isfinite(altitude_km):
+        if altitude_km < 2000.0:
+            return "LEO"
+        if altitude_km < 35786.0:
+            return "MEO"
+        return "OTHER"
+
     if mean_motion > 11.0:
         return "LEO"
-    return "MEO"
+    if 2.5 <= mean_motion <= 11.0:
+        return "MEO"
+    return "OTHER"
+
+
+def normalize_norad_id(value: object) -> str:
+    """Return a numeric NORAD identifier without TLE-width truncation."""
+
+    if isinstance(value, bool) or value is None:
+        raise SatelliteDataError("NORAD_CAT_ID must be a numeric catalog identifier.")
+    if isinstance(value, int):
+        text = str(value)
+    elif isinstance(value, float):
+        if not math.isfinite(value) or not value.is_integer():
+            raise SatelliteDataError("NORAD_CAT_ID must be an integer.")
+        text = str(int(value))
+    else:
+        text = str(value).strip()
+    if not re.fullmatch(r"\d{1,9}", text):
+        raise SatelliteDataError(f"Invalid numeric NORAD_CAT_ID: {text or '<empty>'}")
+    normalized = text.lstrip("0") or "0"
+    if normalized == "0":
+        raise SatelliteDataError("NORAD_CAT_ID must be positive.")
+    return normalized
+
+
+def normalize_omm_epoch(value: object) -> str:
+    text = str(value or "").strip()
+    if not text or "T" not in text.upper():
+        raise SatelliteDataError("OMM EPOCH must be an ISO-8601 date-time.")
+    parsed = parse_iso_datetime(text)
+    if parsed is None:
+        raise SatelliteDataError(f"Invalid OMM EPOCH: {text}")
+    return parsed.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def _finite_omm_number(
+    value: object,
+    field_name: str,
+    minimum: float | None,
+    maximum: float | None,
+    exclusive_minimum: bool = False,
+    exclusive_maximum: bool = False,
+) -> float:
+    if isinstance(value, bool):
+        raise SatelliteDataError(f"OMM {field_name} must be numeric.")
+    try:
+        number = float(value)
+    except (TypeError, ValueError) as exc:
+        raise SatelliteDataError(f"OMM {field_name} must be numeric.") from exc
+    if not math.isfinite(number):
+        raise SatelliteDataError(f"OMM {field_name} must be finite.")
+    if minimum is not None and (number <= minimum if exclusive_minimum else number < minimum):
+        raise SatelliteDataError(f"OMM {field_name} is below its supported range.")
+    if maximum is not None and (number >= maximum if exclusive_maximum else number > maximum):
+        raise SatelliteDataError(f"OMM {field_name} is above its supported range.")
+    return number
+
+
+def canonicalize_omm_record(record: object) -> dict[str, object]:
+    """Validate one CelesTrak JSON record and return canonical OMM fields."""
+
+    if not isinstance(record, dict):
+        raise SatelliteDataError("OMM catalog rows must be JSON objects.")
+    fields: dict[str, object] = {}
+    for raw_key, raw_value in record.items():
+        key = str(raw_key).strip().upper()
+        if not key:
+            raise SatelliteDataError("OMM field names cannot be empty.")
+        if key in fields:
+            raise SatelliteDataError(f"Duplicate OMM field after normalization: {key}")
+        if isinstance(raw_value, (dict, list, bool)):
+            raise SatelliteDataError(f"OMM {key} must be a scalar value.")
+        if isinstance(raw_value, float) and not math.isfinite(raw_value):
+            raise SatelliteDataError(f"OMM {key} must be finite.")
+        fields[key] = raw_value
+
+    for key, default in OMM_DEFAULTS.items():
+        if fields.get(key) in (None, ""):
+            fields[key] = default
+
+    version = str(fields["CCSDS_OMM_VERS"]).strip()
+    if not re.fullmatch(r"2(?:\.\d+)?", version):
+        raise SatelliteDataError(f"Unsupported CCSDS OMM version: {version}")
+    fields["CCSDS_OMM_VERS"] = version
+    for key, expected in (
+        ("CENTER_NAME", "EARTH"),
+        ("REF_FRAME", "TEME"),
+        ("TIME_SYSTEM", "UTC"),
+        ("MEAN_ELEMENT_THEORY", "SGP4"),
+    ):
+        actual = str(fields[key]).strip().upper()
+        if actual != expected:
+            raise SatelliteDataError(f"Unsupported OMM {key}: {actual or '<empty>'}")
+        fields[key] = expected
+
+    name = str(fields.get("OBJECT_NAME") or "").strip()
+    if not name:
+        raise SatelliteDataError("OMM OBJECT_NAME is required.")
+    fields["OBJECT_NAME"] = name
+    fields["NORAD_CAT_ID"] = normalize_norad_id(fields.get("NORAD_CAT_ID"))
+    fields["EPOCH"] = normalize_omm_epoch(fields.get("EPOCH"))
+
+    for key, (minimum, maximum, exclusive_minimum) in OMM_REQUIRED_NUMBERS.items():
+        fields[key] = _finite_omm_number(
+            fields.get(key),
+            key,
+            minimum,
+            maximum,
+            exclusive_minimum=exclusive_minimum,
+            exclusive_maximum=(key == "ECCENTRICITY"),
+        )
+
+    ephemeris_type = fields.get("EPHEMERIS_TYPE", 0)
+    for key in OMM_INTEGER_FIELDS:
+        if key not in fields and key != "EPHEMERIS_TYPE":
+            continue
+        number = _finite_omm_number(fields.get(key, ephemeris_type), key, 0.0, None)
+        if not number.is_integer():
+            raise SatelliteDataError(f"OMM {key} must be an integer.")
+        fields[key] = int(number)
+    if fields["EPHEMERIS_TYPE"] != 0:
+        raise SatelliteDataError("Only OMM EPHEMERIS_TYPE 0 is supported.")
+
+    for key in ("OBJECT_ID", "OBJECT_TYPE", "CLASSIFICATION_TYPE", "ORIGINATOR", "CREATION_DATE"):
+        if key in fields and fields[key] is not None:
+            fields[key] = str(fields[key]).strip()
+    return fields
+
+
+def extract_orbit_metrics_from_omm(omm: dict[str, object]) -> dict[str, float]:
+    metrics: dict[str, float] = {
+        "inclination_deg": float(omm["INCLINATION"]),
+        "eccentricity": float(omm["ECCENTRICITY"]),
+        "mean_motion_rev_per_day": float(omm["MEAN_MOTION"]),
+    }
+    mean_motion = metrics["mean_motion_rev_per_day"]
+    eccentricity = metrics["eccentricity"]
+    period_min = MINUTES_PER_DAY / mean_motion
+    mean_motion_rad_per_sec = mean_motion * 2.0 * math.pi / 86400.0
+    semi_major_axis_km = (EARTH_MU_KM3_S2 / (mean_motion_rad_per_sec * mean_motion_rad_per_sec)) ** (1.0 / 3.0)
+    perigee_km = semi_major_axis_km * (1.0 - eccentricity) - EARTH_RADIUS_KM
+    apogee_km = semi_major_axis_km * (1.0 + eccentricity) - EARTH_RADIUS_KM
+    metrics.update(
+        {
+            "period_min": period_min,
+            "semi_major_axis_km": semi_major_axis_km,
+            "perigee_km": perigee_km,
+            "apogee_km": apogee_km,
+            "estimated_altitude_km": (perigee_km + apogee_km) / 2.0,
+        }
+    )
+    return metrics
+
+
+def normalize_object_type(value: object) -> str:
+    normalized = str(value or "").strip().upper()
+    if normalized in {"PAY", "PAYLOAD", "SAT", "SATELLITE"}:
+        return "PAYLOAD"
+    if normalized in {"R/B", "RB", "ROCKET BODY", "ROCKET_BODY", "ROCKETBODY"}:
+        return "ROCKET_BODY"
+    if normalized in {"DEB", "DEBRIS", "FRAGMENT", "FRAGMENTATION_DEBRIS"}:
+        return "DEBRIS"
+    return "UNKNOWN"
+
+
+def satcat_lifecycle_status(record: dict[str, str] | None) -> str:
+    if not record:
+        return "UNKNOWN"
+    if str(record.get("DECAY_DATE") or "").strip():
+        return "DECAYED"
+    code = str(record.get("OPS_STATUS_CODE") or "").strip().upper()
+    if code in {"+", "P", "B", "S", "X"}:
+        return "ACTIVE"
+    if code in {"-", "N"}:
+        return "INACTIVE"
+    if code == "D":
+        return "DECAYED"
+    return "UNKNOWN"
+
+
+def satcat_records_from_text(text: str) -> dict[str, dict[str, str]]:
+    reader = csv.DictReader(io.StringIO(text))
+    if not reader.fieldnames or "NORAD_CAT_ID" not in reader.fieldnames:
+        raise SatelliteDataError("SATCAT CSV is missing NORAD_CAT_ID.")
+    records: dict[str, dict[str, str]] = {}
+    for row in reader:
+        try:
+            norad = normalize_norad_id(row.get("NORAD_CAT_ID"))
+        except SatelliteDataError:
+            continue
+        records[norad] = {key: str(value or "").strip() for key, value in row.items() if key}
+        records[norad]["NORAD_CAT_ID"] = norad
+    return records
+
+
+def load_satcat_records(root: Path | str) -> dict[str, dict[str, str]]:
+    path = repo_path(root, SATCAT_RELATIVE_PATH)
+    if not path.exists():
+        return {}
+    return satcat_records_from_text(path.read_text(encoding="utf-8"))
+
+
+def transform_satellite_omm_object(
+    record: object,
+    satcat_records: dict[str, dict[str, str]] | None = None,
+) -> dict[str, object]:
+    omm = canonicalize_omm_record(record)
+    norad_id = str(omm["NORAD_CAT_ID"])
+    satcat = (satcat_records or {}).get(norad_id, {})
+    metrics = extract_orbit_metrics_from_omm(omm)
+    orbit = determine_orbit(metrics)
+    satellite_name = str(satcat.get("OBJECT_NAME") or omm["OBJECT_NAME"]).strip()
+    international_designator = str(satcat.get("OBJECT_ID") or omm.get("OBJECT_ID") or "").strip() or None
+    launch_date = _valid_launch_date(satcat.get("LAUNCH_DATE")) or "no data"
+    object_type = normalize_object_type(satcat.get("OBJECT_TYPE") or omm.get("OBJECT_TYPE"))
+    lifecycle_status = satcat_lifecycle_status(satcat)
+    satellite: dict[str, object] = {
+        "company": "CELESTRAK",
+        "name": satellite_name,
+        "satellite_name": satellite_name,
+        "object_id": f"obx:norad:{norad_id}",
+        "norad_id": norad_id,
+        "international_designator": international_designator,
+        "launch_date": launch_date,
+        "launch_site": str(satcat.get("LAUNCH_SITE") or "").strip() or None,
+        "decay_date": _valid_launch_date(satcat.get("DECAY_DATE")) or None,
+        "object_type": object_type,
+        "lifecycle_status": lifecycle_status,
+        "operational_status": lifecycle_status,
+        "type": orbit,
+        "orbit_class": orbit,
+        "source_format": "CCSDS_OMM_JSON",
+        "tle_line1": None,
+        "tle_line2": None,
+        "element_set": {
+            "format": "OMM",
+            "source": "CELESTRAK",
+            "epoch": omm["EPOCH"],
+            "time_scale": "UTC",
+            "native_frame": "TEME",
+            "propagation_theory": "SGP4",
+            "line1": None,
+            "line2": None,
+            "omm": omm,
+        },
+    }
+    satellite.update(metrics)
+    return satellite
 
 
 def load_launch_dates(root: Path | str) -> dict[str, str]:
@@ -482,6 +809,226 @@ def load_satcat_launch_dates(root: Path | str) -> dict[str, dict[str, str]]:
                 "launch_site": str(row.get("LAUNCH_SITE") or "").strip(),
             }
     return records
+
+
+def catalog_revision_for_payload(payload: object) -> str:
+    material = json.dumps(
+        payload,
+        ensure_ascii=False,
+        allow_nan=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return "sha256:" + hashlib.sha256(material).hexdigest()
+
+
+def is_meaningful_company_tag(value: object) -> bool:
+    return str(value or "").strip().upper() not in PLACEHOLDER_COMPANY_TAGS
+
+
+def load_gp_company_tag_enrichment(root: Path | str) -> tuple[dict[str, str], dict[str, object]]:
+    """Load first-group operator/category tags from the v2.2 TLE compatibility catalog."""
+
+    tle_path = repo_path(root, TLE_RELATIVE_PATH)
+    payload = load_json(tle_path, [])
+    records = payload if isinstance(payload, list) else []
+    tags: dict[str, str] = {}
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        norad_id = str(record.get("norad_id") or "").strip()
+        company = str(record.get("company") or "").strip().upper()
+        if norad_id and norad_id not in tags and is_meaningful_company_tag(company):
+            tags[norad_id] = company
+
+    tle_meta = load_json(repo_path(root, TLE_META_RELATIVE_PATH), {})
+    source_catalog_revision = None
+    if isinstance(tle_meta, dict):
+        source_catalog_revision = tle_meta.get("catalog_revision") or tle_meta.get("dataset_hash")
+    tag_material = [
+        {"norad_id": norad_id, "company": tags[norad_id]}
+        for norad_id in sorted(tags, key=lambda value: (int(value), value))
+    ]
+    return tags, {
+        "source": TLE_RELATIVE_PATH.as_posix(),
+        "source_catalog_revision": source_catalog_revision,
+        "tag_map_revision": catalog_revision_for_payload(tag_material),
+        "available_tags": len(tags),
+    }
+
+
+def enrich_gp_company_tags(
+    records: Iterable[dict[str, object]],
+    company_tags: dict[str, str],
+    *,
+    existing: Iterable[dict[str, object]] | None = None,
+) -> tuple[list[dict[str, object]], dict[str, int]]:
+    """Apply stable catalog tags without weakening full-string NORAD identity."""
+
+    existing_by_norad = {
+        str(item.get("norad_id") or "").strip(): item
+        for item in (existing or [])
+        if isinstance(item, dict) and str(item.get("norad_id") or "").strip()
+    }
+    enriched: list[dict[str, object]] = []
+    changed = 0
+    matched = 0
+    tagged = 0
+    for item in records:
+        record = dict(item)
+        norad_id = str(record.get("norad_id") or "").strip()
+        source_tag = str(company_tags.get(norad_id) or "").strip().upper()
+        previous_tag = str(existing_by_norad.get(norad_id, {}).get("company") or "").strip().upper()
+        current_tag = str(record.get("company") or "").strip().upper()
+        if is_meaningful_company_tag(source_tag):
+            selected_tag = source_tag
+            matched += 1
+        elif is_meaningful_company_tag(previous_tag):
+            selected_tag = previous_tag
+        else:
+            selected_tag = current_tag or "ACTIVE"
+        if selected_tag != current_tag:
+            record["company"] = selected_tag
+            changed += 1
+        if is_meaningful_company_tag(selected_tag):
+            tagged += 1
+        enriched.append(record)
+
+    return enriched, {
+        "tag_enriched": changed,
+        "tag_source_matches": matched,
+        "tagged": tagged,
+        "tag_unmatched": max(0, len(enriched) - tagged),
+    }
+
+
+def refresh_gp_catalog_enrichment(
+    records: Iterable[dict[str, object]],
+    company_tags: dict[str, str],
+    *,
+    existing: Iterable[dict[str, object]] | None = None,
+) -> tuple[list[dict[str, object]], dict[str, int]]:
+    enriched, counts = enrich_gp_company_tags(records, company_tags, existing=existing)
+    enriched, orbit_reclassified = refresh_catalog_orbit_classes(enriched)
+    counts["orbit_reclassified"] = orbit_reclassified
+    return enriched, counts
+
+
+def refresh_catalog_orbit_classes(
+    records: Iterable[dict[str, object]],
+) -> tuple[list[dict[str, object]], int]:
+    refreshed = [dict(record) for record in records]
+    orbit_reclassified = 0
+    for record in refreshed:
+        orbit_class = determine_orbit(record)
+        if orbit_class == "no data":
+            continue
+        if record.get("orbit_class") != orbit_class or record.get("type") != orbit_class:
+            record["orbit_class"] = orbit_class
+            record["type"] = orbit_class
+            orbit_reclassified += 1
+    return refreshed, orbit_reclassified
+
+
+def launch_events_from_satcat_records(records: dict[str, dict[str, str]]) -> list[dict[str, object]]:
+    launches: list[dict[str, object]] = []
+    for norad_id, row in records.items():
+        if normalize_object_type(row.get("OBJECT_TYPE")) != "PAYLOAD":
+            continue
+        launch_date = _valid_launch_date(row.get("LAUNCH_DATE"))
+        if not launch_date:
+            continue
+        satellite_name = str(row.get("OBJECT_NAME") or f"NORAD {norad_id}").strip()
+        international_designator = str(row.get("OBJECT_ID") or "").strip() or None
+        lifecycle_status = satcat_lifecycle_status(row)
+        launches.append(
+            {
+                "object_id": f"obx:norad:{norad_id}",
+                "norad_id": norad_id,
+                "name": satellite_name,
+                "satellite_name": satellite_name,
+                "international_designator": international_designator,
+                "object_type": normalize_object_type(row.get("OBJECT_TYPE")),
+                "lifecycle_status": lifecycle_status,
+                "operational_status": lifecycle_status,
+                "launch_date": launch_date,
+                "launch_site": str(row.get("LAUNCH_SITE") or "").strip() or None,
+                "decay_date": _valid_launch_date(row.get("DECAY_DATE")) or None,
+                "orbit_available": False,
+                "details_only": True,
+                "source": "CELESTRAK_SATCAT",
+            }
+        )
+    launches.sort(key=lambda item: (str(item["launch_date"]), int(str(item["norad_id"]))))
+    return launches
+
+
+def build_launch_catalog(
+    *,
+    root: Path | str,
+    dry_run: bool = False,
+    now: dt.datetime | None = None,
+    satcat_text: str | None = None,
+) -> UpdateResult:
+    now = now or utc_now()
+    root_path = Path(root).resolve()
+    output_path = repo_path(root_path, LAUNCHES_RELATIVE_PATH)
+    meta_path = repo_path(root_path, LAUNCHES_META_RELATIVE_PATH)
+    input_path = repo_path(root_path, SATCAT_RELATIVE_PATH)
+    try:
+        source_text = satcat_text if satcat_text is not None else input_path.read_text(encoding="utf-8")
+        records = satcat_records_from_text(source_text)
+        launches = launch_events_from_satcat_records(records)
+    except Exception as exc:
+        existing_meta = load_json(meta_path, {})
+        failed_meta = dict(existing_meta) if isinstance(existing_meta, dict) else {}
+        failed_meta.update(
+            {
+                "last_attempt_at": isoformat_utc(now),
+                "last_status": "failed",
+                "last_error": str(exc),
+                "source": SATCAT_RELATIVE_PATH.as_posix(),
+            }
+        )
+        atomic_write_json(meta_path, failed_meta, dry_run=dry_run, backup=False, indent=2)
+        return UpdateResult(
+            changed=False,
+            skipped=True,
+            mode="build-launches",
+            message="SATCAT unavailable or invalid; preserved existing launch catalog.",
+            errors=[str(exc)],
+            paths={"launches": str(output_path), "metadata": str(meta_path), "satcat": str(input_path)},
+        )
+
+    previous = load_json(output_path, [])
+    changed = not isinstance(previous, list) or previous != launches
+    if changed:
+        atomic_write_json(output_path, launches, dry_run=dry_run, backup=True)
+    newest_launch_date = max((str(item["launch_date"]) for item in launches), default=None)
+    revision = catalog_revision_for_payload(launches)
+    success_meta = {
+        "schema_version": "2.2.0",
+        "built_at": isoformat_utc(now),
+        "last_success_at": isoformat_utc(now),
+        "last_attempt_at": isoformat_utc(now),
+        "last_status": "ok",
+        "source": SATCAT_RELATIVE_PATH.as_posix(),
+        "catalog_revision": revision,
+        "newest_launch_date": newest_launch_date,
+        "counts": {
+            "satcat_records": len(records),
+            "records": len(launches),
+            "six_digit_ids": sum(len(str(item["norad_id"])) >= 6 for item in launches),
+        },
+    }
+    atomic_write_json(meta_path, success_meta, dry_run=dry_run, backup=False, indent=2)
+    return UpdateResult(
+        changed=changed and not dry_run,
+        skipped=False,
+        mode="build-launches",
+        message="Launch catalog build completed." if changed else "Launch catalog already current.",
+        counts=dict(success_meta["counts"]),
+        paths={"launches": str(output_path), "metadata": str(meta_path), "satcat": str(input_path)},
+    )
 
 
 def merge_launch_date_sidecar_from_satcat(
@@ -640,20 +1187,23 @@ def fetch_tle_sources(
     *,
     fetcher: Callable[..., FetchResponse] | None = None,
     meta: dict[str, object] | None = None,
-) -> tuple[list[tuple[str, FetchResponse]], list[str]]:
+) -> tuple[list[tuple[str, FetchResponse]], list[FetchResponse], list[str]]:
     fetcher = fetcher or fetch_url
     meta = meta or {}
     responses: list[tuple[str, FetchResponse]] = []
+    not_modified: list[FetchResponse] = []
     errors: list[str] = []
     for url in urls:
         try:
             validated_url = require_https_ingestion_url(url)
             response = fetcher(validated_url, headers=_metadata_request_headers(meta, validated_url))
-            if not response.not_modified:
+            if response.not_modified or response.status == 304:
+                not_modified.append(response)
+            else:
                 responses.append((extract_group_from_url(validated_url), response))
         except Exception as exc:
             errors.append(f"{url}: {exc}")
-    return responses, errors
+    return responses, not_modified, errors
 
 
 def build_satellites_from_tle_responses(
@@ -746,10 +1296,16 @@ def update_tle_success_metadata(
     source_urls: list[str],
     responses: list[tuple[str, FetchResponse]],
     counts: dict[str, int],
+    catalog_revision: str,
     now: dt.datetime,
     dry_run: bool,
 ) -> None:
-    url_meta = dict(meta.get("urls", {})) if isinstance(meta.get("urls"), dict) else {}
+    prior_urls = dict(meta.get("urls", {})) if isinstance(meta.get("urls"), dict) else {}
+    url_meta = {
+        url: dict(prior_urls[url])
+        for url in source_urls
+        if isinstance(prior_urls.get(url), dict)
+    }
     for _company, response in responses:
         existing = dict(url_meta.get(response.url, {})) if isinstance(url_meta.get(response.url), dict) else {}
         etag = response.headers.get("etag")
@@ -770,6 +1326,8 @@ def update_tle_success_metadata(
         "source_urls": source_urls,
         "celestrak_min_refresh_hours": CELESTRAK_MIN_REFRESH_HOURS,
         "counts": counts,
+        "catalog_revision": catalog_revision,
+        "dataset_hash": catalog_revision,
         "urls": url_meta,
     }
     atomic_write_json(meta_path, success_meta, dry_run=dry_run, backup=False, indent=2)
@@ -797,21 +1355,57 @@ def export_tle_data(
 
     existing_payload = load_json(tle_path, [])
     existing = existing_payload if isinstance(existing_payload, list) else []
+    configured_source_urls = source_urls_for_mode(mode)
+
+    existing, local_orbit_reclassified = refresh_catalog_orbit_classes(existing)
+    local_orbit_changed = local_orbit_reclassified > 0
+    current_revision = catalog_revision_for_payload(existing)
+    metadata_needs_refresh = (
+        meta.get("catalog_revision") != current_revision
+        or meta.get("dataset_hash") != current_revision
+        or meta.get("source_urls") != configured_source_urls
+    )
+    if local_orbit_changed or metadata_needs_refresh:
+        if local_orbit_changed:
+            atomic_write_json(tle_path, existing, dry_run=dry_run, backup=True)
+        local_meta = dict(meta)
+        local_counts = dict(local_meta.get("counts", {})) if isinstance(local_meta.get("counts"), dict) else {}
+        local_counts["orbit_reclassified"] = local_orbit_reclassified
+        local_meta.update(
+            {
+                "catalog_revision": current_revision,
+                "dataset_hash": current_revision,
+                "source_urls": configured_source_urls,
+                "urls": {
+                    url: details
+                    for url, details in (local_meta.get("urls", {}) if isinstance(local_meta.get("urls"), dict) else {}).items()
+                    if url in configured_source_urls
+                },
+                "counts": local_counts,
+                "last_local_enrichment_at": isoformat_utc(now),
+            }
+        )
+        atomic_write_json(meta_path, local_meta, dry_run=dry_run, backup=False, indent=2)
+        meta = local_meta
 
     if mode != "all" and not force:
         latest = latest_success_time(meta, tle_path)
         if is_recent_enough(latest, celestrak_min_refresh_hours, now=now):
             return UpdateResult(
-                changed=False,
+                changed=local_orbit_changed and not dry_run,
                 skipped=True,
                 mode=mode,
-                message=f"TLE update skipped; last successful fetch is newer than {celestrak_min_refresh_hours:g} hours.",
-                counts={"existing": len(existing), "total": len(existing)},
+                message=(
+                    "TLE local orbit classification refresh completed; provider fetch skipped by the refresh guard."
+                    if local_orbit_changed
+                    else f"TLE update skipped; last successful fetch is newer than {celestrak_min_refresh_hours:g} hours."
+                ),
+                counts={"existing": len(existing), "total": len(existing), "orbit_reclassified": local_orbit_reclassified},
                 paths={"tle": str(tle_path), "metadata": str(meta_path)},
             )
 
-    source_urls = source_urls_for_mode(mode)
-    responses, errors = fetch_tle_sources(source_urls, fetcher=fetcher, meta=meta)
+    source_urls = configured_source_urls
+    responses, not_modified, errors = fetch_tle_sources(source_urls, fetcher=fetcher, meta=meta)
     if errors and allow_space_track:
         fallback_response = try_spacetrack_fallback()
         if fallback_response:
@@ -830,6 +1424,45 @@ def export_tle_data(
             message="CelesTrak unavailable; preserved existing TLE data.",
             counts={"existing": len(existing), "total": len(existing)},
             errors=errors,
+            paths={"tle": str(tle_path), "metadata": str(meta_path)},
+        )
+
+    if not_modified and not responses:
+        unchanged_meta = dict(meta)
+        prior_urls = dict(meta.get("urls", {})) if isinstance(meta.get("urls"), dict) else {}
+        url_meta = {
+            url: dict(prior_urls[url])
+            for url in source_urls
+            if isinstance(prior_urls.get(url), dict)
+        }
+        for response in not_modified:
+            existing_url_meta = dict(url_meta.get(response.url, {}))
+            if response.headers.get("etag"):
+                existing_url_meta["etag"] = response.headers["etag"]
+            if response.headers.get("last-modified"):
+                existing_url_meta["last_modified"] = response.headers["last-modified"]
+            existing_url_meta["status"] = response.status
+            existing_url_meta["last_attempt_at"] = isoformat_utc(now)
+            url_meta[response.url] = existing_url_meta
+        unchanged_meta.update(
+            {
+                "mode": mode,
+                "source_urls": source_urls,
+                "last_attempt_at": isoformat_utc(now),
+                "last_status": "not-modified",
+                "catalog_revision": current_revision,
+                "dataset_hash": current_revision,
+                "urls": url_meta,
+            }
+        )
+        unchanged_meta.pop("last_error", None)
+        atomic_write_json(meta_path, unchanged_meta, dry_run=dry_run, backup=False, indent=2)
+        return UpdateResult(
+            changed=local_orbit_changed and not dry_run,
+            skipped=True,
+            mode=mode,
+            message="CelesTrak TLE catalog was not modified; preserved existing data.",
+            counts={"existing": len(existing), "total": len(existing), "orbit_reclassified": local_orbit_reclassified},
             paths={"tle": str(tle_path), "metadata": str(meta_path)},
         )
 
@@ -852,6 +1485,7 @@ def export_tle_data(
         source_urls=source_urls,
         responses=responses,
         counts=counts,
+        catalog_revision=catalog_revision_for_payload(satellites),
         now=now,
         dry_run=dry_run,
     )
@@ -863,6 +1497,416 @@ def export_tle_data(
         counts=counts,
         errors=errors,
         paths={"tle": str(tle_path), "metadata": str(meta_path)},
+    )
+
+
+def gp_source_urls_for_mode(mode: str) -> list[str]:
+    del mode
+    return [make_celestrak_group_url(group, output_format="json") for group in GP_SOURCE_GROUPS]
+
+
+def fetch_omm_sources(
+    urls: Iterable[str],
+    *,
+    fetcher: Callable[..., FetchResponse] | None = None,
+    meta: dict[str, object] | None = None,
+) -> tuple[list[tuple[str, FetchResponse]], list[FetchResponse], list[str]]:
+    fetcher = fetcher or fetch_url
+    meta = meta or {}
+    responses: list[tuple[str, FetchResponse]] = []
+    not_modified: list[FetchResponse] = []
+    errors: list[str] = []
+    for url in urls:
+        try:
+            validated_url = require_https_ingestion_url(url)
+            response = fetcher(validated_url, headers=_metadata_request_headers(meta, validated_url))
+            if response.not_modified or response.status == 304:
+                not_modified.append(response)
+                continue
+            if response.status != 200:
+                raise SatelliteDataError(f"HTTP {response.status} for {validated_url}")
+            responses.append((extract_group_from_url(validated_url), response))
+        except Exception as exc:
+            errors.append(f"{url}: {exc}")
+    return responses, not_modified, errors
+
+
+def _omm_epoch_from_satellite(record: dict[str, object]) -> dt.datetime | None:
+    element_set = record.get("element_set")
+    if not isinstance(element_set, dict):
+        return None
+    epoch = element_set.get("epoch")
+    if not epoch and isinstance(element_set.get("omm"), dict):
+        epoch = element_set["omm"].get("EPOCH")
+    return parse_iso_datetime(epoch)
+
+
+def _omm_material(record: dict[str, object]) -> str:
+    element_set = record.get("element_set")
+    omm = element_set.get("omm") if isinstance(element_set, dict) else None
+    return json.dumps(omm or {}, ensure_ascii=False, allow_nan=False, sort_keys=True, separators=(",", ":"))
+
+
+def should_replace_omm(existing: dict[str, object] | None, candidate: dict[str, object]) -> bool:
+    if existing is None:
+        return True
+    existing_epoch = _omm_epoch_from_satellite(existing)
+    candidate_epoch = _omm_epoch_from_satellite(candidate)
+    if candidate_epoch is None:
+        return False
+    if existing_epoch is None:
+        return True
+    if candidate_epoch != existing_epoch:
+        return candidate_epoch > existing_epoch
+    # CelesTrak can occasionally publish duplicate epochs. A stable lexical
+    # tie-break keeps output deterministic regardless of response ordering.
+    return _omm_material(candidate) > _omm_material(existing)
+
+
+def build_satellites_from_omm_responses(
+    responses: Iterable[tuple[str, FetchResponse]],
+    satcat_records: dict[str, dict[str, str]],
+    *,
+    existing: list[dict[str, object]] | None = None,
+    company_tags: dict[str, str] | None = None,
+    mode: str,
+) -> tuple[list[dict[str, object]], dict[str, int], list[dict[str, object]]]:
+    current = [dict(item) for item in (existing or []) if isinstance(item, dict)]
+    initial_by_norad = {
+        str(item.get("norad_id") or "").strip(): item
+        for item in current
+        if str(item.get("norad_id") or "").strip()
+    }
+    candidates: dict[str, dict[str, object]] = {}
+    quarantined: list[dict[str, object]] = []
+    fetched = 0
+    duplicates = 0
+
+    for company, response in responses:
+        try:
+            payload = json.loads(response.text)
+        except json.JSONDecodeError as exc:
+            raise SatelliteDataError(f"Invalid OMM JSON from {response.url}: {exc}") from exc
+        if not isinstance(payload, list):
+            raise SatelliteDataError(f"OMM JSON from {response.url} must be an array.")
+        for index, raw in enumerate(payload):
+            fetched += 1
+            try:
+                candidate = transform_satellite_omm_object(raw, satcat_records)
+                norad_id = str(candidate["norad_id"])
+                source_tag = str((company_tags or {}).get(norad_id) or "").strip().upper()
+                existing_tag = str(initial_by_norad.get(norad_id, {}).get("company") or "").strip().upper()
+                if is_meaningful_company_tag(source_tag):
+                    candidate["company"] = source_tag
+                elif is_meaningful_company_tag(existing_tag):
+                    candidate["company"] = existing_tag
+                else:
+                    candidate["company"] = company
+            except Exception as exc:
+                raw_id = raw.get("NORAD_CAT_ID") if isinstance(raw, dict) else None
+                quarantined.append(
+                    {
+                        "source_url": response.url,
+                        "record_index": index,
+                        "norad_id": None if raw_id is None else str(raw_id),
+                        "reason": str(exc),
+                    }
+                )
+                continue
+            previous_candidate = candidates.get(norad_id)
+            if previous_candidate is not None:
+                duplicates += 1
+            if should_replace_omm(previous_candidate, candidate):
+                candidates[norad_id] = candidate
+
+    output_by_norad = {} if mode == "all" else dict(initial_by_norad)
+    added = 0
+    updated = 0
+    for norad_id, candidate in candidates.items():
+        existing_record = output_by_norad.get(norad_id)
+        if existing_record is None:
+            output_by_norad[norad_id] = candidate
+            added += 1
+        elif should_replace_omm(existing_record, candidate):
+            output_by_norad[norad_id] = candidate
+            if norad_id in initial_by_norad:
+                updated += 1
+
+    def norad_sort_key(value: str) -> tuple[int, str]:
+        return (int(value), value)
+
+    satellites = [output_by_norad[key] for key in sorted(output_by_norad, key=norad_sort_key)]
+    satellites, tag_counts = refresh_gp_catalog_enrichment(
+        satellites,
+        company_tags or {},
+        existing=current,
+    )
+    counts = {
+        "existing": len(initial_by_norad),
+        "fetched": fetched,
+        "added": added,
+        "updated": updated,
+        "retained": max(0, len(initial_by_norad) - updated),
+        "duplicates": duplicates,
+        "quarantined": len(quarantined),
+        "total": len(satellites),
+        "omm": len(satellites),
+        "tle": 0,
+        "six_digit_ids": sum(len(str(item.get("norad_id") or "")) >= 6 for item in satellites),
+        "nine_digit_ids": sum(len(str(item.get("norad_id") or "")) == 9 for item in satellites),
+        **tag_counts,
+    }
+    return satellites, counts, quarantined
+
+
+def _update_gp_failure_metadata(
+    meta_path: Path,
+    meta: dict[str, object],
+    *,
+    mode: str,
+    errors: list[str],
+    now: dt.datetime,
+    dry_run: bool,
+) -> None:
+    failed_meta = dict(meta)
+    failed_meta.update(
+        {
+            "schema_version": "2.2.0",
+            "parser_version": "2.2.0",
+            "dataset_format": "CCSDS_OMM_JSON",
+            "source_format": "CCSDS_OMM_JSON",
+            "mode": mode,
+            "last_attempt_at": isoformat_utc(now),
+            "last_error": "; ".join(errors)[:2000],
+            "last_status": "failed",
+            "source_status": "DEGRADED",
+        }
+    )
+    atomic_write_json(meta_path, failed_meta, dry_run=dry_run, backup=False, indent=2)
+
+
+def _gp_url_metadata(
+    meta: dict[str, object],
+    responses: Iterable[FetchResponse],
+    now: dt.datetime,
+) -> dict[str, object]:
+    url_meta = dict(meta.get("urls", {})) if isinstance(meta.get("urls"), dict) else {}
+    for response in responses:
+        existing = dict(url_meta.get(response.url, {})) if isinstance(url_meta.get(response.url), dict) else {}
+        if response.headers.get("etag"):
+            existing["etag"] = response.headers["etag"]
+        if response.headers.get("last-modified"):
+            existing["last_modified"] = response.headers["last-modified"]
+        existing["status"] = response.status
+        existing["last_attempt_at"] = isoformat_utc(now)
+        url_meta[response.url] = existing
+    return url_meta
+
+
+def export_gp_data(
+    *,
+    root: Path | str,
+    mode: str = "incremental",
+    force: bool = False,
+    dry_run: bool = False,
+    fetcher: Callable[..., FetchResponse] | None = None,
+    now: dt.datetime | None = None,
+    celestrak_min_refresh_hours: float = CELESTRAK_MIN_REFRESH_HOURS,
+) -> UpdateResult:
+    now = now or utc_now()
+    root_path = Path(root).resolve()
+    gp_path = repo_path(root_path, GP_RELATIVE_PATH)
+    meta_path = repo_path(root_path, GP_META_RELATIVE_PATH)
+    meta = load_json(meta_path, {})
+    if not isinstance(meta, dict):
+        meta = {}
+    existing_payload = load_json(gp_path, [])
+    existing = existing_payload if isinstance(existing_payload, list) else []
+
+    company_tags, tag_enrichment = load_gp_company_tag_enrichment(root_path)
+    locally_enriched, local_enrichment_counts = refresh_gp_catalog_enrichment(
+        existing,
+        company_tags,
+        existing=existing,
+    )
+    local_enrichment_changed = locally_enriched != existing
+    desired_tag_enrichment = {
+        **tag_enrichment,
+        "matched_records": local_enrichment_counts["tag_source_matches"],
+        "tagged_records": local_enrichment_counts["tagged"],
+        "unmatched_records": local_enrichment_counts["tag_unmatched"],
+    }
+    tag_metadata_changed = meta.get("tag_enrichment") != desired_tag_enrichment
+    if local_enrichment_changed or tag_metadata_changed:
+        if local_enrichment_changed:
+            atomic_write_json(gp_path, locally_enriched, dry_run=dry_run, backup=True)
+            existing = locally_enriched
+        local_meta = dict(meta)
+        local_counts = dict(local_meta.get("counts", {})) if isinstance(local_meta.get("counts"), dict) else {}
+        local_counts.update(local_enrichment_counts)
+        local_meta.update(
+            {
+                "catalog_revision": catalog_revision_for_payload(existing),
+                "dataset_hash": catalog_revision_for_payload(existing),
+                "counts": local_counts,
+                "tag_enrichment": desired_tag_enrichment,
+            }
+        )
+        if local_enrichment_changed:
+            local_meta["last_local_enrichment_at"] = isoformat_utc(now)
+        else:
+            local_meta["last_tag_metadata_refresh_at"] = isoformat_utc(now)
+        atomic_write_json(meta_path, local_meta, dry_run=dry_run, backup=False, indent=2)
+        meta = local_meta
+
+    if mode != "all" and not force:
+        latest = latest_success_time(meta, gp_path)
+        if is_recent_enough(latest, celestrak_min_refresh_hours, now=now):
+            return UpdateResult(
+                changed=local_enrichment_changed and not dry_run,
+                skipped=True,
+                mode=mode,
+                message=(
+                    "GP/OMM local tag/orbit enrichment completed; provider fetch skipped by the refresh guard."
+                    if local_enrichment_changed
+                    else f"GP/OMM update skipped; last successful fetch is newer than {celestrak_min_refresh_hours:g} hours."
+                ),
+                counts={"existing": len(existing), "total": len(existing), **local_enrichment_counts},
+                paths={"gp": str(gp_path), "metadata": str(meta_path)},
+            )
+
+    source_urls = gp_source_urls_for_mode(mode)
+    responses, not_modified, errors = fetch_omm_sources(source_urls, fetcher=fetcher, meta=meta)
+    if errors or (not responses and not not_modified):
+        failure_errors = errors or ["CelesTrak returned no GP/OMM response."]
+        _update_gp_failure_metadata(
+            meta_path, meta, mode=mode, errors=failure_errors, now=now, dry_run=dry_run
+        )
+        return UpdateResult(
+            changed=local_enrichment_changed and not dry_run,
+            skipped=True,
+            mode=mode,
+            message="CelesTrak unavailable; preserved existing GP/OMM data.",
+            counts={"existing": len(existing), "total": len(existing), **local_enrichment_counts},
+            errors=failure_errors,
+            paths={"gp": str(gp_path), "metadata": str(meta_path)},
+        )
+
+    if not_modified and not responses:
+        unchanged_meta = dict(meta)
+        unchanged_meta.update(
+            {
+                "schema_version": "2.2.0",
+                "parser_version": "2.2.0",
+                "dataset_format": "CCSDS_OMM_JSON",
+                "source_format": "CCSDS_OMM_JSON",
+                "last_attempt_at": isoformat_utc(now),
+                "last_status": "not-modified",
+                "urls": _gp_url_metadata(meta, not_modified, now),
+            }
+        )
+        unchanged_meta.pop("last_error", None)
+        atomic_write_json(meta_path, unchanged_meta, dry_run=dry_run, backup=False, indent=2)
+        return UpdateResult(
+            changed=local_enrichment_changed and not dry_run,
+            skipped=True,
+            mode=mode,
+            message="GP/OMM source has not changed.",
+            counts={"existing": len(existing), "total": len(existing), **local_enrichment_counts},
+            paths={"gp": str(gp_path), "metadata": str(meta_path)},
+        )
+
+    satcat_records = load_satcat_records(root_path)
+    base_records = [dict(item) for item in existing if isinstance(item, dict)]
+    try:
+        satellites, counts, quarantine = build_satellites_from_omm_responses(
+            responses,
+            satcat_records,
+            existing=base_records,
+            company_tags=company_tags,
+            mode=mode,
+        )
+    except Exception as exc:
+        _update_gp_failure_metadata(meta_path, meta, mode=mode, errors=[str(exc)], now=now, dry_run=dry_run)
+        return UpdateResult(
+            changed=False,
+            skipped=True,
+            mode=mode,
+            message="CelesTrak GP/OMM response was invalid; preserved existing data.",
+            counts={"existing": len(existing), "total": len(existing)},
+            errors=[str(exc)],
+            paths={"gp": str(gp_path), "metadata": str(meta_path)},
+        )
+
+    if counts["fetched"] > 0 and counts["omm"] == 0:
+        error = "All fetched GP/OMM records were quarantined."
+        _update_gp_failure_metadata(meta_path, meta, mode=mode, errors=[error], now=now, dry_run=dry_run)
+        return UpdateResult(
+            changed=False,
+            skipped=True,
+            mode=mode,
+            message="CelesTrak GP/OMM response contained no usable records; preserved existing data.",
+            counts=counts,
+            errors=[error],
+            paths={"gp": str(gp_path), "metadata": str(meta_path)},
+        )
+
+    changed = satellites != existing
+    if changed:
+        atomic_write_json(gp_path, satellites, dry_run=dry_run, backup=True)
+    newest_epoch = max(
+        (str(item.get("element_set", {}).get("epoch")) for item in satellites if isinstance(item.get("element_set"), dict)),
+        default=None,
+    )
+    newest_launch_date = max(
+        (_valid_launch_date(item.get("launch_date")) for item in satellites if _valid_launch_date(item.get("launch_date"))),
+        default=None,
+    )
+    partial = mode != "all" or bool(quarantine)
+    catalog_revision = catalog_revision_for_payload(satellites)
+    success_meta = {
+        "schema_version": "2.2.0",
+        "parser_version": "2.2.0",
+        "dataset_format": "CCSDS_OMM_JSON",
+        "source_format": "CCSDS_OMM_JSON",
+        "provider": "CelesTrak",
+        "fetched_at": isoformat_utc(now),
+        "retrieval_timestamp": isoformat_utc(now),
+        "last_success_at": isoformat_utc(now),
+        "last_attempt_at": isoformat_utc(now),
+        "last_status": "partial" if quarantine else "ok",
+        "last_error": None,
+        "source_status": "PARTIAL" if partial else "COMPLETE",
+        "partial_update": partial,
+        "mode": mode,
+        "source_urls": source_urls,
+        "celestrak_min_refresh_hours": celestrak_min_refresh_hours,
+        "catalog_revision": catalog_revision,
+        "dataset_hash": catalog_revision,
+        "newest_orbital_epoch": newest_epoch,
+        "newest_launch_date": newest_launch_date,
+        "counts": counts,
+        "catalog_revision": catalog_revision,
+        "dataset_hash": catalog_revision,
+        "tag_enrichment": {
+            **tag_enrichment,
+            "matched_records": counts["tag_source_matches"],
+            "tagged_records": counts["tagged"],
+            "unmatched_records": counts["tag_unmatched"],
+        },
+        "quarantine": quarantine[:100],
+        "quarantine_truncated": max(0, len(quarantine) - 100),
+        "urls": _gp_url_metadata(meta, [response for _company, response in responses], now),
+    }
+    atomic_write_json(meta_path, success_meta, dry_run=dry_run, backup=False, indent=2)
+    return UpdateResult(
+        changed=(changed or local_enrichment_changed) and not dry_run,
+        skipped=False,
+        mode=mode,
+        message="GP/OMM export completed." if changed else "GP/OMM data already current.",
+        counts=counts,
+        errors=[item["reason"] for item in quarantine[:20]],
+        paths={"gp": str(gp_path), "metadata": str(meta_path)},
     )
 
 
@@ -1042,12 +2086,19 @@ def refresh_satcat_csv(
             }
         )
         atomic_write_json(meta_path, meta, dry_run=dry_run, backup=False, indent=2)
+        launch_result = build_launch_catalog(root=root_path, dry_run=dry_run, now=now) if satcat_path.exists() else None
         return UpdateResult(
-            changed=False,
+            changed=bool(launch_result and launch_result.changed),
             skipped=True,
             mode="refresh-satcat",
             message="SATCAT source has not changed.",
-            paths={"satcat": str(satcat_path), "metadata": str(meta_path)},
+            counts={"launch_records": launch_result.counts.get("records", 0)} if launch_result else {},
+            errors=launch_result.errors if launch_result else [],
+            paths={
+                "satcat": str(satcat_path),
+                "metadata": str(meta_path),
+                **({"launches": launch_result.paths["launches"]} if launch_result else {}),
+            },
         )
 
     first_line = response.text.splitlines()[0].strip() if response.text.splitlines() else ""
@@ -1092,13 +2143,27 @@ def refresh_satcat_csv(
         "urls": url_meta,
     }
     atomic_write_json(meta_path, success_meta, dry_run=dry_run, backup=False, indent=2)
+    launch_result = build_launch_catalog(
+        root=root_path,
+        dry_run=dry_run,
+        now=now,
+        satcat_text=response.text,
+    )
     return UpdateResult(
         changed=not dry_run,
         skipped=False,
         mode="refresh-satcat",
         message="SATCAT refresh completed.",
-        counts={"bytes": len(response.text.encode("utf-8"))},
-        paths={"satcat": str(satcat_path), "metadata": str(meta_path)},
+        counts={
+            "bytes": len(response.text.encode("utf-8")),
+            "launch_records": launch_result.counts.get("records", 0),
+        },
+        errors=launch_result.errors,
+        paths={
+            "satcat": str(satcat_path),
+            "metadata": str(meta_path),
+            "launches": launch_result.paths["launches"],
+        },
     )
 
 
@@ -1157,8 +2222,8 @@ def build_decayed_db(
                     "mode": mode,
                     "last_attempt_at": isoformat_utc(now),
                     "last_status": "not-modified",
-                    "source": str(input_path),
-                    "satcat_refresh": refresh_result.to_dict(),
+                    "source": SATCAT_RELATIVE_PATH.as_posix(),
+                    "satcat_refresh": update_result_for_metadata(refresh_result, root_path),
                     "counts": {"objects": objects, "records": record_count},
                 }
             )
@@ -1213,15 +2278,27 @@ def build_decayed_db(
 
     record_count = sum(len(records) for records in grouped.values())
     atomic_write_json(output_path, grouped, dry_run=dry_run, backup=True, indent=2)
+    newest_confirmed_decay_date = max(
+        (
+            _valid_launch_date(record.get("DECAY_DATE"))
+            for records in grouped.values()
+            for record in records
+            if _valid_launch_date(record.get("DECAY_DATE"))
+        ),
+        default=None,
+    )
     success_meta = {
+        "schema_version": "2.2.0",
         "built_at": isoformat_utc(now),
         "fetched_at": isoformat_utc(now),
         "last_success_at": isoformat_utc(now),
         "last_attempt_at": isoformat_utc(now),
         "last_status": "ok",
         "mode": mode,
-        "source": str(input_path),
-        "satcat_refresh": refresh_result.to_dict() if refresh_result else None,
+        "source": SATCAT_RELATIVE_PATH.as_posix(),
+        "satcat_refresh": update_result_for_metadata(refresh_result, root_path) if refresh_result else None,
+        "catalog_revision": catalog_revision_for_payload(grouped),
+        "newest_confirmed_decay_date": newest_confirmed_decay_date,
         "counts": {"objects": len(grouped), "records": record_count},
     }
     atomic_write_json(meta_path, success_meta, dry_run=dry_run, backup=False, indent=2)
@@ -1285,7 +2362,9 @@ def maybe_update_satellite_data(
         "started_at": isoformat_utc(),
         "skipped": False,
         "lock_acquired": False,
+        "gp": None,
         "tle": None,
+        "launches": None,
         "decayed": None,
     }
     lock_context = contextlib.nullcontext(True) if dry_run else update_lock(root)
@@ -1296,13 +2375,11 @@ def maybe_update_satellite_data(
             results["message"] = "Another satellite data update is already running."
             return results
 
-        tle_due = force or metadata_is_older_than(root, TLE_META_RELATIVE_PATH, TLE_RELATIVE_PATH, interval_hours)
+        gp_due = force or metadata_is_older_than(root, GP_META_RELATIVE_PATH, GP_RELATIVE_PATH, interval_hours)
+        launches_due = force or metadata_is_older_than(
+            root, LAUNCHES_META_RELATIVE_PATH, LAUNCHES_RELATIVE_PATH, interval_hours
+        )
         decayed_due = force or metadata_is_older_than(root, DECAYED_META_RELATIVE_PATH, DECAYED_RELATIVE_PATH, interval_hours)
-        if tle_due:
-            try:
-                results["tle"] = export_tle_data(root=root, mode="incremental", force=force, dry_run=dry_run).to_dict()
-            except Exception as exc:
-                results["tle"] = {"changed": False, "skipped": True, "errors": [str(exc)]}
         if decayed_due:
             results["decayed"] = build_decayed_db(
                 root=root,
@@ -1312,9 +2389,28 @@ def maybe_update_satellite_data(
                 interval_hours=interval_hours,
                 refresh_satcat=True,
             ).to_dict()
-        if not tle_due and not decayed_due:
+        if launches_due:
+            results["launches"] = build_launch_catalog(root=root, dry_run=dry_run).to_dict()
+        if gp_due:
+            results["gp"] = export_gp_data(
+                root=root,
+                mode="incremental",
+                force=force,
+                dry_run=dry_run,
+            ).to_dict()
+        results["tle"] = {
+            "changed": False,
+            "skipped": True,
+            "message": "Scheduled TLE export is deprecated; GP/OMM is the primary catalog.",
+        }
+        if not gp_due and not launches_due and not decayed_due:
             results["skipped"] = True
             results["message"] = f"Local data is newer than {interval_hours:g} hours."
+        nested_results = [results.get(key) for key in ("gp", "launches", "decayed")]
+        results["degraded"] = any(
+            isinstance(item, dict) and bool(item.get("errors"))
+            for item in nested_results
+        )
     results["finished_at"] = isoformat_utc()
     return results
 
@@ -1329,7 +2425,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--root", default=None, help="Repository root. Default: repository root containing this tool.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    export_parser = subparsers.add_parser("export-tle", help="Export or incrementally update json/tle/TLE.json.")
+    gp_parser = subparsers.add_parser("export-gp", help="Export or incrementally update json/gp/GP.json from CelesTrak OMM JSON.")
+    gp_parser.add_argument("--all", action="store_true", help="Replace the local GP catalog from the complete active source.")
+    gp_parser.add_argument("--force", action="store_true", help="Ignore freshness checks.")
+    gp_parser.add_argument("--dry-run", action="store_true", help="Compute changes without writing files.")
+
+    export_parser = subparsers.add_parser(
+        "export-tle",
+        help="Deprecated compatibility command: update the legacy json/tle/TLE.json catalog.",
+    )
     export_parser.add_argument("--all", action="store_true", help="Use the legacy Java full-source group workflow.")
     export_parser.add_argument("--force", action="store_true", help="Ignore freshness checks.")
     export_parser.add_argument("--dry-run", action="store_true", help="Compute changes without writing files.")
@@ -1361,6 +2465,12 @@ def build_parser() -> argparse.ArgumentParser:
     satcat_parser.add_argument("--force", action="store_true", help="Ignore freshness checks.")
     satcat_parser.add_argument("--dry-run", action="store_true", help="Compute changes without writing files.")
 
+    launches_parser = subparsers.add_parser(
+        "build-launches",
+        help="Build json/launches/launches.json from the local SATCAT CSV.",
+    )
+    launches_parser.add_argument("--dry-run", action="store_true", help="Compute changes without writing files.")
+
     maybe_parser = subparsers.add_parser("maybe-update", help="Run the server-style scheduled freshness check once.")
     maybe_parser.add_argument("--force", action="store_true", help="Ignore freshness checks.")
     maybe_parser.add_argument("--dry-run", action="store_true", help="Compute changes without writing files.")
@@ -1378,6 +2488,15 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     root = Path(args.root).resolve() if args.root else default_repo_root()
     try:
+        if args.command == "export-gp":
+            result = export_gp_data(
+                root=root,
+                mode="all" if args.all else "incremental",
+                force=args.force,
+                dry_run=args.dry_run,
+            )
+            _print_result(result)
+            return 0
         if args.command == "export-tle":
             if args.refresh_launch_dates:
                 _print_result(extract_launch_dates_all(
@@ -1406,6 +2525,10 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.command == "refresh-satcat":
             result = refresh_satcat_csv(root=root, force=args.force, dry_run=args.dry_run)
+            _print_result(result)
+            return 0
+        if args.command == "build-launches":
+            result = build_launch_catalog(root=root, dry_run=args.dry_run)
             _print_result(result)
             return 0
         if args.command == "maybe-update":

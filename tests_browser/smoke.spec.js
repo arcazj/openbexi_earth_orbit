@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
-test('main application boots with local dependencies and a rendered WebGL canvas', async ({ page, request }) => {
+test('main application boots with local dependencies and a rendered WebGL canvas', async ({ page, request }, testInfo) => {
+  test.setTimeout(90_000);
   const pageErrors = [];
   const consoleErrors = [];
   const externalDependencyRequests = [];
@@ -55,6 +56,128 @@ test('main application boots with local dependencies and a rendered WebGL canvas
   expect(canvasState.width).toBeGreaterThan(0);
   expect(canvasState.height).toBeGreaterThan(0);
   expect(canvasState.coloredSamples).toBeGreaterThan(0);
+
+  await page.waitForFunction(() => {
+    const simulation = window.openbexiSimulation;
+    const startup = window.openbexiStartupPerformance?.summary?.() || [];
+    return startup.some(entry => entry.name === 'default-meo-visible') &&
+      simulation?.snapshot?.().drawnNoradIds?.includes('24876') &&
+      simulation.markerState('24876')?.radius > 6.4;
+  }, null, { timeout: 20_000 });
+  const progressiveStartup = await page.evaluate(() => {
+    const entries = window.openbexiStartupPerformance.summary();
+    const byName = name => entries.find(entry => entry.name === name) || null;
+    const snapshot = window.openbexiSimulation.snapshot();
+    return {
+      defaultMeo: byName('default-meo-visible'),
+      visibleCount: snapshot.visibleNoradIds.length,
+      drawnCount: snapshot.drawnNoradIds.length,
+      unreadyVisibleCount: snapshot.unreadyVisibleNoradIds.length,
+      visibleOriginCount: snapshot.visibleOriginNoradIds.length
+    };
+  });
+  expect(progressiveStartup.defaultMeo?.durationMs).toBeLessThan(12_000);
+  expect(progressiveStartup.visibleCount).toBeGreaterThan(100);
+  expect(progressiveStartup.drawnCount).toBeGreaterThan(100);
+  expect(progressiveStartup.unreadyVisibleCount).toBe(0);
+  expect(progressiveStartup.visibleOriginCount).toBe(0);
+  const defaultMeoCloud = await page.evaluate(async () => {
+    const diagnostics = (await import('/js/satelliteTLELoader.js')).getSatellitePointCloudDiagnostics();
+    return {
+      ...diagnostics,
+      expectedNoradIds: [...window.openbexiSimulation.snapshot().drawnNoradIds].sort()
+    };
+  });
+  expect(defaultMeoCloud.drawnCount).toBeGreaterThan(100);
+  expect(defaultMeoCloud.matchedPositionCount).toBe(defaultMeoCloud.drawnCount);
+  expect(defaultMeoCloud.uploadedNoradIds.toSorted()).toEqual(defaultMeoCloud.expectedNoradIds);
+  expect(defaultMeoCloud.uploadedNoradIds).toContain('24876');
+  expect(defaultMeoCloud.markerMode).toBe('detailed');
+  expect(defaultMeoCloud.pointSize).toBeGreaterThan(0.025);
+
+  await page.waitForFunction(() => window.openbexiStartupPerformance
+    ?.summary()
+    .some(entry => entry.name === 'first-interactive-ui'), null, { timeout: 25_000 });
+  const completedStartup = await page.evaluate(() => {
+    const entries = window.openbexiStartupPerformance.summary();
+    const byName = name => entries.find(entry => entry.name === name) || null;
+    return {
+      defaultMeoMs: byName('default-meo-visible')?.durationMs,
+      catalogReadyMs: byName('satellite-data-ready')?.durationMs
+    };
+  });
+  expect(completedStartup.catalogReadyMs).toBeLessThan(20_000);
+  expect(completedStartup.defaultMeoMs).toBeLessThan(completedStartup.catalogReadyMs);
+
+  await page.locator('#orbitTypeFilter [data-orbit-filter="ALL"]').click();
+  await expect.poll(() => page.evaluate(() => window.openbexiSimulation.snapshot().visibleNoradIds.length))
+    .toBeGreaterThan(16_000);
+  await expect.poll(() => page.evaluate(() => window.openbexiSimulation.snapshot().drawnNoradIds.length), {
+    timeout: 12_000
+  }).toBeGreaterThan(500);
+  const allMarkerSafety = await page.evaluate(() => {
+    const snapshot = window.openbexiSimulation.snapshot();
+    return {
+      unreadyVisibleCount: snapshot.unreadyVisibleNoradIds.length,
+      visibleOriginCount: snapshot.visibleOriginNoradIds.length
+    };
+  });
+  expect(allMarkerSafety).toEqual({ unreadyVisibleCount: 0, visibleOriginCount: 0 });
+
+  await expect.poll(() => page.evaluate(() => window.openbexiSimulation.snapshot().drawnNoradIds.length), {
+    timeout: 30_000
+  }).toBeGreaterThan(16_000);
+  const pointCloud = await page.evaluate(async () => {
+    const diagnostics = (await import('/js/satelliteTLELoader.js')).getSatellitePointCloudDiagnostics();
+    return {
+      ...diagnostics,
+      expectedNoradIds: [...window.openbexiSimulation.snapshot().drawnNoradIds].sort()
+    };
+  });
+  expect(pointCloud.drawnCount).toBeGreaterThan(16_000);
+  expect(pointCloud.matchedPositionCount).toBe(pointCloud.drawnCount);
+  expect(pointCloud.uploadedNoradIds.toSorted()).toEqual(pointCloud.expectedNoradIds);
+  expect(pointCloud.markerMode).toBe('density');
+  expect(pointCloud.pointSize).toBe(0.025);
+  await page.locator('#viewMercatorToggle').check();
+  await page.waitForFunction(() => {
+    const canvas = document.querySelector('#mercatorCanvas');
+    return canvas?.dataset.markerMode === 'density' && Number(canvas.dataset.renderedMarkerCount) > 16_000;
+  });
+  const densityCanvas = await page.locator('#mercatorCanvas').evaluate(canvas => {
+    const ctx = canvas.getContext('2d');
+    const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    let colored = 0;
+    let cyan = 0;
+    for (let offset = 0; offset < pixels.length; offset += 4) {
+      if (pixels[offset + 3] === 0) continue;
+      colored += 1;
+      if (pixels[offset] < 100 && pixels[offset + 1] > 120 && pixels[offset + 2] > 150) cyan += 1;
+    }
+    return { colored, cyanRatio: cyan / (canvas.width * canvas.height) };
+  });
+  expect(densityCanvas.colored).toBeGreaterThan(0);
+  expect(densityCanvas.cyanRatio).toBeGreaterThan(0);
+  expect(densityCanvas.cyanRatio).toBeLessThan(0.45);
+
+  const frameGaps = await page.evaluate(() => new Promise(resolve => {
+    const gaps = [];
+    let prior = null;
+    const collect = timestamp => {
+      if (prior !== null) gaps.push(timestamp - prior);
+      prior = timestamp;
+      if (gaps.length >= 30) resolve(gaps);
+      else requestAnimationFrame(collect);
+    };
+    requestAnimationFrame(collect);
+  }));
+  const sortedFrameGaps = frameGaps.toSorted((a, b) => a - b);
+  expect(sortedFrameGaps[Math.floor(sortedFrameGaps.length * 0.95)]).toBeLessThanOrEqual(150);
+  expect(Math.max(...sortedFrameGaps)).toBeLessThanOrEqual(200);
+  await testInfo.attach('full-catalog-density-render', {
+    body: await page.screenshot({ fullPage: false }),
+    contentType: 'image/png'
+  });
 
   const health = await request.get('/api/health');
   expect(health.ok()).toBe(true);

@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "releaseVersion": "2.1.0",
+  "releaseVersion": "2.2.0",
   "flags": [
     {
       "id": "experimental_conjunction_screening",
-      "description": "Browser-based selected-object versus catalog TLE close-approach screening",
+      "description": "Browser-based selected-object versus mixed GP catalog close-approach screening",
       "enabled": true,
       "enabledChannels": [
         "development",

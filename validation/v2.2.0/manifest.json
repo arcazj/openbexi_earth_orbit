@@ -1,0 +1,1175 @@
+{
+  "schemaVersion": 1,
+  "corpusId": "openbexi-earth-orbit-v2.2-development-evidence",
+  "corpusVersion": "2.2.0-development",
+  "releaseVersion": "2.2.0",
+  "generatedAt": "2026-08-23",
+  "publicationState": "development",
+  "scientificMaturity": "experimental",
+  "safetyClass": "non-operational",
+  "review": {
+    "status": "pending",
+    "reviewer": null,
+    "reviewedAt": null,
+    "scope": "Independent review of OMM source handling, propagation continuity, browser state/time/rendering, catalog completeness, performance, and redistribution has not been completed."
+  },
+  "claims": {
+    "accuracy": false,
+    "operationalUse": false,
+    "acceptanceUse": "These artifacts support Version 2.2 development regression checks only and do not authorize candidate, public redistribution, validated maturity, or operational use."
+  },
+  "conventions": {
+    "timeScale": "UTC",
+    "frame": "TEME",
+    "positionUnits": "km",
+    "velocityUnits": "km/s",
+    "identifierEncoding": "positive 1-9 digit decimal strings"
+  },
+  "executables": [
+    {
+      "id": "gp-omm-export-fixtures",
+      "command": "node tests/satelliteDataTools.test.js",
+      "artifacts": [
+        "tools/satellite_data_tools.py",
+        "tests/satelliteDataTools.test.js"
+      ]
+    },
+    {
+      "id": "mixed-browser-catalog",
+      "command": "node tests/gpCatalogLoader.test.js && node tests/multiFormatPropagationService.test.js",
+      "artifacts": [
+        "js/satelliteTLELoader.js",
+        "js/domain/orbitalSourceAdapters.js",
+        "js/orbit/multiFormatPropagationService.js",
+        "tests/gpCatalogLoader.test.js",
+        "tests/multiFormatPropagationService.test.js"
+      ]
+    },
+    {
+      "id": "timeline-refresh-fixtures",
+      "command": "node tests/launchTimelineCatalog.test.js && node tests/decayCacheRefresh.test.js",
+      "artifacts": [
+        "js/ganttTimelineLoader.js",
+        "js/decayPredictor.js",
+        "js/reentryTimeline.js",
+        "tests/launchTimelineCatalog.test.js",
+        "tests/decayCacheRefresh.test.js"
+      ]
+    },
+    {
+      "id": "server-browser-contracts",
+      "command": "node tests/serverConnection.test.js && node tests/serverApiStructure.test.js",
+      "artifacts": [
+        "server.py",
+        "js/serverConnection.js",
+        "tests/serverConnection.test.js",
+        "tests/serverApiStructure.test.js"
+      ]
+    },
+    {
+      "id": "static-runtime-closure",
+      "command": "node tests/staticArtifact.test.js",
+      "artifacts": [
+        "index.html",
+        "js/dependencyBootstrap.js",
+        "tests/staticArtifact.test.js"
+      ]
+    },
+    {
+      "id": "python-service-regressions",
+      "command": "npm run test:python",
+      "artifacts": [
+        "scripts/python-discovery.mjs",
+        "scripts/python.mjs",
+        "services/v21/api.py",
+        "services/v21/catalog_registry.py",
+        "tests_python/test_server_security.py",
+        "tests_python/test_v21_api.py",
+        "tests_python/test_v21_catalog_registry.py",
+        "tests_python/test_satellite_data_scheduler.py"
+      ]
+    },
+    {
+      "id": "multi-format-worker-regressions",
+      "command": "node tests/conjunctionWorkerProtocol.test.js",
+      "artifacts": [
+        "js/conjunction/conjunctionScreening.js",
+        "js/conjunction/conjunctionWorker.js",
+        "js/conjunction/conjunctionWorkerClient.js",
+        "js/conjunction/fullCatalogScreening.js",
+        "tests/conjunctionWorkerProtocol.test.js"
+      ]
+    },
+    {
+      "id": "browser-integration-regressions",
+      "command": "npm run test:browser -- tests_browser/conjunction.spec.js tests_browser/staticDeployment.spec.js tests_browser/timelines.spec.js",
+      "artifacts": [
+        "scripts/python-discovery.mjs",
+        "scripts/run-browser-tests.mjs",
+        "playwright.config.js",
+        "index.html",
+        "js/serverConnection.js",
+        "tests_browser/conjunction.spec.js",
+        "tests_browser/staticDeployment.spec.js",
+        "tests_browser/timelines.spec.js"
+      ]
+    },
+    {
+      "id": "durable-registry-acquisitions",
+      "command": "node scripts/python.mjs -m unittest tests_python.test_v21_catalog_registry tests_python.test_v21_api -v",
+      "artifacts": [
+        "scripts/python-discovery.mjs",
+        "scripts/python.mjs",
+        "services/v21/api.py",
+        "services/v21/catalog_registry.py",
+        "tests_python/test_v21_api.py",
+        "tests_python/test_v21_catalog_registry.py"
+      ]
+    },
+    {
+      "id": "gp-omm-benchmark-fixtures",
+      "command": "node tests/fullCatalogBenchmark.test.js",
+      "artifacts": [
+        "scripts/benchmark-full-catalog.mjs",
+        "scripts/orbital-catalog-input.mjs",
+        "tests/fullCatalogBenchmark.test.js"
+      ]
+    },
+    {
+      "id": "independent-data-scheduler",
+      "command": "node scripts/python.mjs -m unittest tests_python.test_satellite_data_scheduler -v",
+      "artifacts": [
+        "scripts/python-discovery.mjs",
+        "scripts/python.mjs",
+        "tools/satellite_data_tools.py",
+        "tests_python/test_satellite_data_scheduler.py"
+      ]
+    },
+    {
+      "id": "python-discovery-and-data-tools",
+      "command": "node tests/satelliteDataTools.test.js",
+      "artifacts": [
+        "scripts/python-discovery.mjs",
+        "tools/satellite_data_tools.py",
+        "tests/satelliteDataTools.test.js"
+      ]
+    },
+    {
+      "id": "static-timeline-and-network-closure",
+      "command": "npm run test:browser -- tests_browser/timelines.spec.js tests_browser/staticDeployment.spec.js",
+      "artifacts": [
+        "scripts/python-discovery.mjs",
+        "scripts/run-browser-tests.mjs",
+        "scripts/build-static.mjs",
+        "release/static-artifact.json",
+        "index.html",
+        "js/serverConnection.js",
+        "tests_browser/timelines.spec.js",
+        "tests_browser/staticDeployment.spec.js"
+      ]
+    },
+    {
+      "id": "browser-state-motion-unit-regressions",
+      "command": "node tests/satelliteCategoryFilter.test.js && node tests/simulationClock.test.js && node tests/satelliteMotionInterpolator.test.js && node tests/mercatorMotionReuse.test.js && node tests/satelliteOrbitOcclusion.test.js && node tests/shareState.test.js && node tests/solarSystemEphemeris.test.js && node tests/startupStructure.test.js",
+      "artifacts": [
+        "js/satelliteCategoryFilter.js",
+        "js/simulationClock.js",
+        "js/orbit/satelliteMotionInterpolator.js",
+        "js/mercatorMapLoader.js",
+        "js/satelliteTLELoader.js",
+        "js/shareState.js",
+        "js/solarSystemEphemeris.js",
+        "tests/satelliteCategoryFilter.test.js",
+        "tests/simulationClock.test.js",
+        "tests/satelliteMotionInterpolator.test.js",
+        "tests/mercatorMotionReuse.test.js",
+        "tests/satelliteOrbitOcclusion.test.js",
+        "tests/shareState.test.js",
+        "tests/solarSystemEphemeris.test.js",
+        "tests/startupStructure.test.js"
+      ]
+    },
+    {
+      "id": "browser-filter-time-density-regressions",
+      "command": "npm run test:browser -- tests_browser/satelliteFilters.spec.js tests_browser/timeSimulation.spec.js tests_browser/smoke.spec.js",
+      "artifacts": [
+        "scripts/python-discovery.mjs",
+        "scripts/run-browser-tests.mjs",
+        "playwright.config.js",
+        "index.html",
+        "js/satelliteTLELoader.js",
+        "js/satelliteCategoryFilter.js",
+        "js/simulationClock.js",
+        "js/orbit/satelliteMotionInterpolator.js",
+        "js/mercatorMapLoader.js",
+        "tests_browser/satelliteFilters.spec.js",
+        "tests_browser/timeSimulation.spec.js",
+        "tests_browser/smoke.spec.js"
+      ]
+    },
+    {
+      "id": "generated-data-and-model-integrity",
+      "command": "node tests/catalogArtifactClassification.test.js && node tests/displaySatelliteViewer.test.js && node tests/gpCatalogLoader.test.js",
+      "artifacts": [
+        "json/gp/GP.json",
+        "json/gp/GP.meta.json",
+        "json/tle/TLE.json",
+        "json/tle/TLE.meta.json",
+        "json/display_satellite_models.json",
+        "obj/SSL_1300.glb",
+        "js/satelliteTLELoader.js",
+        "tests/catalogArtifactClassification.test.js",
+        "tests/displaySatelliteViewer.test.js",
+        "tests/gpCatalogLoader.test.js"
+      ]
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "tools/satellite_data_tools.py",
+      "role": "gp-omm-ingest",
+      "sha256": "dfc2e2dfdf2e38f2b7de92aa4ef86cefb939cf248ac6f0a70b2512d3eaf9f7fc"
+    },
+    {
+      "path": "server.py",
+      "role": "local-api",
+      "sha256": "affaeddd5a44ae60af536ac70d648257632406482f2214c6600627b6b08428f2"
+    },
+    {
+      "path": "services/v21/api.py",
+      "role": "durable-service-api",
+      "sha256": "30c35d42acc91b49fa24da4ed2d2aff8d7236ba34e4f25e2bf0edb07602cd210"
+    },
+    {
+      "path": "services/v21/catalog_registry.py",
+      "role": "multi-format-snapshot-registry",
+      "sha256": "e0752cb54eba26860da1519e2584e338de11cebab10e088dff1c71036dea9d01"
+    },
+    {
+      "path": "index.html",
+      "role": "browser-integration",
+      "sha256": "50dd8d7fc520472cbe432685b07e9778b93760d6cadf5aa40bc7c3b1265cd791"
+    },
+    {
+      "path": "js/satelliteTLELoader.js",
+      "role": "mixed-catalog-loader",
+      "sha256": "556e8e0fd06d4a737bd579529b7b371a29c6319967d7946d1e26ee75df8fba30"
+    },
+    {
+      "path": "js/ganttTimelineLoader.js",
+      "role": "launch-timeline",
+      "sha256": "a390562909425a25d78b452717892881fbc313a85f37af3a9701a524d6d00f31"
+    },
+    {
+      "path": "js/decayPredictor.js",
+      "role": "decay-cache",
+      "sha256": "986b2058cc58a0aa2ff626530ac170d6a4823cf7efbe428c549a83cbf72dc375"
+    },
+    {
+      "path": "js/reentryTimeline.js",
+      "role": "reentry-timeline",
+      "sha256": "1d99ae8abe43b76005065590744cf65f503e1e62ed42e7399bc038366b6920fa"
+    },
+    {
+      "path": "js/serverConnection.js",
+      "role": "browser-api-client",
+      "sha256": "6fdd071395764c50af890ffed690a1018f7b44b2b4a5d52448d15c4224225b0d"
+    },
+    {
+      "path": "js/dependencyBootstrap.js",
+      "role": "browser-dependency-gate",
+      "sha256": "6a571309dfb85187c4773a8d4e9949c4664e3213934a117c38f1d04273f8de74"
+    },
+    {
+      "path": "js/domain/orbitalSourceAdapters.js",
+      "role": "omm-adapter",
+      "sha256": "53276aaacacb7f767548c5b7c9f8375f618855f91861a35b6b69b06f1718b830"
+    },
+    {
+      "path": "js/domain/v21Contracts.js",
+      "role": "multi-format-contracts",
+      "sha256": "cf6d0992b6fd63f2179e42603f061b32cd5642e998c4a949e038488b1a3b0e06"
+    },
+    {
+      "path": "js/orbit/multiFormatPropagationService.js",
+      "role": "multi-format-propagation",
+      "sha256": "cf3c998c01ef3711378977892f8b5721ac7a135e99f409b06a7bfed8b72384e1"
+    },
+    {
+      "path": "js/conjunction/conjunctionScreening.js",
+      "role": "browser-screening",
+      "sha256": "a5a843273f16803e23ed76ac957815afb2781c6ff81453a4eb8cdb042b2925c3"
+    },
+    {
+      "path": "js/conjunction/conjunctionWorker.js",
+      "role": "screening-worker",
+      "sha256": "3f7c2be82ae1dbb858684f9815b01003307c9e2b38c423c2071c8874d58462c7"
+    },
+    {
+      "path": "js/conjunction/conjunctionWorkerClient.js",
+      "role": "screening-worker-client",
+      "sha256": "dd78f407719cb6f50f88c81aa2b06bb67487d82eaa764dea51de2134e2a40e03"
+    },
+    {
+      "path": "js/conjunction/fullCatalogScreening.js",
+      "role": "full-catalog-screening",
+      "sha256": "95f2bd2678c04270a13900b99abfa6ceb632855693939c72d6e1b23f98e2cb13"
+    },
+    {
+      "path": "tests/satelliteDataTools.test.js",
+      "role": "ingest-fixtures",
+      "sha256": "3529560fff97a082a0d26cbcf7bf42150c1687c3aac108e688454d305f304e2a"
+    },
+    {
+      "path": "tests/gpCatalogLoader.test.js",
+      "role": "mixed-loader-fixtures",
+      "sha256": "8be1638bf0b19a50687ffbdd4cad6e08edf71177fe3becc974029a3118ea188d"
+    },
+    {
+      "path": "tests/multiFormatPropagationService.test.js",
+      "role": "multi-format-propagation-fixtures",
+      "sha256": "f1207c2532d751297e04b84771856ba2a10c22a125777c1bcc078a94312c950e"
+    },
+    {
+      "path": "tests/launchTimelineCatalog.test.js",
+      "role": "launch-timeline-fixtures",
+      "sha256": "53619abfe8138dc49060a17aaee4dc5791a594b0650f3ef1bf65fa8e2336376b"
+    },
+    {
+      "path": "tests/decayCacheRefresh.test.js",
+      "role": "decay-refresh-fixtures",
+      "sha256": "0554440536a3ed3658d9318f1976410f615f8fdbe02334f394c8d5ba51aa98a9"
+    },
+    {
+      "path": "tests/serverConnection.test.js",
+      "role": "api-client-fixtures",
+      "sha256": "f729a3cf557fff04051fbfccbc397f4e2933a7fd375ce5a4545161c9af2060fa"
+    },
+    {
+      "path": "tests/conjunctionWorkerProtocol.test.js",
+      "role": "worker-fixtures",
+      "sha256": "5b89ec43904f6d63e4f4128803ca018ce9b09ba3de0969777df8a4cd2955046a"
+    },
+    {
+      "path": "tests/staticArtifact.test.js",
+      "role": "static-closure-fixtures",
+      "sha256": "bfa5b6433f9a6e841402a042f453f5af3d765cf8a8b28f9529ab0f64e41e2302"
+    },
+    {
+      "path": "tests_python/test_server_security.py",
+      "role": "server-security-fixtures",
+      "sha256": "79c52c411c1d2010871dd60593704641daca3690a20d16e6eadc33d3b78f536d"
+    },
+    {
+      "path": "tests_python/test_v21_api.py",
+      "role": "service-api-fixtures",
+      "sha256": "18c736f0604e34580adb55ddcc4f9a22e593f82de2f21308218ae76d075238dd"
+    },
+    {
+      "path": "tests_python/test_v21_catalog_registry.py",
+      "role": "omm-registry-fixtures",
+      "sha256": "ab1bd61f7b805e0d777ff16989b3a8fe5c2d57dc9c3e677d711ad22c6a5cb6c4"
+    },
+    {
+      "path": "scripts/run-browser-tests.mjs",
+      "role": "browser-test-lifecycle",
+      "sha256": "7fa7b8f0ae8eee4c8fb83c68dc977ac5ca038edfb9d277928e6f4ccaa3cc4f64"
+    },
+    {
+      "path": "playwright.config.js",
+      "role": "browser-test-configuration",
+      "sha256": "ca3dc8fda192ce634d22a5c9ca8722e218548c9816b7e71da11c534bccf8af68"
+    },
+    {
+      "path": "tests_browser/conjunction.spec.js",
+      "role": "browser-conjunction-fixtures",
+      "sha256": "4213a5e577c20392bbae7764aebf504c56b80e6434498f4e91eee0334b45f0fd"
+    },
+    {
+      "path": "tests_browser/staticDeployment.spec.js",
+      "role": "browser-static-fixtures",
+      "sha256": "d671a2fc8d50bac0f06eccfaffa3e64c6cca56c6756cda23e34e38cac1e343aa"
+    },
+    {
+      "path": "package.json",
+      "role": "command-and-dependency-policy",
+      "sha256": "8bd821ea94f2e5c7e12b62c1bb0d8603f91a3876a85bff1196840da7a77b9613"
+    },
+    {
+      "path": "package-lock.json",
+      "role": "locked-node-dependencies",
+      "sha256": "5eabde89fba626a45d2ec0bbe862cee51c4085c26ac164487957a467b25094ea"
+    },
+    {
+      "path": "release/version.json",
+      "role": "release-identity",
+      "sha256": "c73f351bcdbfc865f9b47781c76a806ba33d5d67bca5a1c9ae5e5dfcdd41d841"
+    },
+    {
+      "path": "release/feature-flags.json",
+      "role": "feature-boundary",
+      "sha256": "425bcf6fa931598a4fce11c0e10cf41dcec581e62201f9c7d89b753dd41a743d"
+    },
+    {
+      "path": "release/static-artifact.json",
+      "role": "static-build-manifest",
+      "sha256": "e0d1e4abe42343539e2ba3362f3ab5860f029b1ef2944a365bad3847ce090591"
+    },
+    {
+      "path": "release/asset-budgets.json",
+      "role": "asset-budget-policy",
+      "sha256": "68a5e8c1fb4e4a96bc6bbd0992f729e7db442b31e80996a3eee5be58baeb50ea"
+    },
+    {
+      "path": "css/style.css",
+      "role": "mixed-catalog-browser-layout",
+      "sha256": "312ab98d67657a7f2cafead7c832c60e736cd70fbb29ae388fe7cb68b5152759"
+    },
+    {
+      "path": "js/SatelliteConfigurationLoader.js",
+      "role": "mixed-element-details",
+      "sha256": "8d1692d7f54a6a701b868d81aeef20e79754d6771885752e73f4117f49e06eaf"
+    },
+    {
+      "path": "js/SatelliteMenuLoader.js",
+      "role": "catalog-selection-ui",
+      "sha256": "92902556a55fdeb6ad97c13e8cb7e2557114ef6be78cff7a3ec88c256c3f0155"
+    },
+    {
+      "path": "js/mercatorMapLoader.js",
+      "role": "mixed-catalog-map-renderer",
+      "sha256": "03d4e4124a4d057b84aba75fbb7c04922107ac04232e99abf1a9359cb49f51aa"
+    },
+    {
+      "path": "js/releaseVersion.js",
+      "role": "generated-browser-release-metadata",
+      "sha256": "e1570eef5494c9f83dbb3dac15e47fcde27605c47c757438431afa866d6ef790"
+    },
+    {
+      "path": "scripts/build-static.mjs",
+      "role": "static-artifact-builder",
+      "sha256": "d1cdedbaa11be577e120ddcbe88e45e89f7f791ed14c273c45f448034d8d39ea"
+    },
+    {
+      "path": "scripts/benchmark-full-catalog.mjs",
+      "role": "gp-omm-benchmark",
+      "sha256": "88f92377403b83472ddaf8b89ac25b7fa3d15dea2d702cb52da001ee32eff3d0"
+    },
+    {
+      "path": "scripts/orbital-catalog-input.mjs",
+      "role": "benchmark-catalog-selection",
+      "sha256": "91bf2d795ea00e7bb8b111f59e813d1d5615350ddfdf146354c67dd67147b24d"
+    },
+    {
+      "path": "scripts/python-discovery.mjs",
+      "role": "shared-python-discovery",
+      "sha256": "95b29798ddee85b86c43fac52bcbd15c2ed9150d580cb948acf16cd2f5c1aa5e"
+    },
+    {
+      "path": "scripts/python.mjs",
+      "role": "shared-python-runner",
+      "sha256": "8367d07bbccec95de58df9311ceafbd0b4379beba02e320dae3cd3f1b5332299"
+    },
+    {
+      "path": "scripts/run-full-catalog-screening.mjs",
+      "role": "gp-omm-full-catalog-runner",
+      "sha256": "bf6ca5a0fd29858c3fdbbe96095ec919bfe855a2c5a7c932bfed455bcbf82578"
+    },
+    {
+      "path": "scripts/check-validation-manifest.mjs",
+      "role": "validation-evidence-gate",
+      "sha256": "ce058e12b8f97eb8669784c186f59679e884e8fe159a670446e702441ef43dc9"
+    },
+    {
+      "path": "scripts/check-asset-budgets.mjs",
+      "role": "asset-budget-gate",
+      "sha256": "a13b979a3cee3c91f7356754a0888f6ce3f4b9d519be9e4781ae1faf38f24830"
+    },
+    {
+      "path": "scripts/check-version.mjs",
+      "role": "release-version-gate",
+      "sha256": "efc58d0fcd7ebf179228dcee7ab28159491e87594edca0053b3bb12bc9932c91"
+    },
+    {
+      "path": "scripts/vendor-browser-dependencies.mjs",
+      "role": "vendored-runtime-gate",
+      "sha256": "0b98e001e466f0cf62ad58025b2c930d596cc01a814a9431ff020e084973df2d"
+    },
+    {
+      "path": "swagger.html",
+      "role": "static-api-documentation",
+      "sha256": "8d94ad915f105b9b770a57d17672be25891151ec644834fe33be5770c4817785"
+    },
+    {
+      "path": "tests/runAll.js",
+      "role": "unit-test-discovery",
+      "sha256": "fe4dc0dd08e8f0d9704682bffe4d7339b5c0112f637ff1695049d01b5ee367e5"
+    },
+    {
+      "path": "tests/catalogLoaderIntegration.test.js",
+      "role": "catalog-fallback-fixtures",
+      "sha256": "45499302c31b97e2956f9d4a78dea69c7c2bd2f00dc669273f6c6c3f9ba109c9"
+    },
+    {
+      "path": "tests/conjunctionUx.test.js",
+      "role": "mixed-catalog-conjunction-ux-fixtures",
+      "sha256": "e4dc61dab0ccc5f12bef5ac6a4d33901e16721bea0f9adc330affe24f426a964"
+    },
+    {
+      "path": "tests/fullCatalogRunner.test.js",
+      "role": "gp-omm-runner-fixtures",
+      "sha256": "aeb2fd78aacd288694e6730d1c25ea5872d2c97df1420a509647537bc1e92e46"
+    },
+    {
+      "path": "tests/fullCatalogBenchmark.test.js",
+      "role": "gp-omm-benchmark-fixtures",
+      "sha256": "6681d47358c3ea5c499cdc7191184cbf75580d5d0b9a98c35a052dcddc4774b7"
+    },
+    {
+      "path": "tests/menuUx.test.js",
+      "role": "timeline-and-selection-ux-fixtures",
+      "sha256": "808b3b8382776bf2d0f2f3e03c03ace83048d21605d8f274615e79aefb4f6b7f"
+    },
+    {
+      "path": "tests/releaseStructure.test.js",
+      "role": "release-structure-fixtures",
+      "sha256": "9b4766179cf794c30f05bcd312fe3de9ed59baacfa5ef6e962f3e7f4c3be2c38"
+    },
+    {
+      "path": "tests/serverApiStructure.test.js",
+      "role": "composite-api-fixtures",
+      "sha256": "360eb60bc3642a7c97e707ed6d8be5cdc06f9bf278828047b715bc9010bec03c"
+    },
+    {
+      "path": "tests_browser/timelines.spec.js",
+      "role": "same-document-timeline-refresh-fixtures",
+      "sha256": "0e06ff50d1a8ff9d027b1848fafb91c7cdc2a41a0ab247620965ba828a475c57"
+    },
+    {
+      "path": "tests_python/test_satellite_data_scheduler.py",
+      "role": "independent-scheduler-fixtures",
+      "sha256": "1168177854cf7ce01923a0c8c76baf81954bd7a3c51ab961999f765fa8161d46"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "role": "continuous-integration-policy",
+      "sha256": "2c90c1521b6cf2b7c67aa7a305ad5b3da1a9cba01582fb9bae4b5ba2732c223d"
+    },
+    {
+      "path": ".github/dependabot.yml",
+      "role": "dependency-update-policy",
+      "sha256": "6e7bc99b97439d3cb2b8a6f84254bf9e0556a322ba6d12eaed108b50677ad82b"
+    },
+    {
+      "path": ".nvmrc",
+      "role": "node-runtime-version",
+      "sha256": "f14b4987904bcb5814e4459a057ed4d20f58a633152288a761214dcd28780b56"
+    },
+    {
+      "path": "release/evidence/openbexi-node-sbom-2.2.0-development.cdx.json",
+      "role": "development-dependency-sbom",
+      "sha256": "249f1fbc6cd8745dc17b80d0be68d91656a4d68f35805eccdc72a9ed2b536e43"
+    },
+    {
+      "path": "tools/benchmark_v21_service.py",
+      "role": "durable-service-benchmark",
+      "sha256": "4af446f20b813dc8d1149a72e32e2544b26a46745c0adb88544693a9f5193d5d"
+    },
+    {
+      "path": "display_satellite.html",
+      "role": "model-viewer-runtime",
+      "sha256": "d0ebc81d21a4b316becbdcb626b0a825b4a720b06e9aca780ed2e4771812877a"
+    },
+    {
+      "path": "json/display_satellite_models.json",
+      "role": "model-asset-manifest",
+      "sha256": "a4c789e7e6f1900d822d67f73c4d360d7b3a8c61cb92e4400141b55c6df90330"
+    },
+    {
+      "path": "obj/SSL_1300.glb",
+      "role": "canonical-ssl1300-model",
+      "sha256": "651b30cebf57bd08fedcfb34c31127f7a466b7897ccac2aafa8ea9908cccfcf0"
+    },
+    {
+      "path": "js/satelliteModelLoader.js",
+      "role": "selected-model-loader",
+      "sha256": "40b9dd8f15f7c0c629526e7cf061b9c168cea03728efb0f7dd68e04915e198f7"
+    },
+    {
+      "path": "js/satelliteModelResolver.js",
+      "role": "selected-model-resolution",
+      "sha256": "346b47f56923d998038d4789c0464d40e3ec990a1394f7f6e6d5067b70a9b9de"
+    },
+    {
+      "path": "js/satelliteCategoryFilter.js",
+      "role": "unified-category-filter",
+      "sha256": "4ae82afe9cfb8ec8a178668629900f8336d8c49dde7b150e78ef8e3578e9fcb7"
+    },
+    {
+      "path": "js/simulationClock.js",
+      "role": "authoritative-simulation-clock",
+      "sha256": "23b01809a8cb4b0af86b99415bf0484084592a6b643212b6159b4d00d8adcd00"
+    },
+    {
+      "path": "js/satelliteFootprintLoader.js",
+      "role": "exact-selected-footprint-consumer",
+      "sha256": "3c89c56ea8d599da92f8b96c024f33cac131e17ebf157441ef6f0f7882a5fdd1"
+    },
+    {
+      "path": "js/sceneFrame.js",
+      "role": "visualization-frame-transform",
+      "sha256": "b26cb0951b91f3f354e61e4b7e0dea63455455dc11b1cdd16e836ce6d1bd48c1"
+    },
+    {
+      "path": "js/shareState.js",
+      "role": "normalized-browser-share-state",
+      "sha256": "c3f5300119256e0b86c82a6d991bc646120df506f33e2feb51f7075eadbb5615"
+    },
+    {
+      "path": "js/solarSystemEphemeris.js",
+      "role": "bounded-solar-system-ephemeris",
+      "sha256": "4b7ecf3674fe7700fe519a34369046327d4cac7fe14b7fdaa5a63d6656d1c7be"
+    },
+    {
+      "path": "js/solarSystemOverviewLoader.js",
+      "role": "shared-clock-solar-system-view",
+      "sha256": "5b219cc0cf3a11e036301be64c44ba67697c180ae378b4c292b4d2e99c9c3c68"
+    },
+    {
+      "path": "js/startupPerformance.js",
+      "role": "progressive-startup-instrumentation",
+      "sha256": "0a473180ff491593fa725a563d36e627dd8d2a89cae6d66ddc60f034104fd12d"
+    },
+    {
+      "path": "js/orbit/orbitLinkGeometry.js",
+      "role": "orbit-class-and-link-geometry",
+      "sha256": "76ad14e5177e7346a16902adce4dec82170f8b9778287d152dbd64bc2eceacf3"
+    },
+    {
+      "path": "js/orbit/satelliteMotionInterpolator.js",
+      "role": "bounded-display-motion",
+      "sha256": "c085995dd60bb06f3fe3f37168d69e097a501f7409bf7b7b96536c67fe829515"
+    },
+    {
+      "path": "scripts/check-js-syntax.mjs",
+      "role": "javascript-syntax-gate",
+      "sha256": "a6ad8e8b768246e54e3d1a82ef5b158f1c7987bf8ca5425520a3c5206579902e"
+    },
+    {
+      "path": "scripts/generate-sbom.mjs",
+      "role": "dependency-sbom-generator",
+      "sha256": "651b1d3c4c9efc7ab67eefda28c569c5bf3f9cec18b12357fa68a86510edc74e"
+    },
+    {
+      "path": "scripts/sync-version.mjs",
+      "role": "release-version-synchronizer",
+      "sha256": "334ac04d4ec72ea20f38ae8d255ec8c5948034f5395719b0ad2fd9d161de7d45"
+    },
+    {
+      "path": "tests/catalogArtifactClassification.test.js",
+      "role": "generated-catalog-classification-fixtures",
+      "sha256": "a9d1c4ffa8625aa8de8e9be2c2000703d37056169b7805c3a64560561adf8fd5"
+    },
+    {
+      "path": "tests/displaySatelliteViewer.test.js",
+      "role": "canonical-model-inventory-fixtures",
+      "sha256": "4c1926d87a536c9cb447a07928800adef770c07d071e58a01b6c9b2fb8271e8f"
+    },
+    {
+      "path": "tests/mercatorMotionReuse.test.js",
+      "role": "mercator-density-and-track-fixtures",
+      "sha256": "cc1fe10ba64bdaeff432342f5c3be471847d27cf6d141e5deb6e04e3bb9bfb1c"
+    },
+    {
+      "path": "tests/orbitLinkGeometry.test.js",
+      "role": "orbit-geometry-fixtures",
+      "sha256": "d66dd60a7bfaa8987a8b04987267af61d196767f00176b5f3d8fd0704a411664"
+    },
+    {
+      "path": "tests/satelliteCategoryFilter.test.js",
+      "role": "category-filter-fixtures",
+      "sha256": "4c55e9d787ca34c1d1415e8326ecc32d835e34786766fce662ddb4129643f829"
+    },
+    {
+      "path": "tests/satelliteMotionInterpolator.test.js",
+      "role": "motion-readiness-recovery-fixtures",
+      "sha256": "77285dd4fc8666dd62e30819672505a714e6c259bd6779d838603fb96fd1a5bf"
+    },
+    {
+      "path": "tests/satelliteOrbitOcclusion.test.js",
+      "role": "selected-orbit-continuity-fixtures",
+      "sha256": "a9399f9f07004497d2bef20ba877166d313b6b2763329313f1b81b2bc97b7dc8"
+    },
+    {
+      "path": "tests/sceneFrameRoundTrip.test.js",
+      "role": "scene-frame-round-trip-fixtures",
+      "sha256": "d6cfb32e1332f80f9bc084473519b8c59590950765ab908ffdb089312d1a1c33"
+    },
+    {
+      "path": "tests/shareState.test.js",
+      "role": "share-state-fixtures",
+      "sha256": "6473e73fffe7c221e1ce30543888898a0b8ed9331b0a4706798c2a3fbac4ad46"
+    },
+    {
+      "path": "tests/simulationClock.test.js",
+      "role": "simulation-clock-fixtures",
+      "sha256": "d78c31fa2eced059dd6f3b2f647b1212c53d0b90e567ad5f71e1c002d0ed3f10"
+    },
+    {
+      "path": "tests/solarSystemEphemeris.test.js",
+      "role": "ephemeris-boundary-fixtures",
+      "sha256": "7eeb4ae679f5fd67808833e284569f95f313ad622ec63a925fd339635aab3519"
+    },
+    {
+      "path": "tests/solarSystemOverview.test.js",
+      "role": "solar-system-view-fixtures",
+      "sha256": "4cb34cd9675737d8fe4e4b9b654dc8204ea054f286b4d2fabda8e1db28af1538"
+    },
+    {
+      "path": "tests/startupPerformance.test.js",
+      "role": "startup-performance-fixtures",
+      "sha256": "2527f2e9af83fff9af389b860416b9ee083e2116aac80d212fa12b665ca36407"
+    },
+    {
+      "path": "tests/startupStructure.test.js",
+      "role": "browser-cleanup-structure-fixtures",
+      "sha256": "f941af826aad5dc7bf5e37d85cf8b8f3de1c17e7c386673854a159fadba16f95"
+    },
+    {
+      "path": "tests_browser/satelliteFilters.spec.js",
+      "role": "browser-category-details-layering-fixtures",
+      "sha256": "dfaa81669ab9797870c3955454333723b9407916b24d11b058c1d3ad60b0a560"
+    },
+    {
+      "path": "tests_browser/timeSimulation.spec.js",
+      "role": "browser-signed-time-motion-fixtures",
+      "sha256": "f5c5f85cd1140380afe399936bd743faa1ccc131fdabe677b92bea04bb3dd7a8"
+    },
+    {
+      "path": "tests_browser/smoke.spec.js",
+      "role": "browser-startup-density-fixtures",
+      "sha256": "a734972f465b212824b307e831f61c3eb896ccb9373eb49de14abcd16a0768ed"
+    },
+    {
+      "path": "json/gp/GP.json",
+      "role": "frozen-gp-omm-catalog",
+      "sha256": "e381b64544e64ed93fd74320ec837440cc4b3004cb27d276e0b73d418d9292a5"
+    },
+    {
+      "path": "json/gp/GP.meta.json",
+      "role": "frozen-gp-omm-metadata",
+      "sha256": "6e51ed2f5d4cad488084137bf68be63dccb8dac0523c9fc283e54fee416c9a0f"
+    },
+    {
+      "path": "json/launches/launches.json",
+      "role": "frozen-launch-event-catalog",
+      "sha256": "a1cf0b9fa3547e447af92c61058b1eb17ba5161ac752388995583030e53c0bd9"
+    },
+    {
+      "path": "json/launches/launches.meta.json",
+      "role": "frozen-launch-metadata",
+      "sha256": "e20a7b345c87e70e4de076056260abf2f5dbda294a5a7a2085be81322f333652"
+    },
+    {
+      "path": "json/decayed/decayed.json",
+      "role": "frozen-confirmed-decay-catalog",
+      "sha256": "81756bf12a76804c48c86483d5b81d546ccb8b9d5d6290b87c182300371e471b"
+    },
+    {
+      "path": "json/decayed/decayed.meta.json",
+      "role": "frozen-confirmed-decay-metadata",
+      "sha256": "5ff0a3d1839f7ba3493ecd183d5d025d9f994e45847c9f8b41ee2715d0be2a4d"
+    },
+    {
+      "path": "json/tle/TLE.json",
+      "role": "frozen-tle-compatibility-catalog",
+      "sha256": "380a9d31b7a8c3498c33dff6d23a2970d21647d4de6f4966ae7170cbba996d1f"
+    },
+    {
+      "path": "json/tle/TLE.meta.json",
+      "role": "frozen-tle-compatibility-metadata",
+      "sha256": "5aa974efc9d06c3ba69cdfb38da0f0c14be40e30e79d8160b8cef5a047d9621b"
+    },
+    {
+      "path": "json/satcat.csv",
+      "role": "frozen-satcat-source-snapshot",
+      "sha256": "d3cf8a9454e2b01811ac3f11cb60d56190eb5173c1c4bac68c764d7193046ef9"
+    },
+    {
+      "path": "json/satcat.meta.json",
+      "role": "frozen-satcat-source-metadata",
+      "sha256": "13078acac2493e8b05c786a5d90f5aa6f9967eb5fc3fbea22c243158d1570ae0"
+    },
+    {
+      "path": "data/ephemeris/solar_system_jpl_horizons_2020_2035_6h.json",
+      "role": "frozen-solar-system-ephemeris",
+      "sha256": "57f8bbaa433938527e5a9012f4c2b51ac166a1e44edd26f96aa8b106628a3655"
+    },
+    {
+      "path": "data/ephemeris/solar_system_jpl_horizons_reference_samples.json",
+      "role": "ephemeris-reference-vectors",
+      "sha256": "9939901ee9c68bb0dd77640400b8023f6655f32776a40137d03fbb1af607bcad"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ingest.omm-identities-and-quarantine",
+      "artifact": "tests/satelliteDataTools.test.js",
+      "locator": "for norad_id in (69999, 100000, \"100001\", 999999999)",
+      "expected": {
+        "identifierRoundTrip": true,
+        "invalidRowsQuarantined": true,
+        "syntheticTle": false
+      }
+    },
+    {
+      "id": "browser.mixed-catalog-propagation",
+      "artifact": "tests/gpCatalogLoader.test.js",
+      "locator": "const nineDigit = ommRecord('123456789'",
+      "expected": {
+        "mixedDedupe": true,
+        "ommPropagation": "json2satrec",
+        "selectableSprite": true
+      }
+    },
+    {
+      "id": "propagation.tle-wrapper-identity",
+      "artifact": "tests/multiFormatPropagationService.test.js",
+      "locator": "assert.strictEqual(tlePrepared.value.object_id, tleRecord.object_id);",
+      "expected": {
+        "topLevelIdentityPreserved": true,
+        "delegatedPropagation": "TLE",
+        "screeningCompatible": true
+      }
+    },
+    {
+      "id": "browser.mobile-conjunction-workflow",
+      "artifact": "tests_browser/conjunction.spec.js",
+      "locator": "mobile conjunction workflow screens, renders, and fits without horizontal overflow",
+      "expected": {
+        "workerEventRendered": true,
+        "webglNonBlank": true,
+        "horizontalOverflow": false
+      }
+    },
+    {
+      "id": "timeline.launch-details-only-refresh",
+      "artifact": "tests/launchTimelineCatalog.test.js",
+      "locator": "const detailsOnly = merged.find(record => record.norad_id === '100401')",
+      "expected": {
+        "latestLaunch": "2026-08-20",
+        "detailsOnlySafe": true,
+        "refreshReplacesData": true
+      }
+    },
+    {
+      "id": "timeline.decay-cache-revision",
+      "artifact": "tests/decayCacheRefresh.test.js",
+      "locator": "invalidateConfirmedDecayCache();",
+      "expected": {
+        "revisionInvalidatesCache": true,
+        "ommIdentityStable": true
+      }
+    },
+    {
+      "id": "api.gp-launch-health-contracts",
+      "artifact": "tests/serverConnection.test.js",
+      "locator": "const loadedGp = await loadGpDataFromServer",
+      "expected": {
+        "gpEndpointValidated": true,
+        "launchEndpointValidated": true,
+        "fullWidthIds": true
+      }
+    },
+    {
+      "id": "static.omm-runtime-closure",
+      "artifact": "tests/staticArtifact.test.js",
+      "locator": "assert(manifestPaths.has('json/gp/GP.json')",
+      "expected": {
+        "gpCatalogPackaged": true,
+        "launchCatalogPackaged": true,
+        "ommRuntimePackaged": true
+      }
+    },
+    {
+      "id": "service.omm-snapshot-registration",
+      "artifact": "tests_python/test_v21_catalog_registry.py",
+      "locator": "\"norad_id\": \"100001\"",
+      "expected": {
+        "ommSnapshotAccepted": true,
+        "sourceFormatPreserved": true
+      }
+    },
+    {
+      "id": "api.composite-data-revisions",
+      "artifact": "tests/serverConnection.test.js",
+      "locator": "composite data revision takes precedence over the legacy GP-only catalog revision",
+      "expected": {
+        "compositePreferred": true,
+        "gpCompatibilityRetained": true,
+        "componentChangeObserved": true
+      }
+    },
+    {
+      "id": "api.health-fallback-availability",
+      "artifact": "tests_python/test_server_security.py",
+      "locator": "test_data_health_fails_closed_when_gp_and_tle_are_unavailable",
+      "expected": {
+        "emptyTleUnavailable": true,
+        "largerTleFileFallbackSignal": true,
+        "signalIsValidation": false
+      }
+    },
+    {
+      "id": "static.same-origin-revision-watcher",
+      "artifact": "tests/serverConnection.test.js",
+      "locator": "static metadata polling bypasses browser caches",
+      "expected": {
+        "sameOriginMetadata": true,
+        "cacheMode": "no-store",
+        "compositeRevision": true
+      }
+    },
+    {
+      "id": "browser.static-timeline-same-document-refresh",
+      "artifact": "tests_browser/timelines.spec.js",
+      "locator": "OMM selection and static catalog revisions refresh both timelines without reload",
+      "expected": {
+        "pageReload": false,
+        "launchRefresh": true,
+        "decayRefresh": true,
+        "duplicateEvents": false
+      }
+    },
+    {
+      "id": "service.immutable-acquisition-history",
+      "artifact": "tests_python/test_v21_catalog_registry.py",
+      "locator": "test_changed_acquisition_metadata_is_append_only_for_same_catalog",
+      "expected": {
+        "catalogFrozen": true,
+        "descriptorFrozen": true,
+        "metadataFrozen": true,
+        "acquisitionsAppendOnly": true
+      }
+    },
+    {
+      "id": "service.malformed-gp-tle-bootstrap",
+      "artifact": "tests_python/test_v21_api.py",
+      "locator": "test_bundled_catalog_bootstrap_falls_back_from_malformed_gp_to_valid_tle",
+      "expected": {
+        "malformedGpNotRegistered": true,
+        "tleCompatibilityBootstrap": true,
+        "reducedCoverage": true
+      }
+    },
+    {
+      "id": "benchmark.gp-omm-input",
+      "artifact": "tests/fullCatalogBenchmark.test.js",
+      "locator": "assert.equal(gpReport.source.source_format, 'CCSDS_OMM_JSON');",
+      "expected": {
+        "gpPreferred": true,
+        "ommWrapperCountRecorded": true,
+        "tleFallbackDistinct": true
+      }
+    },
+    {
+      "id": "scheduler.independent-launch-decay",
+      "artifact": "tests_python/test_satellite_data_scheduler.py",
+      "locator": "test_launch_and_decay_due_work_run_independently",
+      "expected": {
+        "launchDueRuns": true,
+        "decayDueRuns": true,
+        "gpNotRequired": true
+      }
+    },
+    {
+      "id": "tooling.shared-python-discovery",
+      "artifact": "scripts/python-discovery.mjs",
+      "locator": "export function pythonCandidates(configuredCommand = process.env.OPENBEXI_PYTHON_COMMAND)",
+      "expected": {
+        "configuredOverrideFirst": true,
+        "python3Required": true,
+        "sharedByNpmRunners": true
+      }
+    },
+    {
+      "id": "static.offline-network-closure",
+      "artifact": "tests_browser/staticDeployment.spec.js",
+      "locator": "expect(network.externalRequests).toEqual([]);",
+      "expected": {
+        "externalRequests": 0,
+        "sameOriginRuntime": true,
+        "providerRequests": 0
+      }
+    },
+    {
+      "id": "browser.unified-category-point-layer",
+      "artifact": "tests_browser/satelliteFilters.spec.js",
+      "locator": "category unions, dependent tags, counts, selection, and GP revisions stay coherent",
+      "expected": {
+        "freshDefault": "MEO",
+        "categoryUnion": true,
+        "pointBufferMatchesProxies": true,
+        "excludedSelectionCleared": true,
+        "catalogReplacementCoherent": true
+      }
+    },
+    {
+      "id": "browser.tag-category-name-collision",
+      "artifact": "tests_browser/satelliteFilters.spec.js",
+      "locator": "await expect(page.getByRole('checkbox', { name: 'Geosynchronous group', exact: true })).toBeChecked();",
+      "expected": {
+        "rawTagKey": "GEO",
+        "displayLabel": "Geosynchronous group",
+        "activeOrbitCategory": "MEO",
+        "sharedTagKeyPreserved": true
+      }
+    },
+    {
+      "id": "browser.selected-details-mercator-layering",
+      "artifact": "tests_browser/satelliteFilters.spec.js",
+      "locator": "Mercator overlay and fullscreen stay above operational panels with accessible exits",
+      "expected": {
+        "detailsDeduplicated": true,
+        "overlayAboveVisualizationLayers": true,
+        "fullscreenControlsUsable": true
+      }
+    },
+    {
+      "id": "browser.authoritative-time-ephemeris",
+      "artifact": "tests_browser/timeSimulation.spec.js",
+      "locator": "Time x keeps selected satellite fluid and drives bounded Solar System ephemeris motion",
+      "expected": {
+        "signedClock": true,
+        "exactSelectedMotion": true,
+        "catalogRefetchOnTimeChange": false,
+        "ephemerisBoundaryPauses": true
+      }
+    },
+    {
+      "id": "motion.current-epoch-readiness-recovery",
+      "artifact": "tests/satelliteMotionInterpolator.test.js",
+      "locator": "re-admitted marker appears only after its current-epoch sample commits",
+      "expected": {
+        "hiddenUntilCurrentFinite": true,
+        "staleJobRejected": true,
+        "retryDeadlineStable": true
+      }
+    },
+    {
+      "id": "motion.selected-same-time-invalidation-recovery",
+      "artifact": "tests/satelliteMotionInterpolator.test.js",
+      "locator": "selected marker recovers at the same UTC instant after retry",
+      "expected": {
+        "invalidSelectedMarkerHidden": true,
+        "retryDeadlineStable": true,
+        "selectedSameUtcRecovery": true
+      }
+    },
+    {
+      "id": "render.batched-globe-density",
+      "artifact": "tests_browser/smoke.spec.js",
+      "locator": "expect(pointCloud.markerMode).toBe('density');",
+      "expected": {
+        "drawnRecordsAbove": 16000,
+        "exactProxyMembership": true,
+        "pointSize": 0.025,
+        "visibleOriginMarkers": 0
+      }
+    },
+    {
+      "id": "render.mercator-density",
+      "artifact": "tests_browser/smoke.spec.js",
+      "locator": "full-catalog-density-render",
+      "expected": {
+        "markerMode": "density",
+        "canvasNonBlank": true,
+        "perObjectDenseIcons": false,
+        "p95FrameGapMaxMs": 150,
+        "maximumFrameGapMs": 200
+      }
+    },
+    {
+      "id": "render.point-resource-ownership",
+      "artifact": "js/satelliteTLELoader.js",
+      "locator": "if (sourceMaterial?.userData?.openbexiOwned)",
+      "expected": {
+        "pointGeometryDisposed": true,
+        "pointMaterialDisposed": true,
+        "ownedSourceDisposed": true,
+        "injectedSourcePreserved": true
+      }
+    },
+    {
+      "id": "motion.selected-orbit-in-place",
+      "artifact": "tests/satelliteOrbitOcclusion.test.js",
+      "locator": "paused Time x refreshes selected orbit geometry in place",
+      "expected": {
+        "rootIdentityStable": true,
+        "materialIdentityStable": true,
+        "geometryUpdatedInPlace": true,
+        "refreshCadenceBounded": true
+      }
+    },
+    {
+      "id": "cleanup.obsolete-tle-orbit-sampler",
+      "artifact": "tests/startupStructure.test.js",
+      "locator": "obsolete TLE-only orbit sampler is removed",
+      "expected": {
+        "getOrbitEciPointsAbsent": true,
+        "mixedFormatRefreshAuthoritative": true
+      }
+    },
+    {
+      "id": "assets.canonical-ssl1300-only",
+      "artifact": "tests/displaySatelliteViewer.test.js",
+      "locator": "manifest includes GLB ${glbFile}",
+      "expected": {
+        "canonicalPath": "obj/SSL_1300.glb",
+        "canonicalBytes": 8517244,
+        "duplicateLoralAbsent": true
+      }
+    },
+    {
+      "id": "data.generated-catalog-classification",
+      "artifact": "tests/catalogArtifactClassification.test.js",
+      "locator": "shipped GP catalog contains the navigation/MEO population",
+      "expected": {
+        "fullStringIdsUnique": true,
+        "meoCountAbove": 150,
+        "sixDigitGpPresent": true,
+        "compatibilityTagsPresent": true
+      }
+    },
+    {
+      "id": "static.browser-state-runtime-closure",
+      "artifact": "tests/staticArtifact.test.js",
+      "locator": "assert(manifestPaths.has('js/orbit/satelliteMotionInterpolator.js')",
+      "expected": {
+        "categoryModulePackaged": true,
+        "clockModulePackaged": true,
+        "interpolationModulePackaged": true,
+        "ephemerisPackaged": true
+      }
+    },
+    {
+      "id": "tooling.browser-server-ownership",
+      "artifact": "scripts/run-browser-tests.mjs",
+      "locator": "if (!await serverAvailable()) {",
+      "expected": {
+        "healthyServerReused": true,
+        "startedChildTracked": true,
+        "onlyOwnedChildTerminated": true
+      }
+    }
+  ],
+  "knownGaps": [
+    "Independent scientific reviewer approval is pending.",
+    "Provider dataset redistribution approval is pending; a local controlled fetch does not authorize public publication.",
+    "No covariance, collision probability, CDM, hard-body radius, maneuver, alerting, or operational decision support is authorized.",
+    "Named-hardware repeated desktop/mobile and projected 2x-catalog performance evidence remains a candidate gate.",
+    "The nine-digit identifier case is a deterministic fixture; the controlled active catalog contained six-digit but no nine-digit objects.",
+    "The data-health fallback-tle state reports packaged-file availability only; it does not prove TLE parse or propagation validity.",
+    "Durable bootstrap bounds and shape-checks the packaged TLE fallback, but strict fixed-column, checksum, adapter, and propagation validation remains a runner boundary rather than a pre-registration gate."
+  ]
+}

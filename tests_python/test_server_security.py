@@ -1,8 +1,12 @@
 import contextlib
+import hashlib
 import http.client
 import json
+import tempfile
 import threading
 import unittest
+from pathlib import Path
+from unittest import mock
 
 import server
 
@@ -87,6 +91,10 @@ class StaticPathPolicyTests(unittest.TestCase):
             "/js/serverConnection.js",
             "/json/tle/TLE.json",
             "/json/tle/TLE.meta.json",
+            "/json/gp/GP.json",
+            "/json/gp/GP.meta.json",
+            "/json/launches/launches.json",
+            "/json/launches/launches.meta.json",
             "/json/decayed/decayed.json",
             "/json/satellites/oneweb.json",
             "/obj/ISS.glb",
@@ -117,6 +125,8 @@ class StaticPathPolicyTests(unittest.TestCase):
             "/js/serverConnection.js.map",
             "/data/stars/catalog.json",
             "/json/tle/TLE.json.bak-20260701",
+            "/json/gp/GP.json.bak-20260820",
+            "/json/launches/launches.json.bak-20260820",
             "/../outside.txt",
             "/%2e%2e/outside.txt",
             "/%252e%252e/outside.txt",
@@ -149,12 +159,17 @@ class StaticPathPolicyTests(unittest.TestCase):
             with self.subTest(denied_source=denied_source):
                 self.assertNotIn(f"['{denied_source}'", viewer_source)
 
-    def test_readme_documents_the_supported_standalone_views(self):
+    def test_readme_keeps_loopback_and_token_security_guidance(self):
         readme = (server.ROOT / "README.md").read_text(encoding="utf-8")
-        for file_name in ("display_satellite.html", "Earth_Stars_MilkyWay.html", "SolarSystemOverview.html"):
-            with self.subTest(file_name=file_name):
-                self.assertIn(f"`{file_name}`", readme)
-                self.assertIn(f"http://127.0.0.1:8000/{file_name}", readme)
+        for guidance in (
+            "py server.py --host 127.0.0.1 --port 8000",
+            "`--allow-public`",
+            "`Authorization: Bearer ...`",
+            "never place them in URLs",
+            "loopback-only by default",
+        ):
+            with self.subTest(guidance=guidance):
+                self.assertIn(guidance, readme)
 
     def test_only_supported_root_html_pages_are_exposed(self):
         supported = {
@@ -176,6 +191,88 @@ class StaticPathPolicyTests(unittest.TestCase):
                     server.static_request_is_exposed(f"/{path.name}"),
                     path.name.lower() in supported,
                 )
+
+    def test_gp_catalog_preference_and_data_health_metadata(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "json" / "gp").mkdir(parents=True)
+            (root / "json" / "launches").mkdir(parents=True)
+            (root / "json" / "decayed").mkdir(parents=True)
+            (root / "json" / "tle").mkdir(parents=True)
+            gp_path = root / "json" / "gp" / "GP.json"
+            gp_path.write_text('[{"norad_id":"100001"}]', encoding="utf-8")
+            (root / "json" / "gp" / "GP.meta.json").write_text(json.dumps({
+                "catalog_revision": "sha256:test-gp",
+                "retrieval_timestamp": "2026-08-20T01:00:00Z",
+                "newest_orbital_epoch": "2026-08-20T00:00:00.000Z",
+                "last_status": "ok",
+                "counts": {"omm": 1, "six_digit_ids": 1, "quarantined": 0},
+            }), encoding="utf-8")
+            (root / "json" / "launches" / "launches.meta.json").write_text(json.dumps({
+                "catalog_revision": "sha256:test-launch",
+                "last_status": "ok", "newest_launch_date": "2026-08-20",
+            }), encoding="utf-8")
+            (root / "json" / "decayed" / "decayed.meta.json").write_text(json.dumps({
+                "catalog_revision": "sha256:test-decay",
+                "last_status": "ok", "newest_confirmed_decay_date": "2026-08-19",
+            }), encoding="utf-8")
+            (root / "json" / "tle" / "TLE.meta.json").write_text(json.dumps({
+                "counts": {"total": 10},
+            }), encoding="utf-8")
+
+            health = server._catalog_data_health(root)
+
+            self.assertEqual(server._preferred_catalog_path(root), gp_path)
+            self.assertEqual(health["catalog_revision"], "sha256:test-gp")
+            self.assertEqual(health["gp_revision"], "sha256:test-gp")
+            self.assertEqual(health["launch_revision"], "sha256:test-launch")
+            self.assertEqual(health["decay_revision"], "sha256:test-decay")
+            components = {
+                "decay_revision": "sha256:test-decay",
+                "gp_revision": "sha256:test-gp",
+                "launch_revision": "sha256:test-launch",
+            }
+            canonical = json.dumps(
+                components,
+                ensure_ascii=True,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+            self.assertEqual(
+                health["data_revision"],
+                f"sha256:{hashlib.sha256(canonical).hexdigest()}",
+            )
+            self.assertEqual(health["datasets"]["gp"]["revision"], "sha256:test-gp")
+            self.assertEqual(health["datasets"]["launch"]["revision"], "sha256:test-launch")
+            self.assertEqual(health["datasets"]["decay"]["revision"], "sha256:test-decay")
+            self.assertEqual(health["newest_launch_date"], "2026-08-20")
+            self.assertEqual(health["newest_confirmed_decay_date"], "2026-08-19")
+            self.assertEqual(health["tle_count"], 10)
+            self.assertEqual(health["omm_count"], 1)
+            self.assertEqual(health["six_digit_id_count"], 1)
+            self.assertEqual(health["catalog_state"], "current")
+
+    def test_data_health_fails_closed_when_gp_and_tle_are_unavailable(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+
+            unavailable = server._catalog_data_health(root)
+            self.assertEqual(unavailable["catalog_state"], "unavailable")
+            self.assertIsNone(unavailable["catalog_revision"])
+
+            tle_root = root / "json" / "tle"
+            tle_root.mkdir(parents=True)
+            (tle_root / "TLE.json").write_text("[]", encoding="utf-8")
+            self.assertEqual(server._catalog_data_health(root)["catalog_state"], "unavailable")
+
+            (tle_root / "TLE.json").write_text('[{"norad_id":"25544"}]', encoding="utf-8")
+            (tle_root / "TLE.meta.json").write_text(
+                json.dumps({"counts": {"total": 1}}),
+                encoding="utf-8",
+            )
+            fallback = server._catalog_data_health(root)
+            self.assertEqual(fallback["catalog_state"], "fallback-tle")
+            self.assertEqual(fallback["tle_count"], 1)
 
     def test_resolved_symlink_or_traversal_cannot_escape_root(self):
         self.assertIsNone(server.resolve_static_request_path("/../server.py"))
@@ -207,6 +304,56 @@ class CorsPolicyTests(unittest.TestCase):
 
 
 class HttpSecurityIntegrationTests(unittest.TestCase):
+    def test_gp_metadata_status_revisions_and_openapi_route(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "json" / "gp").mkdir(parents=True)
+            (root / "json" / "launches").mkdir(parents=True)
+            (root / "json" / "decayed").mkdir(parents=True)
+            gp_metadata = {
+                "schema_version": "2.2.0",
+                "catalog_revision": "sha256:http-gp",
+                "source_format": "CCSDS_OMM_JSON",
+            }
+            gp_bytes = json.dumps(gp_metadata, separators=(",", ":")).encode("utf-8")
+            (root / "json" / "gp" / "GP.meta.json").write_bytes(gp_bytes)
+            (root / "json" / "launches" / "launches.meta.json").write_text(
+                json.dumps({"catalog_revision": "sha256:http-launch", "last_status": "ok"}),
+                encoding="utf-8",
+            )
+            (root / "json" / "decayed" / "decayed.meta.json").write_text(
+                json.dumps({"catalog_revision": "sha256:http-decay", "last_status": "ok"}),
+                encoding="utf-8",
+            )
+
+            with mock.patch.object(server, "ROOT", root):
+                with running_server() as port:
+                    status, headers, body = request(port, "GET", "/api/gp-metadata")
+                    self.assertEqual(status, 200)
+                    self.assertEqual(body, gp_bytes)
+                    self.assertEqual(headers["content-type"], "application/json; charset=utf-8")
+                    self.assertEqual(headers["cache-control"], "no-store")
+                    self.assertIn("etag", headers)
+
+                    head_status, head_headers, head_body = request(port, "HEAD", "/api/gp-metadata")
+                    self.assertEqual(head_status, 200)
+                    self.assertEqual(head_headers["etag"], headers["etag"])
+                    self.assertEqual(head_body, b"")
+
+                    status, _, body = request(port, "GET", "/api/data-update-status")
+                    self.assertEqual(status, 200)
+                    update_status = json.loads(body)
+                    self.assertEqual(update_status["catalog_revision"], "sha256:http-gp")
+                    self.assertEqual(update_status["gp_revision"], "sha256:http-gp")
+                    self.assertEqual(update_status["launch_revision"], "sha256:http-launch")
+                    self.assertEqual(update_status["decay_revision"], "sha256:http-decay")
+                    self.assertRegex(update_status["data_revision"], r"^sha256:[a-f0-9]{64}$")
+
+                    status, _, body = request(port, "GET", "/openapi.json")
+                    self.assertEqual(status, 200)
+                    openapi = json.loads(body)
+                    self.assertIn("/api/gp-metadata", openapi["paths"])
+
     def test_health_response_has_security_headers_and_etag(self):
         with running_server() as port:
             status, headers, body = request(port, "GET", "/api/health")

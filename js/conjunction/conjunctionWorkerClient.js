@@ -1,4 +1,4 @@
-import { createTlePropagationService } from '../orbit/propagationService.js';
+import { createMultiFormatPropagationService } from '../orbit/multiFormatPropagationService.js';
 import {
     ScreeningCancelledError,
     screenSelectedObjectAgainstCatalog
@@ -30,7 +30,7 @@ function defaultRequestId() {
 }
 
 async function defaultFallback(request, runtime = {}) {
-    const propagationService = runtime.propagationService ?? createTlePropagationService({
+    const propagationService = runtime.propagationService ?? createMultiFormatPropagationService({
         satelliteLib: runtime.satelliteLib ?? globalThis.satellite
     });
     return screenSelectedObjectAgainstCatalog(request, {

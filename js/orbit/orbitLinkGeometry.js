@@ -157,7 +157,8 @@ export function orbitClassFromMeanMotion(meanMotionRevPerDay, options = {}) {
     const isNearCircular = eccentricity < 0.08;
     if (isNearGeoPeriod && isNearGeoInclination && isNearCircular) return 'GEO';
 
-    const isMolniyaLike = periodMinutes >= 600 && periodMinutes <= 900 && inclinationDeg >= 50 && inclinationDeg <= 75;
+    const isMolniyaLike = periodMinutes >= 600 && periodMinutes <= 900 &&
+        inclinationDeg >= 50 && inclinationDeg <= 75 && eccentricity >= 0.1;
     const isHighlyEccentric = eccentricity >= 0.25;
     const isLongElliptical = eccentricity >= 0.12 && periodMinutes > 225;
     if (isHighlyEccentric || isMolniyaLike || isLongElliptical) return 'HEO';
@@ -169,6 +170,6 @@ export function orbitClassFromMeanMotion(meanMotionRevPerDay, options = {}) {
     }
 
     if (meanMotionRevPerDay > 11) return 'LEO';
-    if (meanMotionRevPerDay >= 2.5 && meanMotionRevPerDay <= 11) return 'MEO';
+    if (meanMotionRevPerDay >= 1.2 && meanMotionRevPerDay <= 11) return 'MEO';
     return 'OTHER';
 }

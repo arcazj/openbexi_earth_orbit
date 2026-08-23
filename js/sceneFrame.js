@@ -47,6 +47,17 @@ export function sceneCoordinatesFromEciKm(eciKm, scale = KM_TO_SCENE_UNITS) {
     };
 }
 
+export function sceneCoordinatesToEciKm(sceneCoordinates, scale = KM_TO_SCENE_UNITS) {
+    if (!(Number.isFinite(scale) && scale !== 0)) {
+        throw new RangeError('Scene scale must be a finite non-zero number.');
+    }
+    return {
+        x: sceneCoordinates.x / scale,
+        y: sceneCoordinates.z / scale,
+        z: sceneCoordinates.y / scale
+    };
+}
+
 export function sceneCoordinatesFromEcfKm(ecfKm, rotYRad, scale = KM_TO_SCENE_UNITS) {
     const sx = ecfKm.x * scale;
     const sy = ecfKm.z * scale;
@@ -79,6 +90,10 @@ export function setVector3(out, coords) {
 
 export function eciToSceneVector(out, eciKm, scale = KM_TO_SCENE_UNITS) {
     return setVector3(out, sceneCoordinatesFromEciKm(eciKm, scale));
+}
+
+export function sceneToEciVector(out, sceneCoordinates, scale = KM_TO_SCENE_UNITS) {
+    return setVector3(out, sceneCoordinatesToEciKm(sceneCoordinates, scale));
 }
 
 export function ecfToSceneVector(out, ecfKm, rotYRad, scale = KM_TO_SCENE_UNITS) {

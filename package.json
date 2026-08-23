@@ -1,6 +1,6 @@
 {
   "name": "openbexi_orbit",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -24,7 +24,7 @@
     "serve": "node scripts/python.mjs server.py --host 127.0.0.1 --port 8000",
     "test": "npm run test:unit && npm run test:python && npm run test:browser",
     "test:all": "npm test",
-    "test:browser": "playwright test",
+    "test:browser": "node scripts/run-browser-tests.mjs",
     "test:python": "node scripts/python.mjs -m unittest discover -s tests_python -v",
     "test:unit": "node tests/runAll.js",
     "vendor:browser": "node scripts/vendor-browser-dependencies.mjs --sync",

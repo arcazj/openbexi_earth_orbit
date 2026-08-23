@@ -88,7 +88,7 @@ let retryImportAttempts = 0;
 const retryImporter = async () => {
     retryImportAttempts += 1;
     if (retryImportAttempts === 1) throw new Error('transient import failure');
-    return { twoline2satrec() {}, propagate() {} };
+    return { twoline2satrec() {}, json2satrec() {}, propagate() {} };
 };
 await assert.rejects(loadSatelliteLibrary('test:transient-import', retryImporter), /transient/i);
 const retriedSatellite = await loadSatelliteLibrary('test:transient-import', retryImporter);

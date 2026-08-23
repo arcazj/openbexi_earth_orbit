@@ -74,7 +74,7 @@ export function satelliteMenuLoader() {
 
       <section id="satelliteAccordionSection" class="menu-accordion-section menu-section-satellite">
         <h3 id="satelliteAccordionHeader" role="button" tabindex="0" aria-controls="satelliteSelectionContent" aria-expanded="true" data-collapsible-target="satelliteSelectionContent" class="section-heading menu-accordion-heading menu-accordion-heading-satellite" data-default-expanded="true">
-          <span class="satellite-heading-title">Satellites Selection - Found <span id="satelliteCountDisplay" class="satellite-found-count" aria-live="polite" aria-label="Satellites found: 0">0</span></span>
+          <span class="satellite-heading-title">Satellites Selection - Found <span id="satelliteCountDisplay" class="satellite-found-count" aria-live="polite" aria-label="0 satellites match active filters out of 0 total satellites">0 / 0</span></span>
           <span class="toggle-icon">v</span>
         </h3>
 
@@ -147,8 +147,6 @@ export function satelliteMenuLoader() {
               <span id="rollVal">0</span>
             </label>
           </div>
-
-          <div id="selectedSatelliteSummary" class="selected-satellite-summary" hidden></div>
         </div>
       </section>
 
@@ -159,9 +157,9 @@ export function satelliteMenuLoader() {
         </h3>
         <div id="conjunctionContent" class="collapsible-content conjunction-panel collapsed" aria-labelledby="conjunctionAccordionHeader">
           <div class="conjunction-qualification" role="note">
-            <strong>Experimental TLE-based screening</strong>
+            <strong>Experimental SGP4 close-approach screening</strong>
             <span>Collision probability: unavailable</span>
-            <span>Legacy TLE coverage omits six-digit catalog objects</span>
+            <span>GP/OMM catalog with legacy TLE fallback</span>
           </div>
 
           <dl class="conjunction-context" aria-label="Screening context">

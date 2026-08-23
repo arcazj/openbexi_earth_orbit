@@ -58,9 +58,10 @@ export function getFullGitHubUrl(relativePath, base) {
 /**
  * Loads JSON from a URL with graceful fallback.
  * @param {string} url
+ * @param {RequestInit} options
  * @returns {Promise<object|Array>}
  */
-export async function fetchJSON(url) {
+export async function fetchJSON(url, options = {}) {
     const serverConnection = globalThis.window?.openbexiServerConnection;
     const serverUrl = serverConnection?.connected && typeof serverConnection.resolveDataUrl === 'function'
         ? serverConnection.resolveDataUrl(url)
@@ -68,7 +69,7 @@ export async function fetchJSON(url) {
 
     if (serverUrl) {
         try {
-            const r = await fetch(serverUrl);
+            const r = await fetch(serverUrl, options);
             if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
             console.info(`Loaded JSON from Python server: ${serverUrl}`);
             return await r.json();
@@ -78,7 +79,7 @@ export async function fetchJSON(url) {
     }
 
     try {
-        const r = await fetch(url);
+        const r = await fetch(url, options);
         if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
         return await r.json();
     } catch (err) {

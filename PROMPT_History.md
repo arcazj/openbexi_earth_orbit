@@ -1,5 +1,24 @@
 # Prompt History
 
+## Authorization Date: 2026-08-22  Version 2.2.0 GP/OMM Development
+
+The user explicitly directed implementation of the complete GP/OMM migration prompt and requested the application move to Version `2.2.0` with all Markdown documentation updated. This is the separate human authorization required after Version 2.1. ADR 0004 rebaselines Version 2.2 from the older roadmap's collision-likelihood placeholder to catalog continuity.
+
+Authorized scope:
+
+1. Add a preferred CelesTrak GP OMM JSON pipeline with `export-gp`, `json/gp/GP.json`, `/api/gp`, canonical OMM preservation, documented default normalization, lossless six/nine-digit IDs, deterministic newest-epoch deduplication, quarantine, atomic writes, conditional requests, provenance, and last-known-good preservation.
+2. Retain TLE file/command/API routes as deprecated compatibility paths for one development release without synthetic TLE, truncation, or Alpha-5 workarounds.
+3. Initialize mixed OMM/TLE records with the correct satellite.js APIs and update every browser, worker, screening, decay, detail, provenance, and packaging consumer or expose a visible tested limitation.
+4. Generate SATCAT-backed launch events independently of orbit availability, keep unmatched events details-only, refresh launch and confirmed-decay timelines on catalog revision, invalidate stale caches, deduplicate events, and preserve confirmed-over-predicted precedence.
+5. Expose catalog/data health, package all GP/launch/decay/OMM runtime dependencies, update API and operator documentation, and add the complete deterministic unit/Python/browser/static regression matrix.
+
+Release constraints:
+
+- Version 2.2 remains `development`, `Experimental`, and `non-operational`, with null candidate and release dates.
+- v2.0 and v2.1 gates remain open. This authorization does not approve a candidate/release, public redistribution, authoritative complete coverage, or operational use.
+- Collision probability, CDM/covariance/HBR assessment, risk scoring, alerts, reports, maneuver analysis, and recommendations remain unauthorized.
+- Delivery requires the command/test/build/benchmark/diff checks in `docs/engineering/RELEASE_CHECKLIST_V2_2.md`; any unchecked evidence remains an open gate.
+
 ## Implementation Record: 2026-07-21  Version 2.1.0 Development Scope
 
 The user asked, `can we implement v 2.1?`, providing the explicit human authorization required by the archived release-train prompt. This authorization applied only to Version 2.1 development. It did not promote Version 2.0, close its outstanding external gates, approve a Version 2.1 candidate/release, or authorize Version 2.2.
@@ -17,13 +36,13 @@ Implemented development outcome:
 9. Recorded a direct-engine 16,443-object, 60-second local observation: about 2.973 seconds wall time, 309,398 spatial pair checks, 835 coarse candidates, 214 events, and a correct `PARTIAL` result with 1,492,127 unscreened pair intervals. A separate end-to-end HTTP/store/worker observation completed in about 4.392 seconds, retained 22 progress rows and 26 total outbox rows after coalescing, occupied about 38.1 MB after shutdown, and propagated the incremental source as `PARTIAL`/`PARTIAL_SOURCE_DATASET`. These are development observations, not percentile, accuracy, or operational evidence.
 10. Added separate Version 2.1 scientific limitations, source governance, threat model, performance record, deployment, rollback, and release-gate documentation while preserving the independent v2.0 gate history.
 
-Current boundary:
+Historical boundary at the Version 2.1 completion record:
 
 - `release/version.json` remains the authority: Version `2.1.0`, `development`, `experimental`, `non-operational`, with null candidate and release dates.
 - Only the bundled TLE snapshot is registered automatically. Implemented OMM/OEM/provider adapters do not admit a provider feed or resolve licensing, storage, retention, or redistribution rights.
 - Collision probability, CCSDS CDM/covariance and hard-body-radius assessment, operational risk scoring, alert delivery, report workflow, and maneuver recommendations are absent.
 - Clean-clone evidence, representative one/six-hour and projected-scale profiles, current-source admission, independent scientific/security review, backup/restore, and rollback rehearsal remain open in `docs/engineering/RELEASE_CHECKLIST_V2_1.md`.
-- No Version 2.2 work may begin without separate explicit human approval.
+- Version 2.2 work required separate explicit human approval; that approval was later provided on 2026-08-22 for GP/OMM continuity only.
 
 ## Authorization Date: 2026-07-20  Version 2.1.0 Development
 
@@ -46,7 +65,7 @@ Release constraints:
 - Version 2.1 remains `Experimental` and `non-operational`.
 - Existing open v2.0 clean-clone, independent scientific/security review, licensing, performance, public-deployment, and rollback-rehearsal gates remain open; this authorization does not mark v2.0 released.
 - Collision probability, CDM/covariance assessment, operational risk scoring, alert delivery, and maneuver analysis remain deferred to later explicitly approved releases.
-- No v2.2 work begins without a separate human approval after the v2.1 completion report.
+- No v2.2 work could begin without separate human approval after the v2.1 completion report; the scoped approval was later provided on 2026-08-22.
 
 ## Release Date: 2026-07-20  Version 2.0.0 Preview Candidate - Startup Reliability Follow-up
 

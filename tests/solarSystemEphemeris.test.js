@@ -3,12 +3,14 @@ import assert from 'assert';
 import {
   SOLAR_SYSTEM_EPHEMERIS_URL,
   createSolarSystemEphemerisState,
+  clampSolarSystemEphemerisDate,
   daysBetweenSamples,
   ephemerisThresholdForBody,
   interpolateBodyVectorKm,
   parseSolarSystemEphemerisData,
   solarSystemScenePositionForBody,
   solarSystemEphemerisStatusText,
+  solarSystemEphemerisBounds,
   vectorDistanceKm
 } from '../js/solarSystemEphemeris.js';
 import {
@@ -142,9 +144,18 @@ function run() {
   outOfRangeState.status = 'ready';
   outOfRangeState.data = ephemeris;
   outOfRangeState.lastMode = 'JPL-derived ephemeris';
-  planetPositionAtDate(earthPlanet, new Date('2040-01-01T00:00:00Z'), outOfRangeState);
-  assert.strictEqual(outOfRangeState.lastMode, 'approximate visual fallback', 'out-of-range Solar System date marks fallback mode');
-  assert(solarSystemEphemerisStatusText(outOfRangeState).includes('using approximate visual fallback'), 'out-of-range fallback is visible in ephemeris status text');
+  const clampedFuturePosition = planetPositionAtDate(earthPlanet, new Date('2040-01-01T00:00:00Z'), outOfRangeState);
+  const boundaryPosition = planetPositionAtDate(earthPlanet, new Date('2035-12-31T00:00:00Z'), ephemeris);
+  assert(clampedFuturePosition.distanceTo(boundaryPosition) < 1e-12, 'out-of-range prediction clamps to the final authoritative ephemeris sample');
+  assert.strictEqual(outOfRangeState.lastMode, 'JPL-derived ephemeris (range boundary)', 'out-of-range Solar System date marks the authoritative boundary');
+  assert(solarSystemEphemerisStatusText(outOfRangeState).includes('Ephemeris boundary:'), 'out-of-range clamping is visible in ephemeris status text');
+  const bounds = solarSystemEphemerisBounds(ephemeris);
+  assert.deepStrictEqual(bounds, {
+    minTimeMs: Date.parse('2020-01-01T00:00:00Z'),
+    maxTimeMs: Date.parse('2035-12-31T00:00:00Z')
+  }, 'ephemeris exposes finite authoritative simulation bounds');
+  const clampedPast = clampSolarSystemEphemerisDate(ephemeris, '2010-01-01T00:00:00Z');
+  assert.strictEqual(clampedPast.boundary, 'start', 'dates before coverage clamp to the start boundary');
 
   assert(loader.includes('solarSystemScenePositionForBody'), 'Solar System loader uses ephemeris scene positions');
   assert(loader.includes('loadSolarSystemEphemeris'), 'Solar System loader loads local ephemeris data');
@@ -152,7 +163,7 @@ function run() {
   assert(!loader.includes('performance.now()'), 'Solar System loader does not use performance.now for body positions');
   assert(!ephemerisModule.includes('Date.now()'), 'ephemeris module does not use Date.now for body positions');
   assert(!ephemerisModule.includes('performance.now()'), 'ephemeris module does not use performance.now for body positions');
-  assert(indexHtml.includes('updateSolarSystemOverview(solarSystemOverview, SIM_DATE)'), 'integrated Solar System updates from shared SIM_DATE');
+  assert(indexHtml.includes('updateSolarSystemOverview(solarSystemOverview, SIM_DATE'), 'integrated Solar System updates from shared SIM_DATE');
   assert(indexHtml.includes('createSolarSystemOverview(scene, { renderer, camera, controls, initialDate: SIM_DATE })'), 'integrated Solar System initializes from shared SIM_DATE');
 
   console.log('Solar System ephemeris tests passed');

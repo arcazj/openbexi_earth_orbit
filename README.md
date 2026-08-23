@@ -1,490 +1,387 @@
 # OpenBEXI Earth Orbit
 
-OpenBEXI Earth Orbit is a browser-based satellite visualization app built with plain HTML, CSS, JavaScript modules, Three.js, and satellite.js. It renders Earth, satellite positions from TLE data, orbit paths, footprints, day/night lighting, Moon and Mars context, and 2D Mercator map views.
+OpenBEXI Earth Orbit is an interactive browser application for exploring Earth-orbiting objects, launch and re-entry events, propagated trajectories, and experimental conjunction-screening results. It uses CelesTrak GP/OMM data as its primary orbital source and retains a reduced-coverage TLE compatibility path.
+
+> **Status:** Version `2.2.0` is a development build, not a release candidate or release. Its scientific maturity is **Experimental** and its safety class is **non-operational**. Do not use it for navigation, mission planning, collision avoidance, or safety decisions; collision probability is unavailable.
 
 ## Live Demo
 
-[OpenBEXI Earth Orbit on GitHub Pages](https://arcazj.github.io/openbexi_earth_orbit/index.html)
+[Launch OpenBEXI Earth Orbit](https://arcazj.github.io/openbexi_earth_orbit/index.html)
 
-GitHub Pages is the reduced static mode. It can run the selected-object browser screener but cannot provide authenticated durable full-catalog jobs.
+The GitHub Pages deployment runs the static visualization and selected-object browser screener. Authenticated durable full-catalog jobs require the optional local Python server.
 
 ## Features
 
-- 3D Earth globe with satellite markers propagated from TLE data.
-- 3D `Show Orbit` paths draw one propagated revolution for the selected satellite, with explicit camera-aware Earth occlusion and rejection of invalid, non-finite, decayed, or below-Earth propagation samples before drawing.
-- 2D Mercator map with satellite labels, selected-satellite highlighting, selected ground tracks, and day/night overlay.
-- When Globe and Mercator are both enabled, the Mercator map appears as a bottom-right canvas overlay instead of being hidden by the left menu.
-- Multi-select orbit/category filters for `ALL`, `GEO`, `MEO`, `LEO`, `HRO`, `Debris`, and `Others`.
-- Multi-select tag/operator filters such as `Starlink`, `One Web`, `SES`, `Intelsat`, `Weather`, and `Iridium`.
-- Debris filtering through the `Debris` category button in the orbit/category row.
-- Accordion-style menu sections ordered as Views & Time, Satellites Selection - Found, Timelines, Share, and Help, preserving the legacy colored section accents with section-matched metallic expanded backgrounds.
-- Deterministic launch defaults: Views & Time and Satellites Selection - Found start expanded, while Timelines, Share, and Help start collapsed.
-- Optional Python server integration for live local API-backed TLE/satellite metadata loading, with automatic local-file fallback when the server is unavailable and no launch-time offline banner.
-- Standard-library Python satellite data maintenance tool for standalone or server-imported TLE and decayed-database updates.
-- Aligned top menu header with Close, version/GitHub link, and server connection status in one compact desktop row.
-- Server status indicator with connected, checking, offline, and error states backed by `icons/server_*.svg`, and the status panel shows server URL, data source, version, last load time, and reconnect/refresh.
-- Share menu section for copying or natively sharing a safe link for the selected satellite, view mode, filters, simulation time, display settings, and a captured canvas image when supported.
-- Searchable satellite selector with typeahead support for satellite name, NORAD ID, orbit type, and company/tag; the result list is portaled above other menu controls and closes cleanly after mouse, keyboard, Escape, Tab, or outside-click interactions.
-- After selecting a satellite, the selector search field clears the previous selected label on the next search interaction without clearing the active selection.
-- Selecting any satellite automatically enables `Show only selected satellite`, synchronizes the checkbox, and keeps the selected satellite visible even when current filters would otherwise hide it.
-- Filter reset and zero-result empty states inside Satellites Selection - Found.
-- Selected-satellite menu controls plus a transparent right-side data/TLE detail panel under the UTC clock; satellite data and TLE details are independently expandable and expanded by default on each selection. Starlink and ISS selections add an expanded red bold `Source detail` attribution section.
-- Local detailed model loading for selected satellites using OBJ/MTL and GLB assets under `obj/`.
-- Selected-satellite observer framing in 3D: selecting a satellite smoothly moves the camera to a close observer view with Earth centered behind the satellite.
-- Selected detailed models place the camera/observer eye exactly 100 real-world meters from the selected satellite target by default, with FOV-aware model visual scaling so the model remains inspectable without moving the observer farther away.
-- Starlink selected-model orientation uses the live orbital frame: local `+X` follows velocity, local `+Z` points nadir toward Earth, and local `+Y` completes the right-handed frame.
-- Selected detailed satellite models use Sun-driven lighting with subtle Earth-reflected albedo when possible, so solar panels can show direct sunlight and low blue Earth reflection without camera-fill washout.
-- ISS selected-model orientation also uses the live orbital frame: local `+X` follows velocity, local `+Y` is the pitch axis and points nadir toward Earth, and local `+Z` is the right-handed negative cross-track complement. ISS orientation diagnostics are stored on the selected model for debugging.
-- Starlink selected-model framing uses an oblique reference-style observer view at the same 100 m distance, so Earth/horizon sits behind and below the satellite instead of centered directly behind it.
-- Nadir-oriented detailed satellite models: the selected model treats local `+Z` as the Earth-facing axis and points it toward Earth's center before applying yaw/pitch/roll bias.
-- 2D/Mercator selected-satellite UX: selection is highlighted with a clear marker ring instead of applying 3D-only camera-distance behavior.
-- Mercator selected-satellite state uses the selected NORAD ID, so ground tracks and marker rings still render when a detailed 3D model hides the selected sprite.
-- High-definition Earth texture toggle, ECEF axes, Moon/Mars context through Solar System selection, latest-launch timeline, and latest-decay re-entry timeline.
-- Optional Stars & Milky Way view layer in Views & Time, with 46 bundled real RA/Dec reference stars, Milky Way sphere, RA/Dec grid, bright labels, and atmosphere.
-- Selecting non-MEO/GEO satellites automatically enables the high-definition Earth texture while MEO/GEO selections never force it off.
-- Satellite Selection shortcuts can select the first loaded Starlink satellite or ISS/ZARYA through the same camera/model path as the normal satellite selector. The Starlink shortcut displays the resolved NORAD ID as `Starlink (<NORAD ID>)`.
-- Help menu actions provide quick access to the GitHub project, rendered README Markdown, rendered Releases History Markdown, a Markdown license page, local standard Swagger UI, local rendered Swagger Markdown, and live API JSON when the optional Python server is running.
-- Timeline checkboxes are mutually exclusive: enabling the launch timeline hides the re-entry timeline, and enabling the re-entry timeline hides the launch timeline. The launch timeline opens on the latest valid launch date in the loaded satellite data, and the re-entry timeline opens on the latest valid confirmed or predicted decay event, including confirmed decayed records that are no longer active TLE satellites.
-- Faster initial startup path: the globe and core controls render before the full TLE sprite pass, while timelines and decay estimates are prepared as deferred work.
-- Optional startup timing diagnostics through `?perf=1` or `localStorage.openbexiStartupPerf = "1"`.
-- Version 2.0 preview adds Experimental TLE-based selected-object versus catalog close-approach screening in a cancellable Web Worker, with synchronized TCA playback, miss distance, relative speed, input age, provenance, and explicit quality states.
-- Version 2.1 development adds an optional authenticated server workspace for bounded full-catalog jobs, durable progress/cancellation/replay, paginated event history, and SSE with polling fallback. Static hosting retains the Version 2.0 selected-object workflow and reports that full-catalog service capability is unavailable.
+- Explore active satellites and orbital debris on an interactive 3D Earth globe or 2D Mercator map.
+- Load mixed GP/OMM and legacy TLE elements without truncating six-digit NORAD identifiers.
+- Filter the catalog by `ALL`, `GEO`, `MEO`, `LEO`, `HRO`, `Debris`, `Others`, and dependent catalog tags.
+- Search by satellite name, NORAD ID, orbit class, or tag, then inspect consolidated object and orbital-element details.
+- Display selected trajectories, footprints, ground tracks, day/night lighting, detailed models, and observer-oriented views.
+- Move forward, pause, or reverse one shared simulation clock for satellites and the Solar System view.
+- Explore launch and confirmed or predicted re-entry timelines that refresh when their data revisions change.
+- Add stars, the Milky Way, Moon, Mars, and a bounded JPL-derived Solar System ephemeris to the scene.
+- Run Experimental selected-object screening in the browser or optional authenticated full-catalog jobs through the local service.
+- Share a reproducible view and run either as a curated static artifact or with the local API server.
 
-## Version 2.1 Development Boundary
+## Images
 
-Version `2.1.0` is a **development build**, not a release candidate or release. Its scientific maturity is **Experimental** and its safety classification is **non-operational**. Version 2.1 implementation was explicitly authorized, but the open v2.0 external and human promotion gates in `docs/engineering/RELEASE_CHECKLIST.md` were not retroactively closed. The separate Version 2.1 gate is tracked in `docs/engineering/RELEASE_CHECKLIST_V2_1.md`.
+[![OpenBEXI Earth Orbit globe with reference stars and launch timeline](https://arcazj.github.io/openbexi_earth_orbit/images/openbexi_earth_orbit_ex1.png)](https://arcazj.github.io/openbexi_earth_orbit/images/openbexi_earth_orbit_ex1.png)
 
-Both screening modes report geometric close approaches from synchronized states. Version 2.0 screens one selected object in a browser Worker. Version 2.1 can submit a frozen catalog revision to a bounded single-node server worker, persist job attempts/candidates/events/errors, stream progress, cancel, retry, and replay the same request. Catalog refresh registration distinguishes new, changed, absent, and reappeared observations, but `ABSENT` is inferred only from a successful explicit full snapshot. The current bundled incremental metadata is `PARTIAL`, so startup and scheduled incremental refreshes never treat an omitted record as absent. A successful job can still contain a `PARTIAL` scientific result; propagation failures, unscreened intervals, motion-bound violations, caps, source status, and truncation remain material. The UI repeats `Experimental`, `non-operational`, and collision-probability-unavailable labels and displays partial coverage with its unscreened interval count.
+*Main globe view with the star field and launch timeline.*
 
-Collision probability remains unavailable because no validated covariance and hard-body-radius pipeline exists. Version 2.1 does not implement CDM assessment, operational risk scoring, alerts, reports, maneuver simulation, or collision-avoidance recommendations. Those capabilities remain later work requiring separate approval, independent validation, and provider governance. The application never substitutes a heuristic probability.
+[![Starlink satellites around Earth with the Mercator map inset](https://arcazj.github.io/openbexi_earth_orbit/images/openbexi_earth_orbit_STARLINK.PNG)](https://arcazj.github.io/openbexi_earth_orbit/images/openbexi_earth_orbit_STARLINK.PNG)
 
-The browser method is documented in `docs/science/EXPERIMENTAL_CONJUNCTION_SCREENING_V2.md`; the full-catalog method and measured limitations are in `docs/science/EXPERIMENTAL_FULL_CATALOG_SCREENING_V2_1.md`. ADR 0003 records the durable compute boundary. Local deployment and rollback are documented in `docs/engineering/SERVER_DEPLOYMENT_V2_1.md` and `docs/engineering/ROLLBACK_V2_1.md`.
+*Starlink example across the 3D globe and 2D Mercator view.*
 
-`release/version.json` is the authoritative version record. `npm run version:sync` regenerates browser metadata, and `npm run check:version` rejects drift in package, browser, server, static API documentation, or feature-flag metadata.
+[![OneWeb constellation selected around Earth](https://arcazj.github.io/openbexi_earth_orbit/images/openbexi_earth_orbit_ONEWEB.PNG)](https://arcazj.github.io/openbexi_earth_orbit/images/openbexi_earth_orbit_ONEWEB.PNG)
 
-## Orbit and Ground-Track Notes
-
-The app uses `satellite.js@6.0.2` for TLE propagation. Some TLEs can return invalid propagated samples, especially for decayed or unstable objects. Orbit and Mercator rendering reject non-finite positions and below-Earth samples before drawing. When invalid samples occur in the middle of a path, the app splits the line instead of connecting through Earth or across an invalid Mercator segment.
-
-The 3D selected-orbit line uses normal depth testing plus camera-aware Earth occlusion splitting so Earth hides portions of the orbit that are behind the globe. GEO orbit fixes should not change the physical propagated orbit radius unless tests prove the propagation radius is wrong.
-
-GEO Mercator ground tracks can be nearly stationary. When the generated GEO ground track collapses below visible inset size, the Mercator renderer draws a short visible fallback segment around the sub-satellite point so `Show Orbit` does not appear blank.
-
-## Selected-Satellite View Notes
-
-Version 1.5.9 targets an exact default observer distance of 100 real-world meters from the selected detailed satellite target point. The camera position is the observer eye point, and the 100-meter distance is converted to scene units through `KM_TO_SCENE_UNITS`.
-
-Because the app uses visual scaling for readability, detailed models are scaled for the selected view using the loaded model bounds, camera field of view, and a target viewport height. The selected view preserves the 100-meter observer distance instead of moving the camera farther away as a fallback. It also reduces the camera near plane for selected models, keeps the selected satellite centered while it moves, and places the observer outward from Earth through the satellite so Earth appears behind it.
-
-For Starlink models, Version 1.5.10 replaces the pure radial observer start with an oblique orbital-frame view. Starlink local `+X` is aligned to velocity, local `+Z` is aligned to nadir, and local `+Y` completes the right-handed frame. The yaw, pitch, and roll sliders remain user bias controls applied after that base orbital-frame alignment.
-
-Version 1.5.11 keeps the selected-satellite observer workflow consistent across the search selector, timeline selections, and `View` shortcuts. Selecting any satellite automatically switches to show-only-selected mode; selecting LEO/HEO/Other satellites such as Starlink or ISS also enables High Def. Earth so the observer keeps better Earth context behind the satellite.
-
-Version 1.5.12 updates the shortcut labels and Help menu. The Starlink shortcut resolves the first loaded Starlink target and displays its NORAD ID. ISS uses the same velocity/nadir orbital-frame orientation convention as the reference picture, with ISS-specific calibration diagnostics in `detailedSatelliteModel.userData`.
-
-Version 1.5.13 adds an optional Python server data path. When the server is connected, TLE and satellite metadata requests can be served by the local API; when the server is unavailable, slow, invalid, or blocked, the app falls back to the existing local JSON files and keeps the same offline behavior.
-
-Version 1.5.14 improves the server status UI, adds status icons from `icons/`, improves Swagger/OpenAPI documentation contrast, keeps `Other Selections` visually consistent with other accordion headers, and adds Share image preview, download, copy, and native image sharing when the browser supports it.
-
-Version 1.5.15 makes the menu launch state deterministic, renders README and Releases History Markdown inside Help, renames the Prompt History action to `Releases History`, and aligns Close, version, and server status on one compact row.
-
-Version 1.5.16 revises the menu UX. All accordion sections start collapsed by default, `View` is renamed to `Views & Time`, Settings is removed, selected-satellite controls stay hidden until a satellite is selected, Help uses document-style actions, and the centered GitHub/version header aligns with the Close and server status controls.
-
-Version 1.5.17 moves Satellite Selection directly under Views & Time, places Filters - Satellites Found immediately below Satellite Selection, restores deterministic launch defaults with those three sections expanded, adds a synchronized `Time x` slider at the top of Views & Time while keeping the existing canvas-top slider, and removes obsolete visible helper text from the orbit filter and satellite search areas.
-
-Version 1.5.18 removes the launch offline banner while keeping silent local-data fallback and the server status panel. It moves the Starlink and ISS shortcuts into Satellite Selection, portals the satellite-search dropdown above other menu controls, adds the transparent right-side selected-satellite data/TLE panel under the UTC clock, fixes the Licenses action with `LICENSE.md`, and makes README and Releases History open through `markdown_viewer.html` as separate rendered Markdown pages.
-
-Version 1.5.19 removes the detailed metadata/TLE table from Satellite Selection so the full selected-satellite details appear only in the right-side canvas panel. The right-side panel matches the UTC clock width, shows TLE line 1 and TLE line 2 only once, and restricts `SSL_1300.glb` to INTELSAT 20 (IS-20) and INTELSAT 18 (IS-18).
-
-Version 1.5.20 moves the combined Globe + Mercator overlay to the bottom-right of the canvas so the menu does not hide it. It also makes the Sun the dominant selected-model light source, keeps Sun lighting updated before render, adds subtle Earth-reflected albedo for solar-panel visibility when possible, and preserves the selected-satellite camera tracking and zoom/orbit controls.
-
-Version 1.5.21 makes the right-side selected-satellite data and TLE sections collapsible and expanded by default after each satellite selection using `<details open>`. Starlink and ISS selections also add an expanded `Source detail` section after TLE details with bold red attribution text: Starlink cites `https://sketchfab.com/malacodart` with CC Attribution / Creative Commons Attribution, and ISS cites `https://github.com/nasa/NASA-3D-Resources` courtesy of NASA (National Aeronautics and Space Administration). ISS selected-model orientation swaps yaw and pitch control inputs so ISS `Yaw` applies the previous pitch behavior and ISS `Pitch` applies the previous yaw behavior, while roll remains unchanged; ISS local `+Y` is the pitch axis and stays pointed toward Earth/nadir as ISS propagates. Starlink and other models keep the standard mapping. The release also records the ADCS/attitude visualization correction requirements from the attached screenshot, but no repository HTML/JS source file currently contains the ADCS `Attitude`, `Commanded`, or `CMG Torque` UI text, so that page-specific layout correction remains blocked until the source file is added or identified.
-
-Version 1.5.22 keeps the Earth-centered scene frame fixed: the Earth mesh and ECEF axes remain at `(0, 0, 0)`, panning is disabled so mouse interaction cannot shift the active target, Earth mode targets the origin, Moon mode targets `moon.position` without moving the Moon object to the origin, and selected-satellite tracking keeps priority when a satellite/model is selected. Earth zoom can approach about 100 km above the surface, maximum zoom is a very large finite distance, and the camera far plane is widened for Earth, Moon, LEO, MEO, GEO, HEO, and selected-satellite views. Orbit helper math now uses WGS84 geodetic/ECF calculations, orbit classification distinguishes LEO/MEO/GEO/HEO/Other from mean motion plus eccentricity/inclination when metadata is missing, invalid propagated positions are hidden instead of frozen, and Mercator markers, footprints, coverage overlays, ground tracks, and day/night shading share one Web Mercator projection helper. The earlier O3b sprite-only fallback has been superseded by the local `o3b.glb` mapping. Selected detailed model roots now stay at the canonical propagated satellite scene coordinate, while model visual centering is applied only to child geometry, so detailed models and sprite fallbacks remain aligned with the selected red orbit trajectory. Add `?orbitAlignDebug=1` to log selected-model orbit alignment diagnostics.
-
-Version 1.5.23 adds `Mars` to `Other Selections`. Selecting Mars displays a Mars globe, uses the local source texture asset `textures/March.jpg`, targets `mars.position` for orbit/zoom controls like Moon mode, starts the observer close to the Mars globe, and preserves the Earth-centered scene frame without moving Earth, Moon, or Mars to the origin. Mars texture loading is silent during initial `index.html` launch while Earth is active. When the user selects Mars, the app shows a centered progress bar labeled `Loading Mars map/texture...`, keeps it visible long enough for fast cached/local loads to be seen, shows a short confirmation state if the texture already loaded silently before selection, hides it after successful load, and reports a fallback message if the texture fails. Mars context also switches the Mercator background to the shared Mars texture and suppresses Earth-specific satellite markers, footprints, ground tracks, and day/night shading on the Mars map. The Mars position is an approximate visual model using simplified circular heliocentric Earth-to-Mars relative motion. `textures/March.jpg` is treated as a local project-provided Mars texture source; its exact source and license still need to be confirmed.
-
-Version 1.6 adds an optional `Stars & Milky Way` checkbox to the `Views & Time` row beside `Globe` and `Mercator`. It is unchecked by default. When enabled, the main app displays a Milky Way celestial sphere and real RA/Dec demo-star field without changing the Earth-centered scene, satellites, Moon/Mars behavior, Mercator, orbit, footprint, selected-satellite, timeline, Share, or Help flows. The `RA/Dec Grid`, `Bright Labels`, `Atmosphere`, and `Magnitude limit` controls were introduced for the initial integrated view. Mars now loads the optimized runtime texture `textures/March_8k.jpg` generated from the local source `textures/March.jpg` so WebGL does not resize the original `21339x10670` image at upload time.
-
-Version 1.6.1 removes the integrated main-app `Magnitude limit` slider because the bundled catalog currently contains only 46 stars and the slider does not add useful visual detail. When `Stars & Milky Way` is enabled, the main app displays all 46 bundled reference stars from `data/stars/bright-stars-demo.js` and shows a menu note based on the catalog length. `RA/Dec Grid`, `Bright Labels`, and `Atmosphere` remain hidden until `Stars & Milky Way` is enabled and unchecked by default. Bright Labels remain internally limited to bright stars so the sky is readable. Magnitude filtering can return later when a larger local preprocessed catalog is added.
-
-Version 1.6.2 integrates `Solar System Overview` into the main `Views & Time` section while keeping `SolarSystemOverview.html` available as a standalone debug page. The menu Time x slider is removed; the top/canvas Time x slider remains the single simulation-speed control for Earth and Solar System motion. `Views & Time` now has `Solar System` and `Stars & Milky Way` on the first row, `Globe`, `High Def.`, and `ECEF Axes` on the second row, and `Mercator` plus `Day/Night` on the third row. Solar System mode is off by default, stores the previous Earth/satellite state, hides Earth-specific satellite layers while active, and restores the previous state when exited. The integrated mode uses `js/solarSystemOverviewLoader.js` to render the Sun, orbit paths, readable labels, selected-body highlight/HUD, Saturn rings, and textured Mercury, Venus, Earth, Moon, Mars, Jupiter, Saturn, and Uranus with approximate Kepler/visual positions. Earth selection exits into normal Globe mode, Moon selection exits into the existing Moon-centered mode, Mars selection exits into the existing Mars mode, and other planet selections focus the planet inside Solar System mode. The old `Other Selections` menu section is removed; Earth/Moon/Mars context switching is now reached through Solar System selection. The `Displaying 46 bundled reference stars` menu note is hidden by default and appears only when both `Stars & Milky Way` and `Bright Labels` are checked. Planet textures are local only; Mercury, Venus, Jupiter, Saturn, Uranus, Sun, and Saturn ring visual maps under `textures/planets/` are project-generated procedural visual assets, Earth reuses `textures/earthmap1k.jpg`, Moon reuses `textures/moon_map2.jpg`, and Mars reuses `textures/March_8k.jpg`.
-
-Version 1.7 upgrades Solar System textures and uses bundled JPL-derived ephemeris data. Mercury now uses `textures/mercury.png`, Venus uses `textures/venus.png`, and Jupiter uses `textures/jupiter.jpg`; Earth, Moon, Mars, Saturn, Uranus, Sun, and Saturn rings keep local texture behavior. Integrated Solar System mode loads `data/ephemeris/solar_system_jpl_horizons_2020_2035_6h.json` locally at runtime, displays the ephemeris source/date range in the Solar System summary or HUD, and computes Mercury, Venus, Earth, Moon, Mars, Jupiter, Saturn, and Uranus positions from shared `SIM_DATE`. `Time x = 0` is a true freeze, and larger `Time x` values advance the shared simulation date. Moon position is derived from Moon and Earth Horizons vectors, then visually scaled for readability in the compressed Solar System view. Closed JPL-derived orbit guides are rebuilt only when the bundled ephemeris covers at least one full orbital period for that body; Saturn, Uranus, Moon, and other incomplete-range bodies keep analytical orbit guides so partial ephemeris arcs do not create diagonal closing chords. Solar System planet names use compact pin/arrow callouts anchored on the planet edge, use projected screen-space sizing to stay near an `18-42 px` readable range, shrink at close zoom, and grow within a cap for distant planets so names remain readable without large billboard text panels. The Solar System planet HUD is measured from and aligned to the UTC clock/horloge width, right edge, placement, and monospace typography. No texture or ephemeris data is fetched remotely at runtime. If the local ephemeris is missing, invalid, still loading, or out of range, the UI labels the mode as an approximate visual fallback instead of silently claiming JPL-derived positions.
-
-Version 1.7.1 consolidates satellite filters into `Satellites Selection - Found`. The standalone `Filters - Satellites Found` accordion is removed, the found count is red and bold in the Satellite Selection heading, orbit/tag/debris filters live directly inside Satellite Selection, `Reset Filters` is on the same row as `Show`, `Hide`, and `Debris only`, and obsolete filter helper text plus the old active summary string are removed. The main `Views & Time` checkboxes use a stable 3x3 table/grid so `Solar System`, `Stars & Milky Way`, `Globe`, `High Def.`, `ECEF Axes`, `Mercator`, and `Day/Night` stay aligned. The satellite search dropdown and hidden legacy select are populated from the same filtered satellite set, so multi-check filter results, visible count, and selectable results stay synchronized. When search text is active, the red count follows the visible dropdown result list; capped search results display as `visible / total`, such as `40 / 126`, instead of showing a misleading single total.
-
-Version 1.7.2 moves `Debris` into the orbit/category row as `ALL`, `GEO`, `MEO`, `LEO`, `HRO`, `Debris`, `Others`. The old separate `Show`, `Hide`, and `Debris only` buttons are removed. Selecting `Debris` shows debris objects only, while `Reset Filters` now sits in the satellite search row immediately after `Clear`. The release also adds `swagger.html` as a local standard Swagger/OpenAPI-style static page and keeps `SWAGGER.md` as the Markdown companion, available through `markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API`; neither local documentation page requires starting `server.py`, while live `/docs` and `/openapi.json` still require the optional Python server.
-
-Version 1.7.3 corrects 3D `Show Orbit` so the selected satellite displays one complete propagated orbital revolution from the current simulation date instead of multi-period trails. Orbit geometry refreshes from shared simulation time as `Time x` advances, replaces the existing path instead of accumulating duplicates, and keeps invalid-sample splitting plus Earth occlusion behavior. `Stars & Milky Way` is checked by default on launch while `RA/Dec Grid`, `Bright Labels`, and `Atmosphere` remain unchecked.
-
-Version 1.7.4 replaces the legacy Java satellite data maintenance workflows with `tools/satellite_data_tools.py`. The tool can run standalone or be imported by `server.py`, supports legacy-compatible `export-tle --all` and `build-decayed-db --all` modes, and uses incremental default TLE updates with metadata freshness checks, atomic writes, backups, dry-run support, CelesTrak failure preservation, and optional scheduled server refresh that is disabled by default.
-
-Version 1.7.5 refreshes the Launch and Re-entry timelines around the newest dataset events. `Show Launch Timeline` derives the latest launch from loaded TLE/satellite metadata and anchors the HUD around that event. `Show Re-entry Timeline` merges active-satellite decay estimates with confirmed decayed records from local or server `/api/decayed` data, anchors on the latest valid decay event, highlights it, and allows inactive decayed objects to show details without attempting active TLE propagation.
-
-Version 1.7.6 fixes timeline data freshness and startup behavior without changing the release number. `Show Launch Timeline` continues to anchor on the newest valid loaded launch date, while the data tool's incremental TLE path queries bounded CelesTrak groups (`active` and `last-30-days`), merges missing or newer TLE epochs, and fills launch-date sidecar entries from local SATCAT data when available. `Show Re-entry Timeline` now becomes usable as soon as confirmed decayed records load, then runs active-satellite decay prediction only for filtered likely-decay candidates and reuses daily cached prediction results. SATCAT refreshes use stored `ETag` / `Last-Modified` metadata and skip repeated decayed DB rebuilds when the source reports unchanged. That historical release used a CDN-first browser bootstrap; Version 2.0 supersedes it with vendored dependencies first and exact-version CDN fallback only when a packaged source is unavailable.
-
-The Version 2.0.0 candidate implements strict catalog/domain contracts, a pure satellite.js propagation adapter, and Experimental selected-satellite close-approach screening in a Web Worker. The preview reports TCA, geometric miss distance, relative velocity, source/element age, configuration and algorithm provenance, quality flags, and synchronized 3D playback. It explicitly leaves collision probability unavailable, retains a non-operational safety class, and does not include full-catalog scheduled jobs, persistent event history, alerts, CDM/covariance analysis, or maneuver recommendations. Its legacy TLE feed also cannot represent newly issued six-digit catalog identifiers, so a successful run is not complete catalog coverage.
-
-The Version 2.1.0 development scope adds the optional single-node full-catalog service without changing those scientific claim limits. It uses private content-addressed catalog revisions, normalized bounded requests, SQLite job/attempt/event persistence, an isolated Node runner, conservative time-slab spatial hashing, authenticated `/api/v1` routes, signed pagination cursors, and resumable SSE progress. Multi-format contracts cover TLE JSON, CCSDS OMM JSON/KVN, CCSDS OEM KVN, and provider ephemeris JSON, but only the bundled TLE snapshot is registered automatically; no new provider feed or license is admitted by implementing an adapter. The current full-catalog runner requires selected records to be UTC/TEME.
-
-The selected satellite model axis convention is:
-
-```text
-local +Z = Earth-facing / nadir axis
-```
-
-Yaw, pitch, and roll are applied as a bias on top of that nadir-facing orientation.
-
-For ISS selected models only, the yaw and pitch control inputs are swapped to match the corrected ISS visual orientation: the `Yaw` slider drives the previous pitch behavior, the `Pitch` slider drives the previous yaw behavior, and `Roll` is unchanged. The ISS pitch axis is local `+Y`; it points to Earth/nadir and keeps tracking Earth as time changes.
-
-## Orbital Accuracy Notes
-
-- TLE propagation remains on the existing `satellite.js` SGP4 path.
-- `satellite.js` returns TEME-like coordinates. The app treats those coordinates as ECI-like scene coordinates for visualization unless a higher-fidelity TEME-to-ITRF/ECI transform is explicitly added later.
-- TLE/SGP4 results support educational visualization and the explicitly Experimental short-term screening envelope, not operational flight dynamics, collision prediction, or conjunction decision support.
-- The Moon remains a simplified visual model inside the Earth-centered scene; Moon mode changes the camera target to the Moon center but does not recenter the physical scene frame.
-- Mars remains a simplified visual model inside the Earth-centered scene; Mars mode changes the camera target to the Mars center but does not recenter the physical scene frame.
-- Mars texture source: `textures/March.jpg`, local project-provided texture, exact source/license to be confirmed.
-- Mars runtime texture: `textures/March_8k.jpg`, optimized to `8192x4096` to stay inside common WebGL maximum texture size limits and avoid Three.js upload-time resizing.
-
-## 3D Model Asset Matching
-
-When a satellite is selected, the app first highlights the TLE sprite, then attempts to resolve a local detailed model from `obj/`.
-
-Model matching is deterministic:
-
-- Exact NORAD/metadata mappings are preferred when available.
-- If exact metadata is unavailable, normalized satellite names, company/operator tags, and constellation aliases are used.
-- Known local mappings include Starlink, OneWeb, O3b, and ISS. Starlink 30xxx-series or explicit V2 metadata resolves to `starlink_v2.glb`; older/non-30xxx Starlink records continue to use the Starlink V1 OBJ/MTL model. O3b/OB3 satellite selections resolve to `o3b.glb`. `SSL_1300.glb` resolves only for `INTELSAT 20 (IS-20)` and `INTELSAT 18 (IS-18)` through exact selected-satellite name metadata, not through generic Intelsat, SSL, GEO, GOES, SES, manufacturer, bus, or alias matching.
-- OBJ/MTL assets are loaded as `obj/<asset>.obj` with optional `obj/<asset>.mtl`.
-- GLB assets are loaded directly from `obj/<asset>.glb`.
-
-The sprite remains visible while the model is loading. If the local model is missing, fails to load, or becomes stale because the user selected another satellite, the app keeps the selected sprite visible instead of showing the wrong model or a blank selection.
-
-The app logs model visibility diagnostics for selected detailed models, including mesh count, bounding diameter, scale, and material visibility status. It also applies fallback material visibility settings and a camera-side fill light so models remain inspectable even when an asset material or texture is weak.
-
-Selected detailed models use a root object whose world position is reserved for the propagated satellite coordinate. Any model centering correction is applied to child geometry under that root. This prevents visual model assets such as SSL 1300, Starlink, and ISS from drifting away from the selected orbit trajectory.
-
-## Isolated Model Viewer
-
-Use `display_satellite.html` to verify local satellite model assets independently from TLE propagation and satellite selection logic:
-
-```text
-http://127.0.0.1:8000/display_satellite.html
-```
-
-The viewer first asks the optional server for `/api/display-satellite-models`, which scans `obj/` recursively for every `.glb` model and every `.obj` model with a matching `.mtl`. If the server is not running, it falls back to `json/display_satellite_models.json`. It provides search, reload, reset, auto-fit, axes/grid, wireframe, background, and copyable diagnostics controls. The diagnostics panel reports the active asset path, required files, loaded textures, mesh/material counts, triangles, bounds, and loader warnings.
-
-Custom entries still support newly added local assets without code changes. Use examples such as `ISS.glb`, `starlink_V1`, `starlink_v2.glb`, or `oneweb.glb` to load from `obj/`. The viewer centers the model, adds inspection lighting, repairs weak/invisible materials where possible, normalizes extremely small or large assets such as `SSL_1300.glb` to an inspectable display size, and fits the camera to the model bounds. If a model is visible in `display_satellite.html` but not after selecting a matching satellite in `index.html`, the issue is in the selected-satellite scene integration rather than the local model asset.
-
-## Earth Stars Milky Way Viewer
-
-Use `Earth_Stars_MilkyWay.html` for a standalone Three.js Earth and celestial-sphere view:
-
-```text
-http://127.0.0.1:8000/Earth_Stars_MilkyWay.html
-```
-
-The viewer keeps Earth centered, renders a Milky Way sky sphere, and places stars from real RA/Dec catalog rows using a reusable J2000/ICRS fixed-sphere conversion. The default magnitude limit is `<10`, and the browser slider is capped at `<11.5`. Magnitude `<18` is documented as external-only because Gaia DR3-scale data requires tiled/LOD/binary preprocessing rather than inline HTML. The bundled demo catalog is intentionally small; use `tools/preprocess_star_catalog.py` to convert licensed Tycho-2-style or Gaia-derived CSV exports into browser-friendly RA tiles.
-
-## Solar System Overview
-
-Use `SolarSystemOverview.html` for a standalone experimental Three.js heliocentric overview:
-
-```text
-http://127.0.0.1:8000/SolarSystemOverview.html
-```
-
-The page renders a Sun-centered visual scene with thin colored orbit paths, JPL-derived positions when the local ephemeris has loaded, readable labels, UTC time, Sun glow, and a star/Milky Way background. It includes Mercury, Venus, Earth, Moon, Mars, Jupiter, Saturn, and Uranus. The main app also integrates Solar System Overview starting in Version 1.6.2; the standalone page remains useful as a focused debug/inspection page.
-
-Planet texture attribution: Mercury uses `textures/mercury.png`, Venus uses `textures/venus.png`, and Jupiter uses `textures/jupiter.jpg` as local project-provided texture assets. Saturn, Uranus, Sun, and Saturn rings use local project-generated procedural visual maps under `textures/planets/`. Earth reuses `textures/earthmap1k.jpg`, Moon reuses `textures/moon_map2.jpg`, and Mars reuses `textures/March_8k.jpg`, generated from the local project Mars source texture. No planet texture is fetched remotely at runtime.
-
-Solar System ephemeris: Version 1.7 uses local JPL Horizons-derived vectors in `data/ephemeris/solar_system_jpl_horizons_2020_2035_6h.json`, generated by `tools/generate_jpl_ephemeris.py`. The dataset covers `2020-01-01` through `2035-12-31` at 6-hour cadence in the ICRF/ecliptic frame, centered on the Sun (`500@10`) with kilometers and kilometers-per-second units. Runtime interpolation is linear in UTC milliseconds. Validation samples in `data/ephemeris/solar_system_jpl_horizons_reference_samples.json` target less than `5,000 km` error for Mercury, Venus, Earth, Moon, and Mars, and less than `50,000 km` for Jupiter, Saturn, and Uranus. Orbit guides use JPL-derived samples only when the 2020-2035 table contains a complete orbital period; otherwise they remain analytical visual guides. This is a JPL-derived visualization ephemeris, not a certified navigation or flight-dynamics product.
+*OneWeb constellation filtered in the 3D globe.*
 
 ## Requirements
 
-- A modern browser with ES module support.
-- Node.js for automated tests.
-- Python 3 for the optional local API server or another local static HTTP server for browser smoke testing.
+- A modern browser with ES modules, module Workers, WebGL 2, `fetch`, and `crypto.subtle`; hardware acceleration is recommended.
+- Node.js `>=20 <25` and npm `>=10` for installation, checks, tests, benchmarks, and static builds. Node.js 22 is recommended.
+- Python 3 for the local API server, Python tools, Python tests, and the managed browser-test server.
 
-Source and server-capable pages load integrity-checked vendored dependencies first, with exact-version CDN URLs retained only as an explicit fallback selected by `js/dependencyBootstrap.js`. The bootstrap awaits the application module graph and displays a retryable startup error instead of leaving a black screen when it cannot load. The curated `dist/` builder enforces packaged-only runtime URLs, removes the mutable raw-GitHub fallback, and is tested with every non-artifact-origin request blocked:
+The public Live Demo requires no local installation. Do not open the source application with `file://`; modules, JSON, textures, and models require HTTP serving.
 
-- Three.js `0.184.0` loads from the repository-owned core and required addon subset under `./vendor/three/0.184.0/`; source/dev mode may use the matching `https://unpkg.com/three@0.184.0/...` files only if the packaged copy is unavailable.
-- satellite.js `6.0.2` loads from `./vendor/satellite.js/6.0.2/satellite.min.js`; source/dev mode may use the exact unpkg version only if the packaged copy is unavailable. The conjunction Worker imports the matching vendored ES module. The curated static artifact executes only same-origin vendored dependency bytes and does not resolve through `node_modules`, unpkg, or raw GitHub.
+## Quick Start
 
-Run `npm run vendor:browser` only when intentionally refreshing the pinned browser artifacts after a dependency update. `npm run check:vendor` verifies their committed SHA-256 values, npm lockfile integrity metadata, public APIs, installed-package byte parity when dependencies are present, and absence of runtime references to `node_modules`.
-
-Node test dependencies are declared in `package.json` and pinned by `package-lock.json`. Node.js 22 is the CI and recommended local runtime; the supported range is declared in `package.json`.
-
-## Setup
-
-Install the exact locked Node dependencies:
+Install the locked dependencies and start the loopback application/API server:
 
 ```powershell
 npm ci
-```
-
-Serve the app locally:
-
-```powershell
-py -m http.server 8000 --bind 127.0.0.1
-```
-
-Open:
-
-```text
-http://127.0.0.1:8000/index.html
-```
-
-Build and serve the curated deployment artifact:
-
-```powershell
-npm run build
-py -m http.server 8001 --bind 127.0.0.1 --directory dist
-```
-
-Publish only the contents of `dist/`, never the repository or branch root. The build emits `dist/asset-manifest.json` with deterministic file hashes and excludes prompts, tests, roadmap/release internals, operational data, backups, and generated package directories. See `docs/engineering/STATIC_DEPLOYMENT.md` for the artifact contract and verification procedure.
-
-Optional API server mode:
-
-```powershell
-py server.py --host 127.0.0.1 --port 8000
-```
-
-To enable authenticated Version 2.1 full-catalog jobs, configure at least an analyst token before startup. Values must be independently generated and at least 24 characters; `.env.example` is documentation only and is not loaded automatically:
-
-```powershell
-$env:OPENBEXI_API_ANALYST_TOKEN = "replace-with-an-independent-random-analyst-token"
-$env:OPENBEXI_API_VIEWER_TOKEN = "replace-with-an-independent-random-viewer-token"
-$env:OPENBEXI_API_ADMIN_TOKEN = "replace-with-an-independent-random-admin-token"
 npm run serve
 ```
 
-The browser keeps the token entered in the Full-Catalog Screening workspace in page memory only. An analyst token can submit, read, cancel, retry, and replay local jobs. Viewer credentials are read-only; the administrator role is currently a superset reserved for later operator actions. Do not place tokens in URLs, browser storage, logs, or source files.
+Open [http://127.0.0.1:8000/index.html](http://127.0.0.1:8000/index.html).
 
-Open:
-
-```text
-http://127.0.0.1:8000/index.html
-```
-
-The Python server uses only the standard library. It serves the existing static app plus local API routes:
-
-- `http://127.0.0.1:8000/api/health`
-- `http://127.0.0.1:8000/api/version`
-- `http://127.0.0.1:8000/api/tle`
-- `http://127.0.0.1:8000/api/satellites`
-- `http://127.0.0.1:8000/api/satellite-metadata`
-- `http://127.0.0.1:8000/api/display-satellite-models`
-- `http://127.0.0.1:8000/api/decayed`
-- `http://127.0.0.1:8000/api/data-update-status`
-- `http://127.0.0.1:8000/docs`
-- `http://127.0.0.1:8000/openapi.json`
-
-Versioned v2.1 routes include:
-
-- `/api/v1/health/live`, `/api/v1/health/ready`, and `/api/v1/capabilities` for unauthenticated discovery;
-- `/api/v1/catalog-revisions` and `/api/v1/catalog-revisions/{revision_id}` for authenticated revision reads;
-- `/api/v1/screening-jobs` and `/api/v1/screening-jobs/{job_id}` for paginated job reads, submission, status, and cancellation;
-- `/api/v1/screening-jobs/{job_id}/retry`, `/replay`, and `/stream` for analyst retry/replay and authenticated resumable progress;
-- `/api/v1/conjunction-events` and `/api/v1/conjunction-events/{event_id}` for signed-cursor event queries and details.
-
-Job submission and replay require an `Idempotency-Key`. SSE resume uses `Last-Event-ID`; authentication stays in the request header, never a query parameter. `/api/v1/capabilities` publishes the normalized default configuration and structured min/max/integer limits so clients do not invent bounds. Catalog API responses omit private snapshot and metadata paths. The UI uses authenticated fetch streaming and automatically falls back to bounded polling. Worker progress persistence coalesces first-stage, 1% advancement, and bounded-heartbeat snapshots and enforces a hard limit of 512 progress records per attempt. The server stores private snapshots, SQLite state, and per-attempt artifacts under `runtime/` by default. Use `--runtime-dir` to choose another directory inside the project, or `--no-v21-service` to run the legacy/static API without opening the v2.1 store. See `docs/engineering/SERVER_DEPLOYMENT_V2_1.md` for the local-only deployment boundary.
-
-The API server binds to loopback by default and permits browser CORS requests only from loopback origins unless an origin is explicitly allowed. A non-loopback bind requires an explicit acknowledgement:
+To build and inspect the curated static artifact instead:
 
 ```powershell
-py server.py --host 0.0.0.0 --port 8000 --allow-public --cors-origin https://trusted.example
+npm run build
+node scripts/python.mjs -m http.server 8001 --bind 127.0.0.1 --directory dist
 ```
 
-Public exposure still requires an authenticated reverse proxy, TLS, managed identity/secrets, quotas, monitoring, backups, retention, incident ownership, and deployment-specific access controls. The built-in bearer registry and rate limits are local development controls, not approval for a hosted multi-user service. See `SECURITY.md` and `docs/engineering/THREAT_MODEL_V2_1.md` before exposing the server outside a trusted development machine.
+Open [http://127.0.0.1:8001/index.html](http://127.0.0.1:8001/index.html). Publish only the contents of `dist/`; see [Static Deployment](docs/engineering/STATIC_DEPLOYMENT.md) for the deployment contract.
 
-Static Swagger/API documentation is also available without the Python server:
+## API
+
+Start the API with `npm run serve` or `py server.py --host 127.0.0.1 --port 8000`.
+
+- [Static Swagger UI](swagger.html)
+- [API reference](SWAGGER.md)
+- [Rendered API reference](markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API)
+- [Live Swagger UI](http://127.0.0.1:8000/docs) - requires the Python server
+- [OpenAPI JSON](http://127.0.0.1:8000/openapi.json) - requires the Python server
+
+| Endpoint | Purpose | Authentication |
+| --- | --- | --- |
+| [`GET /api/health`](http://127.0.0.1:8000/api/health), [`GET /api/version`](http://127.0.0.1:8000/api/version) | Server health and authoritative release metadata | None |
+| [`GET /api/gp`](http://127.0.0.1:8000/api/gp), [`GET /api/gp-metadata`](http://127.0.0.1:8000/api/gp-metadata) | Primary GP/OMM catalog and metadata | None |
+| [`GET /api/satellites`](http://127.0.0.1:8000/api/satellites) | Preferred GP catalog with legacy TLE fallback | None |
+| [`GET /api/tle`](http://127.0.0.1:8000/api/tle) | Deprecated, reduced-coverage TLE compatibility catalog | None |
+| [`GET /api/launches`](http://127.0.0.1:8000/api/launches), [`GET /api/decayed`](http://127.0.0.1:8000/api/decayed) | SATCAT-backed launch events and confirmed decays | None |
+| [`GET /api/satellite-metadata`](http://127.0.0.1:8000/api/satellite-metadata), [`GET /api/display-satellite-models`](http://127.0.0.1:8000/api/display-satellite-models) | Satellite metadata and supported model manifest | None |
+| [`GET /api/data-update-status`](http://127.0.0.1:8000/api/data-update-status) | Dataset revisions, freshness, counts, newest dates, and update errors | None |
+| `GET /api/v1/health/live`, `/health/ready`, `/capabilities` | Durable-service discovery, readiness, and supported limits | None |
+| `GET /api/v1/catalog-revisions`, `/screening-jobs`, `/conjunction-events` | Revision, job, and event queries | Viewer bearer token or higher |
+| `POST`, `DELETE`, retry, and replay job routes | Submit, cancel, retry, or replay durable screening jobs | Analyst bearer token or higher; mutating creates/replays require `Idempotency-Key` |
+| `GET /api/v1/screening-jobs/{job_id}/stream` | Resumable server-sent job progress | Viewer bearer token or higher; resume with `Last-Event-ID` |
+
+Configure independently generated tokens of at least 24 characters with `OPENBEXI_API_VIEWER_TOKEN`, `OPENBEXI_API_ANALYST_TOKEN`, and `OPENBEXI_API_ADMIN_TOKEN`. Send tokens only in the `Authorization: Bearer ...` header; never place them in URLs, browser storage, source files, or logs. The built-in server is loopback-only by default and is not an approved public multi-user deployment. See [Security Policy](SECURITY.md), [Server Deployment](docs/engineering/SERVER_DEPLOYMENT_V2_1.md), and the [API reference](SWAGGER.md).
+
+## Tools
+
+The supported commands below are derived from the current CLI parsers. On systems without the Windows `py` launcher, use `python3` or the shared `node scripts/python.mjs` resolver.
+
+<details>
+<summary><strong>Satellite data maintenance</strong> - <code>tools/satellite_data_tools.py</code></summary>
+
+[Source](tools/satellite_data_tools.py)
 
 ```text
-swagger.html
-markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API
+py tools/satellite_data_tools.py [--root ROOT] <command> [options]
 ```
 
-The frontend bootstraps satellite rendering from the static `json/tle/TLE.json` route first so `index.html` does not wait on a full live `/api/tle` download before drawing the globe. After the first interactive UI is ready, it checks the Python server with a short timeout and enables live API links when available. The server reconnect action can still reload satellite data from `/api/tle`; if that load fails or the server data is malformed, the app continues with `json/tle/TLE.json`, `json/satellites/`, and other local files. Configure a different API base URL with `?apiBase=http://host:port` or `localStorage.setItem('openbexi.apiBaseUrl', 'http://host:port')`. When `index.html` is opened from a local static/IDE host that has no API routes, the browser also retries the standard Python server URL `http://127.0.0.1:8000` before switching to offline mode.
+Global options:
 
-Do not use `file://` for normal development because ES modules, JSON, textures, and model assets need HTTP-style loading.
+| Option | Default | Description |
+| --- | --- | --- |
+| `-h`, `--help` | - | Show CLI or subcommand help. |
+| `--root ROOT` | Repository containing the tool | Override the repository root; place this option before the subcommand. |
 
-## Data Maintenance
+Every subcommand supports `-h` and `--help`.
 
-Use `tools/satellite_data_tools.py` to update generated satellite data without Java:
+| Subcommand | Purpose and outputs | Options |
+| --- | --- | --- |
+| `export-gp` | Update primary `json/gp/GP.json` and `GP.meta.json` from CelesTrak active OMM JSON. | `--all` replaces from the complete active source; `--force` bypasses freshness checks; `--dry-run` computes without writing. All default to false. |
+| `export-tle` | Update deprecated `json/tle/TLE.json` compatibility data and metadata. | `--all` uses the legacy multi-group workflow; `--force`; `--dry-run`; `--allow-space-track-fallback` enables only the credential-gated fallback hook, which currently supplies no remote fallback; `--refresh-launch-dates` opts into legacy N2YO HTML enrichment that is not approved as release evidence. All default to false. |
+| `refresh-satcat` | Refresh `json/satcat.csv` and metadata, then rebuild the launch catalog. | `--force`; `--dry-run`. Both default to false. |
+| `build-launches` | Build `json/launches/launches.json` and metadata from local SATCAT. | `--dry-run`, default false. |
+| `build-decayed-db` | Build confirmed-decay JSON and metadata from SATCAT `PAY` rows with decay dates. | `--all` runs a full rebuild; `--force`; `--dry-run`; `--refresh-satcat` refreshes SATCAT first. All default to false. |
+| `maybe-update` | Run one scheduler-style GP, launch, and decay freshness cycle. | `--force`; `--dry-run`; `--interval-hours HOURS`, default `24`. |
+
+Common commands:
 
 ```powershell
-py tools/satellite_data_tools.py export-tle --dry-run
-py tools/satellite_data_tools.py export-tle --all
-py tools/satellite_data_tools.py export-tle --refresh-launch-dates --force
+py tools/satellite_data_tools.py export-gp --dry-run
+py tools/satellite_data_tools.py export-gp --force
 py tools/satellite_data_tools.py refresh-satcat --force
+py tools/satellite_data_tools.py build-launches --dry-run
 py tools/satellite_data_tools.py build-decayed-db --refresh-satcat --force
-py tools/satellite_data_tools.py build-decayed-db --all
+py tools/satellite_data_tools.py maybe-update --dry-run
 ```
 
-Default `export-tle` is incremental. It reads `json/tle/TLE.json`, `json/tle/TLE.meta.json`, and existing TLE epochs, respects a 2-hour CelesTrak guard unless `--force` is used, then queries smaller HTTPS CelesTrak GP groups such as `active` and `last-30-days` to add missing TLEs and update newer records. When local `json/satcat.csv` contains matching NORAD launch metadata, the same incremental run fills or updates `json/tle/satellite_launch_dates.json` entries for the touched satellites and writes those launch dates back into `TLE.json`. `export-tle --all` keeps the legacy Java group order and first-seen NORAD behavior but does not scrape N2YO. Legacy N2YO HTML enrichment runs only with the explicit `--refresh-launch-dates` opt-in and is excluded from release evidence pending provider/governance approval. The shared fetch boundary rejects non-HTTPS and credential-bearing ingestion URLs. `build-decayed-db` reads `json/satcat.csv` and writes `json/decayed/decayed.json` using the legacy `DECAY_DATE` plus `OBJECT_TYPE=PAY` filter.
+The tool uses HTTPS-only provider URLs, conditional ETag and Last-Modified requests, validation and per-record quarantine, atomic promotion, timestamped data backups, and last-known-good preservation. `--dry-run` writes no data, metadata, temporary files, locks, or backups. `--force` bypasses local freshness guards but does not disable validation or provider safety checks. GP and default TLE refreshes have a two-hour CelesTrak guard; SATCAT, decay builds, and scheduled checks normally use a 24-hour guard.
 
-Decayed data is separate from TLE updates. Use `refresh-satcat --force` to update `json/satcat.csv` from CelesTrak raw SATCAT CSV, then `build-decayed-db --force`, or combine both with `build-decayed-db --refresh-satcat --force`. SATCAT refresh metadata stores `ETag` and `Last-Modified` values and sends `If-None-Match` / `If-Modified-Since`; when CelesTrak returns unchanged data, the combined decayed update preserves the existing `json/decayed/decayed.json` and skips the rebuild.
+</details>
 
-Generated data writes are atomic and create backups; `--dry-run` does not write data, metadata, temp files, or backups. If CelesTrak is unavailable, the tool preserves the last-known-good local JSON files and records failed attempts in metadata without replacing the last successful timestamp. Optional Space-Track fallback is disabled unless credentials are explicitly configured; unverified mirrors are not used automatically.
+<details>
+<summary><strong>Local API server</strong> - <code>server.py</code></summary>
 
-The server can run the same Python code in a background scheduler:
+[Source](server.py)
 
 ```powershell
-py server.py --host 127.0.0.1 --port 8000 --update-data-on-schedule
+npm run serve
+# Equivalent direct command:
+py server.py --host 127.0.0.1 --port 8000
 ```
 
-Scheduled updates are disabled by default. When enabled, startup only checks local freshness metadata; it queries remote TLE data only when the configured 24-hour server interval and the 2-hour CelesTrak guard both allow it. Decayed scheduled updates refresh `json/satcat.csv` first, then rebuild `json/decayed/decayed.json` only when the SATCAT source changed or a valid local decayed DB is missing. After a successful TLE update, the v2.1 service snapshots and registers the new catalog revision and reconciles observed new, changed, and reappeared records; a failed or unchanged update does not fabricate a new revision. The scheduler never uses `--all`, so its incremental metadata is `PARTIAL` and cannot generate `ABSENT`; absence reconciliation is reserved for a successful explicitly registered full snapshot. The scheduler runs in the background, uses `json/.satellite_data_update.lock` to avoid overlap, and exposes state at `/api/data-update-status`.
+| Option | Default | Description |
+| --- | --- | --- |
+| `-h`, `--help` | - | Show help. |
+| `--host HOST` | `127.0.0.1` | Bind host. |
+| `--port PORT` | `8000` | Bind port. |
+| `--allow-public` | false | Required acknowledgement for a non-loopback bind. |
+| `--cors-origin ORIGIN` | None | Add an exact allowed CORS origin; repeatable. Loopback HTTP(S) is allowed by default. Use `*` only for an intentionally public read-only deployment. |
+| `--no-static` | false | Disable serving `index.html` and repository static files. |
+| `--update-data-on-schedule` | false | Enable background GP, launch, and decay freshness checks. |
+| `--no-data-update` | false | Disable updates even when scheduling was requested. |
+| `--data-update-interval-hours HOURS` | `24` | Minimum age before scheduled updates run. |
+| `--runtime-dir DIR` | `runtime` | Private v2.1 database and job-artifact directory; it must remain inside the project root. |
+| `--no-v21-service` | false | Disable the authenticated durable screening service. |
+
+Scheduled provider access is disabled by default. A durable-service bootstrap failure leaves the static and unversioned APIs available while reporting the v1 service unavailable.
+
+</details>
+
+<details>
+<summary><strong>Catalog and service benchmarks</strong></summary>
+
+Sources: [direct catalog benchmark](scripts/benchmark-full-catalog.mjs) and [durable-service benchmark](tools/benchmark_v21_service.py).
+
+Direct full-catalog engine benchmark:
+
+```text
+npm run benchmark:full-catalog -- [options]
+```
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `--catalog PATH` | GP/OMM, then TLE fallback | Orbital JSON catalog. |
+| `--meta PATH` | Catalog sibling metadata | Source metadata JSON. |
+| `--output PATH` | None | Atomically write the JSON report. |
+| `--limit COUNT` | All records | Deterministically use the first `2..100000` objects. |
+| `--start-time ISO` | `2026-07-20T12:00:00.000Z` | Screening start time. |
+| `--horizon-seconds COUNT` | `60` | Screening horizon, `1..86400`. |
+| `--coarse-step-seconds COUNT` | `60` | Coarse slab size, `1..3600` and not greater than the horizon. |
+| `--screening-radius-km NUMBER` | `10` | Event radius, `0.001..10000` km. |
+| `--help` | - | Show help. |
+
+Durable HTTP-service benchmark:
+
+```text
+npm run benchmark:v21-service -- [options]
+```
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `--output PATH` | None | Atomically write the JSON report. |
+| `--environment-name NAME` | `local-development` | Stable benchmark environment label. |
+| `--object-limit COUNT` | `0` | `0` screens the full catalog; otherwise use `2..25000`. |
+| `--start-time ISO` | Source retrieval time | Screening start time. |
+| `--screening-radius-km NUMBER` | `10` | Screening radius, `0.001..1000` km. |
+| `--job-timeout-seconds COUNT` | `120` | Worker timeout, `10..7200` seconds. |
+| `--wait-timeout-seconds COUNT` | `180` | Positive client wait bound. |
+| `--keep-runtime` | false | Preserve the generated private runtime for inspection. |
+| `-h`, `--help` | - | Show help. |
+
+Both benchmarks produce development evidence, not operational performance or safety certification.
+
+</details>
+
+<details>
+<summary><strong>Star catalog and Solar System data helpers</strong></summary>
+
+Sources: [star catalog preprocessor](tools/preprocess_star_catalog.py) and [ephemeris generator](tools/generate_jpl_ephemeris.py).
+
+Star catalog preprocessing:
+
+```text
+py tools/preprocess_star_catalog.py --input CSV --output DIR [--limit 11.5] [--tile-deg 15]
+```
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `-h`, `--help` | - | Show help. |
+| `--input INPUT` | Required | Source CSV with name/source ID, RA, declination, magnitude, and optional B-V color. |
+| `--output OUTPUT` | Required | Output directory for `ra_NN.json` tiles and `manifest.json`. |
+| `--limit LIMIT` | `11.5` | Keep stars with magnitude below this value. |
+| `--tile-deg TILE_DEG` | `15` | Right-ascension tile width in degrees. |
+
+This helper creates the output directory and directly overwrites generated tile names; it has no dry-run, atomic promotion, backup, or stale-tile cleanup.
+
+Solar System ephemeris regeneration:
+
+```text
+py tools/generate_jpl_ephemeris.py
+```
+
+This fixed-purpose helper has no CLI options. Passing `--help` starts the fixed network workflow rather than showing help. It performs multiple NASA/JPL Horizons requests for Mercury through Uranus plus the Moon, covering `2020-01-01` through `2035-12-31` at six-hour cadence, and overwrites the bundled ephemeris and reference-sample JSON files. It has no dry-run or backup. The browser never contacts Horizons at runtime.
+
+`tools/save_obj_with_texture.py` is a legacy one-off with hard-coded OneWeb texture paths and undeclared NumPy/Pillow requirements. It has no supported CLI options and is not a maintained project tool.
+
+</details>
+
+<details>
+<summary><strong>Common npm commands</strong></summary>
+
+| Command | Purpose |
+| --- | --- |
+| `npm run serve` | Start the loopback static/API server through shared Python discovery. |
+| `npm run build` | Build the curated `dist/` artifact. |
+| `npm run check` | Run syntax, Python compilation, version, dependency, artifact, validation, and budget gates. |
+| `npm test` | Run JavaScript, Python, and Playwright browser suites. |
+| `npm run audit:dependencies` | Fail on high or critical npm audit findings. |
+| `npm run sbom` | Generate the Node CycloneDX SBOM evidence. |
+| `npm run benchmark:full-catalog` | Run the direct catalog benchmark. |
+| `npm run benchmark:v21-service` | Run the durable-service benchmark. |
+
+See [Contributing](CONTRIBUTING.md) and the [Test and Integration Plan](Test_and_Integration.md) for focused commands and evidence requirements.
+
+</details>
 
 ## Testing
 
-Run the static checks and complete JavaScript, Python, and browser suite:
+Run the complete static gates and test matrix before delivery:
 
 ```powershell
 npm run check
 npm test
 ```
 
-For focused iteration, use `npm run test:unit`, `npm run test:python`, or `npm run test:browser`.
+Focused commands are `npm run test:unit`, `npm run test:python`, and `npm run test:browser`. Python-backed npm commands honor `OPENBEXI_PYTHON_COMMAND` and otherwise discover a Python 3 interpreter. See [Test and Integration Plan](Test_and_Integration.md), [Performance Budgets](docs/engineering/PERFORMANCE_BUDGETS.md), and the versioned release checklists for scope and evidence.
 
-Run the repeatable Version 2.1 full-catalog benchmark with a named output artifact:
+## All Project Documentation
 
-```powershell
-npm run benchmark:full-catalog -- --output artifacts/full-catalog-benchmark.json
-npm run benchmark:v21-service -- --output artifacts/v21-service-benchmark.json
-```
+This index covers all 39 project-authored Markdown files in the source tree. Historical and archived documents are retained for traceability and do not override current release metadata, ADRs, or gates. Generated build copies, dependency documentation, and the vendored satellite.js license are excluded.
 
-The first command measures the engine directly. The second starts the real loopback HTTP service with a fresh private runtime and generated credentials, submits a durable job, records endpoint latency and SQLite growth, verifies persistence after shutdown, and deletes the runtime unless `--keep-runtime` is supplied. Both default to a 60-second development profile. Their wall time, memory, candidate reduction, result volume, persistence, and partial-coverage statistics are not portable service-level objectives.
+<details>
+<summary><strong>Overview and project guidance (5)</strong></summary>
 
-After changing `release/version.json`, regenerate browser metadata and verify all derived release surfaces:
+- [README](README.md) - Main project entry point for the demo, capabilities, setup, APIs, tools, and documentation.
+- [Contributing](CONTRIBUTING.md) - Contributor setup, required checks, and change-discipline rules.
+- [Repository Guide](CLAUDE.md) - Maintainer and coding-agent commands, architecture boundaries, data sources, and development conventions.
+- [General Execution Instructions](PROMPT_Instructions.md) - Current project-wide execution, versioning, verification, and documentation rules.
+- [Roadmap](ROADMAP.md) - Version 2 architecture, prioritized capabilities, delivery phases, risks, and current gate status.
 
-```powershell
-npm run version:sync
-npm run check:version
-```
+</details>
 
-Install Chromium once before the complete suite or focused browser tests:
+<details>
+<summary><strong>API (1)</strong></summary>
 
-```powershell
-npx playwright install chromium
-npm test
-```
+- [Swagger API Guide](SWAGGER.md) - Static API companion with server startup, endpoint groups, examples, authentication notes, and links to Swagger UI.
 
-Audit production dependencies and generate a CycloneDX SBOM:
+</details>
 
-```powershell
-npm run audit:dependencies
-npm run sbom -- --output artifacts/openbexi-node-sbom.cdx.json
-```
+<details>
+<summary><strong>Architecture decisions (5)</strong></summary>
 
-CI runs the same checks from a clean `npm ci` install. Run the manual regression checklist in `Test_and_Integration.md`, the retained v2.0 gates in `docs/engineering/RELEASE_CHECKLIST.md`, and the v2.1 gates in `docs/engineering/RELEASE_CHECKLIST_V2_1.md` before considering a candidate decision.
+- [ADR 0001: Quality Gates and Local-First Server](docs/adr/0001-v2-quality-gates-and-local-first-server.md) - Version 2.0 decision for authoritative release metadata, CI gates, and the local-first serving boundary.
+- [ADR 0002: Browser Conjunction Screening](docs/adr/0002-browser-selected-object-conjunction-screening.md) - Version 2.0 decision for bounded selected-object screening in a Web Worker without collision-probability claims.
+- [ADR 0003: Durable Full-Catalog Screening](docs/adr/0003-v2.1-durable-full-catalog-screening.md) - Version 2.1 decision for authenticated Python/SQLite job control and an isolated Node screening runner, retained under v2.2.
+- [ADR 0004: GP/OMM Catalog Continuity](docs/adr/0004-v2.2-gp-omm-catalog-continuity.md) - Current Version 2.2 decision for preferred GP/OMM data, lossless identities, lifecycle datasets, compatibility, and rollback.
+- [ADR 0005: Browser State, Time, and Motion](docs/adr/0005-v2.2-browser-state-time-and-motion-continuity.md) - Current Version 2.2 decision for unified filters, simulation time, display interpolation, render readiness, and ephemeris bounds.
 
-## Startup Performance
+</details>
 
-`index.html` starts the animation loop before waiting for all satellite sprites, decay estimates, and timeline data. This makes the first globe render visible earlier while the satellite list, filters, and optional timeline data continue preparing.
+<details>
+<summary><strong>Engineering and deployment (5)</strong></summary>
 
-To inspect startup timings, open:
+- [Dependency and SBOM Policy](DEPENDENCIES.md) - Reproducible installation, audit and SBOM checks, vendored runtime delivery, and static-build dependency policy.
+- [Orbital Domain Contracts](docs/orbital-domain-contracts-v2.md) - Versioned identity, ingestion, propagation, screening, time/frame, provenance, and maturity contracts.
+- [Performance Budgets](docs/engineering/PERFORMANCE_BUDGETS.md) - Enforced asset ceilings, runtime targets, scale limits, and versioned local benchmark observations.
+- [Static Deployment](docs/engineering/STATIC_DEPLOYMENT.md) - Deterministic `dist/` build, publication boundary, browser support, verification, limits, and troubleshooting.
+- [Server Deployment](docs/engineering/SERVER_DEPLOYMENT_V2_1.md) - Loopback durable-service prerequisites, roles, storage, health, operations, and public-exposure limits.
 
-```text
-http://127.0.0.1:8000/index.html?perf=1
-```
+</details>
 
-Then run this in the browser console:
+<details>
+<summary><strong>Governance (2)</strong></summary>
 
-```javascript
-window.openbexiStartupPerformance.summary()
-```
+- [Data Source Governance](docs/governance/DATA_SOURCES.md) - Provider admission, formats, provenance, licensing, update, retention, freshness, and failure policy.
+- [Version 2 Governance Policy](docs/governance/V2_POLICY.md) - Maturity labels, gate ownership, feature flags, permitted claims, and current promotion state.
 
-The timing summary includes lifecycle and app-specific marks such as `dom-content-loaded`, `window-load`, `first-visible-globe-render`, `satellite-data-ready`, and `first-interactive-ui`.
+</details>
 
-## Menu Usage
+<details>
+<summary><strong>Science and data (4)</strong></summary>
 
-The left menu is organized into compact colored accordion sections. Multiple sections can stay open at the same time; expanding one section does not collapse any other section. `Views & Time` and `Satellites Selection - Found` start expanded when `index.html` loads; `Timelines`, `Share`, and `Help` start collapsed. Older local accordion state cannot override those launch defaults on refresh. Expanded panels use section-matched metallic gradients, and the live satellite count in the Satellite Selection header is red and bold.
+- [Solar System Ephemeris](data/ephemeris/README.md) - Local JPL Horizons-derived dataset, supported range, accuracy targets, interpolation policy, and limitations.
+- [Conjunction Screening v2.0 Method](docs/conjunction-screening-v2.md) - Historical v2.0 TLE-only browser method, provenance, quality flags, and validation evidence.
+- [Experimental Selected-Object Screening](docs/science/EXPERIMENTAL_CONJUNCTION_SCREENING_V2.md) - Scientific claim boundary, method, evidence, limitations, reproduction, and promotion criteria for selected-object screening.
+- [Experimental Full-Catalog Screening](docs/science/EXPERIMENTAL_FULL_CATALOG_SCREENING_V2_1.md) - Scientific and durability semantics, partial-result meaning, evidence, limits, and open gates for full-catalog screening.
 
-- `Views & Time`: Solar System and Stars & Milky Way controls, Globe/High Def./ECEF Axes, Mercator/Day-Night, plus mode-specific sub-controls. Stars & Milky Way is enabled by default; the top/canvas `Time x` slider is the single simulation-speed control.
-- `Satellites Selection - Found`: searchable satellite selector, dynamic found count, Starlink/ISS shortcut buttons, orbit/tag/debris filters, reset action, zero-result empty state, selected-satellite status, and satellite-specific Yaw-Pitch-Roll, footprint, show-only, LVLH frame, and orbit controls that appear only after a satellite is selected. Detailed metadata and TLE lines are not duplicated in the menu.
-- `Timelines`: checkbox toggles for launch and re-entry timelines. Opening Launch highlights the latest valid launch in the loaded satellite data; opening Re-entry highlights the latest valid confirmed or predicted decay event, including decayed objects no longer present in active TLE data.
-- `Share`: copy or natively share a safe URL that restores supported app state after satellite data loads, plus preview, download, or copy an image of the current canvas when the browser supports it.
-- `Help`: GitHub, rendered README, rendered Releases History, Markdown Licenses, local Swagger UI, Swagger Markdown companion, Live API, and the app disclaimer.
+</details>
 
-The satellite selector is searchable. Type part of a satellite name, NORAD ID, orbit type, or tag, then use the mouse or keyboard arrow keys plus Enter to select a result. Selecting a result closes the dropdown immediately; Escape, Tab, or clicking outside the selector also closes the dropdown so it cannot block `Show Orbit`, `Show Footprint`, or other controls below it. The result list renders above the accordion panels so it stays visible while searching in the Satellite Selection section. After a satellite is selected, focusing, clicking, typing, pasting, or pressing `Clear` in the search field removes only the old selected label so a new search can start while the selected satellite remains active. Timeline controls are checkboxes: checked means the timeline is visible; unchecked means it is hidden. Only one timeline can be visible at a time. If Yaw-Pitch-Roll is enabled, selecting or switching satellites keeps the YPR sliders visible and preserves the current yaw, pitch, and roll values.
+<details>
+<summary><strong>Validation and evidence (3)</strong></summary>
 
-After a satellite is selected, the right side of the canvas shows a translucent selected-satellite detail panel below the UTC clock with the same width as the clock. It includes name, NORAD ID, orbit type, tag/company, launch date, scalar metadata fields, and TLE line 1 plus TLE line 2 exactly once. Satellite data and TLE details are expanded by default. Starlink and ISS selections add an expanded `Source detail` section with bold red model-source attribution text. Clearing the selection hides the panel.
+- [Test and Integration Plan](Test_and_Integration.md) - Current Version 2.2 verification matrix plus retained historical regression procedures and logs.
+- [Validation Corpus Policy](docs/validation/VALIDATION_CORPUS.md) - Corpus tiers, checksum-manifest requirements, existing fixtures, and independent-review requirements.
+- [v2.0 Local Verification](release/evidence/v2.0-local-verification.md) - Historical local environment, checks, artifact hashes, browser measurements, screenshots, and unresolved v2.0 gates.
 
-The Help section disclaimer is part of the application UI: OpenBEXI Earth Orbit is for visualization, educational, and experimental purposes only. It is not an authoritative source for navigation, safety, mission planning, collision avoidance, or operational satellite decisions.
+</details>
 
-The Help section opens Swagger and API documentation in separate pages. `Swagger` opens the local standard `swagger.html` page without requiring the Python server, `Swagger MD` opens the companion `SWAGGER.md` through `markdown_viewer.html`, and `Live API` opens the connected server `/openapi.json` URL when the optional Python server is running. README and Releases History open through `markdown_viewer.html` as separate rendered Markdown pages for `README.md` and production-safe `RELEASE_NOTES.md`. The Licenses action opens `LICENSE.md` as a Markdown page.
+<details>
+<summary><strong>Security (3)</strong></summary>
 
-## Project Structure
+- [Security Policy](SECURITY.md) - Supported security work, private reporting guidance, server exposure boundary, and known CSP constraint.
+- [v2.0 Browser and Data Threat Model](docs/engineering/THREAT_MODEL_V2.md) - Browser, Worker, mixed-catalog ingestion, local server, static artifact, export, and dependency risks and controls.
+- [v2.1 Durable-Service Threat Model](docs/engineering/THREAT_MODEL_V2_1.md) - Authentication, runtime, SQLite, subprocess, API/SSE, and public-deployment risks for the durable service.
 
-- `index.html`: Main browser app and integration point for rendering, controls, selection, and animation.
-- `display_satellite.html`: Manifest-backed isolated local OBJ/MTL and GLB viewer for direct satellite model visibility checks.
-- `Earth_Stars_MilkyWay.html`: Standalone Three.js Earth, Milky Way, and real RA/Dec star-field viewer.
-- `SolarSystemOverview.html`: Standalone experimental Three.js heliocentric solar-system overview.
-- `markdown_viewer.html`: Static rendered Markdown viewer used by Help for README, Releases History, and Swagger Markdown companion pages.
-- `swagger.html`: Local standard Swagger/OpenAPI-style static API page that displays without starting `server.py`.
-- `css/`: Styling for the app, menu, filters, labels, and map layout.
-- `js/`: Browser modules for coordinates, satellite loading, models, menu, footprints, frames, day/night, Moon/Mars, timelines, and map rendering.
-- `server.py`: Optional standard-library Python server for static hosting, legacy reads, authenticated `/api/v1`, CORS, Swagger/OpenAPI docs, and server-backed data loading.
-- `js/startupPerformance.js`: Startup timing, deferred scheduling, and chunked-work helpers used to keep the first render responsive.
-- `js/domain/`: Versioned orbital/job/source contracts, identity, catalog validation/lifecycle reconciliation, and frame/time policies.
-- `js/orbit/`: Rendering-independent TLE/OMM propagation and bounded ephemeris interpolation services.
-- `js/conjunction/`: Experimental selected-object Worker modules, full-catalog engine/client, panel state, and display-only conjunction visualization.
-- `services/v21/`: Local SQLite job store, migration, catalog snapshot registry, authenticated API service/router, security controls, and single-node worker manager.
-- `scripts/run-full-catalog-screening.mjs`: Isolated checksummed Version 2.1 job runner.
-- `scripts/benchmark-full-catalog.mjs`: Named-environment full-catalog development benchmark driver.
-- `tools/benchmark_v21_service.py`: Fresh-runtime loopback HTTP/store/worker/persistence benchmark driver.
-- `runtime/`: Private generated Version 2.1 database, catalog snapshots, and job artifacts; excluded from source and static artifacts.
-- `release/`: Authoritative version, feature-flag registry, and enforced asset budgets.
-- `docs/`: Architecture decisions, governance, validation, science limitations, performance, release, and rollback documentation.
-- `json/tle/`: TLE source data.
-- `json/tle/TLE.meta.json`: Generated TLE update metadata when the Python data tool runs.
-- `json/satellites/`: Satellite metadata and model configuration.
-- `json/display_satellite_models.json`: Model manifest used by `display_satellite.html`.
-- `json/decayed/decayed.meta.json`: Generated decayed-database update metadata when the Python data tool runs.
-- `json/satcat.meta.json`: Generated SATCAT source metadata when the Python data tool refreshes `json/satcat.csv`.
-- `data/stars/`: Small real-star demo catalog and optional preprocessed star tiles.
-- `textures/`: Earth, Moon, Mars, satellite, and material textures.
-- `data/ephemeris/`: Local JPL Horizons-derived Solar System ephemeris and validation samples.
-- `textures/planets/`: Local project-generated procedural visual maps for integrated Solar System Overview outer planets, Sun, and rings.
-- `icons/`: Satellite and UI icon assets.
-- `obj/`: OBJ, MTL, and GLB satellite model assets.
-- `tests/`: Node-based deterministic regression tests.
-- `tools/`: Utility scripts, including `satellite_data_tools.py` for TLE and decayed satellite data maintenance.
+</details>
 
-## Markdown Files
+<details>
+<summary><strong>Release and rollback (7)</strong></summary>
 
-- `CLAUDE.md`: Repository commands, architecture boundaries, dependency delivery, and coding-agent guidance.
-- `CONTRIBUTING.md`: Reproducible setup, required checks, and contribution discipline.
-- `DEPENDENCIES.md`: Locked dependency, audit, SBOM, and runtime-delivery policy.
-- `README.md`: Project overview, setup, features, testing commands, and documentation index.
-- `RELEASE_NOTES.md`: Candidate/release history summary used by the Help workspace.
-- `SECURITY.md`: Supported security boundary, reporting guidance, and public-server requirements.
-- `LICENSE.md`: Markdown copy of the MIT license used by the Help Licenses action.
-- `PROMPT_Instructions.md`: General execution prompt and project-compatible execution rules; dated implementation requests belong in prompt history or a clearly identified accepted standalone prompt.
-- `PROMPT_IMPLEMENT_ROADMAP_V2.md`: Archived accepted release-train prompt. Prompt history records the later explicit authorization for Version 2.1 development; its preserved body does not override current release metadata or gates.
-- `PROMPT4beamFormingSimulator3DWithMercatorMap_V2.MD`: Supplemental beam-forming/Mercator simulator prompt kept in the workspace when present.
-- `PROMPT_History.md`: Source-only dated implementation prompts and outcomes, including v2.0 and explicit v2.1 development authorization; excluded from production artifacts.
-- `ROADMAP.md`: Evidence-based Version 2 roadmap and current implementation/gate status.
-- `SWAGGER.md`: Local static Swagger/API Markdown companion; render with `markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API` without starting the Python server.
-- `Test_and_Integration.md`: Historical regression/manual record through Version 1.7.6; current gates live in the v2.0 and v2.1 engineering checklists and package scripts.
-- `docs/science/EXPERIMENTAL_FULL_CATALOG_SCREENING_V2_1.md`: Version 2.1 method, partial-result meaning, benchmark evidence, and claim limits.
-- `docs/engineering/SERVER_DEPLOYMENT_V2_1.md`: Authenticated loopback deployment, roles, storage, health, and operational limits.
-- `docs/engineering/RELEASE_CHECKLIST_V2_1.md`: Development evidence and remaining candidate gates.
-- `docs/engineering/ROLLBACK_V2_1.md`: Service disablement, preservation, restoration, and rehearsal requirements.
+- [Release Notes](RELEASE_NOTES.md) - Current Version 2.2 development changes and concise summaries of earlier versions.
+- [v2.0 Release Checklist](docs/engineering/RELEASE_CHECKLIST.md) - Version-specific v2.0 promotion evidence, open security/deployment gates, and rollout requirements.
+- [v2.1 Release Checklist](docs/engineering/RELEASE_CHECKLIST_V2_1.md) - Version-specific v2.1 implementation evidence and remaining validation, data, security, and operations gates.
+- [v2.2 Release Checklist](docs/engineering/RELEASE_CHECKLIST_V2_2.md) - Current Version 2.2 scope, automated evidence, controlled-data checks, rollback readiness, and candidate decision.
+- [Rollback Policy](docs/engineering/ROLLBACK.md) - Cross-version abort triggers, application/data restoration rules, and compatibility expectations.
+- [v2.1 Service Rollback](docs/engineering/ROLLBACK_V2_1.md) - Durable-service disablement, artifact preservation, data recovery, and rehearsal procedure.
+- [v2.2 Data and Browser Rollback](docs/engineering/ROLLBACK_V2_2.md) - Coherent GP/lifecycle/browser containment, last-known-good restoration, re-enable criteria, and evidence requirements.
 
-## Development Notes
+</details>
 
-- Change the application version only in `release/version.json`, run `npm run version:sync`, update release documentation, and pass `npm run check:version`. `PROMPT_History.md` remains historical context and is not a runtime version source.
-- Keep browser import maps synchronized: `three` and `three/addons/` must use the same verified Three.js version.
-- Keep `PROMPT_Instructions.md` limited to general project-compatible execution rules. Put dated prompt records in `PROMPT_History.md`, user-facing release summaries in `RELEASE_NOTES.md`, and preserve an accepted standalone prompt when it is a named project artifact.
-- Keep reusable coordinate, scale, orientation, and framing math in `js/sceneFrame.js` when practical so browser behavior and automated tests stay aligned.
-- Preserve `Test_and_Integration.md` as the historical regression record through Version 1.7.6. Keep v2.0 and v2.1 promotion criteria separate in their engineering checklists and bind verification results to exact source/catalog/artifact hashes.
-- Keep `README.md` current when setup, usage, test commands, features, architecture, or known limitations change.
-- Avoid mixing generated assets, build outputs, or unrelated untracked files into feature changes.
+<details>
+<summary><strong>Historical prompts (3)</strong></summary>
+
+- [Prompt History](PROMPT_History.md) - Historical source-only record of dated implementation authorizations, requirements, and outcomes.
+- [Archived Version 2 Roadmap Prompt](PROMPT_IMPLEMENT_ROADMAP_V2.md) - Archived accepted release-train prompt, superseded where later ADRs and authorizations rebaseline scope.
+- [Beamforming Simulator Prompt](PROMPT4beamFormingSimulator3DWithMercatorMap_V2.MD) - Source-only RF, orbital, visualization, UI, validation, and output requirements for the beamforming/Mercator prototype.
+
+</details>
+
+<details>
+<summary><strong>License (1)</strong></summary>
+
+- [MIT License](LICENSE.md) - Full MIT license text for the project.
+
+</details>
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE.md). The plain-text `LICENSE` file remains for standard repository tooling.
+This project is licensed under the [MIT License](LICENSE.md). The plain-text `LICENSE` file remains available for standard repository tooling.

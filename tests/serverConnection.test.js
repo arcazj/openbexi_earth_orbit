@@ -4,11 +4,18 @@ import {
   apiEndpoint,
   checkServerConnection,
   checkServerConnectionWithFallback,
+  catalogRevisionFromStatus,
+  createCatalogRevisionWatcher,
+  createStaticDataRevisionWatcher,
   SERVER_STATUS_ICONS,
+  loadGpDataFromServer,
+  loadGpMetadataFromServer,
+  loadStaticDataUpdateStatus,
   loadTleDataFromServer,
   resolveApiBaseUrl,
   resolveServerDataUrl,
   serverStatusViewModel,
+  validateGpData,
   validateTleData
 } from '../js/serverConnection.js';
 
@@ -49,9 +56,29 @@ async function run() {
     'curated static deployment does not probe nonexistent same-origin API routes'
   );
   assert.strictEqual(
+    resolveServerDataUrl('json/gp/GP.json', 'http://127.0.0.1:8000'),
+    'http://127.0.0.1:8000/api/gp',
+    'GP local URL maps to server GP endpoint'
+  );
+  assert.strictEqual(
+    resolveServerDataUrl('json/gp/GP.meta.json', 'http://127.0.0.1:8000'),
+    'http://127.0.0.1:8000/api/gp-metadata',
+    'GP metadata follows the connected server instead of the page host'
+  );
+  assert.strictEqual(
     resolveServerDataUrl('json/tle/TLE.json', 'http://127.0.0.1:8000'),
     'http://127.0.0.1:8000/api/tle',
     'TLE local URL maps to server TLE endpoint'
+  );
+  assert.strictEqual(
+    resolveServerDataUrl('json/tle/TLE.meta.json', 'http://127.0.0.1:8000'),
+    'http://127.0.0.1:8000/json/tle/TLE.meta.json',
+    'legacy TLE metadata follows the connected server'
+  );
+  assert.strictEqual(
+    resolveServerDataUrl('json/launches/launches.json', 'http://127.0.0.1:8000'),
+    'http://127.0.0.1:8000/api/launches',
+    'launch local URL maps to server launch endpoint'
   );
   assert.strictEqual(
     resolveServerDataUrl('json/satellites/starlink_V1.json', 'http://127.0.0.1:8000'),
@@ -67,6 +94,22 @@ async function run() {
   }];
   assert.strictEqual(validateTleData(validTle), true, 'valid TLE data passes validation');
   assert.strictEqual(validateTleData([{ norad_id: '1' }]), false, 'malformed TLE data fails validation');
+  const validGp = [{
+    norad_id: '100001',
+    source_format: 'CCSDS_OMM_JSON',
+    element_set: {
+      format: 'OMM',
+      epoch: '2026-08-22T00:00:00Z',
+      omm: { NORAD_CAT_ID: '100001', EPOCH: '2026-08-22T00:00:00Z' }
+    }
+  }];
+  assert.strictEqual(validateGpData(validGp), true, 'six-digit OMM GP data passes validation');
+  assert.strictEqual(validateGpData([{ norad_id: '100001', element_set: { format: 'OMM' } }]), false);
+  assert.strictEqual(
+    catalogRevisionFromStatus({ data_revision: 'sha256:composite', catalog_revision: 'sha256:gp-only' }),
+    'sha256:composite',
+    'composite data revision takes precedence over the legacy GP-only catalog revision'
+  );
 
   const connected = await checkServerConnection({
     baseUrl: 'http://127.0.0.1:8000',
@@ -104,6 +147,29 @@ async function run() {
   });
   assert.strictEqual(loadedTle.length, 1, 'server TLE loader returns validated records');
 
+  const loadedGp = await loadGpDataFromServer({
+    baseUrl: 'http://127.0.0.1:8000',
+    fetchImpl: async () => response(true, validGp)
+  });
+  assert.strictEqual(loadedGp[0].norad_id, '100001', 'server GP loader preserves full-width NORAD IDs');
+
+  const loadedGpMetadata = await loadGpMetadataFromServer({
+    baseUrl: 'http://remote.example:8000',
+    fetchImpl: async (url) => {
+      assert.strictEqual(url, 'http://remote.example:8000/api/gp-metadata');
+      return response(true, { catalog_revision: 'sha256:remote-gp' });
+    }
+  });
+  assert.strictEqual(loadedGpMetadata.catalog_revision, 'sha256:remote-gp');
+  await assert.rejects(
+    () => loadGpMetadataFromServer({
+      baseUrl: 'http://remote.example:8000',
+      fetchImpl: async () => response(false, { catalog_revision: 'sha256:page-host' }, 503)
+    }),
+    /HTTP 503/,
+    'failed remote GP metadata does not fall back to a page-host sidecar'
+  );
+
   await assert.rejects(
     () => loadTleDataFromServer({
       baseUrl: 'http://127.0.0.1:8000',
@@ -112,6 +178,90 @@ async function run() {
     /validation/,
     'invalid server TLE response rejects so caller can fall back to local data'
   );
+
+  let revision = 'sha256:first';
+  const changes = [];
+  const watcher = createCatalogRevisionWatcher({
+    baseUrl: 'http://127.0.0.1:8000',
+    intervalMs: 60_000,
+    fetchImpl: async () => response(true, {
+      data_revision: revision,
+      catalog_revision: 'sha256:unchanged-gp'
+    }),
+    onRevisionChange: event => changes.push(event)
+  });
+  await watcher.start();
+  revision = 'sha256:second';
+  const changed = await watcher.checkNow();
+  watcher.stop();
+  assert.strictEqual(changed.changed, true);
+  assert.strictEqual(changes[0].previous, 'sha256:first');
+  assert.strictEqual(changes[0].revision, 'sha256:second');
+
+  let retryRevision = 'sha256:retry-first';
+  let refreshAttempts = 0;
+  const retryWatcher = createCatalogRevisionWatcher({
+    baseUrl: 'http://127.0.0.1:8000',
+    intervalMs: 60_000,
+    fetchImpl: async () => response(true, { data_revision: retryRevision }),
+    onRevisionChange: async () => {
+      refreshAttempts += 1;
+      if (refreshAttempts === 1) throw new Error('transient refresh failure');
+    }
+  });
+  await retryWatcher.start();
+  retryRevision = 'sha256:retry-second';
+  const failedRefresh = await retryWatcher.checkNow();
+  assert(failedRefresh.error, 'failed revision callback is reported');
+  assert.strictEqual(retryWatcher.revision, 'sha256:retry-first', 'failed revision is not marked as applied');
+  const retriedRefresh = await retryWatcher.checkNow();
+  retryWatcher.stop();
+  assert.strictEqual(retriedRefresh.changed, true);
+  assert.strictEqual(refreshAttempts, 2, 'the same revision is retried after a transient callback failure');
+  assert.strictEqual(retryWatcher.revision, 'sha256:retry-second');
+
+  const staticMetadata = {
+    'json/gp/GP.meta.json': { catalog_revision: 'sha256:gp-one' },
+    'json/launches/launches.meta.json': { catalog_revision: 'sha256:launch-one' },
+    'json/decayed/decayed.meta.json': { catalog_revision: 'sha256:decay-one' }
+  };
+  const staticFetchOptions = [];
+  const staticFetch = async (url, options) => {
+    staticFetchOptions.push(options);
+    return response(true, staticMetadata[url]);
+  };
+  const staticStatus = await loadStaticDataUpdateStatus({ fetchImpl: staticFetch });
+  assert.match(staticStatus.data_revision, /^static:/);
+  assert.strictEqual(staticStatus.launch_revision, 'sha256:launch-one');
+  assert(staticFetchOptions.every(options => options.cache === 'no-store'), 'static metadata polling bypasses browser caches');
+
+  const staticChanges = [];
+  const staticWatcher = createStaticDataRevisionWatcher({
+    fetchImpl: staticFetch,
+    intervalMs: 60_000,
+    onRevisionChange: event => staticChanges.push(event)
+  });
+  await staticWatcher.start();
+  staticMetadata['json/decayed/decayed.meta.json'] = { catalog_revision: 'sha256:decay-two' };
+  const staticChanged = await staticWatcher.checkNow();
+  staticWatcher.stop();
+  assert.strictEqual(staticChanged.changed, true, 'a static decay-only revision triggers the composite watcher');
+  assert.strictEqual(staticChanges.length, 1);
+
+  const tleOnlyMetadata = {
+    'json/tle/TLE.meta.json': { catalog_revision: 'sha256:tle-only' },
+    'json/launches/launches.meta.json': { catalog_revision: 'sha256:launch-only' },
+    'json/decayed/decayed.meta.json': { catalog_revision: 'sha256:decay-only' }
+  };
+  const tleOnlyStatus = await loadStaticDataUpdateStatus({
+    fetchImpl: async (url) => {
+      if (url === 'json/gp/GP.meta.json') return response(false, {}, 404);
+      return response(true, tleOnlyMetadata[url]);
+    }
+  });
+  assert.strictEqual(tleOnlyStatus.catalog_kind, 'TLE');
+  assert.strictEqual(tleOnlyStatus.tle_revision, 'sha256:tle-only');
+  assert.strictEqual(tleOnlyStatus.gp_revision, null);
 
   assert.strictEqual(serverStatusViewModel({ state: 'connected' }).tooltip, 'Connected to server');
   assert.strictEqual(serverStatusViewModel({ state: 'connected' }).icon, SERVER_STATUS_ICONS.connected, 'connected state uses icon');

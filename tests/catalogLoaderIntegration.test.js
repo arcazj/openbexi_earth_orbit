@@ -103,6 +103,38 @@ async function run() {
   assert.equal(incrementalProvenance.source_status, 'PARTIAL');
   assert.equal(incrementalProvenance.partial_update, true);
 
+  const retainedNotModifiedProvenance = await buildTleDatasetProvenance([first], {
+    ...incrementalMetadata,
+    last_status: 'not-modified',
+    source_status: 'COMPLETE',
+    partial_update: false
+  }, {
+    reference_time: '2026-07-19T00:00:00Z'
+  });
+  assert.equal(retainedNotModifiedProvenance.source_status, 'COMPLETE');
+  assert.equal(retainedNotModifiedProvenance.partial_update, false);
+
+  const retainedPartialNotModifiedProvenance = await buildTleDatasetProvenance([first], {
+    ...incrementalMetadata,
+    last_status: 'not-modified',
+    source_status: 'PARTIAL',
+    partial_update: true
+  }, {
+    reference_time: '2026-07-19T00:00:00Z'
+  });
+  assert.equal(retainedPartialNotModifiedProvenance.source_status, 'PARTIAL');
+  assert.equal(retainedPartialNotModifiedProvenance.partial_update, true);
+
+  const failedNotModifiedProvenance = await buildTleDatasetProvenance([first], {
+    ...incrementalMetadata,
+    last_status: 'not-modified',
+    source_status: 'COMPLETE',
+    last_error: 'conditional request failed'
+  }, {
+    reference_time: '2026-07-19T00:00:00Z'
+  });
+  assert.equal(failedNotModifiedProvenance.source_status, 'DEGRADED');
+
   const degradedProvenance = await buildTleDatasetProvenance([first], null, {
     reference_time: '2026-07-19T00:00:00Z'
   });
@@ -128,6 +160,48 @@ async function run() {
   assert.equal(validated.records[0].catalogObject.object_id, 'obx:norad:44714');
   assert.equal(validated.snapshot.quarantine.length, 1);
   assert(validated.snapshot.quarantine[0].reason_codes.includes('TLE_CHECKSUM_MISMATCH'));
+
+  const classifiedTleSource = [
+    validRecord({
+      satellite_name: 'O3B FM5',
+      norad_id: '39188',
+      orbit_class: 'MEO',
+      inclination_deg: 0.0891,
+      eccentricity: 0.0002625,
+      mean_motion_rev_per_day: 5.00115728,
+      tle_line1: '1 39188U 13031A   26231.80505384 -.00000027  00000+0  00000+0 0  9992',
+      tle_line2: '2 39188   0.0891 324.6758 0002625 168.6021 226.7425  5.00115728240220'
+    }),
+    validRecord({
+      satellite_name: 'INTELSAT 902 (IS-902)',
+      norad_id: '26900',
+      orbit_class: 'GEO',
+      inclination_deg: 6.2804,
+      eccentricity: 0.0004152,
+      mean_motion_rev_per_day: 1.00270783,
+      tle_line1: '1 26900U 01039A   26235.09072625 -.00000287  00000+0  00000+0 0  9995',
+      tle_line2: '2 26900   6.2804  70.9394 0004152  82.4819 160.5306  1.00270783 91363'
+    })
+  ];
+  const classifiedTleSourceBeforeValidation = structuredClone(classifiedTleSource);
+  const classifiedTleValidation = await validateTleCatalogForDisplay(classifiedTleSource, {
+    ...metadata,
+    fetched_at: '2026-08-23T12:00:00Z',
+    last_success_at: '2026-08-23T12:00:00Z'
+  }, {
+    reference_time: '2026-08-23T12:00:00Z',
+    satelliteLib
+  });
+  assert.equal(classifiedTleValidation.records.length, 2);
+  assert.equal(classifiedTleValidation.records[0].catalogObject.orbit_class, 'MEO');
+  assert.equal(classifiedTleValidation.records[1].catalogObject.orbit_class, 'GEO');
+  assert.deepEqual(
+    classifiedTleValidation.snapshot.objects.map(record => record.orbit_class),
+    ['MEO', 'GEO'],
+    'canonical snapshot consumers retain validated TLE orbit classes'
+  );
+  assert.deepEqual(classifiedTleSource, classifiedTleSourceBeforeValidation, 'TLE validation does not mutate source records');
+  assert.equal(classifiedTleSource[0].catalogObject, undefined);
 
   const sgp4Invalid = validRecord({
     satellite_name: 'SGP4 INVALID ROW',

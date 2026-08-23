@@ -53,6 +53,14 @@ function run() {
     'TLE sprite setup uses a named chunk size'
   );
   assert(
+    indexHtml.includes('priorityRecordPredicate: record =>'),
+    'initial catalog materialization prioritizes the default MEO category'
+  );
+  assert(
+    indexHtml.includes("startupPerf.markOnce('default-meo-visible'"),
+    'the progressive default-MEO publication is instrumented'
+  );
+  assert(
     indexHtml.includes('DECAY_ESTIMATE_CHUNK_SIZE'),
     'deferred decay estimates use a named chunk size'
   );
@@ -65,6 +73,13 @@ function run() {
   const tleLoader = fs.readFileSync('js/satelliteTLELoader.js', 'utf8');
   assert(tleLoader.includes('resolveCatalogRuntimePolicy'), 'catalog loading is deployment-policy aware');
   assert(tleLoader.includes('static deployment prohibits remote fallback'), 'static catalog failure does not fall back to a remote origin');
+  assert(tleLoader.includes('markerProxy.visible = false'), 'new catalog marker proxies remain hidden before finite motion sampling');
+  assert(tleLoader.includes('markerProxy.userData.positionReady = false'), 'catalog marker proxies expose explicit render readiness');
+  assert(tleLoader.includes('new THREE.Points(geometry, material)'), 'catalog markers render through one dynamic point cloud');
+  assert(tleLoader.includes('const denseMode = drawnCount > 1000'), 'large globe catalogs use the compact point-cloud style');
+  assert(tleLoader.includes('const nextMap = denseMode ? null : satellitePointCloud.userData.iconMap'), 'small catalogs retain icons while large catalogs avoid texture overdraw');
+  assert(indexHtml.includes('s.mesh.visible = visible && satelliteMarkerCanRender(s)'), 'filter membership does not bypass current-time marker readiness');
+  assert(!tleLoader.includes('getOrbitECIPoints'), 'obsolete TLE-only orbit sampler is removed');
 
   console.log('startupStructure tests passed');
 }

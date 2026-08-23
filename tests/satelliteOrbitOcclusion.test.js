@@ -138,30 +138,56 @@ function run() {
   const scene = new THREE.Scene();
   const satData = { satrec: leoSatrec, norad_id: '25544', satellite_name: 'ISS TEST' };
   const firstOrbit = updateOrbitTrajectory(scene, { showOrbit: true, simDate: startDate }, satData, {
-    satelliteLib: makeCircularSatelliteLib([])
+    satelliteLib: makeCircularSatelliteLib([]),
+    realTimeMs: 0
   });
+  const firstMaterial = firstOrbit.userData.material;
   const unchangedOrbit = refreshOrbitTrajectoryIfNeeded(scene, {
     showOrbit: true,
     simDate: new Date(startDate.getTime() + 30_000)
   }, satData, {
-    satelliteLib: makeCircularSatelliteLib([])
+    satelliteLib: makeCircularSatelliteLib([]),
+    realTimeMs: 100
   });
   assert.strictEqual(unchangedOrbit, firstOrbit, 'orbit geometry remains stable while Time x is frozen or below refresh threshold');
   const refreshedOrbit = refreshOrbitTrajectoryIfNeeded(scene, {
     showOrbit: true,
     simDate: new Date(startDate.getTime() + 61_000)
   }, satData, {
-    satelliteLib: makeCircularSatelliteLib([])
+    satelliteLib: makeCircularSatelliteLib([]),
+    realTimeMs: 200
   });
-  assert.notStrictEqual(refreshedOrbit, firstOrbit, 'stale Time x orbit geometry is replaced');
+  assert.strictEqual(refreshedOrbit, firstOrbit, 'paused Time x refreshes selected orbit geometry in place');
+  assert.strictEqual(refreshedOrbit.userData.startTimeMs, startDate.getTime() + 61_000, 'paused orbit path follows the current UTC instant');
+  const deferredRunningOrbit = refreshOrbitTrajectoryIfNeeded(scene, {
+    showOrbit: true,
+    timeWarp: 60,
+    simDate: new Date(startDate.getTime() + 10 * 60_000)
+  }, satData, {
+    satelliteLib: makeCircularSatelliteLib([]),
+    realTimeMs: 500
+  });
+  assert.strictEqual(deferredRunningOrbit.userData.startTimeMs, startDate.getTime() + 61_000, 'running orbit refresh obeys its real-time cadence');
+  const runningOrbit = refreshOrbitTrajectoryIfNeeded(scene, {
+    showOrbit: true,
+    timeWarp: 60,
+    simDate: new Date(startDate.getTime() + 10 * 60_000)
+  }, satData, {
+    satelliteLib: makeCircularSatelliteLib([]),
+    realTimeMs: 1_300
+  });
+  assert.strictEqual(runningOrbit, refreshedOrbit, 'running Time x preserves the selected orbit root');
+  assert.strictEqual(runningOrbit.userData.material, firstMaterial, 'running Time x preserves the selected orbit material');
+  assert.strictEqual(runningOrbit.userData.startTimeMs, startDate.getTime() + 10 * 60_000, 'running Time x advances the one-revolution orbit path');
   assert.strictEqual(
     scene.children.filter(child => child.name === 'selectedOrbitTrajectoryRoot').length,
     1,
     'orbit refresh replaces the existing one-revolution path instead of accumulating duplicate roots'
   );
-  assert(indexHtml.includes('isUsableOrbitPosition(pv?.position)'), 'sprite update loop rejects invalid propagated positions');
-  assert(indexHtml.includes('s.propagationInvalid = true'), 'invalid propagated sprites are flagged');
-  assert(indexHtml.includes('s.mesh.visible = false'), 'invalid propagated sprites are hidden instead of frozen');
+  assert(indexHtml.includes('currentSelectedSatellite.propagationInvalid = !isUsableOrbitPosition'), 'selected motion rejects invalid propagated positions');
+  assert(indexHtml.includes('detailedSatelliteModel.visible = false'), 'invalid selected propagation hides the detailed model');
+  assert(tleLoader.includes('runningRefreshRealMillis'), 'running Time x cadence-limits in-place orbit resampling');
+  assert(tleLoader.includes('orbitLine.userData.material'), 'orbit occlusion refresh reuses one selected-orbit material');
 
   console.log('Satellite orbit occlusion tests passed');
 }

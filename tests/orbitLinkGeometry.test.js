@@ -52,7 +52,12 @@ function run() {
   assert.strictEqual(orbitClassFromMeanMotion(15.5), 'LEO');
   assert.strictEqual(orbitClassFromMeanMotion(1.0027, { eccentricity: 0.0001, inclinationDeg: 0.1 }), 'GEO');
   assert.strictEqual(orbitClassFromMeanMotion(4.0), 'MEO');
-  assert.strictEqual(orbitClassFromMeanMotion(2.0), 'OTHER');
+  assert.strictEqual(
+    orbitClassFromMeanMotion(2.0056, { eccentricity: 0.01, inclinationDeg: 55, periodMinutes: 718 }),
+    'MEO',
+    'navigation constellations are not mistaken for Molniya or GEO'
+  );
+  assert.strictEqual(orbitClassFromMeanMotion(2.0), 'MEO');
   assert.strictEqual(orbitClassFromMeanMotion(2.0, { eccentricity: 0.65, inclinationDeg: 63.4, periodMinutes: 720 }), 'HEO');
   assert.strictEqual(orbitClassFromMeanMotion(-1), 'UNKNOWN');
 

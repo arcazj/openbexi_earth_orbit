@@ -483,7 +483,7 @@
     <header class="hero">
       <h1>
         OpenBEXI Earth Orbit API
-        <span class="badge version">2.1.0</span>
+        <span class="badge version">2.2.0</span>
         <span class="badge oas">OAS 3.0.3</span>
       </h1>
       <p class="description">
@@ -539,7 +539,7 @@
               <pre><code>{
   "status": "ok",
   "app": "OpenBEXI Earth Orbit",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "release_date": null,
   "candidate_date": null,
   "publication_state": "development"
@@ -574,7 +574,7 @@
           </table>
           <h3>Example Response</h3>
           <pre><code>{
-  "app_version": "2.1.0",
+  "app_version": "2.2.0",
   "api_version": "1.0.0",
   "release_date": null,
   "candidate_date": null,
@@ -583,24 +583,38 @@
   "maturity": "experimental",
   "safety_class": "non-operational",
   "repository": "https://github.com/arcazj/openbexi_earth_orbit",
-  "server": "OpenBEXIHTTP/2.1.0"
+  "server": "OpenBEXIHTTP/2.2.0"
 }</code></pre>
         </div>
       </details>
     </section>
 
     <section class="tag-section" aria-labelledby="satellites-tag">
-      <h2 id="satellites-tag" class="tag-title">satellites <span>TLE, satellite records, metadata, and decay data</span></h2>
+      <h2 id="satellites-tag" class="tag-title">satellites <span>GP/OMM, compatibility TLE, launch, metadata, and decay data</span></h2>
+
+      <details class="operation get">
+        <summary>
+          <span class="method get">GET</span>
+          <span class="path">/api/gp</span>
+          <span class="summary-text">Load the preferred mixed GP/OMM dataset.</span>
+        </summary>
+        <div class="operation-body">
+          <h3>Description</h3>
+          <p>Returns <code>json/gp/GP.json</code> with complete string NORAD identifiers and canonical OMM fields. This is the Version 2.2 primary orbital catalog.</p>
+          <h3>Responses</h3>
+          <table class="response-table"><tbody><tr><td>200</td><td>Mixed GP records.</td><td>application/json</td></tr></tbody></table>
+        </div>
+      </details>
 
       <details class="operation get">
         <summary>
           <span class="method get">GET</span>
           <span class="path">/api/tle</span>
-          <span class="summary-text">Load the TLE dataset used by the frontend.</span>
+          <span class="summary-text">Load the deprecated TLE compatibility dataset.</span>
         </summary>
         <div class="operation-body">
           <h3>Description</h3>
-          <p>Returns the active satellite TLE array from <code>json/tle/TLE.json</code>. The frontend falls back to local files if this endpoint is unavailable.</p>
+          <p>Returns <code>json/tle/TLE.json</code> during the Version 2.2 compatibility window. It cannot represent six-digit NORAD identifiers and must not be treated as complete current coverage.</p>
           <h3>Parameters</h3>
           <p class="empty">No parameters.</p>
           <h3>Responses</h3>
@@ -632,11 +646,11 @@
         <summary>
           <span class="method get">GET</span>
           <span class="path">/api/satellites</span>
-          <span class="summary-text">Alias for the current satellite/TLE dataset.</span>
+          <span class="summary-text">Load the preferred catalog with legacy TLE fallback.</span>
         </summary>
         <div class="operation-body">
           <h3>Description</h3>
-          <p>Returns the same satellite records as <code>/api/tle</code> for callers that prefer a generic satellite endpoint.</p>
+          <p>Returns preferred GP/OMM records when available and otherwise the deprecated TLE compatibility records with reduced coverage.</p>
           <h3>Parameters</h3>
           <p class="empty">No parameters.</p>
           <h3>Responses</h3>
@@ -652,6 +666,20 @@
     "additionalProperties": true
   }
 }</code></pre>
+        </div>
+      </details>
+
+      <details class="operation get">
+        <summary>
+          <span class="method get">GET</span>
+          <span class="path">/api/launches</span>
+          <span class="summary-text">Load SATCAT-backed launch events.</span>
+        </summary>
+        <div class="operation-body">
+          <h3>Description</h3>
+          <p>Returns launch events independently of orbit availability. An unmatched event is details-only and must not trigger propagation.</p>
+          <h3>Responses</h3>
+          <table class="response-table"><tbody><tr><td>200</td><td>Launch event records.</td><td>application/json</td></tr></tbody></table>
         </div>
       </details>
 
@@ -920,10 +948,11 @@
   "openapi": "3.0.3",
   "info": {
     "title": "OpenBEXI Earth Orbit API",
-    "version": "2.1.0"
+    "version": "2.2.0"
   },
   "paths": {
     "/api/health": {},
+    "/api/gp": {},
     "/api/tle": {}
   }
 }</code></pre>
@@ -951,7 +980,7 @@
     </section>
 
     <footer>
-      Static local documentation for OpenBEXI Earth Orbit 2.1.0 development. Companion Markdown: <a href="markdown_viewer.html?source=SWAGGER.md&amp;title=Swagger%20API">SWAGGER.md</a>.
+      Static local documentation for OpenBEXI Earth Orbit 2.2.0 development. Companion Markdown: <a href="markdown_viewer.html?source=SWAGGER.md&amp;title=Swagger%20API">SWAGGER.md</a>.
     </footer>
   </main>
 

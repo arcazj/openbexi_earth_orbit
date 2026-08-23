@@ -1,6 +1,3 @@
-// mercatorMapLoader.js – Mercator map, satellite icons, day‑night shading, and ground‑track (GMST‑fixed)
-// ------------------------------------------------------------------------------------------------
-
 import {
     earthConfig,
     getFullGitHubUrl,
@@ -11,6 +8,7 @@ import {isUsableOrbitPosition, satellites} from './satelliteTLELoader.js';
 import {drawDayNightMercator} from './drawDayNight.js';
 import {mercatorPixelFromLonLat} from './orbit/orbitLinkGeometry.js';
 import {MARS_TEXTURE_URL} from './MarsFrameLoader.js';
+import {sceneToEciVector} from './sceneFrame.js';
 
 export let mercatorContainer, mercatorCanvasElement, mapBackgroundDiv;
 export let mercatorCtx, mapWidth = 400, mapHeight = 200;
@@ -24,6 +22,15 @@ let mercatorSatIcon = new ImageCtor();
 let mercatorSatIconLoaded = false;
 let activeMercatorBackgroundUrl = null;
 let activeMercatorBackgroundBody = null;
+const MAX_MERCATOR_LABELS = 250;
+const GROUND_TRACK_SIM_REFRESH_MS = 5 * 60_000;
+const GROUND_TRACK_REAL_REFRESH_MS = 1_000;
+const mercatorEciScratch = {x: 0, y: 0, z: 0};
+const groundTrackCache = {
+    satelliteKey: '',
+    startTimeMs: Number.NaN,
+    lastBuiltRealMs: Number.NEGATIVE_INFINITY
+};
 
 export function isMarsMercatorContext(simParams) {
     return simParams?.otherSelection === 'Mars';
@@ -80,7 +87,6 @@ export function updateMercatorBackgroundForContext(simParams) {
     setMercatorBackground(mercatorBackgroundUrlForContext(simParams), bodyLabel);
 }
 
-/* ─────────── Ground‑track parameters & helpers ─────────── */
 const R2D = 180 / Math.PI;
 export const groundTrackOptions = {
     points: [],            // cached lat/lon pairs; null marks a path gap
@@ -110,16 +116,16 @@ export function findSelectedSatellite(simParams, sourceSatellites = satellites) 
 }
 
 export function rebuildGroundTrack(selectedSat, simDate, satelliteLib = globalThis.satellite) {
-    groundTrackOptions.points.length = 0;
-    if (!selectedSat?.satrec || !satelliteLib?.propagate) return;
+    if (!selectedSat?.satrec || !satelliteLib?.propagate) return false;
 
     const start = new Date(simDate);
     const end = new Date(start.getTime() + groundTrackOptions.pathLenMin * 60_000);
+    const nextPoints = [];
 
     for (let t = start; t <= end; t = new Date(t.getTime() + groundTrackOptions.timeStepMin * 60_000)) {
         const pv = satelliteLib.propagate(selectedSat.satrec, t);
         if (!isUsableOrbitPosition(pv?.position)) {
-            groundTrackOptions.points.push(null);
+            nextPoints.push(null);
             continue;
         }
 
@@ -133,15 +139,16 @@ export function rebuildGroundTrack(selectedSat, simDate, satelliteLib = globalTh
         const latDeg = geo.latitude * R2D;
         let lonDeg = geo.longitude * R2D;
         if (!finiteLatLon(latDeg, lonDeg)) {
-            groundTrackOptions.points.push(null);
+            nextPoints.push(null);
             continue;
         }
         lonDeg = ((lonDeg + 540) % 360) - 180;
 
-        groundTrackOptions.points.push({latDeg, lonDeg});
+        nextPoints.push({latDeg, lonDeg});
     }
 
-    const validPoints = groundTrackOptions.points.filter(Boolean);
+    const validPoints = nextPoints.filter(Boolean);
+    if (validPoints.length === 0) return false;
     if (validPoints.length > 1) {
         const lats = validPoints.map(p => p.latDeg);
         const lons = validPoints.map(p => p.lonDeg);
@@ -152,8 +159,11 @@ export function rebuildGroundTrack(selectedSat, simDate, satelliteLib = globalTh
                 {latDeg: p.latDeg, lonDeg: ((p.lonDeg - halfSpan + 540) % 360) - 180},
                 {latDeg: p.latDeg, lonDeg: ((p.lonDeg + halfSpan + 540) % 360) - 180}
             ];
+            return true;
         }
     }
+    groundTrackOptions.points = nextPoints;
+    return true;
 }
 
 export function drawGroundTrack(ctx) {
@@ -177,9 +187,6 @@ export function drawGroundTrack(ctx) {
         }
         const {x, y} = latLonToMercator(p.latDeg, p.lonDeg);
 
-        // If the ground track crosses the antimeridian, avoid drawing a
-        // spurious line that connects the end of one orbit period to the
-        // start of the next by starting a new path segment.
         if (lastLon !== null && Math.abs(p.lonDeg - lastLon) > 180) {
             ctx.stroke();
             ctx.beginPath();
@@ -203,20 +210,43 @@ export function drawSelectedGroundTrack(
     simParams,
     ctx = mercatorCtx,
     satelliteLib = globalThis.satellite,
-    sourceSatellites = satellites
+    sourceSatellites = satellites,
+    options = {}
 ) {
     const selectedSat = findSelectedSatellite(simParams, sourceSatellites);
     if (!simParams?.showOrbit || !selectedSat || !ctx) {
         groundTrackOptions.points.length = 0;
+        groundTrackCache.satelliteKey = '';
+        groundTrackCache.startTimeMs = Number.NaN;
+        groundTrackCache.lastBuiltRealMs = Number.NEGATIVE_INFINITY;
         return null;
     }
 
-    rebuildGroundTrack(selectedSat, simParams.simDate, satelliteLib);
+    const simTimeMs = new Date(simParams.simDate).getTime();
+    const realTimeMs = Number.isFinite(options.realTimeMs)
+        ? options.realTimeMs
+        : (globalThis.performance?.now?.() ?? Date.now());
+    const satelliteKey = [
+        selectedSat.norad_id ?? '',
+        selectedSat.element_set?.epoch ?? selectedSat.catalogObject?.element_set?.epoch ?? '',
+        selectedSat.tle_line1 ?? ''
+    ].join('|');
+    const selectionChanged = groundTrackCache.satelliteKey !== satelliteKey;
+    const simChanged = !Number.isFinite(groundTrackCache.startTimeMs) ||
+        Math.abs(simTimeMs - groundTrackCache.startTimeMs) >= GROUND_TRACK_SIM_REFRESH_MS;
+    const realCadenceReady = realTimeMs - groundTrackCache.lastBuiltRealMs >= GROUND_TRACK_REAL_REFRESH_MS;
+    const pausedDirectChange = !Number(simParams.timeWarp) && simTimeMs !== groundTrackCache.startTimeMs;
+    if (selectionChanged || !Number.isFinite(groundTrackCache.startTimeMs) || pausedDirectChange || (simChanged && realCadenceReady)) {
+        const rebuilt = rebuildGroundTrack(selectedSat, simParams.simDate, satelliteLib);
+        groundTrackCache.satelliteKey = satelliteKey;
+        groundTrackCache.startTimeMs = simTimeMs;
+        groundTrackCache.lastBuiltRealMs = realTimeMs;
+        if (!rebuilt) groundTrackOptions.points.length = 0;
+    }
     drawGroundTrack(ctx);
     return selectedSat;
 }
 
-/* ─────────── Initialisation ─────────── */
 export function initMercatorView() {
     mercatorContainer = document.getElementById('mercatorContainer');
     mapBackgroundDiv = mercatorContainer.querySelector('.mapBackground');
@@ -228,10 +258,8 @@ export function initMercatorView() {
     mercatorCanvasElement.height = mapHeight;
     mercatorCtx = mercatorCanvasElement.getContext('2d');
 
-    /*── Background texture ──*/
     updateMercatorBackgroundForContext({ otherSelection: 'Earth' });
 
-    /*── Satellite icon ──*/
     const mercatorIconFullUrl = getFullGitHubUrl(
         satelliteConfig.mercatorIcon || 'icons/ob_satellite.png',
         GITHUB_REPO_RAW_BASE_URL
@@ -241,17 +269,15 @@ export function initMercatorView() {
         mercatorSatIconLoaded = true;
     };
     mercatorSatIcon.onerror = () => {
-        mercatorSatIcon.src = 'https://placehold.co/16x16/ffffff/000000?text=S';
+        mercatorSatIconLoaded = false;
     };
-    mercatorSatIcon.src = mercatorIconFullUrl || 'https://placehold.co/16x16/ffffff/000000?text=S';
+    if (mercatorIconFullUrl) mercatorSatIcon.src = mercatorIconFullUrl;
 }
 
-/* ─────────── Per‑frame update ─────────── */
-export function updateMercatorMap(simParams) {
+export function updateMercatorMap(simParams, frameContext = {}) {
     if (!mercatorCtx || mercatorContainer.style.display === 'none') return;
     updateMercatorBackgroundForContext(simParams);
 
-    // Resize canvas on fullscreen toggle
     const w = mapBackgroundDiv.clientWidth;
     const h = mapBackgroundDiv.clientHeight;
     if (mercatorCanvasElement.width !== w || mercatorCanvasElement.height !== h) {
@@ -260,6 +286,9 @@ export function updateMercatorMap(simParams) {
     }
 
     mercatorCtx.clearRect(0, 0, mercatorCanvasElement.width, mercatorCanvasElement.height);
+    mercatorCanvasElement.dataset.renderedMarkerCount = '0';
+    mercatorCanvasElement.dataset.selectedMarkerNoradId = '';
+    mercatorCanvasElement.dataset.selectedMarkerRendered = 'false';
 
     if (isMarsMercatorContext(simParams)) {
         mercatorCtx.save();
@@ -274,33 +303,30 @@ export function updateMercatorMap(simParams) {
         return;
     }
 
-    /*── Day-night band ──*/
     if (simParams.showDayNight) {
         drawDayNightMercator(mercatorCtx, w, h, simParams.simDate);
     }
 
-    /*── Selected satellite (used for ground-track and single-draw mode) ──*/
     const selectedSat = findSelectedSatellite(simParams);
 
-    /* Ground-track for selected only */
-    drawSelectedGroundTrack(simParams, mercatorCtx);
+    drawSelectedGroundTrack(simParams, mercatorCtx, globalThis.satellite, satellites, {
+        realTimeMs: frameContext.realTimeMs
+    });
 
-    /*── Time context ──*/
     const now = new Date(simParams.simDate);
     const jNow = satellite.jday(
         now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate(),
         now.getUTCHours(), now.getUTCMinutes(), now.getUTCSeconds()
     );
-    const gmstNow = satellite.gstime(jNow);
+    const gmstNow = Number.isFinite(frameContext.gmstRad)
+        ? frameContext.gmstRad
+        : satellite.gstime(jNow);
 
-    /*── Decide which satellites to draw on the Mercator map ──
-      - If "Show only selected" is ON and a satellite is selected: draw that one
-        regardless of its 3-D sprite visibility.
-      - Otherwise: draw all satellites whose 3-D sprite is currently visible (existing behavior).
-    */
     let satsToRender;
     if (simParams.showOnlySelectedSatellite && selectedSat) {
-        satsToRender = [selectedSat];
+        satsToRender = selectedSat.propagationInvalid && !isUsableOrbitPosition(frameContext.selectedPropagation?.position)
+            ? []
+            : [selectedSat];
     } else {
         satsToRender = satellites.filter(s => s.mesh?.visible && s.satrec);
         if (selectedSat && !satsToRender.includes(selectedSat)) {
@@ -309,13 +335,18 @@ export function updateMercatorMap(simParams) {
     }
 
     let labelRects = [];
-    const satDrawData = satsToRender
+    let satDrawData = satsToRender
         .map(s => {
             try {
                 if (!s.satrec) return null;
-                const pv = satellite.propagate(s.satrec, now);
-                if (!isUsableOrbitPosition(pv?.position)) return null;
-                const geo = satellite.eciToGeodetic(pv.position, gmstNow);
+                const exactSelectedPosition = s === selectedSat &&
+                    isUsableOrbitPosition(frameContext.selectedPropagation?.position)
+                    ? frameContext.selectedPropagation.position
+                    : null;
+                if (s === selectedSat && s.propagationInvalid && !exactSelectedPosition) return null;
+                const eciPosition = exactSelectedPosition || sceneToEciVector(mercatorEciScratch, s.mesh?.position);
+                if (!isUsableOrbitPosition(eciPosition)) return null;
+                const geo = satellite.eciToGeodetic(eciPosition, gmstNow);
                 if (!finiteLatLon(geo.latitude, geo.longitude)) return null;
                 const pt = latLonToMercator(geo.latitude * R2D, geo.longitude * R2D);
                 return { sat: s, pt };
@@ -323,9 +354,30 @@ export function updateMercatorMap(simParams) {
                 return null;
             }
         })
-        .filter(Boolean)
-        // Draw from south to north to help label placement overlap avoidance
-        .sort((a, b) => a.pt.y - b.pt.y);
+        .filter(Boolean);
+
+    mercatorCanvasElement.dataset.renderedMarkerCount = String(satDrawData.length);
+    mercatorCanvasElement.dataset.selectedMarkerNoradId = selectedSat?.norad_id?.toString() || '';
+    mercatorCanvasElement.dataset.selectedMarkerRendered = String(
+        !!selectedSat && satDrawData.some(({ sat }) => sat === selectedSat)
+    );
+
+    const densityMode = satDrawData.length > 1000;
+    mercatorCanvasElement.dataset.markerMode = densityMode ? 'density' : 'detailed';
+    if (densityMode) {
+        const pointSize = w >= 800 ? 2 : 1;
+        mercatorCtx.save();
+        mercatorCtx.fillStyle = 'rgba(0, 221, 255, 0.78)';
+        mercatorCtx.beginPath();
+        satDrawData.forEach(({ sat, pt }) => {
+            if (!sat.isSelected) mercatorCtx.rect(Math.round(pt.x), Math.round(pt.y), pointSize, pointSize);
+        });
+        mercatorCtx.fill();
+        mercatorCtx.restore();
+        satDrawData = satDrawData.filter(({ sat }) => sat.isSelected);
+    } else {
+        satDrawData.sort((a, b) => a.pt.y - b.pt.y);
+    }
 
     satDrawData.forEach(({ sat, pt }) => {
         const iconSize = 12;
@@ -333,7 +385,6 @@ export function updateMercatorMap(simParams) {
         const pad = { x: 5, y: 3 };
         const name = sat.satellite_name;
 
-        // Icon
         if (mercatorSatIconLoaded && mercatorSatIcon.complete && mercatorSatIcon.naturalHeight) {
             mercatorCtx.drawImage(mercatorSatIcon, pt.x - iconSize / 2, pt.y - iconSize / 2, iconSize, iconSize);
         } else {
@@ -356,7 +407,7 @@ export function updateMercatorMap(simParams) {
             mercatorCtx.stroke();
         }
 
-        // Label placement (8-direction)
+        if (!sat.isSelected && labelRects.length >= MAX_MERCATOR_LABELS) return;
         mercatorCtx.font = sat.isSelected ? 'bold 11px Arial' : '10px Arial';
         const txtW = mercatorCtx.measureText(name).width + 2 * pad.x;
         const txtH = 12 + 2 * pad.y;
@@ -408,11 +459,8 @@ export function updateMercatorMap(simParams) {
     });
 }
 
-/* ─────────── Utility ─────────── */
 function latLonToMercator(latDeg, lonDeg) {
     const w = mercatorCanvasElement ? mercatorCanvasElement.width : mapWidth;
     const h = mercatorCanvasElement ? mercatorCanvasElement.height : mapHeight;
     return mercatorPixelFromLonLat(lonDeg, latDeg, w, h);
 }
-
-// ------------------------------------------------------------------------------------------------

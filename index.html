@@ -24,6 +24,8 @@
     <div class="mapBackground">
         <canvas id="mercatorCanvas"></canvas>
     </div>
+    <button id="mercatorExitFullscreenButton" class="mercator-fullscreen-exit" type="button"
+            aria-label="Exit full-screen Mercator map" title="Exit full-screen Mercator map">&times;</button>
 </div>
 <div id="utcClockDisplay"></div>
 <aside id="selectedSatelliteDetailPanel" class="selected-satellite-detail-panel" aria-live="polite" hidden></aside>
@@ -50,8 +52,7 @@
         mapWidth,
         mercatorCtx,
         initMercatorView,
-        updateMercatorMap,
-        drawSelectedGroundTrack
+        updateMercatorMap
     } from './js/mercatorMapLoader.js';
 
     import { drawDayNight3D, sunSceneVectorFromJD } from './js/drawDayNight.js';
@@ -108,11 +109,13 @@
         refreshSelectedOrbitOcclusion,
         refreshOrbitTrajectoryIfNeeded,
         setupTLESatellites,
+        getActiveCatalogKind,
         getActiveCatalogValidationSnapshot,
         getLastCatalogValidationSnapshot,
         removeAllGeometry,
         isUsableOrbitPosition,
-        selectedOrbitNearestPointDistance
+        selectedOrbitNearestPointDistance,
+        syncSatellitePointCloud
     } from './js/satelliteTLELoader.js';
 
     import {
@@ -133,7 +136,6 @@
     } from './js/starSkyUtils.js';
     import {
         SOLAR_SYSTEM_PLANETS,
-        advanceSolarSystemSimulationMillis,
         createSolarSystemOverview,
         updateSolarSystemOverview,
         setSolarSystemOverviewVisible,
@@ -145,8 +147,12 @@
         solarSystemPlanetSummary,
         solarSystemEphemerisSummary
     } from './js/solarSystemOverviewLoader.js';
+    import { solarSystemEphemerisBounds } from './js/solarSystemEphemeris.js';
 
-    import { initTimeline } from './js/ganttTimelineLoader.js';
+    import {
+        initTimeline,
+        loadLaunchCatalog
+    } from './js/ganttTimelineLoader.js';
     import {
         applyCachedDecayPrediction,
         applyConfirmedDecayRecord,
@@ -158,20 +164,38 @@
     import { initReentryTimeline } from './js/reentryTimeline.js';
     import {
         createStartupPerformanceTracker,
-        createRoundRobinFrameProcessor,
         processInChunks,
         scheduleDeferredWork
     } from './js/startupPerformance.js';
     import { createAnimationTimer } from './js/animationTimer.js';
+    import { createSimulationClock } from './js/simulationClock.js';
+    import {
+        createSatelliteMotionController,
+        satelliteMarkerDiagnostics,
+        satelliteMarkerState
+    } from './js/orbit/satelliteMotionInterpolator.js';
     import {
         issShortcutState,
         starlinkShortcutState
     } from './js/satelliteShortcutLabels.js';
     import { buildSatelliteSearchMatches } from './js/satelliteSearchUtils.js';
     import {
+        SATELLITE_CATEGORY,
+        SATELLITE_CATEGORY_OPTIONS,
+        isAllSatelliteCategorySelection,
+        normalizeSatelliteCategorySelection,
+        satelliteMatchesCategorySelection,
+        toggleSatelliteCategorySelection
+    } from './js/satelliteCategoryFilter.js';
+    import {
         APP_VERSION,
         checkServerConnectionWithFallback,
+        createCatalogRevisionWatcher,
+        createStaticDataRevisionWatcher,
+        loadGpDataFromServer,
+        loadGpMetadataFromServer,
         loadTleDataFromServer,
+        loadTleMetadataFromServer,
         resolveApiBaseUrl,
         resolveServerDataUrl,
         serverStatusViewModel
@@ -191,7 +215,7 @@
         createFullCatalogClient,
         normalizeFullCatalogEvent
     } from './js/conjunction/fullCatalogClient.js';
-    import { createTlePropagationService } from './js/orbit/propagationService.js';
+    import { createMultiFormatPropagationService } from './js/orbit/multiFormatPropagationService.js';
     import { normalizeNoradId, noradIdFromInternalObjectId } from './js/domain/objectIdentity.js';
     import { EXPERIMENTAL_CONJUNCTION_SCREENING_ENABLED } from './js/releaseVersion.js';
 
@@ -270,7 +294,7 @@
     const ISS_MODEL_CALIBRATION_YAW_DEG = 0;
     const ISS_MODEL_CALIBRATION_PITCH_DEG = 0;
     const ISS_MODEL_CALIBRATION_ROLL_DEG = 0;
-    const SATELLITE_SETUP_CHUNK_SIZE = 300;
+    const SATELLITE_SETUP_CHUNK_SIZE = 1000;
     const DECAY_ESTIMATE_CHUNK_SIZE = 2;
     const MENU_COLLAPSE_STORAGE_KEY = 'openbexi.menu.collapsedSections';
     const DEFAULT_EXPANDED_ACCORDION_SECTIONS = new Set([
@@ -287,9 +311,15 @@
     const EXCLUDED_COMPANY_FILTER_OPTIONS = new Set(['ACTIVE']);
     const serverApiBaseUrl = resolveApiBaseUrl();
 
-    // Simulation time (reuse Date to avoid GC)
-    let simMillis = Date.now();
+    // One clock and one reused Date drive satellites, planets, timelines, and overlays.
     const SIM_DATE = new Date();
+    const simulationClock = createSimulationClock({
+        initialTimeMs: SIM_DATE.getTime(),
+        initialRate: 0,
+        minRate: -60,
+        maxRate: 60,
+        maxFrameGapSeconds: 0.25
+    });
 
     // Throttles
     let lastClockUpdate = 0;      // ms
@@ -349,6 +379,7 @@
     let defaultCameraUp = null;
     let orbitFrame = null;
     let currentSelectedSatellite = null;
+    let renderableSatellites = [];
     let textureLoader;
     let detailedSatelliteModel = null;
     let satelliteModelLoadToken = 0;
@@ -368,29 +399,31 @@
     let solarSystemPlanetHudElement = null;
 
     const ALL_COMPANY_OPTION = "ALL COMPANY";
-    const ORBIT_ALL_OPTION = "ALL";
-    const ORBIT_OTHER_OPTION = "OTHER";
-    const ORBIT_DEBRIS_OPTION = "DEBRIS";
-    const ORBIT_STANDARD_CATEGORY_OPTIONS = ["GEO", "MEO", "LEO", "HEO", ORBIT_OTHER_OPTION];
-    const ORBIT_FILTER_OPTIONS = [ORBIT_ALL_OPTION, ...ORBIT_STANDARD_CATEGORY_OPTIONS, ORBIT_DEBRIS_OPTION];
+    const ORBIT_ALL_OPTION = SATELLITE_CATEGORY.ALL;
+    const ORBIT_FILTER_OPTIONS = [ORBIT_ALL_OPTION, ...SATELLITE_CATEGORY_OPTIONS];
     const DEFAULT_ORBIT_FILTER = ["MEO"];
     const DEFAULT_COMPANY_FILTER = [ALL_COMPANY_OPTION];
-    const DEBRIS_FILTER_SHOW = "show";
-    const DEBRIS_FILTER_ONLY = "only";
     const COMPANY_LABEL_OVERRIDES = {
         [ALL_COMPANY_OPTION]: "All tags",
         BEIDOU: "BeiDou",
+        DEBRIS: "Debris group",
         EUTELSAT: "Eutelsat",
         GALILEO: "Galileo",
-        GEO: "GEO",
+        GEO: "Geosynchronous group",
         "GLO-OPS": "GLONASS",
         GLOBALSTAR: "Globalstar",
         "GPS-OPS": "GPS",
+        HEO: "HEO group",
+        HRO: "HRO group",
         INTELSAT: "Intelsat",
         "IRIDIUM-NEXT": "Iridium",
         KUIPER: "Kuiper",
+        LEO: "LEO group",
+        MEO: "MEO group",
         ONEWEB: "One Web",
         ORBCOMM: "Orbcomm",
+        OTHER: "Other group",
+        OTHERS: "Others group",
         QIANFAN: "Qianfan",
         SATNOGS: "SatNOGS",
         SES: "SES",
@@ -404,7 +437,6 @@
     const simParams = {
         orbitTypeFilter: [...DEFAULT_ORBIT_FILTER],
         companyFilter: [...DEFAULT_COMPANY_FILTER],
-        debrisFilter: DEBRIS_FILTER_SHOW,
         selectedSatelliteName: "None",
         selectedSatelliteNoradId: null,
         showOrbit: false,
@@ -418,8 +450,8 @@
         rollDeg: 0,
         showYPR: false,
         showDayNight: true,
-        simDate: new Date(),
-        timeWarp: 1,
+        simDate: SIM_DATE,
+        timeWarp: 0,
         showFootprint: false,
         showOnlySelectedSatellite: false,
         otherSelection: 'Earth',
@@ -437,7 +469,7 @@
     const pendingShareState = parseShareStateFromSearch(window.location.search);
     let pendingShareStateApplied = false;
 
-    let orbitTypeFilterSelect, companyFilterSelect, satelliteCountDisplay;
+    let orbitTypeFilterSelect, companyFilterSelect, satelliteCountDisplay, mercatorExitFullscreenButton;
     let view3DToggle, viewMercatorToggle, showOrbitToggle, showOrbitFrameToggle;
     let highDefToggleElement, showECEFAxesToggleElement, showOrbitFrameToggleElement;
     let solarSystemOverviewToggleElement, solarSystemOptionsElement, solarSystemPlanetLabelsToggleElement;
@@ -448,8 +480,10 @@
     let satelliteSelectDropdown;
     let satelliteSearchInput, satelliteSearchResults, satelliteSearchClearButton, satelliteSearchEmpty;
     let selectFirstStarlinkButton, selectIssButton, showOnlySelectedSatelliteCheckbox, selectedSatelliteControls;
-    let filterEmptyState, resetFiltersButton, resetFiltersEmptyButton, selectedSatelliteSummary, selectedSatelliteDetailPanel;
+    let filterEmptyState, resetFiltersButton, resetFiltersEmptyButton, selectedSatelliteDetailPanel;
     let currentSearchResults = [];
+    let activeFilteredSatelliteCount = 0;
+    let activeTotalSatelliteCount = 0;
     let activeSearchResultIndex = -1;
     let isSatelliteDropdownOpen = false;
     let satelliteSearchPendingClearForNextSelection = false;
@@ -494,6 +528,8 @@
     let selectedConjunctionEvent = null;
     let conjunctionCatalogMetadata = null;
     let fullCatalogWorkspace = null;
+    let catalogRevisionWatcher = null;
+    let catalogRefreshInProgress = false;
 
     function satelliteScreeningRecord(satData) {
         if (!satData) return null;
@@ -547,9 +583,9 @@
 
     function setConjunctionSimulationTime(date) {
         if (!Number.isFinite(date?.getTime?.())) return;
-        simParams.timeWarp = 0;
-        simMillis = date.getTime();
-        SIM_DATE.setTime(simMillis);
+        const state = simulationClock.reset(date.getTime(), 0);
+        simParams.timeWarp = state.rate;
+        SIM_DATE.setTime(state.timeMs);
         simParams.simDate = SIM_DATE;
         updateTimeWarpControls();
     }
@@ -604,8 +640,16 @@
 
     async function loadConjunctionCatalogMetadata() {
         try {
-            const response = await fetch('json/tle/TLE.meta.json', { cache: 'no-store' });
-            if (!response.ok) throw new Error(`metadata request returned ${response.status}`);
+            const activeKind = getActiveCatalogKind() || 'GP';
+            const metadataPath = activeKind === 'TLE'
+                ? 'json/tle/TLE.meta.json'
+                : 'json/gp/GP.meta.json';
+            const runtimeConnection = window.openbexiServerConnection;
+            const resolveMetadataUrl = (url) => runtimeConnection?.connected
+                ? (runtimeConnection.resolveDataUrl?.(url) || url)
+                : url;
+            const response = await fetch(resolveMetadataUrl(metadataPath), { cache: 'no-store' });
+            if (!response.ok) throw new Error(`catalog metadata request returned ${response.status}`);
             const metadata = await response.json();
             const snapshot = getActiveCatalogValidationSnapshot() || getLastCatalogValidationSnapshot();
             const provenance = snapshot?.provenance || {};
@@ -663,10 +707,12 @@
 
     async function syncConjunctionCatalog() {
         if (!conjunctionPanel) return;
-        const catalog = satellites.map(satelliteScreeningRecord).filter(record =>
-            (record?.tle_line1 && record?.tle_line2) ||
-            (record?.element_set?.line1 && record?.element_set?.line2)
-        );
+        const catalog = satellites.map(satelliteScreeningRecord).filter(record => {
+            const format = String(record?.element_set?.format ?? '').toUpperCase();
+            return (record?.tle_line1 && record?.tle_line2) ||
+                (record?.element_set?.line1 && record?.element_set?.line2) ||
+                (format === 'OMM' && !!record?.element_set?.omm);
+        });
         conjunctionCatalogMetadata = await loadConjunctionCatalogMetadata();
         conjunctionCatalogMetadata.staleCount = catalog.filter(record =>
             Array.isArray(record.quality_flags) && record.quality_flags.includes('TLE_STALE')
@@ -1002,7 +1048,7 @@
             console.info('[conjunction]', { type: 'feature-disabled', feature: 'experimental_conjunction_screening' });
             return;
         }
-        conjunctionPropagationService = createTlePropagationService({ satelliteLib: satellite });
+        conjunctionPropagationService = createMultiFormatPropagationService({ satelliteLib: satellite });
         conjunctionWorkerClient = createConjunctionWorkerClient();
         conjunctionLayer = createConjunctionVisualization(scene);
         conjunctionPanel = createConjunctionPanel({
@@ -1033,49 +1079,17 @@
         }, { once: true });
     }
 
-    function normalizeOrbitSelection(selection) {
-        const values = Array.isArray(selection) ? selection : [selection];
-        const cleaned = values
-            .filter(Boolean)
-            .map(value => value.toString().trim().toUpperCase());
-
-        if (cleaned.includes(ORBIT_ALL_OPTION)) {
-            return [...ORBIT_STANDARD_CATEGORY_OPTIONS];
-        }
-        if (cleaned.includes(ORBIT_DEBRIS_OPTION)) {
-            return [ORBIT_DEBRIS_OPTION];
-        }
-
-        return Array.from(new Set(cleaned.filter(value => ORBIT_STANDARD_CATEGORY_OPTIONS.includes(value))));
-    }
-
-    function isAllOrbitSelection(selection) {
-        const normalized = normalizeOrbitSelection(selection);
-        return normalized.length === ORBIT_STANDARD_CATEGORY_OPTIONS.length &&
-            ORBIT_STANDARD_CATEGORY_OPTIONS.every(value => normalized.includes(value));
-    }
-
-    function getOrbitSelectionFromUI() {
-        if (!orbitTypeFilterSelect) return [...DEFAULT_ORBIT_FILTER];
-        return Array.from(
-            orbitTypeFilterSelect.querySelectorAll('button[data-orbit-filter][aria-pressed="true"]')
-        ).map(button => button.dataset.orbitFilter);
-    }
-
     function applyOrbitSelectionToUI(selection) {
-        const normalized = normalizeOrbitSelection(selection);
+        const normalized = normalizeSatelliteCategorySelection(selection);
         simParams.orbitTypeFilter = normalized;
-        simParams.debrisFilter = normalized.includes(ORBIT_DEBRIS_OPTION)
-            ? DEBRIS_FILTER_ONLY
-            : DEBRIS_FILTER_SHOW;
 
         if (!orbitTypeFilterSelect) return;
-        const isAllSelected = isAllOrbitSelection(normalized);
+        const isAllSelected = isAllSatelliteCategorySelection(normalized);
         orbitTypeFilterSelect.querySelectorAll('button[data-orbit-filter]').forEach(button => {
             const value = button.dataset.orbitFilter;
             const isActive = value === ORBIT_ALL_OPTION
                 ? isAllSelected
-                : normalized.includes(value);
+                : !isAllSelected && normalized.includes(value);
             button.classList.toggle('is-active', isActive);
             button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
         });
@@ -1161,49 +1175,7 @@
     }
 
     function orbitMatchesSelection(satDataOrOrbitType, selection = simParams.orbitTypeFilter) {
-        const normalized = normalizeOrbitSelection(selection);
-        if (normalized.length === 0) return true;
-
-        const satData = typeof satDataOrOrbitType === 'object' && satDataOrOrbitType !== null
-            ? satDataOrOrbitType
-            : null;
-        if (normalized.includes(ORBIT_DEBRIS_OPTION)) {
-            return isDebrisSatellite(satData);
-        }
-
-        const orbitType = satData ? satData.orbitType : satDataOrOrbitType;
-        const type = (orbitType || "N/A").toString().trim().toUpperCase();
-        if (normalized.includes(type)) return true;
-
-        const isKnownOrbit = ORBIT_STANDARD_CATEGORY_OPTIONS
-            .filter(value => value !== ORBIT_OTHER_OPTION)
-            .includes(type);
-        return normalized.includes(ORBIT_OTHER_OPTION) && !isKnownOrbit;
-    }
-
-    function isDebrisSatellite(satData) {
-        const text = [satData?.satellite_name, satData?.company]
-            .filter(Boolean)
-            .join(' ')
-            .toUpperCase();
-
-        return /\b(DEB|DEBRIS)\b/.test(text) ||
-            /\bR\/B\b/.test(text) ||
-            /\bROCKET BODY\b/.test(text) ||
-            /\bSTAGE\b/.test(text);
-    }
-
-    function debrisMatchesSelection(satData, mode = simParams.debrisFilter) {
-        if (mode === DEBRIS_FILTER_ONLY) return isDebrisSatellite(satData);
-        return true;
-    }
-
-    function applyDebrisFilterToUI(mode) {
-        if (mode === DEBRIS_FILTER_ONLY) {
-            applyOrbitSelectionToUI(ORBIT_DEBRIS_OPTION);
-            return;
-        }
-        simParams.debrisFilter = DEBRIS_FILTER_SHOW;
+        return satelliteMatchesCategorySelection(satDataOrOrbitType, selection);
     }
 
     function getCompaniesForOrbitSelection(orbitSelection) {
@@ -1220,10 +1192,22 @@
     }
 
     function refreshFilteredSatelliteView() {
-        simParams.showOrbit = false;
-        if (showOrbitToggle) showOrbitToggle.checked = false;
-        removeAllGeometry(scene);
         updateSatelliteList();
+    }
+
+    function exitFullscreenMercator() {
+        if (!simParams.viewMercator || simParams.view3D) return;
+        simParams.view3D = true;
+        if (view3DToggle) view3DToggle.checked = true;
+        mercatorContainer?.classList.remove('fullscreen');
+        mercatorContainer?.classList.add('globe-overlay');
+    }
+
+    function handleMercatorFullscreenKeydown(event) {
+        if (event.key === 'Escape' && mercatorContainer?.classList.contains('fullscreen')) {
+            event.preventDefault();
+            exitFullscreenMercator();
+        }
     }
 
     function setTimelineButtonState(id, text, disabled = false) {
@@ -1239,11 +1223,36 @@
         control.setAttribute('aria-busy', disabled ? 'true' : 'false');
     }
 
-    function setSatelliteFoundCountLabel(text) {
+    function setSatelliteFoundCountLabel(text, ariaLabel = null) {
         if (!satelliteCountDisplay) return;
         const label = text?.toString() || '0';
         satelliteCountDisplay.textContent = label;
-        satelliteCountDisplay.setAttribute('aria-label', `Satellites found: ${label}`);
+        satelliteCountDisplay.setAttribute('aria-label', ariaLabel || `Satellite catalog status: ${label}`);
+    }
+
+    function uniqueSatelliteCount(records) {
+        return new Set((records || [])
+            .map(record => record?.norad_id?.toString())
+            .filter(Boolean)).size;
+    }
+
+    function setSatelliteCatalogCount(searchState = null) {
+        const catalogContext = `${activeFilteredSatelliteCount} / ${activeTotalSatelliteCount}`;
+        if (searchState?.query) {
+            const searchContext = searchState.isCapped
+                ? `${searchState.visibleCount} of ${searchState.totalCount} search`
+                : `${searchState.totalCount} search`;
+            setSatelliteFoundCountLabel(
+                `${searchContext} | ${catalogContext}`,
+                `${searchState.totalCount} satellites match the search query; ` +
+                `${activeFilteredSatelliteCount} match active filters out of ${activeTotalSatelliteCount} total satellites.`
+            );
+            return;
+        }
+        setSatelliteFoundCountLabel(
+            catalogContext,
+            `${activeFilteredSatelliteCount} satellites match active filters out of ${activeTotalSatelliteCount} total satellites.`
+        );
     }
 
     function setSatelliteLoadingState(text) {
@@ -1275,7 +1284,10 @@
         setTimelineButtonState('reentryTimelineToggle', 'Preparing Re-entry Timeline...', true);
 
         scheduleDeferredWork(() => {
-            initializeLaunchTimelineDeferred();
+            initializeLaunchTimelineDeferred().catch((err) => {
+                console.error('Deferred launch timeline initialization failed:', err);
+                setTimelineButtonState('launchTimelineToggle', 'Launch Timeline Unavailable', true);
+            });
         }, { timeout: 1000 });
 
         scheduleDeferredWork(() => {
@@ -1286,15 +1298,16 @@
         }, { timeout: 2000 });
     }
 
-    function initializeLaunchTimelineDeferred() {
+    async function initializeLaunchTimelineDeferred() {
         if (launchTimelineInitialized || launchTimelineInitializing) return;
         launchTimelineInitializing = true;
         startupPerf.mark('launch-timeline-init-start');
         try {
-            launchTimelineHandle = initTimeline(satellites, handleTimelineSelection);
+            const launchRecords = await loadLaunchCatalog();
+            launchTimelineHandle = initTimeline(satellites, handleTimelineSelection, { launchRecords });
             launchTimelineInitialized = true;
             setTimelineButtonState('launchTimelineToggle', 'Show Launch Timeline', false);
-            startupPerf.mark('launch-timeline-ready', { count: satellites.length });
+            startupPerf.mark('launch-timeline-ready', { count: launchRecords.length });
         } finally {
             launchTimelineInitializing = false;
         }
@@ -1419,27 +1432,23 @@
     }
 
     function buildFilteredSatellitesBySelection() {
-        const seenNoradIds = new Set();
+        const indexByNoradId = new Map();
         const filtered = [];
 
         satellites.forEach((s) => {
             const matchesOrbit = orbitMatchesSelection(s);
             const matchesCompany = companyMatchesSelection(s.company);
-            const matchesDebris = debrisMatchesSelection(s);
 
-            if (!matchesOrbit || !matchesCompany || !matchesDebris) return;
+            if (!matchesOrbit || !matchesCompany) return;
 
             const noradKey = s.norad_id?.toString();
             if (!noradKey) return;
 
-            const isCurrentSelection = currentSelectedSatellite && currentSelectedSatellite.norad_id?.toString() === noradKey;
-
-            if (!seenNoradIds.has(noradKey)) {
-                seenNoradIds.add(noradKey);
+            if (!indexByNoradId.has(noradKey)) {
+                indexByNoradId.set(noradKey, filtered.length);
                 filtered.push(s);
-            } else if (isCurrentSelection && !filtered.some(f => f.norad_id?.toString() === noradKey)) {
-                // Ensure the currently selected satellite remains the representative for its NORAD id
-                filtered.push(s);
+            } else if (s === currentSelectedSatellite) {
+                filtered[indexByNoradId.get(noradKey)] = s;
             }
         });
 
@@ -1463,9 +1472,6 @@
             selectedSatelliteControls.hidden = !hasActiveSatellite;
             selectedSatelliteControls.setAttribute('aria-hidden', hasActiveSatellite ? 'false' : 'true');
         }
-        if (selectedSatelliteSummary) {
-            selectedSatelliteSummary.hidden = !hasSelection;
-        }
         const yprSlidersRow = document.getElementById('yprSlidersRow');
         if (yprSlidersRow) {
             const showSliders = hasActiveSatellite && !!simParams.showYPR;
@@ -1475,17 +1481,10 @@
         setYPRVisibility(yprFrame, hasActiveSatellite && !!simParams.showYPR);
     }
 
-    function updateSelectedSatelliteSummary(satData = currentSelectedSatellite) {
+    function updateSelectedSatelliteDetails(satData = currentSelectedSatellite) {
         updateSelectedSatelliteControlsVisibility(satData);
         updateSelectedSatelliteDetailPanel(satData);
         conjunctionPanel?.setPrimary(satelliteScreeningRecord(satData));
-        if (!selectedSatelliteSummary) return;
-        if (!satData) {
-            selectedSatelliteSummary.textContent = '';
-            return;
-        }
-        selectedSatelliteSummary.textContent =
-            `${satData.satellite_name || 'Selected satellite'} | NORAD ${satData.norad_id || 'N/A'} | ${satData.orbitType || 'N/A'} | ${satData.company || 'N/A'}`;
     }
 
     function setSatelliteSelectToSatellite(satData) {
@@ -1494,16 +1493,16 @@
         let option = Array.from(satelliteSelectDropdown.options)
             .find(opt => opt.dataset?.noradId === norad);
         if (option) {
-            satelliteSelectDropdown.value = option.value;
+            satelliteSelectDropdown.selectedIndex = Array.from(satelliteSelectDropdown.options).indexOf(option);
             return true;
         }
 
         option = document.createElement('option');
-        option.value = satData.satellite_name || `NORAD ${norad || 'unknown'}`;
-        option.textContent = option.value;
+        option.value = norad || `name:${satData.satellite_name || 'unknown'}`;
+        option.textContent = satData.satellite_name || `NORAD ${norad || 'unknown'}`;
         if (norad) option.dataset.noradId = norad;
         satelliteSelectDropdown.appendChild(option);
-        satelliteSelectDropdown.value = option.value;
+        option.selected = true;
         return true;
     }
 
@@ -1512,6 +1511,22 @@
         if (showOnlySelectedSatelliteCheckbox) {
             showOnlySelectedSatelliteCheckbox.checked = !!enabled;
         }
+    }
+
+    function clearSelectedSatelliteForFilterExclusion() {
+        satelliteModelLoadToken += 1;
+        if (currentSelectedSatellite?.mesh) {
+            currentSelectedSatellite.isSelected = false;
+        }
+        clearDetailedSatelliteView();
+        removeAllGeometry(scene);
+        currentSelectedSatellite = null;
+        simParams.selectedSatelliteName = 'None';
+        simParams.selectedSatelliteNoradId = null;
+        setShowOnlySelectedSatellite(false);
+        if (satelliteSelectDropdown) satelliteSelectDropdown.value = 'None';
+        updateSelectedSatelliteDetails(null);
+        syncSatelliteSearchWithSelection();
     }
 
     function isMEOOrGEOSatellite(satData) {
@@ -1573,16 +1588,23 @@
         if (!satelliteSearchInput || !satelliteSearchResults) return;
         if (forceOpen) isSatelliteDropdownOpen = true;
 
-        const searchState = buildSatelliteSearchMatches(filteredTLEs, satelliteSearchInput.value, {
+        const selectedLabelIsNotQuery = !!currentSelectedSatellite &&
+            satelliteSearchPendingClearForNextSelection &&
+            satelliteSearchInput.value === satelliteSearchLabel(currentSelectedSatellite);
+        const searchState = buildSatelliteSearchMatches(
+            filteredTLEs,
+            selectedLabelIsNotQuery ? '' : satelliteSearchInput.value,
+            {
             limit: SATELLITE_SEARCH_LIMIT,
             emptyQueryPreviewLimit: 12
-        });
+            }
+        );
         const query = searchState.query;
 
         currentSearchResults = searchState.visibleMatches;
         if (activeSearchResultIndex >= currentSearchResults.length) activeSearchResultIndex = currentSearchResults.length - 1;
         if (activeSearchResultIndex < -1) activeSearchResultIndex = -1;
-        setSatelliteFoundCountLabel(searchState.countLabel);
+        setSatelliteCatalogCount(searchState);
 
         satelliteSearchResults.innerHTML = '';
         currentSearchResults.forEach((sat, index) => {
@@ -1671,12 +1693,11 @@
         closeSatelliteSearchResults();
         applyOrbitSelectionToUI(DEFAULT_ORBIT_FILTER);
         applyCompanySelectionToUI(DEFAULT_COMPANY_FILTER);
-        applyDebrisFilterToUI(DEBRIS_FILTER_SHOW);
         refreshFilteredSatelliteView();
     }
 
     function findFirstStarlinkSatellite() {
-        return satellites.find(s => {
+        return buildFilteredSatellitesBySelection().find(s => {
             const name = String(s?.satellite_name || s?.name || '').toUpperCase();
             const company = String(s?.company || '').toUpperCase();
             return name.includes('STARLINK') || company.includes('STARLINK');
@@ -1684,8 +1705,9 @@
     }
 
     function findIssSatellite() {
-        return satellites.find(s => s?.norad_id?.toString() === ISS_NORAD_ID) ||
-            satellites.find(s => /ISS\s*\(ZARYA\)|\bISS\b/i.test(String(s?.satellite_name || s?.name || ''))) ||
+        const filteredSatellites = buildFilteredSatellitesBySelection();
+        return filteredSatellites.find(s => s?.norad_id?.toString() === ISS_NORAD_ID) ||
+            filteredSatellites.find(s => /ISS\s*\(ZARYA\)|\bISS\b/i.test(String(s?.satellite_name || s?.name || ''))) ||
             null;
     }
 
@@ -1708,7 +1730,12 @@
             baseUrl: serverConnectionState.baseUrl,
             resolveDataUrl: (url) => connected
                 ? resolveServerDataUrl(url, serverConnectionState.baseUrl)
-                : null
+                : null,
+            checkForDataUpdates: () => catalogRevisionWatcher?.checkNow?.() ?? Promise.resolve({
+                revision: null,
+                previous: null,
+                changed: false
+            })
         };
     }
 
@@ -1734,17 +1761,45 @@
         return String(value);
     }
 
+    function hasSatelliteDetailValue(value) {
+        if (value === undefined || value === null || value === '') return false;
+        if (Array.isArray(value)) return value.some(hasSatelliteDetailValue);
+        return typeof value !== 'object';
+    }
+
     const SELECTED_DETAIL_DUPLICATE_KEYS = new Set([
         'satellite_name',
         'name',
         'norad_id',
         'orbittype',
+        'orbit_type',
+        'orbitclass',
+        'orbit_class',
+        'inclination',
+        'inclination_deg',
+        'inclinationdeg',
+        'eccentricity',
+        'mean_motion',
+        'meanmotion',
+        'mean_motion_rev_per_day',
         'type',
         'company',
         'operator',
         'manufacturer',
         'launch_date',
         'object_type',
+        'lifecycle_status',
+        'lifecyclestatus',
+        'operational_status',
+        'operationalstatus',
+        'source_format',
+        'sourceformat',
+        'element_format',
+        'elementformat',
+        'element_epoch',
+        'elementepoch',
+        'international_designator',
+        'internationaldesignator',
         'satellite_id',
         'satelliteid',
         'id',
@@ -1759,7 +1814,21 @@
         'decay_date',
         'decaydate',
         'tle_line1',
-        'tle_line2'
+        'tle_line2',
+        'isselected',
+        'propagationinvalid'
+    ]);
+
+    const SELECTED_OMM_DUPLICATE_KEYS = new Set([
+        'OBJECT_NAME',
+        'OBJECT_ID',
+        'OBJECT_TYPE',
+        'NORAD_CAT_ID',
+        'EPOCH',
+        'OPS_STATUS_CODE',
+        'INCLINATION',
+        'ECCENTRICITY',
+        'MEAN_MOTION'
     ]);
 
     function isDuplicateSelectedDetailKey(key) {
@@ -1779,17 +1848,28 @@
         if (!satData) return [];
         const meta = satData.meta ?? {};
         const decay = satData.decay ?? {};
+        const elementSet = satData.element_set ?? satData.catalogObject?.element_set ?? {};
+        const internationalDesignator = satData.international_designator ??
+            satData.catalogObject?.international_designator ??
+            elementSet.omm?.OBJECT_ID;
+        const objectId = decay.object_id ?? satData.object_id ?? meta.object_id;
+        const displayedInternationalDesignator = internationalDesignator ?? objectId;
         const rows = [
-            ['Name', satData.satellite_name ?? satData.name],
             ['NORAD ID', satData.norad_id ?? meta.norad_id],
-            ['Orbit type', satData.orbitType ?? satData.type ?? meta.orbital_slot?.nominal],
+            ['International designator', displayedInternationalDesignator],
+            ['Orbit type', satData.orbitType ?? satData.orbit_class ?? satData.type ?? meta.orbital_slot?.nominal],
+            ['Inclination (deg)', satData.inclination_deg ?? satData.inclination ?? elementSet.omm?.INCLINATION],
+            ['Eccentricity', satData.eccentricity ?? elementSet.omm?.ECCENTRICITY],
+            ['Mean motion (rev/day)', satData.mean_motion ?? satData.mean_motion_rev_per_day ?? elementSet.omm?.MEAN_MOTION],
             ['Tag / company', satData.company ?? satData.operator ?? meta.operator ?? meta.manufacturer],
             ['Launch date', satData.launch_date ?? meta.launch_date],
             ['Launch site', decay.launch_site ?? satData.launch_site ?? meta.launch_site],
+            ['Lifecycle status', satData.lifecycle_status ?? satData.operational_status ?? meta.lifecycle_status],
             ['Decay status', decay.decay_status ?? satData.decay_status],
             ['Decay date', decay.decay_date ?? satData.decay_date],
-            ['Object ID', decay.object_id ?? satData.object_id ?? meta.object_id],
-            ['Object type', satData.object_type ?? satData.type ?? meta.object_type],
+            ['Object type', satData.object_type ?? meta.object_type],
+            ['Element format', elementSet.format ?? satData.source_format],
+            ['Element epoch', elementSet.epoch],
             ['App satellite id', satData.satellite_id ?? satData.satelliteId ?? satData.id ?? meta.satellite_id ?? meta.satelliteId ?? meta.id]
         ];
         const seen = new Set(rows.map(([label]) => label.toLowerCase()));
@@ -1806,7 +1886,7 @@
         };
         addScalarRows(satData);
         addScalarRows(meta, 'meta');
-        return rows.filter(([, value]) => formatSatelliteDetailValue(value));
+        return rows.filter(([, value]) => hasSatelliteDetailValue(value));
     }
 
     function selectedSatelliteModelSourceDetail(satData) {
@@ -1834,9 +1914,11 @@
     function syncSelectedSatelliteDetailPanelWidth() {
         const clockEl = document.getElementById("utcClockDisplay");
         const clockRect = clockEl?.getBoundingClientRect?.();
+        const timeControlsRect = document.getElementById('timeWarpBox')?.getBoundingClientRect?.();
         const clockWidth = Math.ceil(clockRect?.width || 0);
         const clockRight = clockRect ? Math.max(0, Math.ceil(window.innerWidth - clockRect.right)) : 16;
-        const panelTop = clockRect ? Math.ceil(clockRect.bottom + 14) : 52;
+        const panelAnchorBottom = Math.max(clockRect?.bottom || 0, timeControlsRect?.bottom || 0);
+        const panelTop = panelAnchorBottom ? Math.ceil(panelAnchorBottom + 14) : 52;
         if (clockWidth > 0) {
             [
                 selectedSatelliteDetailPanel,
@@ -1860,8 +1942,42 @@
         const rows = satelliteDetailRows(satData)
             .map(([label, value]) => `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(formatSatelliteDetailValue(value))}</td></tr>`)
             .join('');
-        const tleLine1 = formatSatelliteDetailValue(satData.tle_line1);
-        const tleLine2 = formatSatelliteDetailValue(satData.tle_line2);
+        const elementSet = satData.element_set ?? satData.catalogObject?.element_set ?? {};
+        const rawTleLine1 = satData.tle_line1 ?? elementSet.line1;
+        const rawTleLine2 = satData.tle_line2 ?? elementSet.line2;
+        const tleLine1 = formatSatelliteDetailValue(rawTleLine1);
+        const tleLine2 = formatSatelliteDetailValue(rawTleLine2);
+        const hasTleElementSet = hasSatelliteDetailValue(rawTleLine1) && hasSatelliteDetailValue(rawTleLine2);
+        const elementFormat = String(elementSet.format ?? '').toUpperCase();
+        const ommRows = Object.entries(elementSet.omm ?? {})
+            .filter(([key, value]) => !SELECTED_OMM_DUPLICATE_KEYS.has(String(key).toUpperCase()) &&
+                hasSatelliteDetailValue(value))
+            .map(([key, value]) => `<tr><th>${escapeHtml(key)}</th><td>${escapeHtml(formatSatelliteDetailValue(value))}</td></tr>`)
+            .join('');
+        const elementSection = elementFormat === 'OMM' && elementSet.omm && ommRows
+            ? `
+            <details class="selected-satellite-detail-section selected-satellite-omm-section" open>
+              <summary>
+                <span>OMM details</span>
+                <small>Collapse OMM</small>
+              </summary>
+              <table class="selected-satellite-detail-table" aria-label="OMM details">
+                <tbody>${ommRows}</tbody>
+              </table>
+            </details>`
+            : hasTleElementSet ? `
+            <details class="selected-satellite-detail-section selected-satellite-tle-section" open>
+              <summary>
+                <span>TLE details</span>
+                <small>Collapse TLE</small>
+              </summary>
+              <div class="selected-satellite-tle-block" aria-label="TLE details">
+                <strong>TLE line 1</strong>
+                <code>${escapeHtml(tleLine1)}</code>
+                <strong>TLE line 2</strong>
+                <code>${escapeHtml(tleLine2)}</code>
+              </div>
+            </details>` : '';
         const sourceDetail = selectedSatelliteModelSourceDetail(satData);
         const sourceSection = sourceDetail
             ? `
@@ -1888,18 +2004,7 @@
                 <tbody>${rows}</tbody>
               </table>
             </details>
-            <details class="selected-satellite-detail-section selected-satellite-tle-section" open>
-              <summary>
-                <span>TLE details</span>
-                <small>Collapse TLE</small>
-              </summary>
-              <div class="selected-satellite-tle-block" aria-label="TLE details">
-                <strong>TLE line 1</strong>
-                <code>${escapeHtml(tleLine1)}</code>
-                <strong>TLE line 2</strong>
-                <code>${escapeHtml(tleLine2)}</code>
-              </div>
-            </details>
+            ${elementSection}
             ${sourceSection}
           </div>`;
         selectedSatelliteDetailPanel.hidden = false;
@@ -1988,7 +2093,32 @@
         updateServerStatusUI();
     }
 
-    async function checkAndLoadServerTleData() {
+    async function loadPreferredServerCatalog(baseUrl) {
+        try {
+            const [records, metadata] = await Promise.all([
+                loadGpDataFromServer({ baseUrl }),
+                loadGpMetadataFromServer({ baseUrl })
+            ]);
+            return {
+                records,
+                metadata,
+                kind: 'GP'
+            };
+        } catch (gpError) {
+            console.warn('[server] GP endpoint is unavailable; trying the deprecated TLE endpoint.', gpError);
+            const [records, metadata] = await Promise.all([
+                loadTleDataFromServer({ baseUrl }),
+                loadTleMetadataFromServer({ baseUrl })
+            ]);
+            return {
+                records,
+                metadata,
+                kind: 'TLE'
+            };
+        }
+    }
+
+    async function checkAndLoadServerCatalogData() {
         if (!serverConnectionState.baseUrl) {
             setServerConnectionState({
                 state: 'disconnected',
@@ -2021,8 +2151,8 @@
         });
 
         try {
-            const tleData = await loadTleDataFromServer({ baseUrl: connection.baseUrl });
-            console.info(`[server] Loaded ${tleData.length} TLE records from Python server.`);
+            const { records, metadata, kind } = await loadPreferredServerCatalog(connection.baseUrl);
+            console.info(`[server] Loaded ${records.length} ${kind} records from Python server.`);
             setServerConnectionState({
                 state: 'connected',
                 connected: true,
@@ -2032,9 +2162,9 @@
                 lastSync: new Date(),
                 error: null
             });
-            return tleData;
+            return { records, metadata, kind };
         } catch (err) {
-            console.warn('[server] Server TLE data failed validation or loading. Falling back to local data.', err);
+            console.warn('[server] Server GP/TLE data failed validation or loading. Falling back to local data.', err);
             setServerConnectionState({
                 state: 'error',
                 connected: false,
@@ -2047,6 +2177,138 @@
         }
     }
 
+    async function loadAuxiliaryCatalogs(revision = null, { staticSource = false } = {}) {
+        const baseUrl = serverConnectionState.baseUrl;
+        const launchSource = !staticSource && baseUrl
+            ? resolveServerDataUrl('json/launches/launches.json', baseUrl)
+            : null;
+        const decaySource = !staticSource && baseUrl
+            ? resolveServerDataUrl('json/decayed/decayed.json', baseUrl)
+            : null;
+        const [launchRecords, confirmedDecays] = await Promise.all([
+            loadLaunchCatalog({ force: true, ...(launchSource ? { source: launchSource } : {}) }),
+            loadConfirmedDecays({ force: true, revision, ...(decaySource ? { source: decaySource } : {}) })
+        ]);
+        return { launchRecords, confirmedDecays };
+    }
+
+    function applyAuxiliaryCatalogs({ launchRecords, confirmedDecays }) {
+        launchTimelineHandle?.refreshData?.(launchRecords, satellites);
+        satellites.forEach(satelliteData => applyConfirmedDecayRecord(satelliteData, confirmedDecays));
+        reentryTimelineHandle?.refreshData?.(confirmedDecays, satellites);
+        return { launchRecords, confirmedDecays };
+    }
+
+    async function refreshAuxiliaryCatalogs(revision = null, options = {}) {
+        return applyAuxiliaryCatalogs(await loadAuxiliaryCatalogs(revision, options));
+    }
+
+    function statusDatasetRevision(status, name) {
+        const value = status?.[`${name}_revision`] ?? status?.datasets?.[name]?.revision;
+        return value == null ? null : String(value);
+    }
+
+    function statusOrbitalRevision(status) {
+        const value = status?.orbital_revision ?? statusDatasetRevision(status, 'gp') ??
+            statusDatasetRevision(status, 'tle') ?? status?.catalog_revision;
+        return value == null ? null : String(value);
+    }
+
+    async function refreshCatalogForRevision({ revision, previous, status, previousStatus }) {
+        if (catalogRefreshInProgress) throw new Error('A catalog refresh is already in progress.');
+        if (!scene) throw new Error('The orbital scene is not ready for catalog refresh.');
+        catalogRefreshInProgress = true;
+        const selectedNorad = currentSelectedSatellite?.norad_id?.toString() || null;
+        const staticSource = status?.source === 'static-metadata';
+        const currentOrbitalRevision = statusOrbitalRevision(status);
+        const previousOrbitalRevision = statusOrbitalRevision(previousStatus);
+        const refreshOrbitalCatalog = !currentOrbitalRevision || !previousOrbitalRevision ||
+            currentOrbitalRevision !== previousOrbitalRevision;
+        try {
+            console.info(`[catalog] Revision changed from ${previous} to ${revision}; refreshing orbital and timeline data.`);
+            const orbitalCatalogPromise = !refreshOrbitalCatalog
+                ? Promise.resolve({ kind: 'UNCHANGED', records: null })
+                : staticSource
+                ? Promise.resolve({ kind: 'STATIC', records: null })
+                : loadPreferredServerCatalog(serverConnectionState.baseUrl);
+            const [orbitalOutcome, auxiliaryCatalogs] = await Promise.all([
+                orbitalCatalogPromise.then(value => ({ value }), error => ({ error })),
+                loadAuxiliaryCatalogs(revision, { staticSource })
+            ]);
+
+            let orbitalRefreshError = orbitalOutcome.error || null;
+            if (!orbitalRefreshError && orbitalOutcome.value.kind !== 'UNCHANGED') {
+                try {
+                    const setupOptions = {
+                        forceCatalogRefresh: true,
+                        throwOnFailure: true,
+                        chunkSize: SATELLITE_SETUP_CHUNK_SIZE,
+                        onProgress: ({ processed, total }) => setSatelliteFoundCountLabel(`Refreshing ${processed}/${total}`)
+                    };
+                    if (orbitalOutcome.value.kind === 'GP') {
+                        setupOptions.gpDataOverride = orbitalOutcome.value.records;
+                        setupOptions.gpMetaOverride = orbitalOutcome.value.metadata;
+                        setupOptions.gpDataSource = 'live server revision';
+                    } else if (orbitalOutcome.value.kind === 'TLE') {
+                        setupOptions.tleDataOverride = orbitalOutcome.value.records;
+                        setupOptions.tleMetaOverride = orbitalOutcome.value.metadata;
+                        setupOptions.tleDataSource = 'live server revision';
+                    }
+                    await setupTLESatellites(scene, setupOptions);
+                    updateSatelliteList();
+                    await syncConjunctionCatalog();
+                } catch (error) {
+                    orbitalRefreshError = error;
+                }
+            }
+
+            applyAuxiliaryCatalogs(auxiliaryCatalogs);
+            if (orbitalRefreshError) throw orbitalRefreshError;
+            if (selectedNorad && refreshOrbitalCatalog) {
+                const restored = buildFilteredSatellitesBySelection()
+                    .find(s => s.norad_id?.toString() === selectedNorad);
+                if (restored) selectSatelliteViaShortcut(restored);
+            }
+            setServerConnectionState({
+                state: staticSource ? 'disconnected' : 'connected',
+                connected: !staticSource,
+                dataSource: staticSource ? 'packaged static catalog' : 'live server',
+                lastSync: new Date(),
+                error: null
+            });
+        } catch (error) {
+            console.error('[catalog] Revision refresh failed; the last usable catalog remains active.', error);
+            setServerConnectionState({
+                state: staticSource ? 'disconnected' : 'connected',
+                connected: !staticSource,
+                dataSource: 'last known good catalog',
+                error: error?.message || String(error)
+            });
+            throw error;
+        } finally {
+            catalogRefreshInProgress = false;
+        }
+    }
+
+    function startCatalogRevisionWatcher(baseUrl) {
+        catalogRevisionWatcher?.stop?.();
+        catalogRevisionWatcher = createCatalogRevisionWatcher({
+            baseUrl,
+            onRevisionChange: refreshCatalogForRevision,
+            onError: error => console.debug('[catalog] Revision status is temporarily unavailable.', error)
+        });
+        void catalogRevisionWatcher.start();
+    }
+
+    function startStaticCatalogRevisionWatcher() {
+        catalogRevisionWatcher?.stop?.();
+        catalogRevisionWatcher = createStaticDataRevisionWatcher({
+            onRevisionChange: refreshCatalogForRevision,
+            onError: error => console.debug('[catalog] Static revision metadata is temporarily unavailable.', error)
+        });
+        void catalogRevisionWatcher.start();
+    }
+
     async function checkServerConnectionStatusOnly({ dataSource = serverConnectionState.dataSource || 'local files' } = {}) {
         if (!serverConnectionState.baseUrl) {
             setServerConnectionState({
@@ -2055,6 +2317,7 @@
                 dataSource: 'packaged static catalog',
                 error: null
             });
+            startStaticCatalogRevisionWatcher();
             return null;
         }
         setServerConnectionState({
@@ -2067,11 +2330,13 @@
         try {
             const connection = await checkServerConnectionWithFallback({ baseUrl: serverConnectionState.baseUrl });
             if (!connection.connected) {
+                catalogRevisionWatcher?.stop?.();
                 console.info('[server] Python server unavailable. Continuing with local satellite data.', connection.error);
                 setServerConnectionState({
                     ...connection,
                     dataSource: 'local files'
                 });
+                startStaticCatalogRevisionWatcher();
                 return null;
             }
 
@@ -2080,6 +2345,7 @@
                 dataSource,
                 error: null
             });
+            startCatalogRevisionWatcher(connection.baseUrl);
             return connection;
         } catch (err) {
             console.warn('[server] Server status check failed. Continuing with local satellite data.', err);
@@ -2090,6 +2356,7 @@
                 dataSource: 'local files',
                 error: err?.message || String(err)
             });
+            startStaticCatalogRevisionWatcher();
             return null;
         }
     }
@@ -2279,7 +2546,6 @@
 
         if (pendingShareState.orbitTypeFilter?.length) applyOrbitSelectionToUI(pendingShareState.orbitTypeFilter);
         if (pendingShareState.companyFilter?.length) applyCompanySelectionToUI(pendingShareState.companyFilter);
-        applyDebrisFilterToUI(pendingShareState.debrisFilter);
 
         simParams.view3D = pendingShareState.view3D;
         simParams.viewMercator = pendingShareState.viewMercator;
@@ -2296,8 +2562,8 @@
         simParams.conjunctionEventId = pendingShareState.conjunctionEventId || '';
         simParams.conjunctionRequestId = pendingShareState.conjunctionRequestId || '';
         if (pendingShareState.simDate) {
-            simMillis = pendingShareState.simDate.getTime();
-            SIM_DATE.setTime(simMillis);
+            const state = simulationClock.setTime(pendingShareState.simDate.getTime());
+            SIM_DATE.setTime(state.timeMs);
             simParams.simDate = SIM_DATE;
         }
 
@@ -2387,43 +2653,69 @@
 
     // Time-warp UI
     simParams.timeWarp = 0;
-    simParams.simDate = new Date();
-    simMillis = simParams.simDate.getTime();
+    simParams.simDate = SIM_DATE;
+    let lastRunningTimeWarp = 1;
 
     const twHTML = `
-  <div id="timeWarpBox"
-       style="position:fixed;top:5px;left:50%;transform:translateX(-50%);
-              font:12px/1 sans-serif;z-index:3000;">
+  <div id="timeWarpBox">
     <label for="timeWarpSlider">Time x</label>
-    <input type="range" id="timeWarpSlider" min="0" max="60" step="1" value="0" style="width:200px;">
+    <input type="range" id="timeWarpSlider" min="-60" max="60" step="1" value="0"
+           aria-label="Simulation time rate" aria-valuetext="Paused">
     <span id="timeWarpVal">0</span>x
+    <button type="button" id="timeWarpPause" aria-label="Resume simulation" title="Pause or resume">&gt;</button>
+    <button type="button" id="timeWarpNow" title="Reset simulation time to now">Now</button>
+    <span id="timeWarpStatus" role="status" aria-live="polite"></span>
   </div>`;
     document.body.insertAdjacentHTML('beforeend', twHTML);
     const timeWarpSlider = document.getElementById('timeWarpSlider');
     const timeWarpVal = document.getElementById('timeWarpVal');
+    const timeWarpPause = document.getElementById('timeWarpPause');
+    const timeWarpNow = document.getElementById('timeWarpNow');
+    const timeWarpStatus = document.getElementById('timeWarpStatus');
 
     function sliderValueToTimeWarp(value) {
         const parsed = parseInt(value, 10);
-        return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+        return Number.isFinite(parsed) ? Math.min(60, Math.max(-60, parsed)) : 0;
     }
 
     function timeWarpToSliderValue(value) {
-        return `${Math.max(0, Math.round(value))}`;
+        return `${Math.min(60, Math.max(-60, Math.round(value)))}`;
     }
 
     function formatTimeWarpLabel(value) {
-        return `${Math.max(0, Math.round(value))}`;
+        return `${Math.min(60, Math.max(-60, Math.round(value)))}`;
     }
 
     function updateTimeWarpControls() {
+        const clockState = simulationClock.state();
+        simParams.timeWarp = clockState.rate;
         const sliderValue = timeWarpToSliderValue(simParams.timeWarp);
         const labelValue = formatTimeWarpLabel(simParams.timeWarp);
         if (timeWarpSlider) timeWarpSlider.value = sliderValue;
         if (timeWarpVal) timeWarpVal.textContent = labelValue;
+        if (timeWarpSlider) {
+            const direction = simParams.timeWarp < 0 ? 'reverse' : simParams.timeWarp > 0 ? 'forward' : 'paused';
+            timeWarpSlider.setAttribute('aria-valuetext', `${labelValue} times, ${direction}`);
+        }
+        if (timeWarpPause) {
+            const paused = simParams.timeWarp === 0;
+            timeWarpPause.textContent = paused ? '>' : '||';
+            timeWarpPause.setAttribute('aria-label', paused ? 'Resume simulation' : 'Pause simulation');
+        }
+        if (timeWarpStatus) {
+            const motionDiagnostics = satelliteMotionController?.diagnostics?.();
+            timeWarpStatus.textContent = clockState.boundary
+                ? `Ephemeris ${clockState.boundary} reached; paused`
+                : motionDiagnostics?.coverageLimited && simParams.timeWarp
+                    ? 'Catalog markers cadence-limited; selected satellite remains exact'
+                    : '';
+        }
     }
 
     function setTimeWarpFromSliderValue(value) {
-        simParams.timeWarp = sliderValueToTimeWarp(value);
+        const nextRate = sliderValueToTimeWarp(value);
+        if (nextRate) lastRunningTimeWarp = nextRate;
+        simParams.timeWarp = simulationClock.setRate(nextRate).rate;
         updateTimeWarpControls();
     }
 
@@ -2558,11 +2850,9 @@
             },
             undefined,
             () => {
-                const placeholderUrl = `https://placehold.co/${simParams.useHighDefTexture ? '4096x2048' : '1024x512'}/1c313a/ffffff?text=Earth+Texture+Load+Error`;
-                textureLoader.load(placeholderUrl, (fallbackMap) => {
-                    earthMesh.material.map = fallbackMap;
-                    earthMesh.material.needsUpdate = true;
-                });
+                earthMesh.material.map = null;
+                earthMesh.material.color.set(0x1c313a);
+                earthMesh.material.needsUpdate = true;
             }
         );
     }
@@ -3316,20 +3606,26 @@
         serverStatusButton?.addEventListener('click', () => {
             setServerStatusPanelVisible(serverStatusPanel?.hidden);
         });
-        serverStatusButton?.addEventListener('focus', () => {
-            setServerStatusPanelVisible(true);
-        });
         serverReconnectButton?.addEventListener('click', async () => {
             const selectedNorad = simParams.selectedSatelliteNoradId;
-            const serverTleData = await checkAndLoadServerTleData();
-            if (!serverTleData || !scene) {
+            const serverCatalog = await checkAndLoadServerCatalogData();
+            if (!serverCatalog || !scene) {
                 setServerConnectionState({ dataSource: 'local files' });
                 return;
             }
             setSatelliteLoadingState('Loading server satellites...');
             await setupTLESatellites(scene, {
-                tleDataOverride: serverTleData,
-                tleDataSource: 'live server',
+                ...(serverCatalog.kind === 'GP'
+                    ? {
+                        gpDataOverride: serverCatalog.records,
+                        gpMetaOverride: serverCatalog.metadata,
+                        gpDataSource: 'live server'
+                    }
+                    : {
+                        tleDataOverride: serverCatalog.records,
+                        tleMetaOverride: serverCatalog.metadata,
+                        tleDataSource: 'live server'
+                    }),
                 chunkSize: SATELLITE_SETUP_CHUNK_SIZE,
                 onProgress: ({ processed, total }) => {
                     setSatelliteFoundCountLabel(`Loading ${processed}/${total}`);
@@ -3337,11 +3633,14 @@
             });
             updateSatelliteList();
             await syncConjunctionCatalog();
+            await refreshAuxiliaryCatalogs();
             if (selectedNorad) {
-                const restored = satellites.find(s => s.norad_id?.toString() === selectedNorad);
+                const restored = buildFilteredSatellitesBySelection()
+                    .find(s => s.norad_id?.toString() === selectedNorad);
                 if (restored) selectSatelliteViaShortcut(restored);
             }
             setServerConnectionState({ dataSource: 'live server', lastSync: new Date() });
+            startCatalogRevisionWatcher(serverConnectionState.baseUrl);
         });
         copyShareLinkButton?.addEventListener('click', copyCurrentShareLink);
         nativeShareButton?.addEventListener('click', nativeShareCurrentState);
@@ -3355,6 +3654,7 @@
 
         view3DToggle = document.getElementById('view3DToggle');
         viewMercatorToggle = document.getElementById('viewMercatorToggle');
+        mercatorExitFullscreenButton = document.getElementById('mercatorExitFullscreenButton');
         highDefToggleElement = document.getElementById('highDefToggle');
         showECEFAxesToggleElement = document.getElementById('showECEFAxesToggle');
         showOrbitFrameToggleElement = document.getElementById('showOrbitFrameToggle');
@@ -3388,7 +3688,6 @@
         filterEmptyState = document.getElementById('filterEmptyState');
         resetFiltersButton = document.getElementById('resetFiltersButton');
         resetFiltersEmptyButton = document.getElementById('resetFiltersEmptyButton');
-        selectedSatelliteSummary = document.getElementById('selectedSatelliteSummary');
         selectedSatelliteDetailPanel = document.getElementById('selectedSatelliteDetailPanel');
         solarSystemPlanetHudElement = document.getElementById('solarSystemPlanetHud');
         selectedSatelliteControls = document.getElementById('selectedSatelliteControls');
@@ -3412,7 +3711,6 @@
 
         applyOrbitSelectionToUI(simParams.orbitTypeFilter);
         applyCompanySelectionToUI(simParams.companyFilter);
-        applyDebrisFilterToUI(simParams.debrisFilter);
         view3DToggle.checked = simParams.view3D;
         viewMercatorToggle.checked = simParams.viewMercator;
         if (highDefToggleElement) highDefToggleElement.checked = simParams.useHighDefTexture;
@@ -3438,9 +3736,20 @@
             if (reentryTimelineToggle.checked) syncExclusiveTimelineSelection('reentryTimelineToggle');
         });
 
-        // The canvas Time x slider is the single simulation speed control.
         timeWarpSlider?.addEventListener('input', e => {
             setTimeWarpFromSliderValue(e.target.value);
+        });
+        timeWarpPause?.addEventListener('click', () => {
+            const nextRate = simulationClock.state().rate === 0 ? lastRunningTimeWarp : 0;
+            simParams.timeWarp = simulationClock.setRate(nextRate).rate;
+            updateTimeWarpControls();
+        });
+        timeWarpNow?.addEventListener('click', () => {
+            const state = simulationClock.reset(Date.now(), 0);
+            SIM_DATE.setTime(state.timeMs);
+            simParams.simDate = SIM_DATE;
+            simParams.timeWarp = state.rate;
+            updateTimeWarpControls();
         });
         updateTimeWarpControls();
 
@@ -3464,23 +3773,9 @@
             if (!button) return;
 
             const changedValue = button.dataset.orbitFilter;
-            const wasActive = button.getAttribute('aria-pressed') === 'true';
-
-            if (changedValue === ORBIT_ALL_OPTION) {
-                applyOrbitSelectionToUI(ORBIT_ALL_OPTION);
-            } else if (changedValue === ORBIT_DEBRIS_OPTION) {
-                applyOrbitSelectionToUI(wasActive ? DEFAULT_ORBIT_FILTER : ORBIT_DEBRIS_OPTION);
-            } else {
-                const allWasActive = orbitTypeFilterSelect
-                    .querySelector(`button[data-orbit-filter="${ORBIT_ALL_OPTION}"]`)
-                    ?.getAttribute('aria-pressed') === 'true';
-                const activeSpecific = getOrbitSelectionFromUI()
-                    .filter(value => value !== ORBIT_ALL_OPTION && value !== ORBIT_DEBRIS_OPTION && value !== changedValue);
-                const nextSelection = allWasActive
-                    ? [changedValue]
-                    : (!wasActive ? [...activeSpecific, changedValue] : activeSpecific);
-                applyOrbitSelectionToUI(nextSelection);
-            }
+            applyOrbitSelectionToUI(
+                toggleSatelliteCategorySelection(simParams.orbitTypeFilter, changedValue)
+            );
             refreshFilteredSatelliteView();
         });
 
@@ -3514,6 +3809,8 @@
             }
         });
         viewMercatorToggle.addEventListener('change', (e) => simParams.viewMercator = e.target.checked);
+        mercatorExitFullscreenButton?.addEventListener('click', exitFullscreenMercator);
+        window.addEventListener('keydown', handleMercatorFullscreenKeydown);
 
         solarSystemOverviewToggleElement?.addEventListener('change', (e) => {
             setSolarSystemOverviewMode(e.target.checked, { restorePrevious: true });
@@ -3587,22 +3884,18 @@
         showOrbitToggle.addEventListener('change', (e) => {
             const wantOrbit = e.target.checked;
 
-            // If user turned orbit off, immediately clear all orbit geometry.
             if (!wantOrbit) {
                 simParams.showOrbit = false;
                 removeAllGeometry(scene);
                 return;
             }
 
-            // From here, user is turning orbit ON
             if (currentSelectedSatellite) {
                 simParams.showOrbit = true;
                 updateOrbitTrajectory(scene, simParams, currentSelectedSatellite);
             } else {
-                // Orbit display requires an active satellite selection.
                 simParams.showOrbit = false;
                 e.target.checked = false;
-                // (optional: display a small warning to select a satellite)
             }
         });
 
@@ -3672,7 +3965,8 @@
                     satelliteSearchClearedForNextSelection = !!currentSelectedSatellite;
                     satelliteSearchInput.focus();
                 }
-                renderSatelliteSearchResults(buildFilteredSatellitesBySelection(), true);
+                closeSatelliteSearchResults();
+                renderSatelliteSearchResults(buildFilteredSatellitesBySelection(), false);
             });
         }
 
@@ -3766,7 +4060,6 @@
             simParams.showDayNight = e.target.checked;
         });
 
-        // === Legacy Earth/Moon/Mars context dropdown hook ===
         const otherSel = document.getElementById('otherSelection');
         if (otherSel) {
             otherSel.value = simParams.otherSelection;
@@ -3787,7 +4080,6 @@
                     } else {
                         hideMarsTextureLoadingPanel();
                     }
-                    // Deselect current satellite for clarity (optional)
                     if (satelliteSelectDropdown) {
                         satelliteSelectDropdown.value = 'None';
                         simParams.selectedSatelliteName = 'None';
@@ -3796,7 +4088,6 @@
                     clearDetailedSatelliteView();       // clears any detailed model
                     removeAllGeometry(scene);
 
-                    // Fly to the selected body without moving it to the scene origin.
                     flyCameraToObject(selectedBody, 1500, {
                         distanceMultiplier: simParams.otherSelection === 'Mars' ? MARS_CAMERA_DISTANCE_MULTIPLIER : 4,
                         minContextDistance: simParams.otherSelection === 'Mars'
@@ -3804,7 +4095,6 @@
                             : EARTH_SCENE_RADIUS * 0.6
                     });
 
-                    // Let users get closer to the selected body.
                     const bodyRadius = selectedBody?.userData?.radiusScene ||
                         selectedBody?.geometry?.parameters?.radius ||
                         fallbackRadius;
@@ -3812,19 +4102,15 @@
                     controls.minDistance = Math.max(bodyRadius * 1.1, 0.05 * EARTH_SCENE_RADIUS);
                     controls.maxDistance = SAFE_MAX_CONTROL_DISTANCE;
 
-                    // Start orbiting around the selected body immediately.
                     controls.target.copy(selectedBody.position);
                     controls.update();
                 } else {
                     hideMarsTextureLoadingPanel();
-                    // Back to Earth home view and initial MEO filter as on app start.
                     resetCameraToDefault();
 
                     applyOrbitSelectionToUI(DEFAULT_ORBIT_FILTER);
                     applyCompanySelectionToUI(DEFAULT_COMPANY_FILTER);
-                    applyDebrisFilterToUI(DEBRIS_FILTER_SHOW);
 
-                    // Clear selection
                     if (satelliteSelectDropdown) {
                         satelliteSelectDropdown.value = 'None';
                         simParams.selectedSatelliteName = 'None';
@@ -3833,7 +4119,6 @@
                     clearDetailedSatelliteView();
                     removeAllGeometry(scene);
 
-                    // Rebuild visible sprite set to reflect filters
                     updateSatelliteList();
                 }
             });
@@ -3841,29 +4126,29 @@
     }
     async function handleSatelliteDropdownChange(event) {
         const selectionToken = ++satelliteModelLoadToken;
-        const selectedNameInDropdown = event.target.value;
+        const selectedValue = event.target.value;
         const selectedOption = event.target.selectedOptions?.[0];
         const selectedNoradId = selectedOption?.dataset?.noradId;
+        const selectedNameInDropdown = selectedOption?.textContent?.trim() || selectedValue;
         simParams.selectedSatelliteName = selectedNameInDropdown;
 
         if (detailedSatelliteModel?.userData?.noradId) {
             const prevTleSat = satellites.find(s => s.norad_id.toString() === detailedSatelliteModel.userData.noradId.toString());
             if (prevTleSat?.mesh) {
-                prevTleSat.mesh.visible = true;
+                prevTleSat.mesh.visible = prevTleSat.mesh.userData?.filterVisible === true &&
+                    satelliteMarkerCanRender(prevTleSat);
                 prevTleSat.isSelected = false;
-                prevTleSat.mesh.material.color.set(0xffffff);
-                prevTleSat.mesh.scale.set(...(satelliteConfig.scale || [0.1, 0.1, 0.1]));
             }
         }
 
         clearDetailedSatelliteView();
         removeAllGeometry(scene);
 
-        if (selectedNameInDropdown === "None") {
+        if (selectedValue === "None") {
             currentSelectedSatellite = null;
             simParams.selectedSatelliteNoradId = null;
             setShowOnlySelectedSatellite(false);
-            updateSelectedSatelliteSummary(null);
+            updateSelectedSatelliteDetails(null);
             syncSatelliteSearchWithSelection();
             resetCameraToDefault();
             updateSatelliteList();
@@ -3884,7 +4169,7 @@
             setShowOnlySelectedSatellite(false);
             if (satelliteSelectDropdown) satelliteSelectDropdown.value = "None";
             simParams.selectedSatelliteName = "None";
-            updateSelectedSatelliteSummary(null);
+            updateSelectedSatelliteDetails(null);
             syncSatelliteSearchWithSelection();
             updateSatelliteList();
             ensureYPRControlsVisibleForSelection();
@@ -3895,11 +4180,15 @@
         simParams.selectedSatelliteNoradId = tleSatData.norad_id?.toString() || null;
         setShowOnlySelectedSatellite(true);
         enableHighDefForSelectedSatelliteIfNeeded(tleSatData);
-        updateSelectedSatelliteSummary(tleSatData);
+        updateSelectedSatelliteDetails(tleSatData);
         markSatelliteSearchReadyForNextSelection(tleSatData);
         ensureYPRControlsVisibleForSelection();
 
-        satellites.forEach(s => { if (s.mesh) s.mesh.visible = (s === tleSatData); });
+        satellites.forEach(s => {
+            if (s.mesh) {
+                s.mesh.visible = s === tleSatData && satelliteMarkerCanRender(s);
+            }
+        });
 
         if (simParams.showOrbit) {
             updateOrbitTrajectory(scene, simParams, tleSatData);
@@ -3910,7 +4199,7 @@
         const modelResolution = resolveSatelliteModel(tleSatData);
         if (!modelResolution.found) {
             console.warn(
-                `[model] ${tleSatData.satellite_name}: ${modelResolution.reason}. Using selected sprite fallback.`
+                `[model] ${tleSatData.satellite_name}: ${modelResolution.reason}. Using selected marker fallback.`
             );
             if (tleSatData.mesh) flyCameraToSelectedSatellite(tleSatData.mesh, 1000, true);
             updateSatelliteList();
@@ -3936,7 +4225,7 @@
                     .join(', ');
                 console.warn(
                     `[model] ${tleSatData.satellite_name}: local model files not found for "${verifiedModel.assetId}". `
-                    + `Checked ${checkedPaths || 'no paths'}. Using selected sprite fallback.`
+                    + `Checked ${checkedPaths || 'no paths'}. Using selected marker fallback.`
                 );
                 if (tleSatData.mesh) flyCameraToSelectedSatellite(tleSatData.mesh, 1000, true);
                 updateSatelliteList();
@@ -4008,8 +4297,6 @@
             satellites.forEach(s => {
                 if (s !== tleSatData && s.mesh) {
                     s.isSelected = false;
-                    s.mesh.material.color.set(0xffffff);
-                    s.mesh.scale.set(...(satelliteConfig.scale || [0.1, 0.1, 0.1]));
                 }
             });
 
@@ -4021,7 +4308,7 @@
         } else {
             if (tleSatData) {
                 console.warn(
-                    `[model] ${tleSatData.satellite_name}: failed to load "${resolvedModel.assetId}". Using selected sprite fallback.`
+                    `[model] ${tleSatData.satellite_name}: failed to load "${resolvedModel.assetId}". Using selected marker fallback.`
                 );
                 selectSatelliteSprite(tleSatData);
                 if (tleSatData.mesh) flyCameraToSelectedSatellite(tleSatData.mesh, 1000, true);
@@ -4053,18 +4340,65 @@
             if (oldNoradId) {
                 const tleSat = satellites.find(s => s.norad_id.toString() === oldNoradId.toString());
                 if (tleSat?.mesh) {
-                    tleSat.mesh.visible = true;
+                    tleSat.mesh.visible = tleSat.mesh.userData?.filterVisible === true &&
+                        satelliteMarkerCanRender(tleSat);
                 }
             }
         }
     }
 
     const clock = createAnimationTimer();
-    const visibleSatelliteFrameProcessor = createRoundRobinFrameProcessor({
-        budgetMs: 6,
-        maxItemsPerRun: 512
+    const satelliteMotionController = createSatelliteMotionController({
+        propagate: (satrec, date) => satellite.propagate(satrec, date),
+        propagationBudgetMs: 5,
+        maxSamplesPerBatch: 256
     });
+    let satelliteMotionSolarMode = false;
     let cameraMove = null;
+
+    window.openbexiSimulation = Object.freeze({
+        setTime(value) {
+            const timeMs = value instanceof Date ? value.getTime() : Date.parse(value);
+            if (!Number.isFinite(timeMs)) throw new TypeError('Simulation time must be a valid UTC instant.');
+            const state = simulationClock.setTime(timeMs);
+            SIM_DATE.setTime(state.timeMs);
+            simParams.simDate = SIM_DATE;
+            updateTimeWarpControls();
+            satelliteMotionController.invalidate();
+            return this.snapshot();
+        },
+        setRate(value) {
+            const state = simulationClock.setRate(value);
+            if (state.rate) lastRunningTimeWarp = state.rate;
+            updateTimeWarpControls();
+            return this.snapshot();
+        },
+        snapshot() {
+            const state = simulationClock.state();
+            return {
+                timeMs: state.timeMs,
+                dateUtc: new Date(state.timeMs).toISOString(),
+                rate: state.rate,
+                boundary: state.boundary,
+                selectedNoradId: currentSelectedSatellite?.norad_id?.toString() || null,
+                selectedMeshUuid: currentSelectedSatellite?.mesh?.uuid || null,
+                selectedMaterialUuid: currentSelectedSatellite?.mesh?.material?.uuid || null,
+                selectedPosition: currentSelectedSatellite?.mesh?.position?.toArray?.() || null,
+                selectedDetailedModelVisible: detailedSatelliteModel?.visible === true,
+                orbitTypeFilter: [...simParams.orbitTypeFilter],
+                ...satelliteMarkerDiagnostics(renderableSatellites, EARTH_SCENE_RADIUS),
+                motion: { ...satelliteMotionController.diagnostics() },
+                ephemerisMode: solarSystemOverview?.ephemerisRuntimeMode || null,
+                ephemerisWarning: solarSystemOverview?.ephemerisWarning || null
+            };
+        },
+        markerState(noradId) {
+            return satelliteMarkerState(satellites, noradId);
+        },
+        planetPosition(planetName) {
+            return solarSystemOverview?.planets?.get(planetName)?.group?.position?.toArray?.() || null;
+        }
+    });
 
     function enforceSceneOrigin() {
         if (earthMesh) earthMesh.position.set(0, 0, 0);
@@ -4749,9 +5083,19 @@
         return q;
     }
 
+    function satelliteMarkerCanRender(satelliteRecord) {
+        return satelliteMotionController.isRenderReady(
+            satelliteRecord,
+            simulationClock.state().timeMs
+        );
+    }
+
     function updateSatelliteList() {
         if (!satellites || !satelliteSelectDropdown || !companyFilterSelect) {
-            setSatelliteFoundCountLabel('0');
+            renderableSatellites = [];
+            activeFilteredSatelliteCount = 0;
+            activeTotalSatelliteCount = 0;
+            setSatelliteCatalogCount();
             if (satelliteSelectDropdown) satelliteSelectDropdown.innerHTML = '<option value="None">None</option>';
             if (companyFilterSelect) {
                 renderCompanyFilter([], simParams.companyFilter);
@@ -4762,12 +5106,28 @@
 
         const companiesForOrbit = getCompaniesForOrbitSelection(simParams.orbitTypeFilter);
         const previousCompanySelection = Array.from(simParams.companyFilter);
-        const normalizedSelection = normalizeCompanySelection(
-            previousCompanySelection.filter(val => val === ALL_COMPANY_OPTION || companiesForOrbit.includes(val))
+        const availableCompanySelection = normalizeCompanySelection(
+            previousCompanySelection.filter(value => (
+                value === ALL_COMPANY_OPTION || companiesForOrbit.includes(value)
+            ))
         );
-        renderCompanyFilter(companiesForOrbit, normalizedSelection);
+        renderCompanyFilter(companiesForOrbit, availableCompanySelection);
 
         const filteredTLEs = buildFilteredSatellitesBySelection();
+        activeFilteredSatelliteCount = filteredTLEs.length;
+        activeTotalSatelliteCount = uniqueSatelliteCount(satellites);
+        const selectedNorad = currentSelectedSatellite?.norad_id?.toString() ?? null;
+        const selectedRepresentative = selectedNorad
+            ? filteredTLEs.find(s => s.norad_id?.toString() === selectedNorad) ?? null
+            : null;
+        if (currentSelectedSatellite && !selectedRepresentative) {
+            clearSelectedSatelliteForFilterExclusion();
+        } else if (selectedRepresentative && selectedRepresentative !== currentSelectedSatellite) {
+            currentSelectedSatellite = selectedRepresentative;
+            selectedRepresentative.isSelected = true;
+            simParams.selectedSatelliteName = selectedRepresentative.satellite_name;
+            simParams.selectedSatelliteNoradId = selectedNorad;
+        }
         if (satelliteSearchInput) {
             satelliteSearchInput.disabled = false;
             satelliteSearchInput.placeholder = 'Search satellite or NORAD ID';
@@ -4793,66 +5153,27 @@
 
             if (simParams.showOnlySelectedSatellite) {
                 visible = !!currentSelectedSatellite &&
-                    currentSelectedSatellite.norad_id === s.norad_id &&
+                    currentSelectedSatellite.norad_id?.toString() === s.norad_id?.toString() &&
                     !isDetailedModelForThisSat;
             }
 
-            s.mesh.visible = visible;
-
-            if (s.mesh.visible) {
-                const isActuallySelected = currentSelectedSatellite && currentSelectedSatellite.norad_id === s.norad_id;
-                s.mesh.material.color.set(isActuallySelected ? 0xff0000 : 0xffffff);
-                const baseScale = satelliteConfig.scale || [0.1, 0.1, 0.1];
-                s.mesh.scale.set(...(isActuallySelected ? baseScale.map(v => v * 1.5) : baseScale));
-            }
+            s.mesh.userData.filterVisible = visible;
+            s.mesh.visible = visible && satelliteMarkerCanRender(s);
         });
+        renderableSatellites = satellites.filter(s => s.mesh?.userData?.filterVisible === true);
 
-        setSatelliteFoundCountLabel(
-            simParams.showOnlySelectedSatellite ? (currentSelectedSatellite ? '1' : '0') : filteredTLEs.length.toString()
-        );
+        setSatelliteCatalogCount();
         updateFilterStatus(filteredTLEs);
-        updateSelectedSatelliteSummary(currentSelectedSatellite);
+        updateSelectedSatelliteDetails(currentSelectedSatellite);
 
-        const previousDropdownValue = satelliteSelectDropdown.value;
-        const dropdownFragment = document.createDocumentFragment();
         const noneOption = document.createElement('option');
         noneOption.value = 'None';
         noneOption.textContent = 'None';
-        dropdownFragment.appendChild(noneOption);
-        filteredTLEs.forEach(s => {
-            const option = document.createElement('option');
-            option.value = s.satellite_name;
-            option.textContent = s.satellite_name;
-            option.dataset.noradId = s.norad_id;
-            dropdownFragment.appendChild(option);
-        });
-        satelliteSelectDropdown.replaceChildren(dropdownFragment);
-
-        if (filteredTLEs.some(s => s.satellite_name === previousDropdownValue)) {
-            satelliteSelectDropdown.value = previousDropdownValue;
-        } else {
-            satelliteSelectDropdown.value = "None";
-            if (currentSelectedSatellite && !filteredTLEs.includes(currentSelectedSatellite)) {
-                if (!simParams.showOnlySelectedSatellite) {
-                    clearDetailedSatelliteView();
-                    currentSelectedSatellite = null;
-                    simParams.selectedSatelliteNoradId = null;
-                    updateSelectedSatelliteSummary(null);
-                    syncSatelliteSearchWithSelection();
-                }
-            }
-        }
-
-        if (satelliteSelectDropdown.value === "None" && detailedSatelliteModel && !simParams.showOnlySelectedSatellite) {
-            clearDetailedSatelliteView();
-            currentSelectedSatellite = null;
-            simParams.selectedSatelliteNoradId = null;
-            updateSelectedSatelliteSummary(null);
-            syncSatelliteSearchWithSelection();
-        }
-
+        satelliteSelectDropdown.replaceChildren(noneOption);
         if (currentSelectedSatellite) {
             setSatelliteSelectToSatellite(currentSelectedSatellite);
+        } else {
+            satelliteSelectDropdown.value = 'None';
         }
         renderSatelliteSearchResults(filteredTLEs, false);
         updateViewShortcutButtonsState();
@@ -4867,10 +5188,6 @@
         satellites.forEach(s => {
             if (s.mesh && s.isSelected) {
                 s.isSelected = false;
-                if (s.mesh.visible) {
-                    s.mesh.material.color.set(0xffffff);
-                    s.mesh.scale.set(...(satelliteConfig.scale || [0.1, 0.1, 0.1]));
-                }
             }
         });
 
@@ -4879,10 +5196,6 @@
         if (tleSatData?.mesh) {
             simParams.selectedSatelliteNoradId = tleSatData.norad_id?.toString() || null;
             tleSatData.isSelected = true;
-            if (tleSatData.mesh.visible) {
-                tleSatData.mesh.material.color.set(0xff0000);
-                tleSatData.mesh.scale.set(...(satelliteConfig.scale || [0.1, 0.1, 0.1]).map(v => v * 1.5));
-            }
             simParams.selectedSatelliteName = tleSatData.satellite_name;
             setSatelliteSelectToSatellite(tleSatData);
             if (simParams.showOrbit) updateOrbitTrajectory(scene, simParams, tleSatData);
@@ -4893,7 +5206,7 @@
             if (satelliteSelectDropdown) satelliteSelectDropdown.value = "None";
             removeAllGeometry(scene);
         }
-        updateSelectedSatelliteSummary(tleSatData);
+        updateSelectedSatelliteDetails(tleSatData);
         if (!tleSatData) syncSatelliteSearchWithSelection();
         if (simParams.showYPR) ensureYPRControlsVisibleForSelection();
     }
@@ -4910,13 +5223,12 @@
             setShowOnlySelectedSatellite(false);
             removeAllGeometry(scene);
             if (satelliteSelectDropdown) satelliteSelectDropdown.value = "None";
-            updateSelectedSatelliteSummary(tleSatData);
+            updateSelectedSatelliteDetails(tleSatData);
             ensureYPRControlsVisibleForSelection();
             return;
         }
         applyOrbitSelectionToUI(ORBIT_FILTER_OPTIONS);
         applyCompanySelectionToUI(DEFAULT_COMPANY_FILTER);
-        applyDebrisFilterToUI(DEBRIS_FILTER_SHOW);
         updateSatelliteList();
         if (satelliteSelectDropdown) {
             setSatelliteSelectToSatellite(activeTleSat);
@@ -4972,14 +5284,17 @@
             controls.update();
         }
 
-        /* Simulation clock: minutes * timeWarp per second */
         const dtReal = clock.getDelta();
-        simMillis = advanceSolarSystemSimulationMillis(simMillis, dtReal, simParams.timeWarp);
-        SIM_DATE.setTime(simMillis);
+        const ephemerisBounds = simParams.solarSystemOverview
+            ? solarSystemEphemerisBounds(solarSystemOverview?.ephemerisState?.data)
+            : null;
+        simulationClock.setBounds(ephemerisBounds);
+        const clockState = simulationClock.tick(dtReal);
+        simParams.timeWarp = clockState.rate;
+        SIM_DATE.setTime(clockState.timeMs);
         simParams.simDate = SIM_DATE; // keep external readers happy
         if (simParams.solarSystemOverview) {
-            updateSolarSystemOverview(solarSystemOverview, SIM_DATE);
-            updateSolarSystemSelectionUi();
+            updateSolarSystemOverview(solarSystemOverview, SIM_DATE, { clockBoundary: clockState.boundary });
             setSolarSystemEarthLayerVisibility(true);
         }
 
@@ -4990,44 +5305,49 @@
         const gmstNow = satellite.gstime(jDay);
         const rotY = -gmstNow;
 
-        // Update the UTC text ~2 Hz and the slider number immediately (cheap)
         const nowPerf = performance.now();
-        if (nowPerf - lastClockUpdate > 500) {
+        const clockUpdateIntervalMs = simParams.solarSystemOverview ? 100 : 500;
+        if (nowPerf - lastClockUpdate > clockUpdateIntervalMs) {
             lastClockUpdate = nowPerf;
             const clockEl = document.getElementById("utcClockDisplay");
             if (clockEl) clockEl.textContent = formatUTCString(SIM_DATE);
+            if (simParams.solarSystemOverview) updateSolarSystemSelectionUi();
             syncSelectedSatelliteDetailPanelWidth();
         }
         updateTimeWarpControls();
 
-        /* Earth rotation */
         enforceSceneOrigin();
         if (earthMesh) earthMesh.rotation.y = rotY;
         updateECEFAxesOrientation(rotY);
 
-        /* Visible TLE sprites */
+        if (satelliteMotionSolarMode !== !!simParams.solarSystemOverview) {
+            satelliteMotionSolarMode = !!simParams.solarSystemOverview;
+            satelliteMotionController.invalidate();
+        }
+        let selectedPropagation = null;
         if (!simParams.solarSystemOverview) {
-            visibleSatelliteFrameProcessor.run(satellites, (s) => {
-                if (!s.mesh || !s.mesh.visible || !s.satrec) return;
-                const pv = satellite.propagate(s.satrec, SIM_DATE);
-                if (!isUsableOrbitPosition(pv?.position)) {
-                    s.propagationInvalid = true;
-                    s.mesh.visible = false;
-                    return;
-                }
-                s.propagationInvalid = false;
-                eciToSceneVector(s.mesh.position, pv.position);
+            const motion = satelliteMotionController.update(renderableSatellites, {
+                selectedObject: currentSelectedSatellite,
+                simTimeMs: clockState.timeMs,
+                rate: clockState.rate,
+                clockGeneration: clockState.generation,
+                realTimeMs: nowPerf
             });
+            selectedPropagation = motion.selectedPropagation;
+            if (currentSelectedSatellite) {
+                currentSelectedSatellite.propagationInvalid = !isUsableOrbitPosition(selectedPropagation?.position);
+                if (currentSelectedSatellite.propagationInvalid) selectedPropagation = null;
+            }
         }
 
-        /* Detailed model (selected) */
-        let selectedPropagation = null;
-        if (!simParams.solarSystemOverview && detailedSatelliteModel?.visible && currentSelectedSatellite?.satrec) {
-            selectedPropagation = satellite.propagate(currentSelectedSatellite.satrec, SIM_DATE);
+        if (!simParams.solarSystemOverview && detailedSatelliteModel && currentSelectedSatellite?.satrec) {
             if (setDetailedSatelliteModelPositionFromPropagation(selectedPropagation, 'animation-frame')) {
+                detailedSatelliteModel.visible = true;
+                detailedSatelliteModel.userData.hiddenForInvalidPropagation = false;
                 applySelectedSatelliteNadirOrientation(selectedPropagation);
             } else {
                 detailedSatelliteModel.visible = false;
+                detailedSatelliteModel.userData.hiddenForInvalidPropagation = true;
             }
             if (selectedModelFillLight) {
                 selectedModelFillLight.visible = detailedSatelliteModel?.visible === true;
@@ -5038,23 +5358,20 @@
         updateSelectedModelTracking(selectedPropagation);
         updateSelectedModelLighting(jDay);
 
-        /* LVLH orbit frame (selected) */
-        if (!simParams.solarSystemOverview && simParams.showOrbitFrame && orbitFrame && currentSelectedSatellite?.satrec && currentSelectedSatellite.mesh?.visible) {
-            const pv = satellite.propagate(currentSelectedSatellite.satrec, SIM_DATE);
-            if (isUsableOrbitPosition(pv?.position) && pv?.velocity) {
+        if (!simParams.solarSystemOverview && simParams.showOrbitFrame && orbitFrame && currentSelectedSatellite?.satrec) {
+            if (isUsableOrbitPosition(selectedPropagation?.position) && selectedPropagation?.velocity) {
                 updateOrbitFrame(
                     orbitFrame,
-                    eciToSceneVector(V_TMP1, pv.position),
-                    eciToSceneVector(V_TMP2, pv.velocity)
+                    eciToSceneVector(V_TMP1, selectedPropagation.position),
+                    eciToSceneVector(V_TMP2, selectedPropagation.velocity)
                 );
             }
         }
 
-        /* YPR frame */
         if (!simParams.solarSystemOverview && simParams.showYPR && yprFrame && currentSelectedSatellite?.satrec) {
             const displayObject = selectedSatelliteDisplayObject();
             if (displayObject) {
-                const q = applySelectedSatelliteNadirOrientation();
+                const q = applySelectedSatelliteNadirOrientation(selectedPropagation);
                 if (q) {
                     updateYPRFrameQuaternion(yprFrame, displayObject.position, q);
                 } else {
@@ -5063,26 +5380,12 @@
             }
         }
 
-        /* Update contextual bodies before camera target enforcement. */
         if (moon) updateMoon(moon, SIM_DATE);
         if (mars) updateMars(mars, SIM_DATE);
 
-        /* Moon/Mars controls target */
         if (!simParams.solarSystemOverview && !cameraMove && controls) {
             if ((simParams.otherSelection === 'Moon' && moon) || (simParams.otherSelection === 'Mars' && mars)) {
                 const selectedBody = simParams.otherSelection === 'Moon' ? moon : mars;
-                // Unit vector from Earth to selected body.
-                V_TMP1.copy(selectedBody.position).normalize();
-                const bodyRadius = selectedBody.userData?.radiusScene ||
-                    selectedBody.geometry?.parameters?.radius ||
-                    EARTH_SCENE_RADIUS * 0.27;
-                const keepDist = Math.max(bodyRadius * 4, EARTH_SCENE_RADIUS * 0.6);
-                V_TMP2.copy(V_TMP1).multiplyScalar(keepDist).add(selectedBody.position);
-
-                // dt-aware smoothing keeps stable when Time x changes.
-                const chaseSmooth = 1 - Math.pow(0.001, dtReal); // fast, stable
-                //camera.position.lerp(V_TMP2, chaseSmooth);
-
                 controls.target.copy(selectedBody.position);
                 controls.update();
             } else if (!currentSelectedSatellite && !detailedSatelliteModel?.visible) {
@@ -5091,14 +5394,13 @@
             }
         }
 
-        /* Footprints */
         updateFootprints(currentSelectedSatellite, gmstNow, {
             showFootprint: !!simParams.showFootprint && !simParams.solarSystemOverview,
             mercatorCtx: null,
-            simDate: SIM_DATE
+            simDate: SIM_DATE,
+            propagation: selectedPropagation
         });
 
-        /* Sun light and Sun visuals must update before the 3-D render */
         drawDayNight3D(scene, earthMesh, SIM_DATE, {
             showSun:  simParams.showDayNight && simParams.view3D && !simParams.solarSystemOverview,
             showHalo: simParams.showDayNight && simParams.view3D && !simParams.solarSystemOverview,
@@ -5106,12 +5408,12 @@
             sunIntensity: SUN_LIGHT_INTENSITY
         });
 
-        /* Render 3-D vs Mercator */
         const show3D = simParams.view3D || simParams.solarSystemOverview;
         if (renderer) renderer.domElement.style.display = show3D ? 'block' : 'none';
         if (show3D) {
+            syncSatellitePointCloud(renderableSatellites);
             if (simParams.showOrbit && !simParams.solarSystemOverview) {
-                refreshOrbitTrajectoryIfNeeded(scene, simParams, currentSelectedSatellite);
+                refreshOrbitTrajectoryIfNeeded(scene, simParams, currentSelectedSatellite, { realTimeMs: nowPerf });
                 refreshSelectedOrbitOcclusion(camera, { earthRadiusScene: EARTH_SCENE_RADIUS });
             }
             renderer.render(scene, camera);
@@ -5136,22 +5438,33 @@
                         mercatorCanvasElement.width = w;
                         mercatorCanvasElement.height = h;
                     }
-                    // Throttle Mercator to ~30 FPS
-                    if (performance.now() - lastMercatorRedraw > 33) {
+                    const mercatorRedrawIntervalMs = renderableSatellites.length > 5000
+                        ? 250
+                        : renderableSatellites.length > 1000
+                            ? 100
+                            : 33;
+                    if (nowPerf - lastMercatorRedraw > mercatorRedrawIntervalMs) {
                         lastMercatorRedraw = performance.now();
-                        updateMercatorMap(simParams);
+                        updateMercatorMap(simParams, {
+                            gmstRad: gmstNow,
+                            selectedPropagation,
+                            realTimeMs: nowPerf
+                        });
                         const mercatorUsesEarthSatellites = simParams.otherSelection !== 'Mars';
                         if (mercatorUsesEarthSatellites && simParams.showFootprint) {
                             updateFootprints(currentSelectedSatellite, gmstNow, {
-                                showFootprint: true, mercatorCtx, simDate: SIM_DATE
+                                showFootprint: true,
+                                mercatorCtx,
+                                simDate: SIM_DATE,
+                                propagation: selectedPropagation
                             });
                         } else if (mercatorUsesEarthSatellites) {
                             updateFootprints(currentSelectedSatellite, gmstNow, {
-                                showFootprint: false, mercatorCtx, simDate: SIM_DATE
+                                showFootprint: false,
+                                mercatorCtx,
+                                simDate: SIM_DATE,
+                                propagation: selectedPropagation
                             });
-                        }
-                        if (mercatorUsesEarthSatellites && simParams.showOrbit && simParams.showFootprint) {
-                            drawSelectedGroundTrack(simParams, mercatorCtx);
                         }
                     }
                 }
@@ -5206,11 +5519,22 @@
                 dataSource: 'local files',
                 error: null
             });
+            let defaultMeoPublished = false;
             await setupTLESatellites(scene, {
                 tleDataSource: 'local files',
                 chunkSize: SATELLITE_SETUP_CHUNK_SIZE,
+                priorityRecordPredicate: record => String(
+                    record?.orbit_class ?? record?.type ?? record?.catalogObject?.orbit_class ?? ''
+                ).trim().toUpperCase() === 'MEO',
                 onProgress: ({ processed, total }) => {
-                    setSatelliteFoundCountLabel(`Loading ${processed}/${total}`);
+                    if (!defaultMeoPublished) setSatelliteFoundCountLabel(`Loading ${processed}/${total}`);
+                },
+                onCatalogChunk: ({ total, loadedSatellites }) => {
+                    if (defaultMeoPublished || !loadedSatellites.some(s => s.orbitType === 'MEO')) return;
+                    defaultMeoPublished = true;
+                    updateSatelliteList();
+                    setSatelliteFoundCountLabel(`${renderableSatellites.length} / ${total} (loading)`);
+                    startupPerf.markOnce('default-meo-visible', { count: renderableSatellites.length });
                 }
             });
             startupPerf.mark('satellite-data-ready', { count: satellites.length });

@@ -20,10 +20,10 @@
 //    the B* drag term is non-zero (proxy for drag activity).
 //
 // Limitations:
-//  - Uses single-TLE propagation; long-range decay estimates carry
+//  - Uses one current TLE or OMM element set; long-range decay estimates carry
 //    uncertainty and should be treated as indicative only.
-//  - Does not ingest historical TLE sets; trends are inferred from the
-//    current TLE parameters only.
+//  - Does not ingest historical element sets; trends are inferred from the
+//    current orbital parameters only.
 // -------------------------------------------------------------
 
 const MS_PER_MIN = 60 * 1000;
@@ -53,6 +53,7 @@ const CANDIDATE_DEFAULTS = {
 };
 let cachedDecayPromise = null;
 let cachedDecayMap = null;
+let cachedDecayRevision = null;
 
 function finiteNumber(value) {
     const number = Number(value);
@@ -72,11 +73,23 @@ function normalizeDateBucket(value = new Date()) {
     return safeDate.toISOString().substring(0, 10);
 }
 
-function tleIdentity(sat) {
+function canonicalJson(value) {
+    if (value === null || typeof value !== 'object') return JSON.stringify(value);
+    if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+    return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`;
+}
+
+function orbitalIdentity(sat) {
+    const elementSet = sat?.element_set ?? sat?.elementSet ?? sat?.catalogObject?.element_set;
+    const format = String(elementSet?.format ?? (elementSet?.omm ? 'OMM' : 'TLE')).trim().toUpperCase();
     return {
         noradId: normalizeNoradId(sat),
+        format,
+        epoch: elementSet?.epoch ?? null,
+        elementSetId: elementSet?.element_set_id ?? null,
         line1: String(sat?.tle_line1 ?? sat?.tleLine1 ?? '').trim(),
-        line2: String(sat?.tle_line2 ?? sat?.tleLine2 ?? '').trim()
+        line2: String(sat?.tle_line2 ?? sat?.tleLine2 ?? '').trim(),
+        omm: elementSet?.omm ? canonicalJson(elementSet.omm) : ''
     };
 }
 
@@ -94,8 +107,10 @@ function predictionOptionsIdentity(options = {}) {
 }
 
 export function decayPredictionCacheKey(sat, options = {}) {
-    const identity = tleIdentity(sat);
-    if (!identity.noradId || !identity.line1 || !identity.line2) return null;
+    const identity = orbitalIdentity(sat);
+    const hasTle = !!identity.line1 && !!identity.line2;
+    const hasOmm = identity.format === 'OMM' && !!identity.omm;
+    if (!identity.noradId || (!hasTle && !hasOmm)) return null;
     return JSON.stringify({
         ...identity,
         options: predictionOptionsIdentity(options)
@@ -295,17 +310,29 @@ function buildDecayMap(records) {
     return map;
 }
 
-export async function loadConfirmedDecays() {
-    if (cachedDecayMap) return cachedDecayMap;
+export function invalidateConfirmedDecayCache(revision = null) {
+    cachedDecayPromise = null;
+    cachedDecayMap = null;
+    cachedDecayRevision = revision == null ? null : String(revision);
+}
+
+export async function loadConfirmedDecays(options = {}) {
+    const requestedRevision = options.revision == null ? null : String(options.revision);
+    const revisionChanged = !!requestedRevision && !!cachedDecayRevision && requestedRevision !== cachedDecayRevision;
+    if (!options.force && !revisionChanged && cachedDecayMap) return cachedDecayMap;
     if (cachedDecayPromise) return cachedDecayPromise;
 
     const serverConnection = globalThis.window?.openbexiServerConnection;
     const serverDecaySource = serverConnection?.connected && typeof serverConnection.resolveDataUrl === 'function'
         ? serverConnection.resolveDataUrl(DECAY_SOURCE)
         : null;
-    const source = serverDecaySource || DECAY_SOURCE;
+    const source = options.source ?? serverDecaySource ?? DECAY_SOURCE;
 
-    cachedDecayPromise = fetch(source)
+    const fetchImpl = options.fetchImpl ?? globalThis.fetch;
+    if (typeof fetchImpl !== 'function') throw new Error('Confirmed decay fetch is unavailable.');
+    const previousMap = cachedDecayMap;
+    const previousRevision = cachedDecayRevision;
+    cachedDecayPromise = fetchImpl(source, { cache: 'no-store' })
         .then((resp) => {
             if (!resp.ok) {
                 throw new Error(`HTTP ${resp.status}`);
@@ -313,14 +340,19 @@ export async function loadConfirmedDecays() {
             return resp.json();
         })
         .then((json) => {
+            if (!json || typeof json !== 'object' || Array.isArray(json)) {
+                throw new Error('Confirmed decay response must be an object keyed by source group.');
+            }
             const records = flattenDecayData(json);
             cachedDecayMap = buildDecayMap(records);
+            if (requestedRevision) cachedDecayRevision = requestedRevision;
             return cachedDecayMap;
         })
         .catch((err) => {
             console.error(`Failed to load confirmed decay data from ${source}:`, err.message || err);
-            cachedDecayMap = null;
-            return null;
+            cachedDecayMap = previousMap;
+            cachedDecayRevision = previousRevision;
+            throw err;
         })
         .finally(() => {
             cachedDecayPromise = null;

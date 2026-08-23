@@ -8,12 +8,19 @@ import { fileURLToPath } from 'node:url';
 import * as satellite from 'satellite.js';
 
 import { screenFullCatalog } from '../js/conjunction/fullCatalogScreening.js';
-import { parseTleJson } from '../js/domain/orbitalSourceAdapters.js';
+import { adaptOrbitalSource } from '../js/domain/orbitalSourceAdapters.js';
+import { ORBITAL_SOURCE_FORMAT } from '../js/domain/v21Contracts.js';
+import { createMultiFormatPropagationService } from '../js/orbit/multiFormatPropagationService.js';
 import { createTlePropagationService } from '../js/orbit/propagationService.js';
+import {
+    inferCatalogSourceFormat,
+    preferredCatalogPair,
+    prepareCatalogAdapterInput,
+    siblingMetadataPath
+} from './orbital-catalog-input.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const DEFAULT_CATALOG = path.join(ROOT, 'json', 'tle', 'TLE.json');
-const DEFAULT_META = path.join(ROOT, 'json', 'tle', 'TLE.meta.json');
+const DEFAULT_FILES = preferredCatalogPair(ROOT);
 const RELEASE = JSON.parse(await readFile(path.join(ROOT, 'release', 'version.json'), 'utf8'));
 
 function fail(message) {
@@ -55,10 +62,14 @@ function parseArguments(argv) {
         values.set(key, value);
         index += 1;
     }
+    const suppliedCatalog = values.get('--catalog');
+    const catalog = path.resolve(suppliedCatalog ?? DEFAULT_FILES.catalog);
     return {
         help: values.has('--help'),
-        catalog: path.resolve(values.get('--catalog') ?? DEFAULT_CATALOG),
-        meta: path.resolve(values.get('--meta') ?? DEFAULT_META),
+        catalog,
+        meta: path.resolve(values.get('--meta') ?? (
+            suppliedCatalog ? siblingMetadataPath(catalog) : DEFAULT_FILES.meta
+        )),
         output: values.has('--output') ? path.resolve(values.get('--output')) : null,
         limit: values.has('--limit') ? parseInteger(values.get('--limit'), '--limit', 2, 100_000) : null,
         startTime: values.get('--start-time') ?? '2026-07-20T12:00:00.000Z',
@@ -109,14 +120,38 @@ async function writeAtomic(filePath, content) {
 
 function usage() {
     return `Usage: node scripts/benchmark-full-catalog.mjs [options]\n\n` +
-        `  --catalog PATH                TLE JSON catalog (default: json/tle/TLE.json)\n` +
-        `  --meta PATH                   source metadata JSON\n` +
+        `  --catalog PATH                orbital JSON catalog (default: GP/OMM, then TLE fallback)\n` +
+        `  --meta PATH                   source metadata JSON (default: catalog sibling)\n` +
         `  --output PATH                 write the JSON report atomically\n` +
         `  --limit COUNT                 deterministically use the first COUNT objects\n` +
         `  --start-time ISO              screening start (default: 2026-07-20T12:00:00.000Z)\n` +
         `  --horizon-seconds COUNT       horizon (default: 60)\n` +
         `  --coarse-step-seconds COUNT   slab size (default: 60)\n` +
         `  --screening-radius-km NUMBER  event radius (default: 10)\n`;
+}
+
+function sourceStatus(metadata) {
+    const explicit = String(metadata?.source_status ?? '').trim().toUpperCase();
+    if (explicit === 'DEGRADED') return explicit;
+    if (
+        explicit === 'PARTIAL' ||
+        metadata?.partial_update === true ||
+        String(metadata?.mode ?? '').toLowerCase() === 'incremental'
+    ) {
+        return 'PARTIAL';
+    }
+    if (explicit === 'COMPLETE') return explicit;
+    return String(metadata?.last_status ?? '').toLowerCase() === 'ok' ? 'COMPLETE' : 'DEGRADED';
+}
+
+function retrievedAt(metadata) {
+    return metadata?.retrieval_timestamp ?? metadata?.fetched_at ?? metadata?.last_success_at ?? null;
+}
+
+function sourceUri(metadata) {
+    if (metadata?.source_url) return metadata.source_url;
+    if (Array.isArray(metadata?.source_urls) && metadata.source_urls.length) return metadata.source_urls[0];
+    return null;
 }
 
 async function main() {
@@ -133,21 +168,33 @@ async function main() {
     const [catalogBytes, metaBytes] = await Promise.all([readFile(args.catalog), readFile(args.meta)]);
     const sourceMeta = JSON.parse(metaBytes.toString('utf8'));
     const catalogInput = JSON.parse(catalogBytes.toString('utf8'));
+    const sourceFormat = inferCatalogSourceFormat(catalogInput, sourceMeta);
+    if (![ORBITAL_SOURCE_FORMAT.TLE_JSON, ORBITAL_SOURCE_FORMAT.CCSDS_OMM_JSON].includes(sourceFormat)) {
+        fail(`benchmark propagation does not support source format ${sourceFormat}.`);
+    }
     const sourceDigest = sha256(catalogBytes);
+    const status = sourceStatus(sourceMeta);
     const source = {
-        source_id: 'celestrak-active-and-recent-local-snapshot',
-        provider: 'CelesTrak snapshot maintained by OpenBEXI Earth Orbit',
-        retrieved_at: sourceMeta.fetched_at ?? null,
+        source_id: sourceMeta.source_id ?? (
+            sourceFormat === ORBITAL_SOURCE_FORMAT.CCSDS_OMM_JSON
+                ? 'celestrak-gp-omm-local-snapshot'
+                : 'celestrak-tle-local-snapshot'
+        ),
+        provider: sourceMeta.provider ?? 'CelesTrak snapshot maintained by OpenBEXI Earth Orbit',
+        retrieved_at: retrievedAt(sourceMeta),
         dataset_id: `dataset:sha256:${sourceDigest}`,
         dataset_hash: `sha256:${sourceDigest}`,
-        source_uri: null,
-        source_status: sourceMeta.last_status === 'ok' ? 'COMPLETE' : 'DEGRADED',
-        partial_update: sourceMeta.mode === 'incremental',
-        license_id: 'licensing-review-pending'
+        source_uri: sourceUri(sourceMeta),
+        source_status: status,
+        partial_update: status === 'PARTIAL',
+        license_id: sourceMeta.license_id ?? 'licensing-review-pending'
     };
-    const adapted = parseTleJson(catalogInput, {
+    const prepared = prepareCatalogAdapterInput(catalogInput, sourceFormat);
+    const adapted = adaptOrbitalSource(prepared.input, {
+        format: sourceFormat,
         source,
-        limits: { max_input_bytes: 100 * 1024 * 1024 }
+        limits: { max_input_bytes: 100 * 1024 * 1024 },
+        ...(prepared.satcat_records ? { satcat_records: prepared.satcat_records } : {})
     });
     const catalog = [...adapted.records]
         .sort((left, right) => left.object_id.localeCompare(right.object_id))
@@ -194,7 +241,9 @@ async function main() {
     };
     const started = process.hrtime.bigint();
     const result = await screenFullCatalog(request, {
-        propagationService: createTlePropagationService({ satelliteLib: satellite }),
+        propagationService: sourceFormat === ORBITAL_SOURCE_FORMAT.TLE_JSON
+            ? createTlePropagationService({ satelliteLib: satellite })
+            : createMultiFormatPropagationService({ satelliteLib: satellite }),
         now: () => new Date(args.startTime),
         onProgress: sampleMemory,
         yieldControl: async () => {
@@ -219,10 +268,14 @@ async function main() {
         source: {
             catalog_path: path.relative(ROOT, args.catalog).split(path.sep).join('/'),
             metadata_path: path.relative(ROOT, args.meta).split(path.sep).join('/'),
+            source_format: sourceFormat,
+            source_status: source.source_status,
             catalog_sha256: sourceDigest,
-            fetched_at: sourceMeta.fetched_at ?? null,
+            catalog_revision: sourceMeta.catalog_revision ?? sourceMeta.dataset_hash ?? null,
+            fetched_at: retrievedAt(sourceMeta),
             source_record_count: adapted.record_count,
-            selected_record_count: catalog.length
+            selected_record_count: catalog.length,
+            packaged_omm_record_count: prepared.packaged_omm_record_count
         },
         configuration,
         environment: {

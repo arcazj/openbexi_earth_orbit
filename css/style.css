@@ -218,6 +218,7 @@ canvas {
     right: 10px;
     width: min(400px, calc(100vw - 20px));
     height: min(200px, calc((100vw - 20px) * 0.5));
+    z-index: 3150;
 }
 
 #mercatorContainer.fullscreen {
@@ -228,7 +229,44 @@ canvas {
     height: 100vh;
     border: none;
     box-shadow: none;
-    z-index: 900;
+    z-index: 2900;
+}
+
+body:has(#mercatorContainer.fullscreen) #controlsContainer {
+    z-index: 3000;
+}
+
+body:has(#mercatorContainer.fullscreen) #menuToggleBtn {
+    z-index: 3001;
+}
+
+.mercator-fullscreen-exit {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.72);
+    color: #fff;
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 2;
+}
+
+#mercatorContainer.fullscreen .mercator-fullscreen-exit {
+    display: inline-flex;
+}
+
+.mercator-fullscreen-exit:focus-visible {
+    outline: 2px solid #ffe58a;
+    outline-offset: 2px;
 }
 
 .mapBackground {
@@ -249,31 +287,19 @@ canvas {
 }
 
 .mapBackground.fallback-css {
-    background: #333
-    url('https://placehold.co/400x200/222222/ffffff?text=Map+Load+Error')
-    no-repeat center center !important;
-    background-size: contain !important;
+    background: #222 !important;
 }
 
 #mercatorContainer.fullscreen .mapBackground.fallback-css {
-    background: #333
-    url('https://placehold.co/1920x1080/222222/ffffff?text=Map+Load+Error+Fullscreen')
-    no-repeat center center !important;
-    background-size: contain !important;
+    background: #222 !important;
 }
 
 .mapBackground[data-map-body="Mars"].fallback-css {
-    background: #321b14
-    url('https://placehold.co/400x200/6b2c1f/ffd0b5?text=Mars+Map+Load+Error')
-    no-repeat center center !important;
-    background-size: contain !important;
+    background: #321b14 !important;
 }
 
 #mercatorContainer.fullscreen .mapBackground[data-map-body="Mars"].fallback-css {
-    background: #321b14
-    url('https://placehold.co/1920x1080/6b2c1f/ffd0b5?text=Mars+Map+Load+Error')
-    no-repeat center center !important;
-    background-size: contain !important;
+    background: #321b14 !important;
 }
 
 .planet-texture-loading {
@@ -848,10 +874,20 @@ canvas {
 }
 
 #timeWarpBox {
+    position: fixed;
+    top: 5px;
+    left: 50%;
+    z-index: 3000;
     display: flex;
+    width: min(620px, calc(100vw - 280px));
+    box-sizing: border-box;
     align-items: center;
-    gap: 4px;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 4px 6px;
+    transform: translateX(-50%);
     color: #ffffff;
+    font: 12px/1 sans-serif;
     text-shadow: 0 1px 2px #000;
 }
 
@@ -861,7 +897,39 @@ canvas {
 }
 
 #timeWarpSlider {
+    width: 200px;
     max-width: min(200px, calc(100vw - 300px));
+}
+
+#timeWarpVal {
+    min-width: 2.2em;
+    text-align: right;
+}
+
+#timeWarpPause,
+#timeWarpNow {
+    height: 24px;
+    box-sizing: border-box;
+}
+
+#timeWarpPause {
+    width: 28px;
+    padding: 0;
+}
+
+#timeWarpNow {
+    min-width: 42px;
+    padding: 0 6px;
+}
+
+#timeWarpStatus {
+    flex: 0 0 100%;
+    min-height: 1.2em;
+    color: #fff3b8;
+    font-size: 10px;
+    line-height: 1.2;
+    text-align: center;
+    overflow-wrap: anywhere;
 }
 
 /* Release 1.5.3 accordion menu and readability */
@@ -1471,16 +1539,6 @@ body:has(#controlsContainer.menu-hidden) #menuToggleBtn {
 
 .full-catalog-results-status {
     padding-top: 5px;
-}
-
-.selected-satellite-summary {
-    padding: 7px 9px;
-    border: 1px solid rgba(88, 155, 220, 0.35);
-    border-radius: 7px;
-    background: rgba(7, 21, 38, 0.74);
-    color: #d8eeff;
-    font-size: 12px;
-    font-weight: 700;
 }
 
 .menu-secondary-action,
@@ -2101,19 +2159,20 @@ body:has(#controlsContainer.menu-hidden) #menuToggleBtn {
 
 @media (max-width: 560px) {
     #menuToggleBtn {
-        top: 92px;
+        top: 132px;
         left: 20px;
     }
 
     #controlsContainer {
-        top: 132px;
-        max-height: calc(100vh - 142px);
+        top: 172px;
+        max-height: calc(100vh - 182px);
     }
 
     #timeWarpBox {
         top: 50px !important;
         left: 10px !important;
         right: 10px !important;
+        width: calc(100vw - 20px);
         transform: none !important;
         justify-content: center;
         padding: 2px 6px;
@@ -2136,7 +2195,7 @@ body:has(#controlsContainer.menu-hidden) #menuToggleBtn {
     }
 
     .selected-satellite-detail-panel {
-        top: 92px;
+        top: 132px;
         right: 8px;
         left: auto;
         max-height: min(42vh, 360px);

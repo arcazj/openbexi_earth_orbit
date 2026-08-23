@@ -1,6 +1,6 @@
 # OpenBEXI Solar System Ephemeris
 
-This folder contains local runtime ephemeris data introduced in OpenBEXI Earth Orbit Version 1.7 and retained in the Version 2.0 preview.
+This folder contains local runtime ephemeris data introduced in OpenBEXI Earth Orbit Version 1.7 and retained in the current Version 2.2 development build.
 
 ## Dataset
 
@@ -17,6 +17,10 @@ This folder contains local runtime ephemeris data introduced in OpenBEXI Earth O
 - Origin: Sun center, Horizons center `500@10`
 - Units: kilometers and kilometers per second
 - Time handling: UTC timestamps from Horizons calendar output; runtime interpolation uses UTC milliseconds
+
+## Runtime Range Policy
+
+Direct interpolation rejects dates outside the table. In integrated Solar System mode, the authoritative simulation clock uses the table's first and last timestamps as finite bounds: reaching either edge clamps to that exact sample, pauses `Time x`, and exposes the range boundary in the UI instead of extrapolating a JPL-derived position. Setting an inward signed rate leaves the boundary and resumes motion. Missing, loading, or invalid local ephemeris data remains a clearly labeled approximate visual fallback; a valid out-of-range request is not silently relabeled as extrapolated JPL data.
 
 ## Accuracy Targets
 

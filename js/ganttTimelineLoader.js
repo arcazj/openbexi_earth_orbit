@@ -21,6 +21,9 @@ const OVERVIEW_SPACING_TARGET = 360/2;
 const OVERVIEW_MIN_RANGE = MS_YEAR * 1.5;
 const DETAIL_CONTEXT_RANGE = MS_DAY * 45;
 const FUTURE_LAUNCH_GRACE_DAYS = 7;
+const LAUNCH_SOURCE = 'json/launches/launches.json';
+let cachedLaunchPromise = null;
+let cachedLaunchRecords = null;
 
 function createHudElements() {
     const container = document.createElement('div');
@@ -56,8 +59,117 @@ export function parseLaunchDate(value, options = {}) {
     return d;
 }
 
+export function normalizeLaunchRecord(record) {
+    if (!record || typeof record !== 'object') return null;
+    const noradValue = record.norad_id ?? record.noradId ?? record.NORAD_CAT_ID ?? record.NORADID;
+    const noradId = noradValue == null ? '' : String(noradValue).trim();
+    if (!/^\d+$/.test(noradId)) return null;
+    const launchDate = record.launch_date ?? record.launchDate ?? record.LAUNCH_DATE;
+    if (!parseLaunchDate(launchDate)) return null;
+    return {
+        norad_id: noradId,
+        satellite_name: record.satellite_name ?? record.name ?? record.OBJECT_NAME ?? `NORAD ${noradId}`,
+        object_id: record.object_id ?? record.OBJECT_ID ?? null,
+        object_type: record.object_type ?? record.OBJECT_TYPE ?? 'UNKNOWN',
+        launch_date: String(launchDate).substring(0, 10),
+        launch_site: record.launch_site ?? record.LAUNCH_SITE ?? null,
+        operational_status: record.operational_status ?? record.OPS_STATUS_CODE ?? null,
+        lifecycle_status: record.lifecycle_status ?? record.operational_status ?? 'UNKNOWN',
+        decay_date: record.decay_date ?? record.DECAY_DATE ?? null
+    };
+}
+
+export function mergeLaunchCatalog(satellites = [], launchRecords = []) {
+    const activeByNorad = new Map();
+    (satellites || []).forEach(satellite => {
+        const norad = satellite?.norad_id == null ? '' : String(satellite.norad_id).trim();
+        if (norad && !activeByNorad.has(norad)) activeByNorad.set(norad, satellite);
+    });
+
+    const mergedByNorad = new Map();
+    (launchRecords || []).forEach(raw => {
+        const launch = normalizeLaunchRecord(raw);
+        if (!launch) return;
+        const active = activeByNorad.get(launch.norad_id);
+        const record = active
+            ? {
+                ...launch,
+                ...active,
+                launch_date: launch.launch_date,
+                launch_site: launch.launch_site ?? active.launch_site ?? null,
+                object_id: launch.object_id ?? active.object_id ?? null,
+                object_type: launch.object_type ?? active.object_type ?? 'UNKNOWN',
+                operational_status: launch.operational_status ?? active.operational_status ?? null,
+                decay_date: launch.decay_date ?? active.decay_date ?? null,
+                isLaunchTimelineRecord: true,
+                isTimelineDetailsOnly: false
+            }
+            : {
+                ...launch,
+                company: 'SATCAT',
+                orbitType: 'N/A',
+                isLaunchTimelineRecord: true,
+                isTimelineDetailsOnly: true,
+                isLaunchDetailsOnly: true
+            };
+        const existing = mergedByNorad.get(launch.norad_id);
+        if (!existing || String(record.launch_date).localeCompare(String(existing.launch_date)) > 0) {
+            mergedByNorad.set(launch.norad_id, record);
+        }
+    });
+
+    (satellites || []).forEach(satellite => {
+        const norad = satellite?.norad_id == null ? '' : String(satellite.norad_id).trim();
+        if (norad && !mergedByNorad.has(norad) && parseLaunchDate(satellite.launch_date)) {
+            mergedByNorad.set(norad, satellite);
+        }
+    });
+    return [...mergedByNorad.values()];
+}
+
+export function invalidateLaunchCatalogCache() {
+    cachedLaunchPromise = null;
+    cachedLaunchRecords = null;
+}
+
+export async function loadLaunchCatalog(options = {}) {
+    if (!options.force && cachedLaunchRecords) return cachedLaunchRecords;
+    if (cachedLaunchPromise) return cachedLaunchPromise;
+    const fetchImpl = options.fetchImpl ?? globalThis.fetch;
+    if (typeof fetchImpl !== 'function') throw new Error('Launch catalog fetch is unavailable.');
+    const serverConnection = globalThis.window?.openbexiServerConnection;
+    const serverSource = serverConnection?.connected && typeof serverConnection.resolveDataUrl === 'function'
+        ? serverConnection.resolveDataUrl(LAUNCH_SOURCE)
+        : null;
+    const source = options.source ?? serverSource ?? LAUNCH_SOURCE;
+    const previousRecords = cachedLaunchRecords;
+    cachedLaunchPromise = fetchImpl(source, { cache: 'no-store' })
+        .then(response => {
+            if (!response?.ok) throw new Error(`HTTP ${response?.status || 0}`);
+            return response.json();
+        })
+        .then(payload => {
+            const rows = Array.isArray(payload) ? payload : payload?.records;
+            if (!Array.isArray(rows)) throw new Error('Launch catalog response must contain an array of records.');
+            cachedLaunchRecords = rows.map(normalizeLaunchRecord).filter(Boolean);
+            return cachedLaunchRecords;
+        })
+        .catch(error => {
+            console.error(`Failed to load launch timeline data from ${source}:`, error?.message || error);
+            cachedLaunchRecords = previousRecords;
+            throw error;
+        })
+        .finally(() => {
+            cachedLaunchPromise = null;
+        });
+    return cachedLaunchPromise;
+}
+
 export function buildLaunchTimelineData(satellites = [], options = {}) {
-    return (satellites || [])
+    const source = Array.isArray(options.launchRecords)
+        ? mergeLaunchCatalog(satellites, options.launchRecords)
+        : (satellites || []);
+    return source
         .map((s, idx) => {
             const launchDate = parseLaunchDate(s.launch_date, options);
             return launchDate ? { time: launchDate.getTime(), satellite: s, index: idx } : null;
@@ -201,32 +313,27 @@ function sizeCanvas(canvas, height) {
     return ctx;
 }
 
-export function initTimeline(satellites, arg2, arg3) {
+export function initTimeline(satellites, arg2, arg3, arg4) {
     let centerDate = null;
     let onSelect = null;
+    let options = {};
     if (typeof arg2 === 'function') {
         onSelect = arg2;
+        if (arg3 && typeof arg3 === 'object') options = arg3;
     } else {
         centerDate = arg2 ? new Date(arg2) : null;
         if (typeof arg3 === 'function') onSelect = arg3;
+        if (arg4 && typeof arg4 === 'object') options = arg4;
     }
 
-    const timelineData = buildLaunchTimelineData(satellites, { now: new Date() });
-    const latestEvent = getLatestLaunchEvent(timelineData);
+    let rawSatellites = satellites;
+    let launchRecords = options.launchRecords ?? [];
+    let timelineData = buildLaunchTimelineData(rawSatellites, { now: new Date(), launchRecords });
+    let latestEvent = getLatestLaunchEvent(timelineData);
     const anchorEvent = centerDate && !isNaN(centerDate.getTime())
         ? { time: centerDate.getTime(), satellite: null, index: -1 }
         : latestEvent;
     const initialRanges = getLaunchTimelineRanges(timelineData, anchorEvent);
-
-    if (!timelineData.length) {
-        return {
-            teardown() {},
-            setVisible() {},
-            isVisible() {
-                return false;
-            }
-        };
-    }
 
     const toggle = document.getElementById('launchTimelineToggle');
     const { container, status, detailCanvas, overviewCanvas } = createHudElements();
@@ -268,11 +375,11 @@ export function initTimeline(satellites, arg2, arg3) {
 
     setVisibility(false);
 
-    let detailStart = initialRanges.detailStart;
-    let detailEnd = initialRanges.detailEnd;
+    let detailStart = initialRanges?.detailStart ?? Date.now() - DETAIL_CONTEXT_RANGE;
+    let detailEnd = initialRanges?.detailEnd ?? Date.now() + DETAIL_CONTEXT_RANGE;
 
-    let overviewStart = initialRanges.overviewStart;
-    let overviewEnd = initialRanges.overviewEnd;
+    let overviewStart = initialRanges?.overviewStart ?? detailStart - MS_YEAR;
+    let overviewEnd = initialRanges?.overviewEnd ?? detailEnd + MS_YEAR;
 
     let detailPositions = [];
 
@@ -292,6 +399,23 @@ export function initTimeline(satellites, arg2, arg3) {
                 }
             });
         }
+    }
+
+    function refreshData(nextLaunchRecords = launchRecords, nextSatellites = rawSatellites) {
+        launchRecords = Array.isArray(nextLaunchRecords) ? nextLaunchRecords : [];
+        rawSatellites = Array.isArray(nextSatellites) ? nextSatellites : rawSatellites;
+        timelineData = buildLaunchTimelineData(rawSatellites, { now: new Date(), launchRecords });
+        latestEvent = getLatestLaunchEvent(timelineData);
+        status.textContent = launchStatusText(latestEvent, timelineData.length);
+        const ranges = getLaunchTimelineRanges(timelineData, latestEvent);
+        if (ranges) {
+            detailStart = ranges.detailStart;
+            detailEnd = ranges.detailEnd;
+            overviewStart = ranges.overviewStart;
+            overviewEnd = ranges.overviewEnd;
+        }
+        scheduleDraw();
+        return timelineData;
     }
 
     function resize() {
@@ -619,6 +743,8 @@ export function initTimeline(satellites, arg2, arg3) {
     return {
         teardown,
         setVisible: setVisibility,
+        refreshData,
+        requestRedraw: scheduleDraw,
         isVisible() {
             return isVisible;
         }

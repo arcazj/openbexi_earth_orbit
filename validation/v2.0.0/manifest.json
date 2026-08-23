@@ -1,0 +1,497 @@
+{
+  "schemaVersion": 1,
+  "corpusId": "openbexi-earth-orbit-validation",
+  "corpusVersion": "2.0.0",
+  "releaseVersion": "2.0.0",
+  "publishedAt": "2026-07-19",
+  "publicationState": "preview",
+  "scientificMaturity": "experimental",
+  "safetyClass": "non-operational",
+  "immutability": {
+    "policy": "A published corpus directory is immutable. Corrections require a new corpus version and must not overwrite this directory.",
+    "manifestDigestFile": "validation/v2.0.0/manifest.sha256"
+  },
+  "review": {
+    "status": "pending",
+    "reviewer": null,
+    "reviewedAt": null,
+    "scope": "Independent scientific review of fixture provenance, tolerances, coverage, and results has not been completed."
+  },
+  "claims": {
+    "accuracy": "No operational or independently validated accuracy claim is made by this corpus.",
+    "referenceSeparation": "referenceCases contain published expected vectors; referenceInputCoverageCases use official inputs without an independent numeric-output claim; syntheticCases are project-authored deterministic regressions.",
+    "acceptanceUse": "These fixtures support the Experimental release gate only."
+  },
+  "conventions": {
+    "timeScale": "UTC",
+    "frame": "TEME",
+    "positionUnits": "km",
+    "velocityUnits": "km/s",
+    "missDistanceUnits": "km",
+    "relativeSpeedUnits": "km/s",
+    "tcaEncoding": "ISO 8601 UTC"
+  },
+  "executables": [
+    {
+      "id": "propagation-fixtures",
+      "command": "node tests/propagationService.test.js",
+      "artifact": "tests/propagationService.test.js"
+    },
+    {
+      "id": "conjunction-fixtures",
+      "command": "node tests/conjunctionScreening.test.js",
+      "artifact": "tests/conjunctionScreening.test.js"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "tests/propagationService.test.js",
+      "role": "executable-propagation-fixtures",
+      "sha256": "00e895c115facd5e3394b2114b0abd711b0ac25c7cda1447311d865423969985"
+    },
+    {
+      "path": "tests/conjunctionScreening.test.js",
+      "role": "executable-conjunction-fixtures",
+      "sha256": "e24684571a63fba67bc3772bd318a133bd3a58d216226db3c33b7bda2ef7aa49"
+    }
+  ],
+  "sources": [
+    {
+      "id": "celestrak-vallado-sgp4-verification",
+      "classification": "official-reference",
+      "publisher": "CelesTrak / Fundamentals of Astrodynamics and Applications",
+      "revision": "79c61bde3c1a0e4e40fc9a34c7feada2aac6da72",
+      "urls": {
+        "officialPackage": "https://celestrak.org/publications/AIAA/2006-6753/AIAA-2006-6753.zip",
+        "tleInputs": "https://github.com/CelesTrak/fundamentals-of-astrodynamics/blob/79c61bde3c1a0e4e40fc9a34c7feada2aac6da72/datalib/SGP4-VER.TLE",
+        "matlabExpectedOutput": "https://github.com/CelesTrak/fundamentals-of-astrodynamics/blob/79c61bde3c1a0e4e40fc9a34c7feada2aac6da72/software/matlab/SGP4/tmatverDec2015.out",
+        "license": "https://github.com/CelesTrak/fundamentals-of-astrodynamics/blob/79c61bde3c1a0e4e40fc9a34c7feada2aac6da72/LICENSE"
+      },
+      "license": {
+        "spdx": "AGPL-3.0-only",
+        "status": "identified-upstream; applicability and compatibility review pending"
+      },
+      "officialPackageSha256": "3642043b706c76be87cf012db3f22e04da6b80498d00f515e51879e0ffadc115"
+    },
+    {
+      "id": "openbexi-project-synthetic-models",
+      "classification": "synthetic",
+      "publisher": "OpenBEXI Earth Orbit project",
+      "revision": "corpus-v2.0.0",
+      "urls": {
+        "repositoryLicense": "https://github.com/arcazj/openbexi_earth_orbit/blob/main/LICENSE"
+      },
+      "license": {
+        "spdx": "MIT",
+        "status": "project-authored fixtures covered by repository license"
+      }
+    }
+  ],
+  "referenceCases": [
+    {
+      "id": "propagation.vallado.00005.epoch",
+      "classification": "reference",
+      "sourceIds": [
+        "celestrak-vallado-sgp4-verification"
+      ],
+      "fixture": {
+        "artifact": "tests/propagationService.test.js",
+        "locator": "const VALLADO_VANGUARD"
+      },
+      "conventionsRef": "corpus-defaults",
+      "input": {
+        "noradId": "00005",
+        "epochUtc": "2000-06-27T18:50:19.734Z"
+      },
+      "expectedOutputs": {
+        "positionKm": {
+          "x": 7022.46529266,
+          "y": -1400.08296755,
+          "z": 0.03995155
+        },
+        "velocityKmS": {
+          "x": 1.893841015,
+          "y": 6.405893759,
+          "z": 4.53480725
+        }
+      },
+      "tolerances": {
+        "positionAbsoluteKm": 0.005,
+        "velocityAbsoluteKmS": 0.000005,
+        "relative": null,
+        "note": "The position tolerance includes the 0.432 ms difference between the published epoch and JavaScript Date millisecond resolution."
+      },
+      "reviewStatus": "pending"
+    },
+    {
+      "id": "propagation.vallado.21897.epoch-and-120-minutes",
+      "classification": "reference",
+      "sourceIds": [
+        "celestrak-vallado-sgp4-verification"
+      ],
+      "fixture": {
+        "artifact": "tests/propagationService.test.js",
+        "locator": "NEGATIVE BSTAR RESONANT CASE"
+      },
+      "conventionsRef": "corpus-defaults",
+      "input": {
+        "noradId": "21897",
+        "sampleOffsetsMinutes": [
+          0,
+          120
+        ]
+      },
+      "expectedOutputs": {
+        "epoch": {
+          "positionKm": {
+            "x": -14464.72135182,
+            "y": -4699.19517587,
+            "z": 0.06681686
+          },
+          "velocityKmS": {
+            "x": -3.249312013,
+            "y": -3.281032707,
+            "z": 4.00704694
+          }
+        },
+        "after120Minutes": {
+          "positionKm": {
+            "x": -19410.46286123,
+            "y": -19143.03318969,
+            "z": 23114.05522619
+          },
+          "velocityKmS": {
+            "x": 0.508602237,
+            "y": -1.156882269,
+            "z": 2.379923455
+          }
+        }
+      },
+      "tolerances": {
+        "positionAbsoluteKm": 0.005,
+        "velocityAbsoluteKmS": 0.000005,
+        "relative": null
+      },
+      "reviewStatus": "pending"
+    },
+    {
+      "id": "propagation.vallado.28129.epoch-and-120-minutes",
+      "classification": "reference",
+      "sourceIds": [
+        "celestrak-vallado-sgp4-verification"
+      ],
+      "fixture": {
+        "artifact": "tests/propagationService.test.js",
+        "locator": "norad_id: '28129'"
+      },
+      "conventionsRef": "corpus-defaults",
+      "input": {
+        "noradId": "28129",
+        "regime": "deep-space non-resonant",
+        "sampleOffsetsMinutes": [0, 120]
+      },
+      "expectedOutputs": {
+        "epoch": {
+          "positionKm": { "x": 21707.46412351, "y": -15318.6175239, "z": 0.13551152 },
+          "velocityKmS": { "x": 1.304029214, "y": 1.816904974, "z": 3.161919976 }
+        },
+        "after120Minutes": {
+          "positionKm": { "x": 18616.75971861, "y": 3166.15177043, "z": 18833.4152321 },
+          "velocityKmS": { "x": -2.076122016, "y": 2.838457575, "z": 1.586210535 }
+        }
+      },
+      "tolerances": {
+        "positionAbsoluteKm": 0.005,
+        "velocityAbsoluteKmS": 0.000005,
+        "relative": null,
+        "note": "The absolute tolerance includes sub-millisecond source epoch rounding to JavaScript Date resolution."
+      },
+      "reviewStatus": "pending"
+    },
+    {
+      "id": "propagation.vallado.26975.epoch-and-120-minutes",
+      "classification": "reference",
+      "sourceIds": [
+        "celestrak-vallado-sgp4-verification"
+      ],
+      "fixture": {
+        "artifact": "tests/propagationService.test.js",
+        "locator": "norad_id: '26975'"
+      },
+      "conventionsRef": "corpus-defaults",
+      "input": {
+        "noradId": "26975",
+        "regime": "HEO half-day resonance",
+        "sampleOffsetsMinutes": [0, 120]
+      },
+      "expectedOutputs": {
+        "epoch": {
+          "positionKm": { "x": -14506.92313768, "y": -21613.56043281, "z": 10.05018894 },
+          "velocityKmS": { "x": 2.212943308, "y": 1.159970892, "z": 3.020600202 }
+        },
+        "after120Minutes": {
+          "positionKm": { "x": 7309.6219795, "y": 6076.00713664, "z": 6800.08705263 },
+          "velocityKmS": { "x": 1.300543383, "y": 5.322579615, "z": -4.788746312 }
+        }
+      },
+      "tolerances": {
+        "positionAbsoluteKm": 0.005,
+        "velocityAbsoluteKmS": 0.000005,
+        "relative": null,
+        "note": "The absolute tolerance includes sub-millisecond source epoch rounding to JavaScript Date resolution."
+      },
+      "reviewStatus": "pending"
+    },
+    {
+      "id": "propagation.vallado.28626.epoch-and-120-minutes",
+      "classification": "reference",
+      "sourceIds": [
+        "celestrak-vallado-sgp4-verification"
+      ],
+      "fixture": {
+        "artifact": "tests/propagationService.test.js",
+        "locator": "norad_id: '28626'"
+      },
+      "conventionsRef": "corpus-defaults",
+      "input": {
+        "noradId": "28626",
+        "regime": "GEO synchronous resonance",
+        "sampleOffsetsMinutes": [0, 120]
+      },
+      "expectedOutputs": {
+        "epoch": {
+          "positionKm": { "x": 42080.71852213, "y": -2646.86387436, "z": 0.81851294 },
+          "velocityKmS": { "x": 0.193105177, "y": 3.068688251, "z": 0.000438449 }
+        },
+        "after120Minutes": {
+          "positionKm": { "x": 37740.00085593, "y": 18802.76872802, "z": 3.45512584 },
+          "velocityKmS": { "x": -1.371035206, "y": 2.752105932, "z": 0.000336883 }
+        }
+      },
+      "tolerances": {
+        "positionAbsoluteKm": 0.005,
+        "velocityAbsoluteKmS": 0.000005,
+        "relative": null,
+        "note": "The absolute tolerance includes sub-millisecond source epoch rounding to JavaScript Date resolution."
+      },
+      "reviewStatus": "pending"
+    }
+  ],
+  "referenceInputCoverageCases": [],
+  "syntheticCases": [
+    {
+      "id": "conjunction.synthetic.linear-known-tca",
+      "classification": "synthetic",
+      "sourceIds": [
+        "openbexi-project-synthetic-models"
+      ],
+      "fixture": {
+        "artifact": "tests/conjunctionScreening.test.js",
+        "locator": "const linearSecondary"
+      },
+      "conventionsRef": "corpus-defaults",
+      "expectedOutputs": {
+        "tcaUtc": "2026-07-19T00:00:05.000Z",
+        "missDistanceKm": 1,
+        "relativeSpeedKmS": 2
+      },
+      "tolerances": {
+        "tcaAbsoluteSeconds": 0.001,
+        "missDistanceAbsoluteKm": 1e-9,
+        "relativeSpeedAbsoluteKmS": 1e-9
+      },
+      "reviewStatus": "pending"
+    },
+    {
+      "id": "conjunction.synthetic.window-boundary",
+      "classification": "synthetic",
+      "sourceIds": [
+        "openbexi-project-synthetic-models"
+      ],
+      "fixture": {
+        "artifact": "tests/conjunctionScreening.test.js",
+        "locator": "const boundarySecondary"
+      },
+      "conventionsRef": "corpus-defaults",
+      "expectedOutputs": {
+        "tcaUtc": "2026-07-19T00:00:00.000Z",
+        "boundaryEvent": true
+      },
+      "tolerances": {
+        "tcaAbsoluteSeconds": 0
+      },
+      "reviewStatus": "pending"
+    },
+    {
+      "id": "conjunction.synthetic.slow-and-colocated-geometry",
+      "classification": "synthetic",
+      "sourceIds": [
+        "openbexi-project-synthetic-models"
+      ],
+      "fixture": {
+        "artifact": "tests/conjunctionScreening.test.js",
+        "locator": "const slowSecondary / const colocatedSecondary"
+      },
+      "conventionsRef": "corpus-defaults",
+      "expectedOutputs": {
+        "slowRelativeSpeedKmS": 0.001,
+        "colocatedMissDistanceKm": 0,
+        "colocatedRelativeSpeedKmS": 0,
+        "requiredQualityFlag": "COLOCATED_OR_COMMON_TLE_GEOMETRY"
+      },
+      "tolerances": {
+        "slowRelativeSpeedAbsoluteKmS": 1e-12,
+        "colocatedValues": "exact"
+      },
+      "reviewStatus": "pending"
+    },
+    {
+      "id": "conjunction.synthetic.curvature-bound",
+      "classification": "synthetic",
+      "sourceIds": [
+        "openbexi-project-synthetic-models"
+      ],
+      "fixture": {
+        "artifact": "tests/conjunctionScreening.test.js",
+        "locator": "const curvedSecondary"
+      },
+      "conventionsRef": "corpus-defaults",
+      "expectedOutputs": {
+        "missDistanceKm": 1,
+        "coarseMissDistanceKm": 5,
+        "broadPhaseMarginKm": 4,
+        "zeroMarginEventCount": 0
+      },
+      "tolerances": {
+        "missDistanceAbsoluteKm": 1e-7,
+        "coarseMissDistanceAbsoluteKm": 1e-9,
+        "broadPhaseMarginAbsoluteKm": 1e-9,
+        "eventCount": "exact"
+      },
+      "reviewStatus": "pending"
+    },
+    {
+      "id": "conjunction.synthetic.dense-threshold-oracle",
+      "classification": "synthetic",
+      "sourceIds": [
+        "openbexi-project-synthetic-models"
+      ],
+      "fixture": {
+        "artifact": "tests/conjunctionScreening.test.js",
+        "locator": "const thresholdModels"
+      },
+      "conventionsRef": "corpus-defaults",
+      "expectedOutputs": {
+        "includedNoradIds": [
+          "210",
+          "211"
+        ],
+        "excludedNoradIds": [
+          "212"
+        ],
+        "thresholdMissDistanceKm": 2
+      },
+      "tolerances": {
+        "denseOracleStepSeconds": 0.001,
+        "thresholdMissDistanceAbsoluteKm": 1e-9
+      },
+      "reviewStatus": "pending"
+    },
+    {
+      "id": "conjunction.synthetic.two-minima-one-coarse-interval",
+      "classification": "synthetic",
+      "sourceIds": [
+        "openbexi-project-synthetic-models"
+      ],
+      "fixture": {
+        "artifact": "tests/conjunctionScreening.test.js",
+        "locator": "const doubleMinimum"
+      },
+      "conventionsRef": "corpus-defaults",
+      "expectedOutputs": {
+        "eventCount": 2,
+        "tcaUtc": [
+          "2026-07-19T00:00:09.000Z",
+          "2026-07-19T00:00:11.000Z"
+        ]
+      },
+      "tolerances": {
+        "tcaAbsoluteSeconds": 0.002,
+        "eventCount": "exact"
+      },
+      "reviewStatus": "pending"
+    },
+    {
+      "id": "conjunction.synthetic.multi-interval-single-minimum",
+      "classification": "synthetic",
+      "sourceIds": [
+        "openbexi-project-synthetic-models"
+      ],
+      "fixture": {
+        "artifact": "tests/conjunctionScreening.test.js",
+        "locator": "const monotonicSecondary"
+      },
+      "conventionsRef": "corpus-defaults",
+      "expectedOutputs": {
+        "eventCount": 1,
+        "tcaUtc": "2026-07-19T00:00:30.000Z",
+        "boundaryEvent": true
+      },
+      "tolerances": {
+        "tcaAbsoluteSeconds": 0,
+        "eventCount": "exact"
+      },
+      "reviewStatus": "pending"
+    },
+    {
+      "id": "conjunction.synthetic.screen-time-freshness",
+      "classification": "synthetic",
+      "sourceIds": [
+        "openbexi-project-synthetic-models"
+      ],
+      "fixture": {
+        "artifact": "tests/conjunctionScreening.test.js",
+        "locator": "const futureEpochResult / const staleAtScreenTimeResult"
+      },
+      "conventionsRef": "corpus-defaults",
+      "expectedOutputs": {
+        "futureEpochFlag": "FUTURE_EPOCH_INPUTS_AT_SCREEN_TIME",
+        "signedFutureAge": "negative",
+        "staleEpochFlag": "STALE_INPUTS_AT_SCREEN_TIME"
+      },
+      "tolerances": {
+        "flagsAndAgeSign": "exact"
+      },
+      "reviewStatus": "pending"
+    },
+    {
+      "id": "conjunction.synthetic.incomplete-coverage-and-cancellation",
+      "classification": "synthetic",
+      "sourceIds": [
+        "openbexi-project-synthetic-models"
+      ],
+      "fixture": {
+        "artifact": "tests/conjunctionScreening.test.js",
+        "locator": "const failingSecondary / screen:cancel"
+      },
+      "conventionsRef": "corpus-defaults",
+      "expectedOutputs": {
+        "partialStatus": "PARTIAL",
+        "propagationFailureCount": 1,
+        "requiredQualityFlag": "INCOMPLETE_PROPAGATION_COVERAGE",
+        "cancellationErrorCode": "SCREENING_CANCELLED"
+      },
+      "tolerances": {
+        "countsAndCodes": "exact"
+      },
+      "reviewStatus": "pending"
+    }
+  ],
+  "knownGaps": [
+    "No independent conjunction TCA or probability-of-collision reference output is included.",
+    "No covariance, hard-body radius, maneuver, atmosphere, or catalog-truth validation is included.",
+    "No named-hardware scale corpus or predeclared performance distribution is included.",
+    "Official-source license applicability and compatibility review is pending.",
+    "Independent scientific reviewer approval is pending."
+  ]
+}

@@ -33,13 +33,13 @@ function localModuleSpecifiers(source) {
 
 const cleanCloneBuild = buildStaticArtifact({ includeOptional: false });
 assert(
-  fs.existsSync(path.join(cleanCloneBuild.outputRoot, 'json', 'tle', 'TLE.meta.json')),
-  'the provenance sidecar is a required part of the packaged catalog'
+  fs.existsSync(path.join(cleanCloneBuild.outputRoot, 'json', 'gp', 'GP.meta.json')),
+  'the GP provenance sidecar is a required part of the packaged catalog'
 );
 assert.throws(
-  () => assertRequiredStaticRuntimePaths(REQUIRED_STATIC_RUNTIME_PATHS.filter(path => path !== 'json/tle/TLE.json')),
-  /json\/tle\/TLE\.json/,
-  'the static build fails closed when the packaged catalog is absent'
+  () => assertRequiredStaticRuntimePaths(REQUIRED_STATIC_RUNTIME_PATHS.filter(path => path !== 'json/gp/GP.json')),
+  /json\/gp\/GP\.json/,
+  'the static build fails closed when the primary GP catalog is absent'
 );
 assert.throws(
   () => assertRequiredStaticRuntimePaths(REQUIRED_STATIC_RUNTIME_PATHS.filter(path => path !== 'vendor/three/0.184.0/build/three.module.js')),
@@ -109,17 +109,29 @@ const manifestPaths = new Set(artifactManifest.files.map(file => file.path));
 assert(manifestPaths.has('.nojekyll'), 'artifact disables Jekyll path rewriting');
 assert(manifestPaths.has('vendor/satellite.js/6.0.2/satellite.es.js'));
 assert(manifestPaths.has('vendor/three/0.184.0/build/three.module.js'));
-assert(manifestPaths.has('json/tle/TLE.json'), 'artifact packages the required TLE catalog');
-assert(manifestPaths.has('json/tle/TLE.meta.json'), 'artifact packages provenance beside the required catalog');
+assert(manifestPaths.has('json/gp/GP.json'), 'artifact packages the primary GP catalog');
+assert(manifestPaths.has('json/gp/GP.meta.json'), 'artifact packages GP provenance beside the catalog');
+assert(manifestPaths.has('json/launches/launches.json'), 'artifact packages the SATCAT-backed launch timeline');
+assert(manifestPaths.has('json/launches/launches.meta.json'), 'artifact packages launch provenance beside the timeline');
+assert(manifestPaths.has('json/decayed/decayed.meta.json'), 'artifact packages decay provenance beside the timeline');
+assert(manifestPaths.has('json/tle/TLE.json'), 'artifact retains the TLE compatibility catalog');
+assert(manifestPaths.has('json/tle/TLE.meta.json'), 'artifact retains TLE provenance for fallback');
+assert(manifestPaths.has('js/domain/orbitalSourceAdapters.js'), 'artifact packages the OMM adapter');
+assert(manifestPaths.has('js/domain/v21Contracts.js'), 'artifact packages OMM runtime contracts');
+assert(manifestPaths.has('js/orbit/multiFormatPropagationService.js'), 'artifact packages multi-format propagation');
+assert(manifestPaths.has('js/orbit/satelliteMotionInterpolator.js'), 'artifact packages smooth satellite motion');
+assert(manifestPaths.has('js/satelliteCategoryFilter.js'), 'artifact packages unified satellite categories');
+assert(manifestPaths.has('js/simulationClock.js'), 'artifact packages the authoritative simulation clock');
 assert(!manifestPaths.has('vendor/satellite.js/6.0.2/manifest.json'));
 assert(!manifestPaths.has('vendor/three/0.184.0/manifest.json'));
 
-for (const relative of outputFiles.filter(file => /\.(?:html|js|mjs)$/i.test(file))) {
+for (const relative of outputFiles.filter(file => /\.(?:css|html|js|mjs)$/i.test(file))) {
   const file = path.join(outputRoot, ...relative.split('/'));
   const source = fs.readFileSync(file, 'utf8');
   assert(!source.includes('/node_modules/'), `${relative} contains a node_modules runtime URL`);
   assert(!source.includes('https://unpkg.com/'), `${relative} contains an unpkg runtime URL`);
   assert(!source.includes('raw.githubusercontent.com/'), `${relative} contains a mutable raw-GitHub runtime URL`);
+  assert(!source.includes('placehold.co'), `${relative} contains a remote placeholder fallback`);
   assert(!source.includes('PROMPT_History.md'), `${relative} contains a source-only prompt-history URL`);
   for (const specifier of localModuleSpecifiers(source)) {
     const importedUrl = new URL(specifier, `https://static.invalid/${relative}`);

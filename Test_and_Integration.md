@@ -2,7 +2,122 @@
 
 ## Purpose
 
-This file preserves the historical regression and manual-test record through Version 1.7.6. It is not the authoritative v2.0 release gate. Current v2.0 authority is `docs/engineering/RELEASE_CHECKLIST.md`, the scripts selected by `npm run check` and `npm test`, and retained evidence under `release/evidence/`. Historical statements below are not current dependency, version, or publication requirements.
+This file preserves the historical regression and manual-test record through Version 1.7.6 and records current Version 2.2 integration expectations. Authoritative promotion gates remain the separate release checklists, the scripts selected by `npm run check` and `npm test`, and retained evidence under `release/evidence/` and `validation/`. Historical statements below are not current dependency, version, or publication requirements.
+
+## Version 2.2 GP/OMM Development Verification
+
+Version 2.2 remains Experimental, non-operational, and in development. Tests must use fixed fixtures or mocked fetches; CI must not depend on live CelesTrak availability. A controlled live smoke update is separate operator evidence and must respect request guards.
+
+### Identity and normalization
+
+- Verify NORAD IDs `69999`, `100000`, `100001`, and a nine-digit fixture remain exact strings through fetch, normalization, metadata, deduplication, API serialization, browser selection, timelines, and export.
+- Verify omitted CelesTrak OMM constants normalize only to Earth, TEME, UTC, SGP4, and OMM 2.0.
+- Verify canonical input fields survive under `element_set.omm`; no synthetic TLE, truncation, numeric coercion loss, or implicit Alpha-5 conversion is emitted.
+- Quarantine missing/ambiguous identity, invalid JSON, invalid/non-finite/out-of-range numeric values, invalid epoch, unsupported center/frame/time system/theory, and malformed per-record input without discarding valid neighbors.
+- For duplicate NORAD IDs, select the newest valid epoch deterministically independent of input order; exercise equal-epoch tie handling and mixed TLE/OMM duplicates.
+
+### Update and persistence
+
+- Cover incremental and full GP modes, dry run, freshness guard, `--force`, conditional requests, unchanged responses, backup creation, atomic replacement, metadata checksums, provenance, and catalog revision generation.
+- Verify preferred GP and default incremental compatibility TLE maintenance each issue one CelesTrak `active`-group request. The default path must not request the removed overlapping/failing `last-30-days` group; explicit `export-tle --all` alone retains the historical multi-group workflow.
+- Verify GP group/tag enrichment joins the compatibility catalog by the complete canonical NORAD string, including six/nine-digit negative cases that must never match a truncated ID. Assert deterministic first meaningful compatibility tag, prior meaningful GP-tag retention for unmatched rows, placeholder handling, source catalog revision, tag-map revision, available/matched/tagged/unmatched counts, and local enrichment under a provider freshness skip.
+- Recompute `orbit_class` and compatibility `type` from finite numeric mean-element metrics for both GP and TLE output. Cover representative GPS/navigation `MEO`, near-circular GEO, LEO, Molniya/HEO, decaying, and other cases. The checked-in snapshot currently has `190` GP `MEO` records; record the final frozen count again rather than treating it as a provider invariant.
+- Inject timeout, transport error, HTTP 404, invalid content type, malformed JSON, empty payload, partial group failure, excessive quarantine, backup failure, and promotion failure. Each must preserve the prior coherent data/metadata revision and expose the error truthfully.
+- Verify repeated erroneous requests do not bypass provider guards or retry indefinitely, and overlapping source groups do not duplicate downloads or records.
+- Verify SATCAT enrichment preserves six-digit IDs, object type, lifecycle status, launch date/site, and conflict policy.
+- Verify the durable registry freezes `catalog.json`, the first `source-metadata.json` supplied for that catalog byte hash, and `revision.json`; changed retrieval metadata for identical catalog bytes creates one new immutable `acquisitions/<sha256>.json` record, while an identical repeated acquisition is idempotent. A semantically rejected GP snapshot may remain private but must not become the current SQLite revision.
+- Verify durable bootstrap prefers GP/OMM, rejects malformed or non-propagatable GP before SQLite registration, and falls back only to a readable bounded nonempty packaged TLE array with an observation-shaped record. Exercise strict TLE adapter/propagation validation separately and fail closed when neither source reaches its stated boundary.
+
+### Mixed-format runtime
+
+- Spy on satellite.js initialization: TLE records call `twoline2satrec`; OMM records call `json2satrec` with the canonical object.
+- Verify mixed-catalog setup orders fresh-page-default `MEO` records before other categories and publishes an MEO-bearing first chunk without waiting for the remaining catalog. Every per-record `Object3D` state/selection proxy must start with `motionPositionReady=false`, `mesh.userData.positionReady=false`, and `mesh.visible=false`; category/filter eligibility alone must never admit its construction/origin position to the batched Globe point layer.
+- Verify an OMM-only six-digit satellite propagates finite states, creates a stable state/selection proxy, remains filterable/searchable/selectable, draws its selected orbit and footprint, and renders through the batched Globe point layer and Mercator without a console error.
+- Replace the catalog and verify the prior point geometry/material is disposed. A loader-created source material and texture marked `openbexiOwned` must also be disposed, while an injected/shared source material without that ownership marker must remain usable by its caller.
+- Verify invalid OMM is quarantined without replacing the last usable catalog and that newest-epoch mixed deduplication preserves one stable satellite identity.
+- Verify the full-catalog runner and benchmark unwrap normalized `element_set.omm` records through the source adapter, preserve wrapper lifecycle/object type for catalog scope, and select multi-format propagation. The benchmark must prefer the packaged GP/metadata pair, infer sibling metadata for an explicit catalog, and retain an explicit TLE fallback test.
+- Run conjunction screening, decay prediction, workers, details panels, provenance/hash generation, and every shared consumer against OMM. A consumer intentionally lacking OMM support must report a visible documented limitation and have a negative test; silent omission fails.
+
+### Lifecycle timelines and refresh
+
+- Include launch fixture NORAD `100401` at `2026-08-20` with no active orbit. It must appear, anchor the latest-launch view, open metadata, and never attempt propagation or selected-orbit rendering.
+- Verify launch events come from all valid SATCAT rows in the supported object-type policy, merge with active objects by normalized ID, preserve lifecycle metadata, and deduplicate consistently.
+- Verify confirmed decay refresh replaces the previously loaded fixture for NORAD `7520` with NORAD `7577`, invalidates module caches, and updates the latest confirmed date without a hard reload.
+- Verify confirmed decay outranks a prediction for the same identity/event, filters and mutual exclusion survive refresh, selection state remains safe, latest-event anchoring updates, and duplicate events do not accumulate across revisions.
+- Verify a composite `data_revision` change calls both timelines' `refreshData()` exactly once per new revision, including launch-only and decay-only component changes while the GP revision stays constant. Unchanged composite revisions must not refetch or shift UI state, and an older server exposing only `catalog_revision` must remain compatible.
+- In static mode without an explicit API base, verify the watcher uses `no-store` requests only for same-origin GP-or-TLE, launch, and decay metadata. Changing those metadata and payload fixtures must refresh both timelines in the current document without duplicate events, an API probe, a provider request, or a page reload. Separately verify an explicit API base opts into the normal server path without direct provider requests from the browser.
+
+### API and data health
+
+- Contract-test `/api/gp`, exact-sidecar `/api/gp-metadata`, `/api/launches`, `/api/decayed`, `/api/data-update-status`, deprecated `/api/tle`, and preferred-with-fallback `/api/satellites`, including cache validators, content type, body limits, path security, malformed-file behavior, and `404` when GP metadata is absent.
+- Verify data-update status returns composite `data_revision`; compatibility GP-only `catalog_revision`; `gp_revision`, `launch_revision`, and `decay_revision`; matching `datasets` entries; retrieval timestamp; newest orbital, launch, and confirmed-decay dates; TLE, OMM, six-digit, and quarantined counts; and last error. Assert the composite digest changes when any component changes and is stable for the same three component values.
+- Verify disabled, checking, updated, unchanged, partial, degraded, failed, and recovered scheduler states. Exercise launch and decay simultaneously due in one scheduler cycle and prove both branches run independently of GP. Failure/partial states must never report completion or a fabricated new revision.
+- Verify `catalog_state` is `fallback-tle` only when GP metadata is absent and the packaged TLE file is larger than the empty `[]` sentinel. Missing GP metadata with no TLE file, an empty file, or an empty TLE array must report `unavailable`; a larger malformed or observation-incomplete file still exercises the current availability signal and must not be documented as validated.
+
+### Packaging and browser journeys
+
+- Build twice and compare deterministic manifests. The artifact must contain GP, launch, decay, required metadata, TLE compatibility data, OMM runtime/worker dependencies, and no prohibited remote fallback.
+- Verify `obj/loral.glb` is absent, `obj/SSL_1300.glb` remains `8,517,244` bytes with SHA-256 `651b30cebf57bd08fedcfb34c31127f7a466b7897ccac2aafa8ea9908cccfcf0`, the display-model manifest enumerates every remaining GLB, and the static artifact contains no duplicate model payload.
+- Serve only `dist/` with no explicit API base, block all external origins, and verify primary GP startup plus same-origin metadata revision refresh. Remove/corrupt GP to test visible deprecated TLE reduced-coverage fallback; remove both to test fail-closed startup. Unconfigured static polling must never contact CelesTrak or any other provider.
+- Run desktop and mobile Playwright journeys for latest launch and decay fixtures, details-only selection, mixed-format search/filter/select/orbit, revision refresh, accessible status/degraded messaging, layout overlap, unexpected console/page/request failures, and nonblank WebGL canvas pixels.
+- In the real packaged-GP Chromium smoke journey, require the `default-meo-visible` milestone and a known finite MEO marker in less than `12 s`, with more than 100 filter-visible and batched-point-drawn MEO markers, zero render-visible unready markers, and zero visible origin markers. Require `satellite-data-ready` in less than `20 s` and strictly after the MEO milestone. After selecting `ALL`, require more than 16,000 filter-visible records and more than 500 drawn point markers within the separate `12 s` draw wait, while the unready-visible and visible-origin counts remain zero. These are conservative regression gates for the declared local browser profile, not portable startup guarantees.
+- Invoke those journeys through `npm run test:browser`; its lifecycle runner starts Python directly, tells Playwright to reuse the healthy loopback server, and terminates only the child it created. Verify Python-backed npm commands share `scripts/python-discovery.mjs`, honor `OPENBEXI_PYTHON_COMMAND`, reject non-Python-3 candidates, and probe `py -3` on Windows, then `python3`, `python`, and recognized installed Windows Python directories. `OPENBEXI_TEST_PORT` selects the browser-test port.
+
+## Version 2.2 Browser-Correctness Follow-up Verification
+
+This follow-up remains inside the Version 2.2 development, Experimental, non-operational boundary. The cases below define the frozen-tree verification surface used to refresh validation hashes, performance measurements, and release-checklist evidence.
+
+### Unified category filtering
+
+- On a fresh page with no explicit shared state, verify only `MEO` is active and the visible count, search results, state-proxy visibility, and batched point-layer membership use that same category selection. The hidden legacy `<select>` must contain only `None` and, after selection, one active full-string NORAD option; it must never materialize the filtered or full catalog.
+- Verify `ALL` expands to `GEO`, `MEO`, `LEO`, domain `HEO`, `DEBRIS`, and `OTHER`; clicking a specific category while `ALL` is active makes it exclusive; additional specific selections form a union; and deselecting the final specific category restores `ALL` rather than an empty state.
+- Verify the visible `HRO` button maps to canonical `HEO` in state/share serialization and that legacy `HRO` input normalizes to `HEO` without creating a second category.
+- Verify authoritative debris, rocket-body, and stage object types enter `Debris` regardless of orbit class. An authoritative payload/non-debris type must not become debris solely because its name contains `R/B` or similar text; name heuristics apply only to missing/unknown object type. Unknown orbit classes remain under `Others`.
+- Verify group/tag filters intersect with the category union, Reset restores fresh-page-load `MEO`, and zero-result state remains recoverable. A raw tag whose name collides with a category must retain its filter/share key but use a qualified label; specifically, an MEO record tagged raw `GEO` renders `Geosynchronous group`, filters only that MEO subset, and never activates the GEO category. A filter change that excludes the selected satellite must clear its selection, model/detail state, and show-only mode without leaving a stale hidden selection.
+- Verify new shared links round-trip the category array, unsafe/local-path values are stripped, legacy `?debris=only` restores `Debris` only when no explicit orbit selection exists, and explicit orbit state takes precedence over that obsolete compatibility parameter.
+
+### Selected GP details and Mercator layering
+
+- Verify the left menu contains controls/summary only and has no obsolete `#satelliteInfo` metadata/TLE table or its CSS. Selection must populate one right-side panel below the UTC clock.
+- For OMM, verify the panel has independently expandable `Satellite data` and `OMM details` sections, preserves canonical scalar GP fields, and suppresses identity/epoch/source values already shown in the primary table. For TLE, verify line 1 and line 2 each appear exactly once. Clear selection and confirm the panel hides and releases stale content.
+- Verify long six/nine-digit identifiers, names, epochs, source strings, and model attribution wrap without overlap or unsafe HTML interpretation. Starlink/ISS attribution remains a separate expandable source section; models without an explicit source do not show it.
+- With Globe and Mercator enabled, verify the bottom-right Mercator canvas is visible, clickable, and above the Globe, timeline HUD, and selected-detail/planet HUD layers wherever their regions intersect. Verify selected marker, ground track, footprint, map controls, UTC clock, and selected details remain coherent at desktop, mobile, and zoom/reflow widths. In Mercator-only fullscreen, the fixed `Time x` and server controls must remain visible, clickable, and above the map.
+- Spy on propagation and prove Mercator uses the exact selected propagation plus non-selected scene/interpolation positions instead of propagating the visible catalog again. Verify redraw cadence is `33 ms` through 1,000 visible objects, `100 ms` above 1,000, and `250 ms` above 5,000. Through 1,000 drawable records, verify detailed per-object markers and at most `250` non-selected labels. Above 1,000, verify one compact non-selected density path plus the detailed selected marker, with no per-object icon draws, sort, or non-selected labels. The selected ground track must rebuild immediately on selection change, empty-state transition, or a paused direct-time change. While running, require both at least five simulated minutes of drift and at least one real second since the previous rebuild; retain the cached track between those boundaries. If rebuilding the same satellite at a new instant yields no valid points, clear the previous path, cache that attempted instant, draw no stale stroke, and do not repeat propagation on each redraw at the unchanged instant.
+
+### Authoritative simulation clock and ephemeris range
+
+- Unit-test exact forward and reverse symmetry, true zero-rate pause, rate clamping to `-60..60`, finite-date rejection, reusable state identity, generation changes, the `0.25 s` maximum applied frame gap, invalid bound rejection, and automatic pause with explicit `start`/`end` status at a finite boundary.
+- Verify the animation loop calls the clock exactly once per frame and every time-dependent Earth/satellite/Solar System consumer reads the resulting shared UTC instant. No second accumulator, `advanceSolarSystemSimulationMillis`, direct `Date.now()` body position, or independent time-warp increment may remain.
+- In Solar System mode, verify the clock adopts the bundled `2020-01-01T00:00:00Z` through `2035-12-31T00:00:00Z` table bounds, clamps to the exact endpoint, sets rate to zero, reports `Ephemeris start/end reached; paused`, and labels JPL-derived range-boundary mode. An inward signed rate must clear the boundary and resume; direct table interpolation outside the range must reject rather than extrapolate.
+- Missing, loading, or invalid ephemeris must retain the explicit approximate visual fallback. A valid table at a range boundary must not switch silently to an analytical planet position or claim extrapolated JPL data.
+
+### Satellite motion interpolation and cleanup
+
+- Unit-test Hermite interpolation against constant-velocity endpoints. For representative LEO, MEO, and GEO satellite.js fixtures, derive the orbit-period-fraction window, require midpoint Hermite error below `1 km` against exact SGP4, and verify `LEO < MEO < GEO` window duration. For visible non-selected satellites, verify per-frame position changes remain smooth between asynchronous samples, propagation work respects the configured batch/time budget, and correction blending avoids a large snap when a new window commits.
+- The selected satellite must use exact per-frame propagation, keep the same state-proxy/material/position-vector identity, return to the same scene coordinate when the clock returns to the same UTC instant, update selection highlighting in the batched point layer without rebuilding per-record render objects, and provide one reused exact state to nadir orientation and footprint rendering.
+- Catalog replacement, explicit time jumps, rate sign changes, selection changes, and Solar System hide/show transitions must cancel or supersede pending sampling work so stale direction/catalog jobs cannot commit. A discontinuous UTC jump invalidates out-of-epoch marker readiness; rate, selection, and job changes preserve a finite interpolation when its window still covers the current UTC rather than unnecessarily blanking it.
+- A selected or catalog propagation failure must set explicit invalid state, hide the affected marker/model instead of leaving a stale or Earth-center position, and respect the one-second default retry backoff. A later finite sample at the same UTC instant must clear invalid state and restore visibility only if current filters allow it; hidden invalid objects remain in the bounded sampling set so recovery is possible.
+- Repeated animation frames before the selected retry deadline must not push that deadline forward. At the same simulation UTC, make the selected propagator finite after the deadline and verify the marker recovers immediately under its current filter.
+- Verify the first finite selected or catalog sample changes render readiness and permits visibility only when the current filters allow it. Readiness must also cover the current simulation UTC: hide a record, perform a paused discontinuous UTC jump, then re-admit its filter and verify the old-epoch marker stays hidden until a finite current-instant sample commits. A filter-visible object with no committed current-epoch sample must stay in the bounded sampling set but remain absent from Globe and Mercator, including during partial MEO-first startup.
+- With `Show Orbit` enabled, verify one selected-orbit root/material is retained while its source segments and child geometries refresh in place. Simulation-time refresh is bounded to the per-sample interval clamped to `1..5` minutes, and nonzero `Time x` permits no more than one refresh per real second; invalid resampling preserves the last finite path rather than replacing it with empty geometry.
+- When requested high-warp coverage exceeds an object's curvature-bounded window, diagnostics must count the limited objects and the accessible status must read `Catalog markers cadence-limited; selected satellite remains exact`; the implementation must not stretch the window or imply full-catalog per-frame exactness.
+- Browser-test positive, paused, and reverse motion using fixed GP/OMM fixtures. Require at least 25 distinct selected positions across 30 animation frames, stable selected mesh/material identity, nonzero movement on at least 25 intervals, 95th-percentile frame gap below `100 ms`, and maximum gap below `250 ms` in the declared Playwright profile.
+- Returning to the original UTC instant must reproduce the selected position within the declared numeric tolerance. Time changes must not change filters, refetch the GP catalog, duplicate state proxies or the point layer, or generate unexpected page/console errors.
+- Confirm `visibleSatelliteFrameProcessor`, duplicate Solar System clock code, obsolete debris controls, and duplicate menu detail markup/CSS are absent. Retained compatibility parsing must be covered explicitly rather than removed accidentally.
+- Prove through source-boundary and screening tests that Hermite scene positions are never passed to the conjunction Worker, full-catalog runner, event export, element-age calculation, or scientific provenance.
+
+### Required delivery commands
+
+```powershell
+npm run check
+npm test
+npm run build
+npm run benchmark:full-catalog
+git diff --check
+py tools/satellite_data_tools.py export-gp --dry-run
+```
+
+Archive exact command results, source and artifact hashes, generated counts, quarantine reasons, newest dates, screenshots, browser console review, and any limitations. Do not pass the v2.2 gate with a new failure, a skipped required test, malformed generated data, duplicate identities, console errors, or an undocumented partial-coverage path.
 
 ## Version 2.0 Candidate Verification
 
@@ -133,13 +248,13 @@ npm test
 
 - Confirm `index.html`, `js/SatelliteMenuLoader.js`, and `css/style.css` contain no obvious malformed tags, missing closing braces, or duplicated filter IDs.
 - Confirm `PROMPT_Instructions.md` contains the `General Execution Prompt` section and no release history.
-- Confirm `PROMPT_History.md` contains the latest release entry.
-- Confirm the visible `index.html` version number matches the latest `PROMPT_History.md` release.
+- Confirm `PROMPT_History.md` contains the latest dated authorization/implementation record without acting as runtime version authority.
+- Confirm the visible `index.html` version number matches authoritative `release/version.json` through generated browser metadata.
 - Confirm every browser import map uses the same Three.js version for `three` and `three/addons/`.
 - Confirm the verified Three.js version is documented when it changes.
-- Confirm `index.html` starts the animation loop before awaiting TLE setup.
+- Confirm `index.html` starts the animation loop before awaiting mixed GP/OMM catalog setup.
 - Confirm startup timing marks include `first-visible-globe-render`, `satellite-data-ready`, and `first-interactive-ui`.
-- Confirm TLE sprite setup and deferred decay work use named chunk sizes instead of one unbounded synchronous pass.
+- Confirm mixed-catalog state-proxy setup, point-layer publication, and deferred decay work use named chunk sizes instead of one unbounded synchronous pass.
 - Confirm UI-facing HTML, CSS, JavaScript, generated menu markup, `README.md`, and this file pass the automated mojibake scan for common corrupted markers.
 - Run Python syntax checks:
 
@@ -151,8 +266,11 @@ py -m py_compile tools/satellite_data_tools.py
 - With the optional Python server running, confirm these endpoints return successful responses:
   - `/api/health`
   - `/api/version`
+  - `/api/gp`
+  - `/api/gp-metadata`
   - `/api/tle`
   - `/api/satellites`
+  - `/api/launches`
   - `/api/satellite-metadata`
   - `/api/decayed`
   - `/api/data-update-status`
@@ -181,7 +299,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test maximum zoom is finite and very large.
 - Test camera near/far planes do not clip Earth, Moon, GEO, MEO, LEO, HEO, or selected satellites in normal use.
 - Test that the live selected satellite scene position and the first/generated current orbit-trail point agree within a small tolerance.
-- Include at least one GEO, one MEO, and one LEO example from `json/tle/TLE.json`.
+- Include at least one GEO, one MEO, and one LEO example from the mixed GP fixture, including at least one OMM-only object.
 - Test that all scene positions use the same `KM_TO_SCENE_UNITS` scale.
 
 ### Orbit Trail Generation
@@ -217,7 +335,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test O3b/OB3 satellites resolve to `o3b.glb` and display the selected detailed model when the local asset exists.
 - Test selected detailed model roots use the same propagated scene coordinate as the selected orbit trajectory.
 - Test model visual centering offsets child geometry only and does not change the detailed model root position.
-- Test selected hidden TLE sprite positions are synchronized with the detailed model root position.
+- Test selected hidden TLE state-proxy positions are synchronized with the detailed model root position.
 - Test selected model root-to-propagated-position distance remains below `0.01` scene units.
 
 ### Day/Night and Sun Direction
@@ -264,7 +382,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test `Other Selections` is absent from the menu and from default accordion collapse state.
 - Test the `Displaying 46 bundled reference stars` summary is hidden by default and appears only when `Stars & Milky Way` and `Bright Labels` are both checked.
 - Test Solar System mode is off on startup and normal Earth satellite view remains active.
-- Test enabling Solar System mode hides Earth-specific satellite sprites, selected model, selected orbit path, footprints, LVLH/YPR frames, Mercator overlay, and selected-satellite panel.
+- Test enabling Solar System mode hides the Earth-specific batched satellite point layer, selected model, selected orbit path, footprints, LVLH/YPR frames, Mercator overlay, and selected-satellite panel.
 - Test exiting Solar System mode restores previous Earth/satellite state without mutating TLE data, filters, or satellite lists.
 - Test selecting Earth from Solar System mode exits to normal Globe mode.
 - Test selecting Moon from Solar System mode exits to existing Moon-centered mode and targets `moon.position`.
@@ -302,10 +420,10 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test normalized model matching is case-insensitive and ignores spaces, hyphens, underscores, and file extensions.
 - Test Starlink satellites resolve to the local Starlink model assets.
 - Test OneWeb satellites resolve to the local OneWeb OBJ/MTL assets.
-- Test O3b/OB3 satellites resolve to `o3b.glb` and keep the selected sprite fallback only if the local GLB is missing or fails to load.
+- Test O3b/OB3 satellites resolve to `o3b.glb` and keep the selected point-marker fallback only if the local GLB is missing or fails to load.
 - Test ISS resolves to the local ISS GLB asset.
 - Test GOES/Intelsat/SES-style GEO satellites can resolve to the SSL 1300 fallback asset.
-- Test unknown satellites return no model mapping so the selected sprite remains the visible fallback.
+- Test unknown satellites return no model mapping so the selected point marker remains the visible fallback.
 - Test OBJ/MTL verification accepts a present OBJ even if the MTL check fails, because the OBJ can load without materials.
 - Test GLB verification requires the GLB file to exist.
 
@@ -333,8 +451,8 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 
 ### Mercator Ground Tracks
 
-- Test selected-satellite lookup prefers `simParams.selectedSatelliteNoradId` over sprite visibility or `isSelected` state.
-- Test the selected satellite can still be found when its 3D sprite is hidden because a detailed model is visible.
+- Test selected-satellite lookup prefers `simParams.selectedSatelliteNoradId` over state-proxy visibility or `isSelected` state.
+- Test the selected satellite can still be found when its Globe point marker is hidden because a detailed model is visible.
 - Test non-finite Mercator propagation samples create ground-track gaps instead of connected lines.
 - Test below-Earth Mercator propagation samples create ground-track gaps.
 - Test `drawGroundTrack()` starts a new path segment after an invalid sample gap.
@@ -347,7 +465,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test generated menu markup and UI source files contain no common mojibake markers.
 - Test the Orbit/category filter includes one row ordered as `ALL`, `GEO`, `MEO`, `LEO`, `HRO`, `Debris`, `Others`.
 - Test the filter menu does not contain an `Active` button/control.
-- Test generated company/tag chips exclude `Active`, not only the static markup.
+- Test generated group/tag chips exclude `Active`, not only the static markup.
 - Test the `Views & Time` section has one collapsible container containing Solar System, Stars & Milky Way, Globe, Mercator, High Def., ECEF Axes, Day/Night controls, and mode-specific sub-controls, with no menu `Time x` slider.
 - Test the main `Views & Time` checkboxes render in a stable 3x3 table/grid so columns are aligned across all three rows.
 - Test the top/canvas `Time x` slider updates the shared simulation-speed state after the Version 1.7 Solar System ephemeris integration.
@@ -360,7 +478,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test `Debris` appears immediately before `Others` in the orbit/category row and filters to debris objects only.
 - Test `Reset Filters` appears in the search row immediately after `Clear`, with DOM/tab order `Search satellite`, `Clear`, `Reset Filters`.
 - Test the found count in `Satellites Selection - Found` is red, bold, and updates its accessible label.
-- Test multi-check filtering in Search satellite: the visible dropdown list of satellites must match the requested orbit/tag/debris filtering exactly, and the hidden legacy select must contain the same filtered satellite set.
+- Test multi-check filtering in Search satellite: the visible typeahead list, count, and markers must match the requested category-union and group/tag intersection exactly. The hidden legacy select remains virtualized to `None` plus at most the active NORAD and is not a catalog-discovery surface.
 - Test active search text updates the red found count from the same search result state used to render the visible dropdown.
 - Test capped search results show a `visible / total` count instead of a misleading total-only count.
 - Test clearing search restores the red count to the active filter total.
@@ -390,7 +508,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test `getFullGitHubUrl()` handles `null`, `undefined`, non-string values, absolute URLs, and relative paths without throwing.
 - Test the View section lays out Globe/Mercator on one row, High Def./ECEF Axes/Day-Night on one row, and First Starlink/ISS shortcut buttons on one row.
 - Test selecting any satellite automatically checks `Show only selected satellite`, synchronizes `simParams.showOnlySelectedSatellite`, and leaves only that selected satellite visible.
-- Test `Show only selected satellite` visibility is not constrained by the current orbit/tag/debris filters.
+- Test `Show only selected satellite` displays the selected object while it remains eligible; changing category or group/tag filters to exclude it clears selection, model/details, and show-only state coherently.
 - Test selecting a non-`MEO`/non-`GEO` satellite automatically enables `High Def.` Earth and synchronizes the checkbox.
 - Test selecting `MEO` or `GEO` satellites does not force `High Def.` off.
 - Test First Starlink and ISS shortcut buttons locate satellites from loaded TLE data and dispatch the normal selection path.
@@ -421,29 +539,34 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 ### Server Data Path
 
 - Test `/api/health` returns status `ok` and version metadata.
-- Test `/api/version` returns app/API version `1.7.6` and release date `2026-06-15`.
-- Test `/api/tle` and `/api/satellites` return valid TLE records with `norad_id`, `tle_line1`, and `tle_line2`.
+- Test `/api/version` derives app version `2.2.0`, development publication state, and null candidate/release dates from `release/version.json`.
+- Test `/api/gp` returns valid mixed records, including canonical OMM and a six-digit string identity.
+- Test `/api/gp-metadata` returns the generated GP metadata sidecar unchanged and returns `404` when that sidecar is absent.
+- Test deprecated `/api/tle` returns valid compatibility TLE records and exposes reduced coverage; test `/api/satellites` prefers GP/OMM and falls back to that TLE dataset only when GP is unavailable.
+- Test `/api/launches` returns SATCAT-backed events including a details-only six-digit fixture.
 - Test `/api/satellite-metadata` lists known metadata files.
 - Test `/api/satellite-metadata/starlink_V1.json` returns one known metadata payload.
 - Test `/api/decayed` returns the confirmed decay dataset.
-- Test `/api/data-update-status` returns scheduler state and reports disabled/default-off behavior unless scheduling is explicitly enabled.
+- Test `/api/data-update-status` returns scheduler state; composite `data_revision`; compatibility GP-only `catalog_revision`; all three top-level and nested per-dataset revisions; and disabled/default-off behavior unless scheduling is explicitly enabled. Verify `fallback-tle` requires absent GP metadata plus a packaged TLE file larger than the empty `[]` sentinel, that missing/empty inputs report `unavailable`, and that this availability signal is not presented as TLE validation.
 - Test `/docs` serves the live Swagger/API documentation page.
 - Test `/openapi.json` contains OpenAPI paths for all supported API endpoints.
 - Test `swagger.html` exists and displays a standard Swagger/OpenAPI-style local page with API title, version badge, OAS badge, base URL/schema notes, grouped endpoint sections, colored method badges, and expandable endpoint details without starting `server.py`.
-- Test `SWAGGER.md` exists and documents `/api/health`, `/api/version`, `/api/tle`, `/api/satellites`, `/api/satellite-metadata`, `/api/decayed`, `/api/data-update-status`, `/docs`, and `/openapi.json`.
+- Test `SWAGGER.md` documents `/api/health`, `/api/version`, `/api/gp`, `/api/gp-metadata`, `/api/launches`, deprecated `/api/tle`, preferred-with-fallback `/api/satellites`, `/api/satellite-metadata`, `/api/decayed`, `/api/data-update-status`, `/docs`, and `/openapi.json`.
 - Test `markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API` renders the companion Swagger Markdown without starting `server.py`.
-- Test frontend disconnected mode falls back to local `json/tle/TLE.json`.
+- Test frontend disconnected mode uses packaged `json/gp/GP.json`; when GP is unavailable it exposes a reduced-coverage fallback to `json/tle/TLE.json`, and when both are unusable it fails closed visibly.
 - Test frontend startup retries `http://127.0.0.1:8000` when the initially resolved local static or IDE host has no API routes.
-- Test frontend initial startup uses the static `json/tle/TLE.json` route first, then checks server status after the first interactive satellite UI.
-- Test the reconnect/refresh action can replace the loaded satellite set with validated server-provided `/api/tle` data.
-- Test malformed server TLE data is rejected and local fallback remains active.
+- Test frontend initial startup uses packaged GP first, then checks server status/composite data revision after the first interactive satellite UI.
+- Test the reconnect/revision action can replace the loaded satellite set with validated server-provided `/api/gp` data and refresh both timelines. Launch-only and decay-only component revisions must also change the composite refresh token.
+- Test malformed server GP data is rejected and the last usable packaged/active catalog remains active.
 - Test model metadata and decay-data fetches use server routes only when the server is connected and fall back to local paths on failure.
 
 ### Data Maintenance Tools
 
 - Test `tools/satellite_data_tools.py` compiles with `py -m py_compile`.
+- Test `export-gp` incremental/full/dry-run contracts, OMM normalization, exact string identities, newest-epoch deduplication, quarantine, atomic promotion, metadata, and last-known-good behavior described in the Version 2.2 section.
 - Test `export-tle --all` support is present, uses HTTPS for every CelesTrak group, keeps the legacy group source order and first-seen NORAD behavior, and does not refresh N2YO launch dates by default.
-- Test default `export-tle` uses incremental source groups such as `active` and `last-30-days`, not the full legacy group sweep.
+- Treat every `export-tle` assertion below as deprecated compatibility coverage; it cannot satisfy current six-digit or complete-catalog expectations.
+- Test default `export-tle` makes one incremental `active`-group request, does not request `last-30-days`, and does not use the full legacy group sweep.
 - Test TLE transformation preserves frontend fields: `company`, `satellite_name`, `norad_id`, `launch_date`, `type`, `orbit_class`, orbit metric fields, `tle_line1`, and `tle_line2`.
 - Test orbit metric formulas and classification rules match the legacy Java behavior for LEO, MEO, GEO, HEO, and DECAYING cases.
 - Test metadata freshness skips default TLE fetching when the last successful update is newer than the 2-hour CelesTrak guard unless `--force` is used.
@@ -455,7 +578,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test `build-decayed-db --refresh-satcat --force` sends conditional SATCAT headers from stored metadata, refreshes SATCAT before rebuilding when changed, and skips the decayed rebuild when SATCAT returns unchanged and a valid decayed DB already exists.
 - Test `--dry-run` does not write generated data, metadata, temp files, or backups.
 - Test server scheduling is disabled by default, uses importable Python functions when enabled, runs incremental mode only, refreshes SATCAT before scheduled decayed rebuilds, uses `json/.satellite_data_update.lock`, and does not block static/API serving.
-- Test server startup with scheduling enabled checks the 24-hour freshness rule before any remote TLE query and still respects the 2-hour CelesTrak guard.
+- Test server startup with scheduling enabled checks the 24-hour freshness rule before any remote GP/SATCAT query and still respects the two-hour CelesTrak guard.
 
 ### Regression Coverage
 
@@ -464,7 +587,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Avoid tests that depend on the current wall-clock time unless the time is explicitly injected.
 - Keep browser smoke tests separate from deterministic unit tests.
 - Test startup timing/deferred-work helpers.
-- Test the `index.html` startup structure so first render starts before awaiting TLE setup.
+- Test the `index.html` startup structure so first render starts before awaiting preferred mixed GP/OMM setup with deprecated TLE fallback.
 - Test accordion headers, accessible accordion semantics, searchable satellite selector markup, timeline checkbox toggles, filter reset/status/empty state, and selected tag active styling.
 - Test the menu toggle and time slider use ASCII-safe visible labels.
 
@@ -480,17 +603,17 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Open `http://127.0.0.1:8000/index.html?perf=1`.
 - Confirm `window.openbexiStartupPerformance.summary()` returns timing entries.
 - Confirm `first-visible-globe-render` occurs before `satellite-data-ready`.
-- Confirm `first-interactive-ui` occurs after TLE data is loaded and the satellite dropdown/filter state has been populated.
+- Confirm `first-interactive-ui` occurs after preferred mixed GP data is loaded and the satellite dropdown/filter state has been populated.
 - Confirm the launch timeline button is temporarily disabled only while launch timeline data is being prepared, then opens and closes normally.
 - Confirm the re-entry timeline button is temporarily disabled while confirmed decay data and decay estimates are prepared in chunks, then opens and closes normally.
 - Confirm deferred timeline preparation does not break satellite selection from either timeline.
-- Confirm the UTC clock and camera controls remain responsive while TLE and deferred timeline work is still preparing.
+- Confirm the UTC clock and camera controls remain responsive while the preferred mixed GP/OMM catalog and deferred timeline work are still preparing.
 
 ## Startup Regression
 
 - Load `index.html` through the local HTTP server.
 - Confirm the 3D globe renders.
-- Confirm the first visible globe render occurs before all 15,728 TLE records have completed sprite setup.
+- Confirm the first visible globe render occurs before the full preferred GP/OMM catalog has completed state-proxy setup and point-layer publication.
 - Confirm satellite markers render around the globe.
 - Confirm the UTC clock updates.
 - Confirm the left menu opens and closes with the menu button.
@@ -498,7 +621,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
   - Orbit: `MEO` selected.
   - Tags: `All tags` selected.
   - Debris category: not selected.
-- Confirm the satellite count and satellite dropdown populate after TLE data loads.
+- Confirm the satellite count and satellite dropdown populate after mixed GP data loads.
 
 ## Menu UX Regression
 
@@ -514,27 +637,25 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm selecting filters, tags, the Debris category, timelines, and view toggles does not collapse unrelated accordion sections.
 - Confirm the accordion order is `Views & Time`, `Satellites Selection - Found`, `Timelines`, `Share`, `Help`.
 - Confirm `Satellite Selection` appears immediately under `Views & Time`.
-- Confirm orbit/tag/debris filters appear inside `Satellites Selection - Found`.
+- Confirm unified category and group/tag filters appear inside `Satellites Selection - Found`, with no standalone debris row.
 - Confirm the visible orbit-filter helper text `Orbit filter (multi-select): Choose one or more orbit families. ALL enables every orbit category.` is gone.
 - Confirm the visible satellite-search helper text `Select Satellite: Search by name, NORAD ID, orbit type, or tag.` is gone.
 - Confirm the `Views & Time` section keeps `Globe` and `Mercator` on one row.
 - Confirm the `Views & Time` section keeps `High Def.`, `ECEF Axes`, and `Day/Night` on one row.
 - Confirm the `Views & Time` section does not contain the Starlink or ISS shortcut buttons.
 - Confirm the `Satellite Selection` section keeps `Starlink (<NORAD ID>)` and `ISS` shortcut buttons below the search field.
-- Confirm the `Views & Time` section includes a real menu `Time x` slider at the top.
-- Confirm the existing canvas-top `Time x` slider remains visible.
-- Move the menu `Time x` slider and confirm the canvas-top slider, displayed value, and simulation speed update.
-- Move the canvas-top `Time x` slider and confirm the menu slider, displayed value, and simulation speed update.
+- Confirm `Views & Time` contains no duplicate menu `Time x` slider and the single canvas-top signed `Time x` control remains visible.
+- Move the canvas-top slider through negative, zero, and positive rates and confirm its displayed value plus reverse, pause, and forward simulation behavior update from the authoritative clock.
 - Confirm the satellite-specific checkbox block is hidden before selecting a satellite.
 - Click `Starlink (<NORAD ID>)` in Satellite Selection and confirm the first loaded Starlink is selected, `Show only selected satellite` becomes checked, only that satellite remains visible, `High Def.` becomes checked, and the selected-satellite camera/model path matches normal satellite selection.
 - Click `ISS` and confirm ISS/ZARYA NORAD `25544` is selected through the normal selection path, `Show only selected satellite` becomes checked, only ISS remains visible, and `High Def.` becomes checked because ISS is not MEO/GEO.
 - Select a MEO or GEO satellite after High Def. is enabled and confirm the app does not force High Def. off.
-- Select a satellite that is outside the current filter selection through a shortcut and confirm the selected satellite remains visible even though the filter list is different.
+- Use a shortcut for a satellite excluded by the active filters and confirm the attempted selection is cleared safely, including its model/details and show-only state. Include that satellite's category or choose `ALL`, retry the shortcut, and confirm the normal selection path then succeeds.
 - After selecting a satellite, focus or click the satellite search field and confirm the previous selected label clears for a new search while the selected-satellite summary and selected marker/model remain active.
 - After selecting a satellite, type or paste into the already-focused search field and confirm the previous selected label clears before the new query is entered.
 - Confirm the satellite search result dropdown remains visible above the rest of the menu while open and does not get clipped by the accordion panel.
 - Confirm Satellite Selection does not show the detailed selected-satellite metadata/TLE table after selection.
-- Confirm the right-side selected-satellite detail panel appears under the UTC clock after selection, has a transparent background, matches the UTC clock width, shows independently expandable Satellite data and TLE details sections expanded by default using `<details open>`, shows metadata plus TLE line 1 and line 2 exactly once, and hides again when the selection is cleared.
+- Confirm the right-side selected-satellite detail panel appears under the UTC clock after selection, has a translucent background, matches the UTC clock width, and shows independently expandable `Satellite data` plus `OMM details` or `TLE details` sections expanded by default using `<details open>`. OMM scalar fields must be de-duplicated from the primary table; legacy TLE line 1 and line 2 each appear exactly once; clearing selection hides the panel.
 - Confirm the Solar System planet HUD appears directly under the UTC clock after selecting a planet, exactly matches the UTC clock width and right edge, uses clock-compatible monospace typography, and wraps long ephemeris text inside the clock width.
 - Select a Starlink model and confirm an expanded `Source detail` section appears after `TLE details` with bold red text: `Model downloaded from https://sketchfab.com/malacodart, license: CC Attribution / Creative Commons Attribution.`
 - Select an ISS model and confirm an expanded `Source detail` section appears after `TLE details` with bold red text: `Model downloaded from https://github.com/nasa/NASA-3D-Resources, courtesy: NASA (National Aeronautics and Space Administration).`
@@ -543,7 +664,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Select ISS, move the `Pitch` slider, and confirm it drives the orientation behavior previously associated with ISS yaw.
 - Confirm ISS `Roll` behavior is unchanged and Starlink/other selected models still use the normal yaw/pitch/roll mapping.
 - Confirm `SSL_1300.glb` loads for `INTELSAT 20 (IS-20)` and `INTELSAT 18 (IS-18)` only, not for other Intelsat, SSL, GEO, GOES, SES, manufacturer, bus, or alias matches.
-- Confirm the Starlink shortcut label updates to `Starlink (<NORAD ID>)` after TLE data loads.
+- Confirm the Starlink shortcut label updates to `Starlink (<NORAD ID>)` after mixed GP data loads.
 - Confirm the Starlink shortcut shows `Starlink unavailable` if no Starlink target can be resolved.
 - Confirm the ISS shortcut shows `ISS unavailable` if no ISS target can be resolved.
 - Confirm `Timelines` appears immediately after `Satellites Selection - Found`.
@@ -601,18 +722,18 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Confirm the time slider remains readable and unobscured after the menu narrowing.
 - Confirm the expanded header chevron/toggle marker remains visible.
 - Confirm collapsed accordion headers remain readable.
-- Confirm every section is collapsed immediately after loading `index.html`.
+- Confirm `Views & Time` and `Satellites Selection - Found` are expanded immediately after loading `index.html`, while `Timelines`, `Share`, and `Help` are collapsed.
 - Expand `Views & Time`, expand `Timelines`, then expand `Share`; confirm multiple sections remain open simultaneously.
 - Expand one section and confirm no other section collapses.
 - Change filters, reset filters, select a satellite, clear satellite search, toggle YPR, toggle view controls, and toggle timeline checkboxes; confirm accordion state is not reset.
-- Collapse and expand sections, refresh, and confirm every section returns to the collapsed launch state.
+- Collapse and expand sections, refresh, and confirm every section returns to the documented page-load state.
 - Confirm accordion focus outlines are visible and Enter/Space toggles each section header.
 - Confirm the menu remains usable on a narrow viewport with stacked accordion sections and no clipped section labels.
 - Confirm no filter or tag control named `Active` remains.
-- Confirm `Active` does not reappear after changing orbit/debris filters and regenerating tag chips from satellite data.
+- Confirm `Active` does not reappear after changing category filters and regenerating group/tag chips from satellite data.
 - Confirm selected tag chips use the brighter blue metallic/light active style.
-- Confirm `Reset Filters` restores Orbit `MEO`, Tags `All tags`, and Debris `Show`.
-- Confirm the active-filter summary updates after each filter change.
+- Confirm `Reset Filters` restores Category `MEO` and Tags `All tags`; no standalone debris state or `Show` control returns.
+- Confirm category buttons, group/tag chips, found count, search results, and the zero-result state update after each filter change; the obsolete active-filter summary must remain absent.
 - Choose a filter combination with zero results and confirm the empty state appears with a reset shortcut.
 - Confirm `Other Selections` is absent.
 - Confirm selecting `Earth`/`Moon`/`Mars` from Solar System mode is not reset by collapsing or expanding accordion sections.
@@ -624,7 +745,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Search by satellite name.
 - Search by NORAD ID.
 - Search by orbit type such as `GEO`, `MEO`, or `LEO`.
-- Search by company/tag such as `Starlink`, `One Web`, `SES`, or `Intelsat`.
+- Search by group/tag such as `Starlink`, `One Web`, `SES`, or `Intelsat`.
 - Use Arrow Down, Arrow Up, Enter, Escape, and Tab with the search field.
 - Confirm a no-results message appears for a query with no matches.
 - Use the clear action and confirm the search query is reset.
@@ -657,30 +778,30 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Check `Show Launch Timeline` and confirm the HUD status identifies the latest valid launch date and satellite from the currently loaded dataset.
 - Confirm the Launch Timeline detail viewport opens around that latest launch and the latest launch marker/label is visibly highlighted.
 - Confirm invalid, missing, `N/A`, or clearly malformed launch dates are skipped without breaking the timeline.
-- Click the highlighted latest launch event and confirm it selects the matching active satellite when that satellite exists in the active TLE list.
+- Click the highlighted latest launch event and confirm it selects the matching active satellite when that satellite exists in the active mixed GP/TLE catalog.
 - Check `Show Re-entry Timeline` and confirm the HUD status identifies the latest valid confirmed or predicted decay event from active satellite decay estimates plus local/server decayed records.
 - Confirm the Re-entry Timeline detail viewport opens around that latest decay event and the latest re-entry marker/label is visibly highlighted.
 - Confirm tooltip/details for the latest decayed record include satellite/object name, NORAD catalog ID, object ID, object type, launch date, launch site, and decay date when available.
-- Confirm a decayed record that is no longer present in active TLE data can still be clicked and displayed in the right-side details panel without trying to render, propagate, or show active-satellite controls for it.
+- Confirm a decayed record that is no longer present in the active GP catalog can still be clicked and displayed in the right-side details panel without trying to render, propagate, or show active-satellite controls for it.
 - Run the timeline freshness automated tests to confirm latest-date detection and invalid-date handling do not depend on wall-clock timeline ranges.
 
 ## Filter UI Regression
 
 ### Orbit Filter
 
-- Select and deselect `GEO`, `MEO`, `LEO`, `HEO`, and `Other`.
-- Select `ALL` and confirm all orbit categories are active and the satellite count/dropdown reflect all orbit categories.
+- Select and deselect `GEO`, `MEO`, `LEO`, UI `HRO` (domain `HEO`), and `Others`.
+- Select `ALL` and confirm only the `ALL` control is pressed while its normalized union makes every category eligible and the satellite count/typeahead reflect that union.
 - With `ALL` active, click a specific orbit category and confirm `ALL` clears and the specific category becomes the narrowed selection.
 - Confirm multiple orbit buttons can be active at the same time.
 - Confirm changing orbit filters updates:
   - Satellite count.
   - Visible satellite markers.
-  - Satellite dropdown options.
+  - Visible typeahead results, while the hidden compatibility selector remains `None` plus at most the active NORAD.
   - Available tag chips.
 - Confirm `MEO` alone shows MEO satellites.
 - Confirm `LEO` alone shows LEO satellites.
 - Confirm `GEO` alone shows GEO satellites.
-- Confirm `HEO` and `Other` do not break the app even when no matching satellites are present.
+- Confirm `HRO`/domain `HEO` and `Others` do not break the app even when no matching satellites are present.
 
 ### Tag Filter
 
@@ -696,8 +817,8 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 
 - Confirm no standalone debris filter row or `Show`, `Hide`, `Debris only` buttons appear.
 - Confirm the orbit/category row order is `ALL`, `GEO`, `MEO`, `LEO`, `HRO`, `Debris`, `Others`.
-- Confirm selecting `Debris` shows only debris candidates such as names containing `DEB`, `DEBRIS`, `R/B`, `ROCKET BODY`, or `STAGE`.
-- Confirm selecting `Debris` updates the satellite count, visible search dropdown, hidden legacy select, and visible markers from the canonical filtered list.
+- Confirm selecting `Debris` gives authoritative debris, rocket-body, and stage object types precedence over orbit class. An authoritative non-debris type must not enter `Debris` only because its name contains `DEB`, `R/B`, `ROCKET BODY`, or `STAGE`; name heuristics apply only when object type is missing or unknown.
+- Confirm selecting `Debris` updates the satellite count, visible search dropdown, and visible markers from the canonical filtered list while the hidden legacy select remains virtualized to `None` plus at most the active NORAD.
 - Confirm switching away from `Debris` preserves a valid tag selection or safely returns to `All tags` when the selected tag is no longer available.
 
 ## Cross-Filter Regression
@@ -735,18 +856,18 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Select representative satellites with known local models and confirm the detailed model appears:
   - A `Starlink` satellite loads the Starlink model from `obj/`, appears centered, and is visually large enough to inspect.
   - A `OneWeb` satellite loads the OneWeb OBJ/MTL model from `obj/`.
-  - An `O3b`/`OB3` satellite loads `obj/o3b.glb` as the detailed model and uses the selected sprite fallback only if the GLB is unavailable.
+  - An `O3b`/`OB3` satellite loads `obj/o3b.glb` as the detailed model and uses the selected point-marker fallback only if the GLB is unavailable.
   - `ISS` loads the ISS GLB model from `obj/` when available in the filtered selection.
   - `ISS` visually uses the corrected orbital orientation: `+X` velocity, `+Y` pitch axis nadir toward Earth, and `+Z` right-handed negative cross-track.
   - ISS selected-model diagnostics report `orientationMode: "iss-velocity-pitch-nadir-frame"` plus yaw, pitch, roll, and pitch-axis Earth-facing calibration values.
   - From at least two camera angles, ISS remains inspectable and Earth remains visible in the initial selected view.
   - A GOES/Intelsat/SES-style GEO satellite loads the SSL 1300 fallback model when applicable.
   - For SSL 1300 / INTELSAT 18 and INTELSAT 20, the detailed model root sits directly on the selected red orbit trajectory without visible offset.
-  - With `?orbitAlignDebug=1`, selected detailed model diagnostics report propagated ECI/TEME position, model world position, sprite world position, nearest orbit-line point distance, scene scale, and alignment tolerance.
+  - With `?orbitAlignDebug=1`, selected detailed model diagnostics report propagated ECI/TEME position, model world position, state-proxy world position, nearest orbit-line point distance, scene scale, and alignment tolerance.
 - Confirm selecting a satellite with a detailed model lowers near-plane clipping enough that the model is not clipped when the camera is close.
 - Confirm the selected-model fill light makes the model visible even when asset materials or texture lighting are weak.
 - Confirm the selected-model diagnostics in the console report mesh count, bounding diameter, scale, attempted asset paths, and visibility status.
-- Select a satellite with no model mapping and confirm the sprite fallback remains visible.
+- Select a satellite with no model mapping and confirm the point-marker fallback remains visible.
 - Switch between two satellites quickly and confirm the app never displays a model for the previously selected satellite.
 - Toggle `Show Footprint`.
 - Toggle `Show only selected satellite`.
@@ -754,7 +875,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Toggle `Orbit Frame (LVLH)`.
 - Toggle `Yaw-Pitch-Roll` and move yaw, pitch, and roll sliders; confirm the selected model and YPR frame remain coherent with nadir/Earth-facing orientation.
 - Switch to Mercator-only mode, select a satellite, and confirm the selected satellite is clearly highlighted without triggering 3D camera-distance behavior.
-- With a selected detailed 3D model visible, switch to Mercator and confirm the selected satellite marker and ground track still render even though the 3D sprite is hidden.
+- With a selected detailed 3D model visible, switch to Mercator and confirm the selected satellite marker and ground track still render even though the Globe point marker is hidden.
 - With `Show Footprint` enabled, confirm the selected Mercator ground track remains visible above or clearly through the footprint overlay.
 - Toggle `Show orbit` off and confirm the 3D orbit is removed and the Mercator ground track stops drawing.
 - Select a satellite in Mercator-only mode, turn the 3D globe back on, and confirm the selected-satellite close framing is applied.
@@ -836,11 +957,11 @@ py -m http.server 8000 --bind 127.0.0.1
   - Open Share and confirm Copy Link creates a safe share URL.
   - Open Help and confirm local Swagger UI and companion Swagger Markdown docs open separate pages even when the Python server is not running.
   - Confirm mouse orbit shows different faces of the selected model and zoom changes observer distance without losing centering.
-  - Select a satellite without a model mapping and confirm the selected sprite stays visible.
+  - Select a satellite without a model mapping and confirm the selected point marker stays visible.
   - Rapidly select two different satellites and confirm stale model loads do not attach to the scene.
   - Toggle Mercator view.
   - Confirm the selected satellite has a visible Mercator selection ring.
-  - Confirm the selected satellite ground track remains visible in Mercator when the detailed 3D model hides the sprite.
+  - Confirm the selected satellite ground track remains visible in Mercator when the detailed 3D model hides the Globe point marker.
   - Select `ALL` in the Orbit filter and confirm all orbit categories populate the count and dropdown.
   - Confirm there is no `Active` filter button/control.
   - Toggle Globe off, select a satellite in Mercator-only mode, then toggle Globe on and confirm 3D selected-satellite framing.
@@ -859,7 +980,11 @@ Then check:
 ```text
 http://127.0.0.1:8000/api/health
 http://127.0.0.1:8000/api/version
+http://127.0.0.1:8000/api/gp
+http://127.0.0.1:8000/api/gp-metadata
 http://127.0.0.1:8000/api/tle
+http://127.0.0.1:8000/api/launches
+http://127.0.0.1:8000/api/data-update-status
 http://127.0.0.1:8000/docs
 http://127.0.0.1:8000/openapi.json
 http://127.0.0.1:8000/index.html
@@ -871,8 +996,9 @@ Expected:
 
 - `index.html` loads from the Python server.
 - The status icon changes from checking to connected.
-- Satellite data source shows local files after initial load because startup bootstraps from the static `json/tle/TLE.json` route before checking the optional server.
-- The reconnect/refresh action loads validated live server data from `/api/tle` and then labels the data source as live server.
+- Satellite data source shows packaged files after initial load because startup bootstraps from `json/gp/GP.json` before checking the optional server.
+- The reconnect/revision action loads validated live server data from `/api/gp`, refreshes launch/decay timelines, and labels the data source as live server. Deprecated `/api/tle` fallback must be visibly reduced coverage.
+- `/api/gp-metadata` matches the packaged GP sidecar, and `/api/data-update-status` exposes the composite and all three component revisions with a truthful `catalog_state`.
 - When `index.html` is served from a different local static or IDE host with no API routes, the status check retries `http://127.0.0.1:8000` and connects to the Python server before switching to offline mode.
 - Swagger/API docs links open separate local UI, local Markdown companion, and live API documentation pages from Help.
 - If the server is stopped and the page is refreshed, the app returns to local/offline data behavior.
@@ -1484,7 +1610,7 @@ Checks performed for this Version 1.5.18 implementation session:
 - Static tests confirm the visible `Server unavailable. Using local satellite data.` launch banner and `serverOfflineNotice` hook are removed while the server status panel remains.
 - Static tests confirm Starlink and ISS shortcut buttons are under `Satellite Selection`, not `Views & Time`, and still use the normal selection path.
 - Static tests confirm satellite search results are portaled to `document.body`, use fixed positioning, sit above menu elements, and preserve Escape, Tab, keyboard, mouse, and outside-click behavior.
-- Static tests confirm the right-side `selectedSatelliteDetailPanel` renders selected satellite metadata and TLE details below the UTC clock and hides when no satellite is selected.
+- Static tests confirm the right-side `selectedSatelliteDetailPanel` renders selected satellite metadata and TLE/OMM details below the UTC clock and hides when no satellite is selected.
 - Static tests confirm README and Releases History open rendered Markdown in `markdown_viewer.html`, raw HTML is escaped, rendered links are sanitized, and the viewer restricts allowed Markdown source files.
 - Static tests confirm `LICENSE.md` exists and the Licenses Help action targets it.
 - Static tests confirm `SSL_1300.glb` is restricted to app satellite identifier `20`, does not match generic GOES/Intelsat/name aliases, and does not confuse NORAD `20` with app satellite id `20`.
@@ -1568,8 +1694,8 @@ Checks not fully performed in this terminal:
 - Other Selections, Timelines, Share, and Help start collapsed on page load.
 - The accordion order is Views & Time, Satellite Selection, Filters - Satellites Found, Other Selections, Timelines, Share, Help.
 - Settings is not present as an accordion section.
-- The optional Python server exposes `/api/health`, `/api/version`, `/api/tle`, `/api/satellites`, `/api/satellite-metadata`, `/api/decayed`, `/api/data-update-status`, `/docs`, and `/openapi.json`.
-- Connected mode loads TLE data from the Python server and labels the active data source as server-backed.
+- The optional Python server exposes `/api/health`, `/api/version`, `/api/gp`, `/api/gp-metadata`, `/api/launches`, deprecated `/api/tle`, preferred-with-fallback `/api/satellites`, `/api/satellite-metadata`, `/api/decayed`, `/api/data-update-status`, `/docs`, and `/openapi.json`.
+- Connected mode loads preferred GP/OMM data from the Python server and labels the active data source as server-backed.
 - Disconnected, invalid, slow, or unavailable server states fall back to local file loading without breaking existing behavior.
 - The status icon exposes checking, connected, disconnected/offline, and error states with tooltip text and accessible labels.
 - The status panel shows server URL, connection state, data source, app/API version, last load time, and reconnect/refresh.
@@ -1583,17 +1709,18 @@ Checks not fully performed in this terminal:
 - The canvas-top Time x slider remains visible and controls the shared simulation-speed state.
 - The obsolete visible helper text for Views & Time, the orbit filter, and Satellite Selection is removed without leaving empty layout gaps.
 - Satellite Selection does not duplicate the detailed selected-satellite metadata/TLE table; full details live only in the right-side panel under the UTC clock.
-- The right-side selected-satellite panel matches the UTC clock width and shows each TLE line once.
+- The right-side selected-satellite panel matches the UTC clock width and shows the selected OMM or TLE element details without duplicated fields.
 - Selecting any satellite automatically checks `Show only selected satellite` and hides all non-selected satellites.
-- The selected satellite remains visible in show-only mode even when current filters would otherwise hide it.
+- Changing category or tag filters to exclude the selected satellite clears the selection, model/details, and show-only mode instead of retaining an object outside the filtered set.
 - Selecting a non-MEO/GEO satellite automatically enables `High Def.` Earth, and MEO/GEO selections never force High Def. off.
 - First Starlink and ISS shortcuts use the normal satellite selection path and move the observer to the selected satellite.
-- The Starlink shortcut displays `Starlink (<NORAD ID>)` after TLE data loads and `Starlink unavailable` when unresolved.
+- The Starlink shortcut displays `Starlink (<NORAD ID>)` after mixed GP data loads and `Starlink unavailable` when unresolved.
 - The ISS shortcut displays `ISS` when resolved and `ISS unavailable` when unresolved.
 - ISS selected-model orientation maps `+X` to velocity, `+Y`/pitch to nadir/Earth, and `+Z` to the right-handed negative cross-track complement.
 - ISS orientation diagnostics include `iss-velocity-pitch-nadir-frame`, pitch-axis Earth-facing metadata, and yaw/pitch/roll calibration values.
 - The Help accordion appears after Share and contains GitHub, README, Releases History, Licenses, Swagger, Swagger MD, Live API, and disclaimer content.
 - The satellite search field clears the prior selected label on the next search interaction without clearing the active selected satellite.
+- The visible typeahead owns full-catalog discovery; the hidden compatibility selector never holds the full catalog and retains only `None` plus the current full-string NORAD.
 - Selected-satellite camera metadata confirms Earth remains visible behind the selected satellite.
 - The generated tag/company filter never exposes an `Active` chip.
 - Launch and re-entry timeline checkboxes are mutually exclusive and checkbox state matches HUD visibility.

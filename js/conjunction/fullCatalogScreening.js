@@ -1,4 +1,4 @@
-import { createTlePropagationService } from '../orbit/propagationService.js';
+import { createMultiFormatPropagationService } from '../orbit/multiFormatPropagationService.js';
 import {
     canonicalPairKey,
     stableFingerprint
@@ -133,8 +133,9 @@ function catalogMaterial(record) {
         record?.tle_line1 ?? record?.tleLine1 ?? record?.line1 ?? '';
     const line2 = record?.element_set?.line2 ?? record?.elementSet?.line2 ??
         record?.tle_line2 ?? record?.tleLine2 ?? record?.line2 ?? '';
+    const omm = record?.element_set?.omm ?? record?.elementSet?.omm ?? null;
     const id = record?.object_id ?? record?.objectId ?? record?.norad_id ?? record?.NORAD_CAT_ID ?? '';
-    return [String(id), String(line1), String(line2)].join('|');
+    return [String(id), String(line1), String(line2), omm ? stableJson(omm) : ''].join('|');
 }
 
 function explicitDatasetIdentity(record) {
@@ -179,7 +180,7 @@ function normalizeRunInput(request) {
     if (frame !== REFERENCE_FRAME.TEME || timeScale !== TIME_SCALE.UTC) {
         throw new ScreeningError(
             'FULL_CATALOG_FRAME_OR_TIME_UNSUPPORTED',
-            'Full-catalog TLE screening supports only UTC timestamps in the TEME frame.'
+            'Full-catalog SGP4 screening supports only UTC timestamps in the TEME frame.'
         );
     }
 
@@ -416,7 +417,7 @@ function normalizeError(error, context) {
 }
 
 export async function screenFullCatalog(request, runtime = {}) {
-    const propagationService = runtime.propagationService ?? createTlePropagationService({
+    const propagationService = runtime.propagationService ?? createMultiFormatPropagationService({
         satelliteLib: runtime.satelliteLib
     });
     const run = normalizeRunInput(request);
@@ -508,6 +509,12 @@ export async function screenFullCatalog(request, runtime = {}) {
         left.prepared.element_set_id.localeCompare(right.prepared.element_set_id)
     );
     const objects = preparedCatalog.map(item => item.prepared);
+    const preparedRoutes = new Set(objects.map(item => item?.route).filter(Boolean));
+    const screeningFormatFlag = preparedRoutes.size === 1 && preparedRoutes.has('TLE')
+        ? 'TLE_SGP4_SCREENING_ONLY'
+        : preparedRoutes.size === 1 && preparedRoutes.has('OMM')
+            ? 'CCSDS_OMM_SGP4_SCREENING'
+            : 'MIXED_TLE_OMM_SGP4_SCREENING';
     if (objects.length < 2) {
         throw new ScreeningError(
             'INSUFFICIENT_PREPARED_CATALOG',
@@ -555,7 +562,7 @@ export async function screenFullCatalog(request, runtime = {}) {
         'COLLISION_PROBABILITY_UNAVAILABLE',
         'FULL_CATALOG_SNAPSHOT_SCREEN',
         'PERSISTABLE_CANDIDATE_PARTITIONS',
-        'TLE_SGP4_SCREENING_ONLY'
+        screeningFormatFlag
     ]);
     if (duplicateCatalogObjectsSkipped > 0) qualityFlags.add('DUPLICATE_CATALOG_OBJECTS_SKIPPED');
     if (run.dataset_provenance.source_status === 'PARTIAL' || run.dataset_provenance.partial_update) {

@@ -1,0 +1,28 @@
+{
+  "schema_version": "2.2.0",
+  "built_at": "2026-08-22T20:42:05.709433Z",
+  "fetched_at": "2026-08-22T20:42:05.709433Z",
+  "last_success_at": "2026-08-22T20:42:05.709433Z",
+  "last_attempt_at": "2026-08-22T21:07:23.964319Z",
+  "last_status": "not-modified",
+  "mode": "incremental",
+  "source": "json/satcat.csv",
+  "catalog_revision": "sha256:29ac0766eb9b3dab432a1b4fd9aae4471ba1bec8ed62f9e52d9dfcfb9734ccb7",
+  "newest_confirmed_decay_date": "2026-08-20",
+  "satcat_refresh": {
+    "changed": false,
+    "skipped": true,
+    "mode": "refresh-satcat",
+    "message": "SATCAT source has not changed.",
+    "counts": {},
+    "errors": [],
+    "paths": {
+      "satcat": "json/satcat.csv",
+      "metadata": "json/satcat.meta.json"
+    }
+  },
+  "counts": {
+    "objects": 7421,
+    "records": 7577
+  }
+}

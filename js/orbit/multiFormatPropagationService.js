@@ -17,7 +17,7 @@ import {
     createTlePropagationService
 } from './propagationService.js';
 
-export const MULTI_FORMAT_PROPAGATION_SERVICE_VERSION = '2.1.0';
+export const MULTI_FORMAT_PROPAGATION_SERVICE_VERSION = '2.2.0';
 export const DEFAULT_MAX_INTERPOLATION_GAP_SECONDS = 3600;
 
 export const TABULATED_INTERPOLATION_POLICY = Object.freeze({
@@ -42,7 +42,7 @@ export const MULTI_FORMAT_PROPAGATION_ERROR_CODE = Object.freeze({
     INTERPOLATION_GAP_EXCEEDED: 'TABULATED_INTERPOLATION_GAP_EXCEEDED'
 });
 
-const PREPARED_MARKER = 'openbexi.multiformat.prepared.v2.1';
+const PREPARED_MARKER = 'openbexi.multiformat.prepared.v2.2';
 const SGP4_CRITICAL_FINITE_FIELDS = Object.freeze([
     'epochyr', 'epochdays', 'jdsatepoch', 'ndot', 'nddot', 'bstar',
     'inclo', 'nodeo', 'ecco', 'argpo', 'mo', 'no'
@@ -154,9 +154,16 @@ function commonPreparedMetadata(record, elementSet) {
         value: {
             object_id: objectId,
             object_name: String(record?.name ?? objectId),
+            norad_id: record?.norad_id == null ? null : String(record.norad_id),
+            object_type: record?.object_type ?? 'UNKNOWN',
+            orbit_class: record?.orbit_class ?? 'UNKNOWN',
+            lifecycle_status: record?.lifecycle_status ?? 'UNKNOWN',
             element_set_id: elementSetId,
+            element_epoch_utc: elementSet?.epoch ?? null,
             dataset_id: datasetId,
             dataset_hash: datasetHash,
+            covariance: record?.covariance ?? null,
+            hard_body_radius_km: record?.hard_body_radius_km ?? null,
             input_quality_flags: Object.freeze([
                 ...new Set((record?.quality_flags ?? []).map(String))
             ].sort())
@@ -289,6 +296,7 @@ export function createMultiFormatPropagationService({
         return {
             ok: true,
             value: {
+                ...delegated.value,
                 prepared_by: PREPARED_MARKER,
                 route: 'TLE',
                 source_format: sourceFormat(record, 'TLE'),

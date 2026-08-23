@@ -1,0 +1,136 @@
+{
+  "schema_version": "1.0.0",
+  "evidence_class": "development-performance-observation",
+  "scientific_maturity": "experimental",
+  "safety_class": "non-operational",
+  "accuracy_claim": false,
+  "generated_at": "2026-07-21T09:11:22.883Z",
+  "application_version": "2.1.0",
+  "publication_state": "development",
+  "source": {
+    "catalog_path": "json/tle/TLE.json",
+    "metadata_path": "json/tle/TLE.meta.json",
+    "catalog_sha256": "a8e7adc848ada95a96c0b4d20515d60ca5d73d494b9324e2720a44fcf39b4beb",
+    "fetched_at": "2026-07-21T00:48:04.184467Z",
+    "source_record_count": 16443,
+    "selected_record_count": 16443
+  },
+  "configuration": {
+    "horizon_seconds": 60,
+    "coarse_step_seconds": 60,
+    "screening_radius_km": 10,
+    "refinement_tolerance_seconds": 0.25,
+    "refinement_subdivisions": 8,
+    "max_refinement_iterations": 48,
+    "max_relative_acceleration_km_s2": 0.024516625,
+    "coarse_padding_km": 0,
+    "spatial_cell_size_km": 250,
+    "max_cells_per_object": 512,
+    "max_cell_memberships_per_slab": 5000000,
+    "max_spatial_pair_checks_per_slab": 5000000,
+    "max_candidate_intervals": 250000,
+    "max_persisted_candidates": 100000,
+    "max_results": 10000,
+    "max_detected_events": 50000,
+    "yield_every_operations": 2000
+  },
+  "environment": {
+    "platform": "win32",
+    "operating_system": "Windows_NT 10.0.26200",
+    "architecture": "x64",
+    "cpu_model": "Intel(R) Core(TM) i7-9700 CPU @ 3.00GHz",
+    "logical_cpu_count": 8,
+    "total_memory_bytes": 34155577344,
+    "node_version": "v24.13.0",
+    "head_revision": "4764a39d22b41fcfc7ce284b3bb7aec27af8003f",
+    "working_tree_dirty": true
+  },
+  "measurement": {
+    "wall_time_seconds": 2.972846,
+    "objects_per_second": 5531.063,
+    "pair_intervals_per_second": 45470866.911,
+    "result_bytes": 3128543,
+    "memory_before": {
+      "rss_bytes": 164622336,
+      "heap_used_bytes": 32303416,
+      "heap_total_bytes": 102965248,
+      "external_bytes": 11778685
+    },
+    "memory_after": {
+      "rss_bytes": 371527680,
+      "heap_used_bytes": 199321296,
+      "heap_total_bytes": 304242688,
+      "external_bytes": 12250094
+    },
+    "memory_peak_observed": {
+      "rss_bytes": 371527680,
+      "heap_used_bytes": 222723448,
+      "heap_total_bytes": 304242688,
+      "external_bytes": 12250094
+    },
+    "peak_rss_increase_bytes": 206905344,
+    "peak_heap_used_increase_bytes": 190420032
+  },
+  "reduction": {
+    "spatial_checks_per_pair_interval": 0.002314367,
+    "spatial_check_reduction_fraction": 0.997685633,
+    "coarse_candidates_per_valid_pair_interval": 0.00000624599,
+    "coarse_candidate_reduction_fraction": 0.99999375401
+  },
+  "result": {
+    "status": "PARTIAL",
+    "quality_flags": [
+      "ACCELERATION_BOUND_COARSE_SCREEN",
+      "COLLISION_PROBABILITY_UNAVAILABLE",
+      "FULL_CATALOG_SNAPSHOT_SCREEN",
+      "INCOMPLETE_PAIR_INTERVAL_COVERAGE",
+      "INCOMPLETE_PROPAGATION_COVERAGE",
+      "KINEMATIC_BOUND_VIOLATION",
+      "PARTIAL_SOURCE_DATASET",
+      "PERSISTABLE_CANDIDATE_PARTITIONS",
+      "TLE_SGP4_SCREENING_ONLY"
+    ],
+    "statistics": {
+      "catalog_records": 16443,
+      "catalog_objects": 16443,
+      "catalog_pairs": 135177903,
+      "time_slabs": 1,
+      "broad_phase_slabs_completed": 1,
+      "candidate_partitions_completed": 0,
+      "candidate_partitions_partial": 1,
+      "object_state_attempts": 64342,
+      "propagation_failures": 176,
+      "pair_intervals_total": 135177903,
+      "pair_intervals_with_valid_endpoints": 133685776,
+      "pair_intervals_screened": 133685776,
+      "pair_intervals_unscreened": 1492127,
+      "spatial_cells": 34192,
+      "spatial_cell_memberships": 117246,
+      "spatial_pair_checks": 309398,
+      "canonical_pair_checks": 127029,
+      "aabb_candidates": 47899,
+      "coarse_candidates": 835,
+      "candidates_persisted": 835,
+      "events_refined": 835,
+      "incomplete_refinements": 0,
+      "events_detected": 214,
+      "events_reported": 214,
+      "events_truncated": 0,
+      "motion_bound_violations": 3,
+      "duplicate_catalog_objects_skipped": 0,
+      "truncated_error_count": 79
+    },
+    "candidate_count": 835,
+    "event_count": 214,
+    "error_count": 100
+  },
+  "interpretation": {
+    "recall_evidence": "tests/fullCatalogScreening.test.js compares broad-phase candidates with a deterministic brute-force chord oracle.",
+    "limitations": [
+      "This is one local wall-clock observation, not a portable performance guarantee.",
+      "A PARTIAL result is expected when source records fail propagation or violate configured motion bounds; unscreened intervals are reported explicitly.",
+      "The run does not validate collision probability, covariance handling, or operational decision quality.",
+      "The source snapshot licensing and independent scientific review gates remain open."
+    ]
+  }
+}

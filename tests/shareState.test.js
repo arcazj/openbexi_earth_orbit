@@ -15,7 +15,6 @@ function run() {
     viewMercator: true,
     orbitTypeFilter: ['LEO', 'DEBRIS'],
     companyFilter: ['STARLINK', 'STATIONS'],
-    debrisFilter: 'show',
     simDate: new Date('2026-06-04T12:00:00.000Z'),
     showOrbit: true,
     showFootprint: true,
@@ -42,7 +41,7 @@ function run() {
   assert.strictEqual(url.searchParams.get('conjRequest'), 'screen:def456', 'share URL identifies the producing request');
   assert.strictEqual(url.searchParams.get('orbit'), 'LEO,DEBRIS', 'share URL includes orbit filters');
   assert.strictEqual(url.searchParams.get('tags'), 'STARLINK,STATIONS', 'share URL includes tag filters');
-  assert.strictEqual(url.searchParams.get('debris'), 'only', 'Debris orbit filter shares as debris only');
+  assert.strictEqual(url.searchParams.has('debris'), false, 'share URL does not duplicate category state in a debris parameter');
   assert.strictEqual(url.searchParams.has('apiBase'), false, 'share URL removes local API base configuration');
   assert.strictEqual(url.searchParams.has('server'), false, 'share URL removes server configuration');
   assert.strictEqual(shareUrlContainsUnsafeLocalData(shareUrl), false, 'normal share URL contains no unsafe local data');
@@ -52,7 +51,6 @@ function run() {
   assert.strictEqual(parsed.conjunctionEventId, 'conjunction:abc123', 'share parse restores the event revision');
   assert.strictEqual(parsed.conjunctionRequestId, 'screen:def456', 'share parse restores the producing request');
   assert.deepStrictEqual(parsed.orbitTypeFilter, ['LEO', 'DEBRIS'], 'share parse restores orbit filters');
-  assert.strictEqual(parsed.debrisFilter, 'only', 'share parse maps Debris orbit to debris-only state');
   assert.deepStrictEqual(parsed.companyFilter, ['STARLINK', 'STATIONS'], 'share parse restores tag filters');
   assert.strictEqual(parsed.view3D, true, 'share parse restores 3D view');
   assert.strictEqual(parsed.viewMercator, true, 'share parse restores Mercator view');
@@ -68,10 +66,15 @@ function run() {
   });
   assert.deepStrictEqual(state.orbitTypeFilter, ['LEO'], 'share state strips unsafe local file paths');
   assert.deepStrictEqual(state.companyFilter, ['STARLINK'], 'share state strips unsafe token-like values');
-  assert.strictEqual(
-    parseShareStateFromSearch('?share=1&debris=hide').debrisFilter,
-    'show',
-    'legacy hidden debris mode is not restored without a visible control'
+  assert.deepStrictEqual(
+    parseShareStateFromSearch('?share=1&debris=only').orbitTypeFilter,
+    ['DEBRIS'],
+    'legacy debris-only links restore the unified Debris category when no orbit filter is present'
+  );
+  assert.deepStrictEqual(
+    parseShareStateFromSearch('?share=1&orbit=LEO&debris=only').orbitTypeFilter,
+    ['LEO'],
+    'an explicit orbit filter takes precedence over the obsolete debris parameter'
   );
   assert(shareStateSummary(parsed).includes('NORAD 25544'), 'share summary includes selected satellite');
   assert(shareStateSummary(parsed).includes('Event conjunction:abc123'), 'share summary includes the conjunction event revision');

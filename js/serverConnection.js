@@ -76,6 +76,29 @@ export function validateTleData(data) {
     );
 }
 
+function gpRecordFormat(item) {
+    return String(item?.element_set?.format ?? item?.elementSet?.format ?? item?.source_format ?? '').trim().toUpperCase();
+}
+
+export function validateGpData(data) {
+    if (!Array.isArray(data) || data.length === 0) return false;
+    return data.some(item => {
+        if (!item || typeof item !== 'object') return false;
+        const norad = item.norad_id ?? item.NORAD_CAT_ID ?? item.element_set?.omm?.NORAD_CAT_ID;
+        if (norad === undefined || norad === null || !/^\d+$/.test(String(norad).trim())) return false;
+        const format = gpRecordFormat(item);
+        if (format === 'TLE' || format === 'TLE_JSON') {
+            return typeof (item.tle_line1 ?? item.element_set?.line1) === 'string' &&
+                typeof (item.tle_line2 ?? item.element_set?.line2) === 'string';
+        }
+        const omm = item.element_set?.omm ?? item.omm ?? item;
+        return (format === 'OMM' || format === 'CCSDS_OMM_JSON' || omm?.EPOCH !== undefined) &&
+            typeof omm === 'object' &&
+            omm !== null &&
+            (omm.EPOCH !== undefined || item.element_set?.epoch !== undefined);
+    });
+}
+
 export async function fetchJsonWithTimeout(url, {
     fetchImpl = globalThis.fetch,
     timeoutMs = DEFAULT_SERVER_TIMEOUT_MS
@@ -206,13 +229,239 @@ export async function loadTleDataFromServer({
     return data;
 }
 
+export async function loadGpDataFromServer({
+    baseUrl,
+    fetchImpl = globalThis.fetch,
+    timeoutMs = 10000
+} = {}) {
+    const data = await fetchJsonWithTimeout(apiEndpoint(baseUrl, '/api/gp'), {
+        fetchImpl,
+        timeoutMs
+    });
+    if (!validateGpData(data)) {
+        throw new Error('Server GP response failed validation');
+    }
+    return data;
+}
+
+function validateMetadataPayload(data, label) {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+        throw new Error(`${label} response failed validation`);
+    }
+    return data;
+}
+
+export async function loadGpMetadataFromServer({
+    baseUrl,
+    fetchImpl = globalThis.fetch,
+    timeoutMs = 10000
+} = {}) {
+    const data = await fetchJsonWithTimeout(apiEndpoint(baseUrl, '/api/gp-metadata'), {
+        fetchImpl,
+        timeoutMs
+    });
+    return validateMetadataPayload(data, 'Server GP metadata');
+}
+
+export async function loadTleMetadataFromServer({
+    baseUrl,
+    fetchImpl = globalThis.fetch,
+    timeoutMs = 10000
+} = {}) {
+    const data = await fetchJsonWithTimeout(apiEndpoint(baseUrl, '/json/tle/TLE.meta.json'), {
+        fetchImpl,
+        timeoutMs
+    });
+    return validateMetadataPayload(data, 'Server TLE metadata');
+}
+
+export async function loadLaunchDataFromServer({
+    baseUrl,
+    fetchImpl = globalThis.fetch,
+    timeoutMs = 10000
+} = {}) {
+    const data = await fetchJsonWithTimeout(apiEndpoint(baseUrl, '/api/launches'), {
+        fetchImpl,
+        timeoutMs
+    });
+    if (!Array.isArray(data)) throw new Error('Server launch response failed validation');
+    return data;
+}
+
+export async function loadDataUpdateStatus({
+    baseUrl,
+    fetchImpl = globalThis.fetch,
+    timeoutMs = 10000
+} = {}) {
+    return fetchJsonWithTimeout(apiEndpoint(baseUrl, '/api/data-update-status'), {
+        fetchImpl,
+        timeoutMs
+    });
+}
+
+function metadataRevision(metadata) {
+    const value = metadata?.catalog_revision ?? metadata?.dataset_hash ?? metadata?.revision ??
+        metadata?.last_success_at ?? metadata?.built_at ?? metadata?.fetched_at;
+    if (value === undefined || value === null) return null;
+    const normalized = String(value).trim();
+    return normalized || null;
+}
+
+export async function loadStaticDataUpdateStatus({
+    fetchImpl = globalThis.fetch,
+    timeoutMs = 10000
+} = {}) {
+    const orbitalMetadataPromise = fetchJsonWithTimeout('json/gp/GP.meta.json', { fetchImpl, timeoutMs })
+        .then(metadata => ({ kind: 'GP', metadata }))
+        .catch(() => fetchJsonWithTimeout('json/tle/TLE.meta.json', { fetchImpl, timeoutMs })
+            .then(metadata => ({ kind: 'TLE', metadata })));
+    const [orbital, launch, decay] = await Promise.all([
+        orbitalMetadataPromise,
+        fetchJsonWithTimeout('json/launches/launches.meta.json', { fetchImpl, timeoutMs }),
+        fetchJsonWithTimeout('json/decayed/decayed.meta.json', { fetchImpl, timeoutMs })
+    ]);
+    const orbitalRevision = metadataRevision(orbital.metadata);
+    const launchRevision = metadataRevision(launch);
+    const decayRevision = metadataRevision(decay);
+    if (!orbitalRevision || !launchRevision || !decayRevision) {
+        throw new Error('Static catalog metadata is missing a revision identity.');
+    }
+    return {
+        source: 'static-metadata',
+        catalog_kind: orbital.kind,
+        data_revision: `static:${[orbitalRevision, launchRevision, decayRevision].map(encodeURIComponent).join('|')}`,
+        orbital_revision: orbitalRevision,
+        gp_revision: orbital.kind === 'GP' ? orbitalRevision : null,
+        tle_revision: orbital.kind === 'TLE' ? orbitalRevision : null,
+        launch_revision: launchRevision,
+        decay_revision: decayRevision,
+        catalog_revision: orbitalRevision,
+        datasets: {
+            orbital: { kind: orbital.kind, revision: orbitalRevision },
+            ...(orbital.kind === 'GP'
+                ? { gp: { revision: orbitalRevision } }
+                : { tle: { revision: orbitalRevision } }),
+            launch: { revision: launchRevision },
+            decay: { revision: decayRevision }
+        }
+    };
+}
+
+export function catalogRevisionFromStatus(status) {
+    const value = status?.data_revision ?? status?.catalog_revision ?? status?.catalog_revision_id ?? status?.revision ??
+        status?.gp?.catalog_revision ?? status?.gp?.revision ?? status?.datasets?.gp?.revision;
+    if (value === undefined || value === null) return null;
+    const normalized = String(value).trim();
+    return normalized || null;
+}
+
+export function createCatalogRevisionWatcher({
+    baseUrl,
+    fetchImpl = globalThis.fetch,
+    intervalMs = 60_000,
+    statusLoader = null,
+    onRevisionChange = null,
+    onError = null
+} = {}) {
+    let currentRevision = null;
+    let currentStatus = null;
+    let timer = null;
+    let stopped = true;
+    let requestInFlight = null;
+
+    const checkNow = async () => {
+        if (requestInFlight) return requestInFlight;
+        const loadStatus = typeof statusLoader === 'function'
+            ? statusLoader
+            : () => loadDataUpdateStatus({ baseUrl, fetchImpl });
+        requestInFlight = Promise.resolve()
+            .then(() => loadStatus({ baseUrl, fetchImpl }))
+            .then(async status => {
+                const revision = catalogRevisionFromStatus(status);
+                const previous = currentRevision;
+                const previousStatus = currentStatus;
+                if (!revision) {
+                    return { revision: currentRevision, previous, status, previousStatus, changed: false };
+                }
+                const changed = !!previous && revision !== previous;
+                if (changed && typeof onRevisionChange === 'function') {
+                    await onRevisionChange({ revision, previous, status, previousStatus });
+                }
+                currentRevision = revision;
+                currentStatus = status;
+                return { revision, previous, status, previousStatus, changed };
+            })
+            .catch(error => {
+                if (typeof onError === 'function') onError(error);
+                return { revision: currentRevision, previous: currentRevision, status: null, changed: false, error };
+            })
+            .finally(() => {
+                requestInFlight = null;
+            });
+        return requestInFlight;
+    };
+
+    const schedule = () => {
+        if (stopped) return;
+        timer = setTimeout(async () => {
+            await checkNow();
+            schedule();
+        }, Math.max(1000, Number(intervalMs) || 60_000));
+    };
+
+    return Object.freeze({
+        async start() {
+            if (!stopped) return checkNow();
+            stopped = false;
+            const result = await checkNow();
+            schedule();
+            return result;
+        },
+        stop() {
+            stopped = true;
+            if (timer) clearTimeout(timer);
+            timer = null;
+        },
+        checkNow,
+        get revision() {
+            return currentRevision;
+        },
+        get status() {
+            return currentStatus;
+        }
+    });
+}
+
+export function createStaticDataRevisionWatcher(options = {}) {
+    return createCatalogRevisionWatcher({
+        ...options,
+        baseUrl: '',
+        statusLoader: ({ fetchImpl }) => loadStaticDataUpdateStatus({
+            fetchImpl,
+            timeoutMs: options.timeoutMs ?? 10000
+        })
+    });
+}
+
 export function resolveServerDataUrl(originalUrl, baseUrl) {
     const normalizedBaseUrl = normalizeApiBaseUrl(baseUrl);
     if (!normalizedBaseUrl || typeof originalUrl !== 'string') return null;
 
     const cleanUrl = originalUrl.split(/[?#]/)[0].replace(/\\/g, '/');
+    if (/json\/gp\/GP\.meta\.json$/i.test(cleanUrl)) {
+        return apiEndpoint(normalizedBaseUrl, '/api/gp-metadata');
+    }
+    if (/json\/gp\/GP\.json$/i.test(cleanUrl)) {
+        return apiEndpoint(normalizedBaseUrl, '/api/gp');
+    }
     if (/json\/tle\/TLE\.json$/i.test(cleanUrl)) {
         return apiEndpoint(normalizedBaseUrl, '/api/tle');
+    }
+    if (/json\/tle\/TLE\.meta\.json$/i.test(cleanUrl)) {
+        return apiEndpoint(normalizedBaseUrl, '/json/tle/TLE.meta.json');
+    }
+    if (/json\/launches\/launches\.json$/i.test(cleanUrl)) {
+        return apiEndpoint(normalizedBaseUrl, '/api/launches');
     }
     if (/json\/decayed\/decayed\.json$/i.test(cleanUrl)) {
         return apiEndpoint(normalizedBaseUrl, '/api/decayed');

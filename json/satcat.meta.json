@@ -1,0 +1,18 @@
+{
+  "fetched_at": "2026-08-22T20:42:05.709433Z",
+  "last_success_at": "2026-08-22T20:42:05.709433Z",
+  "last_attempt_at": "2026-08-22T21:07:23.964319Z",
+  "last_status": "not-modified",
+  "source_url": "https://celestrak.org/pub/satcat.csv",
+  "counts": {
+    "bytes": 6709147
+  },
+  "urls": {
+    "https://celestrak.org/pub/satcat.csv": {
+      "etag": "\"20b025569c31dd1:0\"",
+      "last_modified": "Fri, 21 Aug 2026 18:39:02 GMT",
+      "status": 304,
+      "last_attempt_at": "2026-08-22T21:07:23.964319Z"
+    }
+  }
+}

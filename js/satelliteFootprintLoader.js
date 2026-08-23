@@ -1,15 +1,13 @@
-// satelliteFootprintLoader.js – Enhanced version with high-precision shader-based 3D rendering and dateline wrapping for 2D maps.
-
 import * as THREE from 'three';
-// It's assumed you have a constants file like this.
-// If not, replace with direct values: e.g., const EARTH_RADIUS_KM = 6371;
 import { EARTH_RADIUS_KM } from './SatelliteConstantLoader.js';
 import { eciToSceneVector } from './sceneFrame.js';
 import { mercatorPixelFromLonLat } from './orbit/orbitLinkGeometry.js';
 
 let _scene;
-let _earthMesh; // A reference to the main Earth mesh is now needed
-let footprintMesh3D; // This will now be a mesh with a custom shader material
+let _earthMesh;
+let footprintMesh3D;
+const footprintSatellitePositionKm = new THREE.Vector3();
+const footprintSatellitePositionScene = new THREE.Vector3();
 
 const R_E_KM = EARTH_RADIUS_KM;
 
@@ -22,9 +20,6 @@ export function calculateFootprintAngularRadius(distanceKm, earthRadiusKm = R_E_
     return Math.acos(earthRadiusKm / distanceKm);
 }
 
-// --- Vertex Shader for the Footprint ---
-// This shader is responsible for setting up the coordinates for the fragment shader.
-// It simply passes the world position of each vertex of the overlay sphere.
 const footprintVertexShader = `
     // Data passed from the vertex shader to the fragment shader
     varying vec3 v_world_position;
@@ -39,9 +34,6 @@ const footprintVertexShader = `
     }
 `;
 
-// --- Fragment Shader for the Footprint ---
-// This is where the magic happens. It runs for every visible pixel of the overlay sphere
-// and decides whether that pixel should be part of the footprint.
 const footprintFragmentShader = `
     // Uniforms are global variables passed from your JavaScript code to the shader.
     uniform vec3 u_satellite_position_wc; // Satellite's position in World Coordinates
@@ -157,15 +149,12 @@ function drawSinglePolygon(ctx, polyPath) {
  */
 function drawMercator(ctx, path) {
     ctx.save();
-    ctx.fillStyle = 'rgba(255, 255, 153, 0.3)'; // #FFFF99 with alpha
+    ctx.fillStyle = 'rgba(255, 255, 153, 0.3)';
     ctx.strokeStyle = '#FFFF00';
     ctx.lineWidth = 1;
 
-    // Draw the original polygon
     drawSinglePolygon(ctx, path);
 
-    // Create and draw a shifted polygon to handle wrapping across the antimeridian.
-    // If a longitude is negative, shift it to the right; if positive, shift to the left.
     const shiftedPath = path.map(([la, lo]) => [la, lo < 0 ? lo + 360 : lo - 360]);
     drawSinglePolygon(ctx, shiftedPath);
 
@@ -177,9 +166,9 @@ function drawMercator(ctx, path) {
  * footprint and update both the 2D map and the 3D view.
  * @param {object} selectedSat The currently selected satellite object.
  * @param {number} gmstRad The current GMST in radians.
- * @param {object} options Additional options including `showFootprint`, `mercatorCtx`, and `simDate`.
+ * @param {object} options Additional options including `showFootprint`, `mercatorCtx`, `simDate`, and an optional propagated state.
  */
-export function updateFootprints(selectedSat, gmstRad, { showFootprint, mercatorCtx, simDate }) {
+export function updateFootprints(selectedSat, gmstRad, { showFootprint, mercatorCtx, simDate, propagation = undefined }) {
     if (!footprintMesh3D) return;
 
     if (!selectedSat || !selectedSat.satrec || !showFootprint) {
@@ -188,15 +177,20 @@ export function updateFootprints(selectedSat, gmstRad, { showFootprint, mercator
     }
 
     const simDateObj = simDate || new Date();
-    const pv = satellite.propagate(selectedSat.satrec, simDateObj);
+    const propagationProvided = propagation !== undefined;
+    const pv = !propagationProvided
+        ? satellite.propagate(selectedSat.satrec, simDateObj)
+        : propagation;
 
     if (!pv || !pv.position) {
-        console.warn("Footprint calculation failed: satellite.propagate returned invalid data.", { satrec: selectedSat.satrec, date: simDateObj });
+        if (!propagationProvided) {
+            console.warn("Footprint calculation failed: satellite.propagate returned invalid data.", { satrec: selectedSat.satrec, date: simDateObj });
+        }
         footprintMesh3D.visible = false;
         return;
     }
 
-    const sat_pos_vec_km = new THREE.Vector3(pv.position.x, pv.position.y, pv.position.z);
+    const sat_pos_vec_km = footprintSatellitePositionKm.set(pv.position.x, pv.position.y, pv.position.z);
     const d_km = sat_pos_vec_km.length(); // Distance from Earth's center
     const H_km = d_km - R_E_KM;           // Altitude above surface
 
@@ -250,7 +244,7 @@ export function updateFootprints(selectedSat, gmstRad, { showFootprint, mercator
     // Convert satellite's ECI coordinates (km) to Three.js scene coordinates.
     // Note the Y and Z axes are swapped to match the common convention in 3D graphics
     // where Y is the "up" axis (polar axis in this case).
-    const satPosWC = eciToSceneVector(new THREE.Vector3(), pv.position);
+    const satPosWC = eciToSceneVector(footprintSatellitePositionScene, pv.position);
 
     // Update the shader uniforms with the new satellite position and footprint angle
     const material = footprintMesh3D.material;

@@ -1,4 +1,4 @@
-import { createTlePropagationService } from '../orbit/propagationService.js';
+import { createMultiFormatPropagationService } from '../orbit/multiFormatPropagationService.js';
 import {
     ScreeningCancelledError,
     screenSelectedObjectAgainstCatalog
@@ -23,7 +23,7 @@ export async function loadSatelliteLibrary(
     if (!satelliteLibraryPromises.has(normalizedUrl)) {
         const libraryPromise = importer(normalizedUrl).then(moduleNamespace => {
             const library = moduleNamespace?.propagate ? moduleNamespace : globalThis.satellite;
-            if (!library?.propagate || !library?.twoline2satrec) {
+            if (!library?.propagate || !library?.twoline2satrec || !library?.json2satrec) {
                 throw new Error(`Satellite module ${normalizedUrl} did not expose the expected API.`);
             }
             return library;
@@ -90,7 +90,7 @@ export function createConjunctionWorkerController({
         try {
             const satelliteLib = await loadLibrary(message.satellite_module_url || DEFAULT_SATELLITE_MODULE_URL);
             if (control.cancelled) throw new ScreeningCancelledError();
-            const propagationService = createTlePropagationService({ satelliteLib });
+            const propagationService = createMultiFormatPropagationService({ satelliteLib });
             let lastProgressStage = null;
             let lastProgressFraction = -1;
             let lastProgressAt = Number.NEGATIVE_INFINITY;

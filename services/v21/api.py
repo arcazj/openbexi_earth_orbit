@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import json
+import math
 import os
 import re
 from pathlib import Path
@@ -84,6 +85,20 @@ CONFIGURATION_LIMITS = {
 SUPPORTED_OBJECT_TYPES = frozenset({"PAYLOAD", "ROCKET_BODY", "DEBRIS", "UNKNOWN"})
 SUPPORTED_LIFECYCLE = frozenset({"ACTIVE", "INACTIVE", "DECAYED", "RETIRED", "UNKNOWN"})
 DEFAULT_LIFECYCLE = ("ACTIVE", "INACTIVE", "UNKNOWN")
+OMM_REQUIRED_NUMERIC_FIELDS = (
+    "MEAN_MOTION",
+    "ECCENTRICITY",
+    "INCLINATION",
+    "RA_OF_ASC_NODE",
+    "ARG_OF_PERICENTER",
+    "MEAN_ANOMALY",
+    "EPHEMERIS_TYPE",
+    "ELEMENT_SET_NO",
+    "REV_AT_EPOCH",
+    "BSTAR",
+    "MEAN_MOTION_DOT",
+    "MEAN_MOTION_DDOT",
+)
 
 
 def _utc(value: Any, field: str) -> str:
@@ -221,11 +236,25 @@ def _source_observations(
         norad_id = str(record.get("norad_id") or record.get("NORAD_CAT_ID") or "").strip().upper()
         line1 = str(record.get("tle_line1") or record.get("line1") or "").strip()
         line2 = str(record.get("tle_line2") or record.get("line2") or "").strip()
-        if not norad_id or not line1 or not line2:
+        element_set = record.get("element_set")
+        omm = element_set.get("omm") if isinstance(element_set, dict) else None
+        if not norad_id:
+            continue
+        if line1 and line2:
+            element_material = (line1 + "\n" + line2).encode("ascii", errors="replace")
+        elif isinstance(omm, dict) and str(element_set.get("format") or "").upper() == "OMM":
+            element_material = json.dumps(
+                omm,
+                ensure_ascii=False,
+                allow_nan=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        else:
             continue
         object_id = "obx:norad:" + norad_id
         observed_ids.add(object_id)
-        element_digest = hashlib.sha256((line1 + "\n" + line2).encode("ascii", errors="replace")).hexdigest()[:32]
+        element_digest = hashlib.sha256(element_material).hexdigest()[:32]
         element_set_id = "elset:sha256:" + element_digest
         object_type = object_type_aliases.get(
             str(record.get("object_type") or record.get("OBJECT_TYPE") or "").strip().upper(),
@@ -251,7 +280,7 @@ def _source_observations(
         observations.append({
             "object_id": object_id,
             "norad_id": norad_id,
-            "international_designator": None,
+            "international_designator": record.get("international_designator") or record.get("OBJECT_ID"),
             "name": str(record.get("satellite_name") or record.get("name") or ("NORAD " + norad_id)),
             "object_type": object_type,
             "lifecycle_status": lifecycle,
@@ -275,6 +304,64 @@ def _source_observations(
             })
     observations.sort(key=lambda item: item["object_id"])
     return observations
+
+
+def _validate_bundled_gp_records(records: Sequence[Dict[str, Any]]) -> None:
+    for index, record in enumerate(records):
+        if not isinstance(record, dict):
+            raise CatalogSnapshotError(f"Bundled GP record {index} is not an object")
+        norad_id = str(record.get("norad_id") or "").strip()
+        if not re.fullmatch(r"[1-9]\d{0,8}", norad_id):
+            raise CatalogSnapshotError(f"Bundled GP record {index} has an invalid NORAD identifier")
+        element_set = record.get("element_set")
+        if not isinstance(element_set, dict) or str(element_set.get("format") or "").upper() != "OMM":
+            raise CatalogSnapshotError(f"Bundled GP record {index} is missing its OMM element set")
+        omm = element_set.get("omm")
+        if not isinstance(omm, dict) or str(omm.get("NORAD_CAT_ID") or "").strip() != norad_id:
+            raise CatalogSnapshotError(f"Bundled GP record {index} has conflicting OMM identity")
+        constants = {
+            "CENTER_NAME": "EARTH",
+            "REF_FRAME": "TEME",
+            "TIME_SYSTEM": "UTC",
+            "MEAN_ELEMENT_THEORY": "SGP4",
+        }
+        if any(str(omm.get(name) or "").upper() != expected for name, expected in constants.items()):
+            raise CatalogSnapshotError(f"Bundled GP record {index} has unsupported OMM constants")
+        if not str(omm.get("CCSDS_OMM_VERS") or "").startswith("2"):
+            raise CatalogSnapshotError(f"Bundled GP record {index} has an unsupported OMM version")
+        epoch = str(omm.get("EPOCH") or "").strip()
+        if not UTC_INSTANT.fullmatch(epoch):
+            raise CatalogSnapshotError(f"Bundled GP record {index} has an invalid OMM epoch")
+        try:
+            parsed_epoch = dt.datetime.fromisoformat(epoch[:-1] + "+00:00") if epoch.endswith("Z") else None
+        except ValueError:
+            parsed_epoch = None
+        if parsed_epoch is None:
+            raise CatalogSnapshotError(f"Bundled GP record {index} has an invalid OMM epoch")
+        wrapper_profile = {
+            "epoch": epoch,
+            "time_scale": "UTC",
+            "native_frame": "TEME",
+            "propagation_theory": "SGP4",
+        }
+        if any(str(element_set.get(name) or "").upper() != expected for name, expected in wrapper_profile.items()):
+            raise CatalogSnapshotError(f"Bundled GP record {index} has inconsistent normalized OMM metadata")
+        for field in OMM_REQUIRED_NUMERIC_FIELDS:
+            value = omm.get(field)
+            if isinstance(value, bool):
+                raise CatalogSnapshotError(f"Bundled GP record {index} has invalid OMM {field}")
+            try:
+                number = float(value)
+            except (TypeError, ValueError) as exc:
+                raise CatalogSnapshotError(f"Bundled GP record {index} has invalid OMM {field}") from exc
+            if not math.isfinite(number):
+                raise CatalogSnapshotError(f"Bundled GP record {index} has invalid OMM {field}")
+        if not 0 < float(omm["MEAN_MOTION"]) <= 25 or not 0 <= float(omm["ECCENTRICITY"]) < 1:
+            raise CatalogSnapshotError(f"Bundled GP record {index} has invalid OMM orbital values")
+        if not 0 <= float(omm["INCLINATION"]) <= 180:
+            raise CatalogSnapshotError(f"Bundled GP record {index} has invalid OMM inclination")
+        if float(omm["EPHEMERIS_TYPE"]) != 0:
+            raise CatalogSnapshotError(f"Bundled GP record {index} has an unsupported ephemeris type")
 
 
 def _public_catalog(revision: Dict[str, Any]) -> Dict[str, Any]:
@@ -315,14 +402,34 @@ class V21ApiService:
     def bootstrap_bundled_catalog(self) -> Dict[str, Any]:
         registry = CatalogSnapshotRegistry(self.runtime_root)
         try:
-            snapshot = registry.snapshot_tle_json(
-                self.root / "json" / "tle" / "TLE.json",
-                self.root / "json" / "tle" / "TLE.meta.json",
-            )
+            gp_path = self.root / "json" / "gp" / "GP.json"
+            if gp_path.is_file() and gp_path.stat().st_size > 2:
+                try:
+                    snapshot = registry.snapshot_gp_json(
+                        gp_path,
+                        self.root / "json" / "gp" / "GP.meta.json",
+                    )
+                    records = registry.load_records(snapshot)
+                    _validate_bundled_gp_records(records)
+                    if not _source_observations(records, snapshot.retrieved_at):
+                        raise CatalogSnapshotError("Bundled GP catalog has no propagatable records")
+                except (CatalogSnapshotError, OSError, ValueError):
+                    snapshot = registry.snapshot_tle_json(
+                        self.root / "json" / "tle" / "TLE.json",
+                        self.root / "json" / "tle" / "TLE.meta.json",
+                    )
+                    records = registry.load_records(snapshot)
+            else:
+                snapshot = registry.snapshot_tle_json(
+                    self.root / "json" / "tle" / "TLE.json",
+                    self.root / "json" / "tle" / "TLE.meta.json",
+                )
+                records = registry.load_records(snapshot)
+            if not _source_observations(records, snapshot.retrieved_at):
+                raise CatalogSnapshotError("Bundled catalog has no propagatable records")
             existing = self.store.get_catalog_revision(snapshot.revision_id)
             if existing is not None:
                 return _public_catalog(existing)
-            records = registry.load_records(snapshot)
             observations = _source_observations(
                 records,
                 snapshot.retrieved_at,

@@ -1,6 +1,6 @@
 # Experimental Full-Catalog Screening in Version 2.1
 
-Last reviewed: 2026-07-21
+Last reviewed: 2026-08-22
 
 ## Claim Boundary
 
@@ -8,7 +8,7 @@ Version `2.1.0` development adds asynchronous, durable, server-side **geometric 
 
 It does not compute collision probability, ingest CCSDS Conjunction Data Messages (CDMs), validate covariance, assign an operational risk score, deliver alerts, or recommend maneuvers. All output is `Experimental` and `non-operational`. A small miss distance is not a probability of collision, a prediction of physical contact, or an instruction to act.
 
-Version 2.1 is in development publication state. It is neither a release candidate nor a release. Its implementation does not retroactively close the open v2.0 promotion gates and does not authorize v2.2.
+Version 2.1 was implemented in development publication state and was neither a release candidate nor a release. Its implementation did not retroactively close the open v2.0 promotion gates. Version 2.2 GP/OMM plus bounded browser-continuity work was later authorized separately and does not promote this v2.1 scientific claim or authorize Pc/CDM/covariance work. Its visual satellite interpolation, Mercator position/track cache, in-place orbit line, and display failure-retry state are not durable-runner inputs.
 
 ## Supported Computation
 
@@ -18,7 +18,7 @@ The durable runner accepts a frozen, checksummed catalog revision and a normaliz
 - CCSDS OMM JSON or KVN is supported only for explicit SGP4 theory, UTC time, and TEME output accepted by the adapter.
 - CCSDS OEM KVN and provider ephemeris adapters preserve bounded tabulated states, original records, frame, time scale, units, and interpolation policy. The multi-format propagation service can interpolate supported TEME, GCRF, or ITRF tables without extrapolation or frame conversion; the full-catalog runner rejects a catalog unless every selected record is already TEME.
 - Source adapters require explicit provenance, enforce byte/record/line/sample limits, reject ambiguous identities and duplicate objects, and can apply unambiguous SATCAT classification enrichment.
-- The bundled server bootstrap currently registers the local TLE snapshot. The adapters do not by themselves admit a provider, fetch external data, resolve its license, or provide a public catalog-upload API.
+- The Version 2.1 bundled server bootstrap originally registered the local TLE snapshot. Version 2.2 now registers the preferred bundled GP/OMM snapshot and accepts bundled TLE only as a visible reduced-coverage fallback. The adapters do not by themselves admit a provider, fetch external data, resolve its license, or provide a public catalog-upload API.
 
 The screening engine proceeds through bounded stages:
 
@@ -34,7 +34,7 @@ The production runner does not enumerate every pair as its broad phase. The repo
 ## Durable Execution Semantics
 
 - Catalog revisions are copied into private content-addressed storage and tied to a SHA-256 dataset identity.
-- Startup and successful scheduled TLE refreshes register immutable revisions and reconcile observed records as `NEW`, `CHANGED`, or `REAPPEARED` (with stable observations recorded separately). Current incremental metadata is `PARTIAL`; `ABSENT` is generated only from a successful explicit full (`mode=all`) source snapshot.
+- In Version 2.1, startup and successful scheduled TLE refreshes registered immutable revisions and reconciled observed records as `NEW`, `CHANGED`, or `REAPPEARED` (with stable observations recorded separately). Version 2.2 applies those semantics to preferred GP/OMM snapshots, with TLE retained only as a reduced-coverage fallback. Current scheduled GP metadata is `PARTIAL`; `ABSENT` is generated only from a successful explicit full (`mode=all`) source snapshot.
 - Jobs have explicit `QUEUED`, `RUNNING`, `CANCEL_REQUESTED`, `CANCELLED`, `SUCCEEDED`, `FAILED`, and `TIMED_OUT` states.
 - A normalized request plus principal-scoped idempotency key prevents accidental duplicate admission; a key reused for different input is rejected.
 - One local worker claims durable jobs. Attempt number and worker ownership fence every progress update, result import, and completion so a stale worker cannot complete a later attempt.
@@ -109,7 +109,7 @@ npm run benchmark:full-catalog -- --output artifacts/full-catalog-benchmark.json
 npm run benchmark:v21-service -- --output artifacts/v21-service-benchmark.json
 ```
 
-The first command measures the engine. Use `--limit`, `--start-time`, `--horizon-seconds`, `--coarse-step-seconds`, and `--screening-radius-km` to name a different bounded profile. The second command exercises the real loopback API, SQLite store, worker, event query, shutdown, and persistence path in a fresh private runtime. Use `--object-limit` for a smaller service profile and `--keep-runtime` only when private-state inspection is required. Keep raw output with the exact source, catalog, metadata, lockfile, and validation-manifest hashes.
+The first command measures the engine. Version 2.2 prefers the packaged GP/OMM catalog and records the selected format and revision; use explicit `--catalog` and `--meta` arguments to reproduce the historical TLE source. Use `--limit`, `--start-time`, `--horizon-seconds`, `--coarse-step-seconds`, and `--screening-radius-km` to name a different bounded profile. The second command exercises the real loopback API, SQLite store, worker, event query, shutdown, and persistence path in a fresh private runtime. Use `--object-limit` for a smaller service profile and `--keep-runtime` only when private-state inspection is required. Keep raw output with the exact source, catalog, metadata, lockfile, and validation-manifest hashes.
 
 ## Open Validation Gates
 

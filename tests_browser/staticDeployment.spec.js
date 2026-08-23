@@ -45,7 +45,10 @@ async function installArtifactOriginGuard(page, options = {}) {
       await route.abort('blockedbyclient');
       return;
     }
-    if (missingCatalog && requestUrl.pathname.endsWith('/json/tle/TLE.json')) {
+    if (missingCatalog && (
+      requestUrl.pathname.endsWith('/json/gp/GP.json') ||
+      requestUrl.pathname.endsWith('/json/tle/TLE.json')
+    )) {
       await route.fulfill({ status: 404, contentType: 'text/plain; charset=utf-8', body: 'Missing packaged catalog' });
       return;
     }
@@ -53,6 +56,19 @@ async function installArtifactOriginGuard(page, options = {}) {
   });
 
   return { requests, externalRequests, notFoundResponses, requestFailures };
+}
+
+async function includeLeoAndEnableIssShortcut(page) {
+  const meoFilter = page.locator('#orbitTypeFilter [data-orbit-filter="MEO"]');
+  const leoFilter = page.locator('#orbitTypeFilter [data-orbit-filter="LEO"]');
+  const issShortcut = page.locator('#selectIssButton');
+  await expect(meoFilter).toHaveAttribute('aria-pressed', 'true');
+  await expect(leoFilter).toHaveAttribute('aria-pressed', 'false');
+  await expect(issShortcut).toBeDisabled();
+  await leoFilter.click();
+  await expect(leoFilter).toHaveAttribute('aria-pressed', 'true');
+  await expect(issShortcut).toBeEnabled({ timeout: 30_000 });
+  return issShortcut;
 }
 
 test.beforeAll(async () => {
@@ -90,7 +106,13 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  if (server) await new Promise(resolve => server.close(resolve));
+  if (server) {
+    await new Promise(resolve => {
+      server.close(resolve);
+      server.closeIdleConnections?.();
+      server.closeAllConnections?.();
+    });
+  }
 });
 
 test('curated static artifact boots offline and screens the full catalog in its module Worker', async ({ page }, testInfo) => {
@@ -123,8 +145,7 @@ test('curated static artifact boots offline and screens the full catalog in its 
   expect(sources.satelliteUrl).toContain('/vendor/satellite.js/6.0.2/satellite.min.js');
   await expect(page.locator('body > canvas:not(#mercatorCanvas)').first()).toBeVisible();
 
-  const issShortcut = page.locator('#selectIssButton');
-  await expect(issShortcut).toBeEnabled({ timeout: 30_000 });
+  const issShortcut = await includeLeoAndEnableIssShortcut(page);
   await issShortcut.click();
   await page.locator('#conjunctionAccordionHeader').click();
   const runButton = page.getByRole('button', { name: 'Run Screen', exact: true });
@@ -165,5 +186,8 @@ test('static runtime fails closed when its packaged catalog is unavailable', asy
 
   expect(network.externalRequests).toEqual([]);
   expect(network.requests.some(url => url.includes('raw.githubusercontent.com'))).toBe(false);
-  expect(network.notFoundResponses).toEqual([`${origin}/json/tle/TLE.json`]);
+  expect([...network.notFoundResponses].sort()).toEqual([
+    `${origin}/json/gp/GP.json`,
+    `${origin}/json/tle/TLE.json`
+  ].sort());
 });

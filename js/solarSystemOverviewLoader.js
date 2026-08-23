@@ -220,15 +220,7 @@ export function createSolarSystemOverview(scene, {
     return overview;
 }
 
-export function advanceSolarSystemSimulationMillis(currentMillis, dtSeconds, timeWarp) {
-    const baseMillis = Number.isFinite(currentMillis) ? currentMillis : 0;
-    const dt = Number.isFinite(dtSeconds) && dtSeconds > 0 ? dtSeconds : 0;
-    const warp = Number.isFinite(timeWarp) && timeWarp > 0 ? timeWarp : 0;
-    if (!dt || !warp) return baseMillis;
-    return baseMillis + dt * 1000 * 60 * warp;
-}
-
-export function updateSolarSystemOverview(overview, simDate) {
+export function updateSolarSystemOverview(overview, simDate, { clockBoundary = null } = {}) {
     if (!overview) return;
     let usedFallback = false;
     let warning = '';
@@ -243,16 +235,25 @@ export function updateSolarSystemOverview(overview, simDate) {
             const parent = SOLAR_SYSTEM_PLANETS.find(item => item.name === entry.orbit.userData.parentName);
             if (parent) entry.orbit.position.copy(planetPositionAtDate(parent, simDate, overview.ephemerisState));
         }
-        entry.marker.rotation.y += 0.0025;
+        entry.marker.rotation.y = normalizeRadians(simDate.getTime() / DAY_MS * Math.PI * 2);
         updatePlanetLabelCallout(entry, overview);
     });
     if (overview.ephemerisState?.status === 'ready') {
         if (!overview.ephemerisOrbitPathsBuilt) rebuildOrbitPathsFromEphemeris(overview);
-        overview.ephemerisRuntimeMode = usedFallback ? 'approximate visual fallback' : 'JPL-derived ephemeris';
-        overview.ephemerisWarning = warning;
+        overview.ephemerisRuntimeMode = usedFallback
+            ? 'approximate visual fallback'
+            : overview.ephemerisState.lastMode;
+        overview.ephemerisWarning = overview.ephemerisState.lastWarning || warning;
     } else {
         overview.ephemerisRuntimeMode = 'approximate visual fallback';
         overview.ephemerisWarning = warning || overview.ephemerisState?.lastWarning || 'JPL-derived ephemeris is unavailable';
+    }
+    if (clockBoundary && overview.ephemerisState?.status === 'ready') {
+        overview.ephemerisState.rangeBoundary = clockBoundary;
+        overview.ephemerisState.lastMode = 'JPL-derived ephemeris (range boundary)';
+        overview.ephemerisState.lastWarning = `simulation paused at the ${clockBoundary} of the supported range`;
+        overview.ephemerisRuntimeMode = overview.ephemerisState.lastMode;
+        overview.ephemerisWarning = overview.ephemerisState.lastWarning;
     }
     updateSelectedHighlight(overview);
 }
@@ -370,10 +371,14 @@ function updateEphemerisRuntimeStatus(ephemerisStateOrData, result, bodyKey) {
     const state = ephemerisStateOrData?.data ? ephemerisStateOrData : null;
     if (!state || state.status !== 'ready') return;
     if (result.status === 'ok') {
-        state.lastMode = 'JPL-derived ephemeris';
-        state.lastWarning = '';
+        state.rangeBoundary = result.boundary || null;
+        state.lastMode = result.boundary
+            ? 'JPL-derived ephemeris (range boundary)'
+            : 'JPL-derived ephemeris';
+        state.lastWarning = result.warning || '';
         return;
     }
+    state.rangeBoundary = null;
     state.lastMode = 'approximate visual fallback';
     state.lastWarning = result.warning || `No JPL-derived ephemeris position for ${bodyKey}`;
 }
