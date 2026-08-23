@@ -74,6 +74,7 @@ This follow-up remains inside the Version 2.2 development, Experimental, non-ope
 - Verify the visible `HRO` button maps to canonical `HEO` in state/share serialization and that legacy `HRO` input normalizes to `HEO` without creating a second category.
 - Verify authoritative debris, rocket-body, and stage object types enter `Debris` regardless of orbit class. An authoritative payload/non-debris type must not become debris solely because its name contains `R/B` or similar text; name heuristics apply only to missing/unknown object type. Unknown orbit classes remain under `Others`.
 - Verify group/tag filters intersect with the category union, Reset restores fresh-page-load `MEO`, and zero-result state remains recoverable. A raw tag whose name collides with a category must retain its filter/share key but use a qualified label; specifically, an MEO record tagged raw `GEO` renders `Geosynchronous group`, filters only that MEO subset, and never activates the GEO category. A filter change that excludes the selected satellite must clear its selection, model/detail state, and show-only mode without leaving a stale hidden selection.
+- When a selected detailed model suppresses its duplicate Globe point marker, keep the satellite logically filter-visible. Category counts, search results, state-proxy diagnostics, and batched point-layer membership must remain coherent regardless of whether the model finishes loading before or after a category transition.
 - Verify new shared links round-trip the category array, unsafe/local-path values are stripped, legacy `?debris=only` restores `Debris` only when no explicit orbit selection exists, and explicit orbit state takes precedence over that obsolete compatibility parameter.
 
 ### Selected GP details and Mercator layering
@@ -101,7 +102,7 @@ This follow-up remains inside the Version 2.2 development, Experimental, non-ope
 - Verify the first finite selected or catalog sample changes render readiness and permits visibility only when the current filters allow it. Readiness must also cover the current simulation UTC: hide a record, perform a paused discontinuous UTC jump, then re-admit its filter and verify the old-epoch marker stays hidden until a finite current-instant sample commits. A filter-visible object with no committed current-epoch sample must stay in the bounded sampling set but remain absent from Globe and Mercator, including during partial MEO-first startup.
 - With `Show Orbit` enabled, verify one selected-orbit root/material is retained while its source segments and child geometries refresh in place. Simulation-time refresh is bounded to the per-sample interval clamped to `1..5` minutes, and nonzero `Time x` permits no more than one refresh per real second; invalid resampling preserves the last finite path rather than replacing it with empty geometry.
 - When requested high-warp coverage exceeds an object's curvature-bounded window, diagnostics must count the limited objects and the accessible status must read `Catalog markers cadence-limited; selected satellite remains exact`; the implementation must not stretch the window or imply full-catalog per-frame exactness.
-- Browser-test positive, paused, and reverse motion using fixed GP/OMM fixtures. Require at least 25 distinct selected positions across 30 animation frames, stable selected mesh/material identity, nonzero movement on at least 25 intervals, 95th-percentile frame gap below `100 ms`, and maximum gap below `250 ms` in the declared Playwright profile.
+- Browser-test positive, paused, and reverse motion using fixed GP/OMM fixtures. Always require at least 25 distinct selected positions across 30 animation frames, stable selected mesh/material identity, nonzero movement on at least 25 intervals, and bounded simulation-time-normalized motion. Record animation-frame cadence in every run. Enforce the strict wall-clock limits of a 95th-percentile frame gap below `100 ms`, a maximum gap below `250 ms`, and a conjunction-screening monitor gap at or below `2.5 s` only in an explicitly declared performance profile with `OPENBEXI_ENFORCE_TIMING_BUDGETS=1`; shared GitHub-hosted runner timings are diagnostic and are not portable performance evidence.
 - Returning to the original UTC instant must reproduce the selected position within the declared numeric tolerance. Time changes must not change filters, refetch the GP catalog, duplicate state proxies or the point layer, or generate unexpected page/console errors.
 - Confirm `visibleSatelliteFrameProcessor`, duplicate Solar System clock code, obsolete debris controls, and duplicate menu detail markup/CSS are absent. Retained compatibility parsing must be covered explicitly rather than removed accidentally.
 - Prove through source-boundary and screening tests that Hermite scene positions are never passed to the conjunction Worker, full-catalog runner, event export, element-age calculation, or scientific provenance.
@@ -118,6 +119,14 @@ py tools/satellite_data_tools.py export-gp --dry-run
 ```
 
 Archive exact command results, source and artifact hashes, generated counts, quarantine reasons, newest dates, screenshots, browser console review, and any limitations. Do not pass the v2.2 gate with a new failure, a skipped required test, malformed generated data, duplicate identities, console errors, or an undocumented partial-coverage path.
+
+Run the optional wall-clock performance profile only on a declared host whose results will be recorded as performance evidence:
+
+```powershell
+$env:OPENBEXI_ENFORCE_TIMING_BUDGETS='1'
+node scripts/run-browser-tests.mjs tests_browser/timeSimulation.spec.js tests_browser/conjunction.spec.js --project=chromium
+Remove-Item Env:OPENBEXI_ENFORCE_TIMING_BUDGETS
+```
 
 ## Version 2.0 Candidate Verification
 

@@ -5149,16 +5149,15 @@
                 detailedSatelliteModel.userData &&
                 detailedSatelliteModel.userData.noradId === s.norad_id.toString();
 
-            let visible = isVisibleInFilter && !isDetailedModelForThisSat;
+            let includedInDisplay = isVisibleInFilter;
 
             if (simParams.showOnlySelectedSatellite) {
-                visible = !!currentSelectedSatellite &&
-                    currentSelectedSatellite.norad_id?.toString() === s.norad_id?.toString() &&
-                    !isDetailedModelForThisSat;
+                includedInDisplay = !!currentSelectedSatellite &&
+                    currentSelectedSatellite.norad_id?.toString() === s.norad_id?.toString();
             }
 
-            s.mesh.userData.filterVisible = visible;
-            s.mesh.visible = visible && satelliteMarkerCanRender(s);
+            s.mesh.userData.filterVisible = includedInDisplay;
+            s.mesh.visible = includedInDisplay && !isDetailedModelForThisSat && satelliteMarkerCanRender(s);
         });
         renderableSatellites = satellites.filter(s => s.mesh?.userData?.filterVisible === true);
 

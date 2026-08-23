@@ -514,7 +514,7 @@ function run() {
   assert(indexHtml.includes('rollDeg: simParams.rollDeg'), 'ISS roll input remains unchanged');
   assert(indexHtml.includes('detailedSatelliteModel.userData.appliedYawDeg = orientationBias.yawDeg'), 'ISS diagnostics expose applied yaw after swap');
   assert(indexHtml.includes('detailedSatelliteModel.userData.appliedPitchDeg = orientationBias.pitchDeg'), 'ISS diagnostics expose applied pitch after swap');
-  assert(indexHtml.includes('visible = !!currentSelectedSatellite'), 'show-only visibility is not constrained by current filters');
+  assert(indexHtml.includes('includedInDisplay = !!currentSelectedSatellite'), 'show-only visibility is not constrained by current filters');
   assert(indexHtml.includes('earthInView: selectedCameraFrameKeepsEarthInView'), 'selected-satellite camera metadata checks Earth remains visible');
   assert(indexHtml.includes('function computeSelectedModelObserverFrame'), 'selected detailed model uses a reusable observer-frame calculation');
   assert(indexHtml.includes('selectedStarlinkCameraFrameOptions(targetPos, propagation)'), 'Starlink camera frame is recomputed from current propagation');

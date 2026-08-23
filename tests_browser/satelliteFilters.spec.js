@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
+import path from 'node:path';
 
 const EPOCH = '2026-08-23T00:00:00Z';
+const LIGHTWEIGHT_DETAILED_MODEL_FIXTURE = path.resolve('obj/starlink_v2.glb');
 
 function ommRecord({
   noradId,
@@ -176,6 +178,10 @@ function unexpectedConsoleErrors(messages) {
 
 async function bootFilterFixture(page, state, url = '/index.html') {
   await page.route('**/node_modules/**', route => route.abort('blockedbyclient'));
+  await page.route('**/obj/ISS.glb', route => route.fulfill({
+    contentType: 'model/gltf-binary',
+    path: LIGHTWEIGHT_DETAILED_MODEL_FIXTURE
+  }));
   await page.route('**/api/health', route => route.fulfill({
     status: 503,
     contentType: 'application/json',
@@ -325,7 +331,16 @@ test('category unions, dependent tags, counts, selection, and GP revisions stay 
   await page.locator('#selectIssButton').click();
   await page.waitForFunction(() => window.openbexiSimulation.snapshot().selectedNoradId === '110003');
   expect(await pressedCategories(page)).toEqual(['LEO']);
+  await page.waitForFunction(
+    () => window.openbexiSimulation.snapshot().selectedDetailedModelVisible,
+    null,
+    { timeout: 45_000 }
+  );
   await setCheckbox(page, '#showOnlySelectedSatellite', false);
+  expect(await page.evaluate(() => window.openbexiSimulation.markerState('110003'))).toMatchObject({
+    filterVisible: true,
+    visible: false
+  });
 
   await clickCategory(page, 'DEBRIS');
   expect(await pressedCategories(page)).toEqual(['LEO', 'DEBRIS']);

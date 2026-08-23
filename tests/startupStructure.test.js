@@ -78,7 +78,8 @@ function run() {
   assert(tleLoader.includes('new THREE.Points(geometry, material)'), 'catalog markers render through one dynamic point cloud');
   assert(tleLoader.includes('const denseMode = drawnCount > 1000'), 'large globe catalogs use the compact point-cloud style');
   assert(tleLoader.includes('const nextMap = denseMode ? null : satellitePointCloud.userData.iconMap'), 'small catalogs retain icons while large catalogs avoid texture overdraw');
-  assert(indexHtml.includes('s.mesh.visible = visible && satelliteMarkerCanRender(s)'), 'filter membership does not bypass current-time marker readiness');
+  assert(indexHtml.includes('s.mesh.userData.filterVisible = includedInDisplay'), 'logical display membership remains separate from point-marker visibility');
+  assert(indexHtml.includes('s.mesh.visible = includedInDisplay && !isDetailedModelForThisSat && satelliteMarkerCanRender(s)'), 'filter membership does not bypass detailed-model replacement or current-time marker readiness');
   assert(!tleLoader.includes('getOrbitECIPoints'), 'obsolete TLE-only orbit sampler is removed');
 
   console.log('startupStructure tests passed');
