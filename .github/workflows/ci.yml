@@ -48,7 +48,7 @@ jobs:
       - name: Generate CycloneDX SBOM
         run: npm run sbom -- --output openbexi-node-sbom.cdx.json
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: node-sbom
           path: openbexi-node-sbom.cdx.json
@@ -79,7 +79,7 @@ jobs:
       - name: Run browser smoke test
         run: npm run test:browser
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: playwright-report
