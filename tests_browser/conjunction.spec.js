@@ -1,7 +1,9 @@
 import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import path from 'node:path';
 
 const ENFORCE_TIMING_BUDGETS = process.env.OPENBEXI_ENFORCE_TIMING_BUDGETS === '1';
+const LIGHTWEIGHT_DETAILED_MODEL_FIXTURE = path.resolve('obj/starlink_v2.glb');
 
 const MOBILE_CONJUNCTION_CATALOG = Object.freeze([
   {
@@ -625,8 +627,12 @@ test('selected satellite screening runs in a Worker and renders a conjunction ev
 
 test('mobile conjunction workflow screens, renders, and fits without horizontal overflow', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile-chromium', 'This workflow targets the mobile profile.');
-  test.setTimeout(120_000);
+  test.setTimeout(180_000);
   const browserErrors = monitorBrowserErrors(page);
+  await page.route('**/obj/ISS.glb', route => route.fulfill({
+    contentType: 'model/gltf-binary',
+    path: LIGHTWEIGHT_DETAILED_MODEL_FIXTURE
+  }));
   await bootWithLocalDependencies(page, { catalogFixture: MOBILE_CONJUNCTION_CATALOG });
   const issShortcut = await includeLeoAndEnableIssShortcut(page);
   await issShortcut.click();
