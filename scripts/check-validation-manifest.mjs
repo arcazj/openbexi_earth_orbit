@@ -302,8 +302,24 @@ console.log(
   `review ${v21Manifest.review.status}`
 );
 
-const v22ManifestPath = 'validation/v2.2.0/manifest.json';
-const v22DigestPath = 'validation/v2.2.0/manifest.sha256';
+const historicalV22ManifestPath = 'validation/v2.2.0/manifest.json';
+const historicalV22DigestPath = 'validation/v2.2.0/manifest.sha256';
+const historicalV22ManifestBytes = read(historicalV22ManifestPath);
+const historicalV22Manifest = JSON.parse(historicalV22ManifestBytes.toString('utf8'));
+const historicalV22Sidecar = read(historicalV22DigestPath).toString('utf8').trim();
+const historicalV22SidecarMatch = historicalV22Sidecar.match(/^([a-f0-9]{64})  manifest\.json$/);
+if (!historicalV22SidecarMatch || historicalV22SidecarMatch[1] !== sha256(historicalV22ManifestBytes)) {
+  fail('historical v2.2.0 manifest does not match its immutable sidecar digest');
+}
+if (historicalV22Manifest.schemaVersion !== 1 ||
+    historicalV22Manifest.corpusVersion !== '2.2.0-development' ||
+    historicalV22Manifest.releaseVersion !== '2.2.0' ||
+    historicalV22Manifest.publicationState !== 'development') {
+  fail('historical v2.2.0 corpus identity is invalid');
+}
+
+const v22ManifestPath = 'validation/v2.2.1/manifest.json';
+const v22DigestPath = 'validation/v2.2.1/manifest.sha256';
 const v22ManifestBytes = read(v22ManifestPath);
 const v22Manifest = JSON.parse(v22ManifestBytes.toString('utf8'));
 const v22Sidecar = read(v22DigestPath).toString('utf8').trim();
@@ -311,8 +327,8 @@ const v22SidecarMatch = v22Sidecar.match(/^([a-f0-9]{64})  manifest\.json$/);
 if (!v22SidecarMatch || v22SidecarMatch[1] !== sha256(v22ManifestBytes)) {
   fail('v2.2 development manifest does not match its sidecar digest');
 }
-if (v22Manifest.schemaVersion !== 1 || v22Manifest.corpusVersion !== '2.2.0-development' ||
-    v22Manifest.releaseVersion !== '2.2.0' || v22Manifest.publicationState !== 'development') {
+if (v22Manifest.schemaVersion !== 1 || v22Manifest.corpusVersion !== '2.2.1-development' ||
+    v22Manifest.releaseVersion !== '2.2.1' || v22Manifest.publicationState !== 'development') {
   fail('v2.2 development corpus identity is invalid');
 }
 if (v22Manifest.scientificMaturity !== 'experimental' || v22Manifest.safetyClass !== 'non-operational' ||
@@ -329,7 +345,7 @@ if (v22Conventions.timeScale !== 'UTC' || v22Conventions.frame !== 'TEME' ||
   fail('v2.2 evidence must declare UTC, TEME, km, and km/s conventions');
 }
 
-if (!Array.isArray(v22Manifest.artifacts) || v22Manifest.artifacts.length < 115) {
+if (!Array.isArray(v22Manifest.artifacts) || v22Manifest.artifacts.length < 124) {
   fail('v2.2 evidence must hash ingest, browser, timeline, API, propagation, packaging, and test artifacts');
 }
 const v22ArtifactPaths = new Set();
@@ -350,6 +366,7 @@ for (const artifact of v22Manifest.artifacts) {
 for (const requiredPath of [
   '.github/workflows/ci.yml',
   '.github/dependabot.yml',
+  '.gitattributes',
   '.nvmrc',
   'package.json',
   'package-lock.json',
@@ -357,7 +374,8 @@ for (const requiredPath of [
   'release/feature-flags.json',
   'release/static-artifact.json',
   'release/asset-budgets.json',
-  'release/evidence/openbexi-node-sbom-2.2.0-development.cdx.json',
+  'release/evidence/openbexi-node-sbom-2.2.1-development.cdx.json',
+  'README.md',
   'tools/satellite_data_tools.py',
   'tools/benchmark_v21_service.py',
   'server.py',
@@ -445,6 +463,7 @@ for (const requiredPath of [
   'tests_python/test_v21_api.py',
   'tests_python/test_v21_catalog_registry.py',
   'tests_python/test_satellite_data_scheduler.py',
+  'tests_python/test_server_data_update_scheduler.py',
   'tests_browser/conjunction.spec.js',
   'tests_browser/staticDeployment.spec.js',
   'tests_browser/timelines.spec.js',
@@ -460,13 +479,22 @@ for (const requiredPath of [
   'json/decayed/decayed.meta.json',
   'json/tle/TLE.json',
   'json/tle/TLE.meta.json',
+  'json/tle/satellite_launch_dates.json',
   'json/satcat.csv',
   'json/satcat.meta.json',
+  'docs/governance/DATA_SOURCES.md',
+  'docs/governance/V2_POLICY.md',
+  'docs/engineering/RELEASE_CHECKLIST_V2_2.md',
   'data/ephemeris/solar_system_jpl_horizons_2020_2035_6h.json',
   'data/ephemeris/solar_system_jpl_horizons_reference_samples.json',
   'obj/SSL_1300.glb'
 ]) {
   if (!v22ArtifactPaths.has(requiredPath)) fail(`v2.2 evidence is missing material artifact ${requiredPath}`);
+}
+const repositoryAttributes = read('.gitattributes').toString('utf8').split(/\r?\n/);
+const satcatAttributeRules = repositoryAttributes.filter(line => /^json\/satcat\.csv(?:\s|$)/.test(line));
+if (satcatAttributeRules.length !== 1 || satcatAttributeRules[0] !== 'json/satcat.csv -text -diff') {
+  fail('v2.2 SATCAT evidence requires the exact `json/satcat.csv -text -diff` byte-preservation and non-diff rule');
 }
 if (fs.existsSync(path.join(ROOT, 'obj/loral.glb'))) {
   fail('v2.2 static/model evidence must not restore the byte-identical obj/loral.glb duplicate');
@@ -510,7 +538,7 @@ for (const requiredId of [
   if (!v22ExecutableIds.has(requiredId)) fail(`v2.2 executable evidence is missing ${requiredId}`);
 }
 
-if (!Array.isArray(v22Manifest.evidence) || v22Manifest.evidence.length < 34) {
+if (!Array.isArray(v22Manifest.evidence) || v22Manifest.evidence.length < 46) {
   fail('v2.2 must include OMM ingest, mixed-loader, timeline, API, and static evidence');
 }
 const v22EvidenceIds = new Set();
@@ -539,6 +567,17 @@ for (const requiredId of [
   'service.malformed-gp-tle-bootstrap',
   'benchmark.gp-omm-input',
   'scheduler.independent-launch-decay',
+  'scheduler.daily-update-reconciliation',
+  'scheduler.server-lifecycle',
+  'scheduler.production-catalog-shrink-guard',
+  'scheduler.conditional-304-freshness-reset',
+  'scheduler.collision-safe-backup-retention',
+  'scheduler.mixed-304-tle-rejection',
+  'scheduler.satcat-crlf-byte-exact-no-churn',
+  'api.persisted-status-redaction',
+  'api.recursive-status-redaction',
+  'tooling.catalog-shrink-parser-boundary',
+  'docs.readme-inventory-generated-exclusion',
   'tooling.shared-python-discovery',
   'static.offline-network-closure',
   'browser.unified-category-point-layer',
@@ -554,16 +593,17 @@ for (const requiredId of [
   'cleanup.obsolete-tle-orbit-sampler',
   'assets.canonical-ssl1300-only',
   'data.generated-catalog-classification',
+  'governance.snapshot-redistribution-approval',
   'static.browser-state-runtime-closure',
   'tooling.browser-server-ownership'
 ]) {
   if (!v22EvidenceIds.has(requiredId)) fail(`v2.2 evidence is missing ${requiredId}`);
 }
 if (!v22Manifest.knownGaps?.some(gap => /independent scientific reviewer approval is pending/i.test(gap)) ||
-    !v22Manifest.knownGaps?.some(gap => /redistribution approval is pending/i.test(gap)) ||
+    !v22Manifest.knownGaps?.some(gap => /future changed snapshots require renewed.*review/i.test(gap)) ||
     !v22Manifest.knownGaps?.some(gap => /fallback-tle state reports packaged-file availability only/i.test(gap)) ||
     !v22Manifest.knownGaps?.some(gap => /strict fixed-column, checksum, adapter, and propagation validation remains a runner boundary/i.test(gap))) {
-  fail('v2.2 evidence must retain independent-review, redistribution, and fallback-validation gaps');
+  fail('v2.2 evidence must retain independent-review, future-snapshot, and fallback-validation gaps');
 }
 
 console.log(

@@ -21380,6 +21380,17 @@
       "DECAY_DATE": "2026-04-27"
     }
   ],
+  "DONGPO 05": [
+    {
+      "OBJECT_NAME": "DONGPO 05",
+      "OBJECT_ID": "2022-098F",
+      "NORAD_CAT_ID": "53449",
+      "OBJECT_TYPE": "PAY",
+      "LAUNCH_DATE": "2022-08-10",
+      "LAUNCH_SITE": "TAISC",
+      "DECAY_DATE": "2026-08-19"
+    }
+  ],
   "DONGPO 06": [
     {
       "OBJECT_NAME": "DONGPO 06",
@@ -21904,6 +21915,17 @@
       "LAUNCH_DATE": "2020-11-20",
       "LAUNCH_SITE": "RLLB",
       "DECAY_DATE": "2021-07-19"
+    }
+  ],
+  "DRO-L": [
+    {
+      "OBJECT_NAME": "DRO-L",
+      "OBJECT_ID": "2024-024H",
+      "NORAD_CAT_ID": "58924",
+      "OBJECT_TYPE": "PAY",
+      "LAUNCH_DATE": "2024-02-03",
+      "LAUNCH_SITE": "SCSLA",
+      "DECAY_DATE": "2025-07-18"
     }
   ],
   "DROID.001": [
@@ -26790,6 +26812,17 @@
       "DECAY_DATE": "2026-04-25"
     }
   ],
+  "FLOCK 4BE-26": [
+    {
+      "OBJECT_NAME": "FLOCK 4BE-26",
+      "OBJECT_ID": "2024-149S",
+      "NORAD_CAT_ID": "60484",
+      "OBJECT_TYPE": "PAY",
+      "LAUNCH_DATE": "2024-08-16",
+      "LAUNCH_SITE": "AFWTR",
+      "DECAY_DATE": "2026-08-26"
+    }
+  ],
   "FLOCK 4BE-33": [
     {
       "OBJECT_NAME": "FLOCK 4BE-33",
@@ -31252,6 +31285,17 @@
       "LAUNCH_DATE": "2024-11-04",
       "LAUNCH_SITE": "VOSTO",
       "DECAY_DATE": "2026-05-16"
+    }
+  ],
+  "HORN-L": [
+    {
+      "OBJECT_NAME": "HORN-L",
+      "OBJECT_ID": "2026-132D",
+      "NORAD_CAT_ID": "69505",
+      "OBJECT_TYPE": "PAY",
+      "LAUNCH_DATE": "2026-06-12",
+      "LAUNCH_SITE": "TANSC",
+      "DECAY_DATE": "2026-08-27"
     }
   ],
   "HORUS": [
@@ -36477,6 +36521,17 @@
       "LAUNCH_DATE": "2023-04-15",
       "LAUNCH_SITE": "AFWTR",
       "DECAY_DATE": "2024-08-17"
+    }
+  ],
+  "LEMUR-2-SPECIAL-K": [
+    {
+      "OBJECT_NAME": "LEMUR-2-SPECIAL-K",
+      "OBJECT_ID": "2021-034F",
+      "NORAD_CAT_ID": "48273",
+      "OBJECT_TYPE": "PAY",
+      "LAUNCH_DATE": "2021-04-29",
+      "LAUNCH_SITE": "FRGUI",
+      "DECAY_DATE": "2026-08-21"
     }
   ],
   "LEMUR-2-SPIRE-MINIONS": [
@@ -62163,6 +62218,17 @@
       "DECAY_DATE": "2025-02-05"
     }
   ],
+  "STARLINK-1597": [
+    {
+      "OBJECT_NAME": "STARLINK-1597",
+      "OBJECT_ID": "2020-057AB",
+      "NORAD_CAT_ID": "46142",
+      "OBJECT_TYPE": "PAY",
+      "LAUNCH_DATE": "2020-08-18",
+      "LAUNCH_SITE": "AFETR",
+      "DECAY_DATE": "2026-08-24"
+    }
+  ],
   "STARLINK-1599": [
     {
       "OBJECT_NAME": "STARLINK-1599",
@@ -62405,6 +62471,17 @@
       "DECAY_DATE": "2026-07-22"
     }
   ],
+  "STARLINK-1623": [
+    {
+      "OBJECT_NAME": "STARLINK-1623",
+      "OBJECT_ID": "2020-057N",
+      "NORAD_CAT_ID": "46129",
+      "OBJECT_TYPE": "PAY",
+      "LAUNCH_DATE": "2020-08-18",
+      "LAUNCH_SITE": "AFETR",
+      "DECAY_DATE": "2026-08-22"
+    }
+  ],
   "STARLINK-1624": [
     {
       "OBJECT_NAME": "STARLINK-1624",
@@ -62425,6 +62502,17 @@
       "LAUNCH_DATE": "2020-08-18",
       "LAUNCH_SITE": "AFETR",
       "DECAY_DATE": "2026-04-09"
+    }
+  ],
+  "STARLINK-1626": [
+    {
+      "OBJECT_NAME": "STARLINK-1626",
+      "OBJECT_ID": "2020-057BC",
+      "NORAD_CAT_ID": "46167",
+      "OBJECT_TYPE": "PAY",
+      "LAUNCH_DATE": "2020-08-18",
+      "LAUNCH_SITE": "AFETR",
+      "DECAY_DATE": "2026-08-26"
     }
   ],
   "STARLINK-1627": [
@@ -63087,6 +63175,17 @@
       "DECAY_DATE": "2025-05-08"
     }
   ],
+  "STARLINK-1695": [
+    {
+      "OBJECT_NAME": "STARLINK-1695",
+      "OBJECT_ID": "2020-062E",
+      "NORAD_CAT_ID": "46329",
+      "OBJECT_TYPE": "PAY",
+      "LAUNCH_DATE": "2020-09-03",
+      "LAUNCH_SITE": "AFETR",
+      "DECAY_DATE": "2026-08-23"
+    }
+  ],
   "STARLINK-1696": [
     {
       "OBJECT_NAME": "STARLINK-1696",
@@ -63294,6 +63393,17 @@
       "LAUNCH_DATE": "2020-10-18",
       "LAUNCH_SITE": "AFETR",
       "DECAY_DATE": "2024-08-23"
+    }
+  ],
+  "STARLINK-1718": [
+    {
+      "OBJECT_NAME": "STARLINK-1718",
+      "OBJECT_ID": "2020-073E",
+      "NORAD_CAT_ID": "46674",
+      "OBJECT_TYPE": "PAY",
+      "LAUNCH_DATE": "2020-10-18",
+      "LAUNCH_SITE": "AFETR",
+      "DECAY_DATE": "2026-08-24"
     }
   ],
   "STARLINK-1719": [
@@ -64352,6 +64462,17 @@
       "DECAY_DATE": "2025-02-04"
     }
   ],
+  "STARLINK-1830": [
+    {
+      "OBJECT_NAME": "STARLINK-1830",
+      "OBJECT_ID": "2020-073BK",
+      "NORAD_CAT_ID": "46727",
+      "OBJECT_TYPE": "PAY",
+      "LAUNCH_DATE": "2020-10-18",
+      "LAUNCH_SITE": "AFETR",
+      "DECAY_DATE": "2026-08-22"
+    }
+  ],
   "STARLINK-1831": [
     {
       "OBJECT_NAME": "STARLINK-1831",
@@ -64966,6 +65087,17 @@
       "LAUNCH_DATE": "2020-11-25",
       "LAUNCH_SITE": "AFETR",
       "DECAY_DATE": "2025-01-09"
+    }
+  ],
+  "STARLINK-1892": [
+    {
+      "OBJECT_NAME": "STARLINK-1892",
+      "OBJECT_ID": "2020-074E",
+      "NORAD_CAT_ID": "46743",
+      "OBJECT_TYPE": "PAY",
+      "LAUNCH_DATE": "2020-10-24",
+      "LAUNCH_SITE": "AFETR",
+      "DECAY_DATE": "2026-08-26"
     }
   ],
   "STARLINK-1894": [
@@ -66385,6 +66517,17 @@
       "LAUNCH_DATE": "2021-02-16",
       "LAUNCH_SITE": "AFETR",
       "DECAY_DATE": "2025-07-30"
+    }
+  ],
+  "STARLINK-2041": [
+    {
+      "OBJECT_NAME": "STARLINK-2041",
+      "OBJECT_ID": "2021-012AP",
+      "NORAD_CAT_ID": "47657",
+      "OBJECT_TYPE": "PAY",
+      "LAUNCH_DATE": "2021-02-16",
+      "LAUNCH_SITE": "AFETR",
+      "DECAY_DATE": "2026-08-25"
     }
   ],
   "STARLINK-2042": [
@@ -73966,6 +74109,17 @@
       "DECAY_DATE": "2026-08-20"
     }
   ],
+  "STARLINK-4437": [
+    {
+      "OBJECT_NAME": "STARLINK-4437",
+      "OBJECT_ID": "2022-099AT",
+      "NORAD_CAT_ID": "53506",
+      "OBJECT_TYPE": "PAY",
+      "LAUNCH_DATE": "2022-08-12",
+      "LAUNCH_SITE": "AFWTR",
+      "DECAY_DATE": "2026-08-25"
+    }
+  ],
   "STARLINK-4441": [
     {
       "OBJECT_NAME": "STARLINK-4441",
@@ -75099,6 +75253,17 @@
       "DECAY_DATE": "2024-06-24"
     }
   ],
+  "STARLINK-5190": [
+    {
+      "OBJECT_NAME": "STARLINK-5190",
+      "OBJECT_ID": "2022-136AT",
+      "NORAD_CAT_ID": "54092",
+      "OBJECT_TYPE": "PAY",
+      "LAUNCH_DATE": "2022-10-20",
+      "LAUNCH_SITE": "AFETR",
+      "DECAY_DATE": "2026-08-22"
+    }
+  ],
   "STARLINK-5194": [
     {
       "OBJECT_NAME": "STARLINK-5194",
@@ -75559,6 +75724,17 @@
       "LAUNCH_DATE": "2023-07-07",
       "LAUNCH_SITE": "AFWTR",
       "DECAY_DATE": "2024-03-02"
+    }
+  ],
+  "STARLINK-5533": [
+    {
+      "OBJECT_NAME": "STARLINK-5533",
+      "OBJECT_ID": "2023-058AQ",
+      "NORAD_CAT_ID": "56355",
+      "OBJECT_TYPE": "PAY",
+      "LAUNCH_DATE": "2023-04-27",
+      "LAUNCH_SITE": "AFWTR",
+      "DECAY_DATE": "2026-08-28"
     }
   ],
   "STARLINK-5560": [
@@ -76076,6 +76252,17 @@
       "LAUNCH_DATE": "2023-06-23",
       "LAUNCH_SITE": "AFETR",
       "DECAY_DATE": "2025-01-01"
+    }
+  ],
+  "STARLINK-6137": [
+    {
+      "OBJECT_NAME": "STARLINK-6137",
+      "OBJECT_ID": "2023-090BH",
+      "NORAD_CAT_ID": "57156",
+      "OBJECT_TYPE": "PAY",
+      "LAUNCH_DATE": "2023-06-23",
+      "LAUNCH_SITE": "AFETR",
+      "DECAY_DATE": "2026-08-25"
     }
   ],
   "STARLINK-6151": [
@@ -80493,6 +80680,28 @@
       "DECAY_DATE": "2024-09-29"
     }
   ],
+  "TRISAT-2 (RUVDSSAT1)": [
+    {
+      "OBJECT_NAME": "TRISAT-2 (RUVDSSAT1)",
+      "OBJECT_ID": "2025-313BC",
+      "NORAD_CAT_ID": "67298",
+      "OBJECT_TYPE": "PAY",
+      "LAUNCH_DATE": "2025-12-28",
+      "LAUNCH_SITE": "VOSTO",
+      "DECAY_DATE": "2026-08-20"
+    }
+  ],
+  "TRISAT-4": [
+    {
+      "OBJECT_NAME": "TRISAT-4",
+      "OBJECT_ID": "2025-313BE",
+      "NORAD_CAT_ID": "67482",
+      "OBJECT_TYPE": "PAY",
+      "LAUNCH_DATE": "2025-12-28",
+      "LAUNCH_SITE": "VOSTO",
+      "DECAY_DATE": "2026-08-21"
+    }
+  ],
   "TRMM": [
     {
       "OBJECT_NAME": "TRMM",
@@ -82163,17 +82372,6 @@
       "LAUNCH_DATE": "2023-07-22",
       "LAUNCH_SITE": "JSC",
       "DECAY_DATE": "2024-08-01"
-    }
-  ],
-  "XINGSHIDAI 19 (SCA-1)": [
-    {
-      "OBJECT_NAME": "XINGSHIDAI 19 (SCA-1)",
-      "OBJECT_ID": "2024-024H",
-      "NORAD_CAT_ID": "58924",
-      "OBJECT_TYPE": "PAY",
-      "LAUNCH_DATE": "2024-02-03",
-      "LAUNCH_SITE": "SCSLA",
-      "DECAY_DATE": "2025-07-18"
     }
   ],
   "XINGSHIDAI 21 (SCA-2)": [

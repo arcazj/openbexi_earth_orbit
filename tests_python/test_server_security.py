@@ -205,6 +205,7 @@ class StaticPathPolicyTests(unittest.TestCase):
                 "catalog_revision": "sha256:test-gp",
                 "retrieval_timestamp": "2026-08-20T01:00:00Z",
                 "newest_orbital_epoch": "2026-08-20T00:00:00.000Z",
+                "last_reconciled_at": "2026-08-20T02:00:00Z",
                 "last_status": "ok",
                 "counts": {"omm": 1, "six_digit_ids": 1, "quarantined": 0},
             }), encoding="utf-8")
@@ -217,7 +218,13 @@ class StaticPathPolicyTests(unittest.TestCase):
                 "last_status": "ok", "newest_confirmed_decay_date": "2026-08-19",
             }), encoding="utf-8")
             (root / "json" / "tle" / "TLE.meta.json").write_text(json.dumps({
+                "catalog_revision": "sha256:test-tle",
+                "last_reconciled_at": "2026-08-20T04:00:00Z",
                 "counts": {"total": 10},
+            }), encoding="utf-8")
+            (root / "json" / "satcat.meta.json").write_text(json.dumps({
+                "dataset_hash": "sha256:test-satcat",
+                "last_reconciled_at": "2026-08-20T03:00:00Z",
             }), encoding="utf-8")
 
             health = server._catalog_data_health(root)
@@ -227,10 +234,14 @@ class StaticPathPolicyTests(unittest.TestCase):
             self.assertEqual(health["gp_revision"], "sha256:test-gp")
             self.assertEqual(health["launch_revision"], "sha256:test-launch")
             self.assertEqual(health["decay_revision"], "sha256:test-decay")
+            self.assertEqual(health["tle_revision"], "sha256:test-tle")
+            self.assertEqual(health["satcat_revision"], "sha256:test-satcat")
             components = {
                 "decay_revision": "sha256:test-decay",
                 "gp_revision": "sha256:test-gp",
                 "launch_revision": "sha256:test-launch",
+                "satcat_revision": "sha256:test-satcat",
+                "tle_revision": "sha256:test-tle",
             }
             canonical = json.dumps(
                 components,
@@ -245,6 +256,9 @@ class StaticPathPolicyTests(unittest.TestCase):
             self.assertEqual(health["datasets"]["gp"]["revision"], "sha256:test-gp")
             self.assertEqual(health["datasets"]["launch"]["revision"], "sha256:test-launch")
             self.assertEqual(health["datasets"]["decay"]["revision"], "sha256:test-decay")
+            self.assertEqual(health["datasets"]["tle"]["revision"], "sha256:test-tle")
+            self.assertEqual(health["datasets"]["satcat"]["revision"], "sha256:test-satcat")
+            self.assertEqual(health["last_reconciled_at"], "2026-08-20T04:00:00Z")
             self.assertEqual(health["newest_launch_date"], "2026-08-20")
             self.assertEqual(health["newest_confirmed_decay_date"], "2026-08-19")
             self.assertEqual(health["tle_count"], 10)

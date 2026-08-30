@@ -483,7 +483,7 @@
     <header class="hero">
       <h1>
         OpenBEXI Earth Orbit API
-        <span class="badge version">2.2.0</span>
+        <span class="badge version">2.2.1</span>
         <span class="badge oas">OAS 3.0.3</span>
       </h1>
       <p class="description">
@@ -539,7 +539,7 @@
               <pre><code>{
   "status": "ok",
   "app": "OpenBEXI Earth Orbit",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "release_date": null,
   "candidate_date": null,
   "publication_state": "development"
@@ -574,7 +574,7 @@
           </table>
           <h3>Example Response</h3>
           <pre><code>{
-  "app_version": "2.2.0",
+  "app_version": "2.2.1",
   "api_version": "1.0.0",
   "release_date": null,
   "candidate_date": null,
@@ -583,7 +583,7 @@
   "maturity": "experimental",
   "safety_class": "non-operational",
   "repository": "https://github.com/arcazj/openbexi_earth_orbit",
-  "server": "OpenBEXIHTTP/2.2.0"
+  "server": "OpenBEXIHTTP/2.2.1"
 }</code></pre>
         </div>
       </details>
@@ -817,7 +817,7 @@
         </summary>
         <div class="operation-body">
           <h3>Description</h3>
-          <p>Returns the current background data-update scheduler state. The scheduler is disabled by default and only runs when <code>server.py</code> starts with <code>--update-data-on-schedule</code>.</p>
+          <p>Returns catalog health plus the optional background scheduler lifecycle, effective GP/TLE/SATCAT/lifecycle/reconciliation intervals, per-dataset status, bounded retry state, and last reconciliation. Persisted GP, TLE, SATCAT, launch, and decay errors survive restart; the public projection recursively bounds, control-character normalizes, and credential-redacts errors in both top-level fields and nested results. The scheduler is disabled by default and runs only with <code>--update-data-on-schedule</code>; <code>npm run serve:update</code> selects the daily profile.</p>
           <h3>Parameters</h3>
           <p class="empty">No parameters.</p>
           <h3>Responses</h3>
@@ -827,10 +827,23 @@
           </table>
           <h3>Example Response</h3>
           <pre><code>{
-  "enabled": false,
-  "state": "disabled",
-  "interval_hours": 24
+  "enabled": true,
+  "running": true,
+  "state": "succeeded",
+  "interval_hours": 24,
+  "intervals_hours": { "gp": 24, "tle": 24, "satcat": 24, "reconciliation": 24 },
+  "consecutive_failures": 0,
+  "retry_delay_seconds": null,
+  "last_reconciled_at": "2026-08-29T12:00:00Z",
+  "data_revision": "sha256:five-component-example",
+  "gp_revision": "sha256:gp-example",
+  "tle_revision": "sha256:tle-example",
+  "satcat_revision": "sha256:satcat-example",
+  "launch_revision": "sha256:launch-example",
+  "decay_revision": "sha256:decay-example",
+  "last_errors": []
 }</code></pre>
+          <p>Unattended reconciliation and full replacement always enforce the production-scale shrink guard: when the prior GP, TLE, or SATCAT catalog contains at least 1,000 records, both candidate size and canonical NORAD overlap must retain at least 75%. <code>--force</code> bypasses freshness only. The direct-command <code>--allow-large-catalog-shrink</code> recovery option is unavailable to <code>maybe-update</code> and the server. Accepted conditional <code>304</code> revalidation resets daily due age without changing data, revision, or backup state. Changed artifacts use collision-safe backups and retain the newest seven per artifact.</p>
         </div>
       </details>
     </section>
@@ -948,7 +961,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "OpenBEXI Earth Orbit API",
-    "version": "2.2.0"
+    "version": "2.2.1"
   },
   "paths": {
     "/api/health": {},
@@ -980,7 +993,7 @@
     </section>
 
     <footer>
-      Static local documentation for OpenBEXI Earth Orbit 2.2.0 development. Companion Markdown: <a href="markdown_viewer.html?source=SWAGGER.md&amp;title=Swagger%20API">SWAGGER.md</a>.
+      Static local documentation for OpenBEXI Earth Orbit 2.2.1 development. Companion Markdown: <a href="markdown_viewer.html?source=SWAGGER.md&amp;title=Swagger%20API">SWAGGER.md</a>.
     </footer>
   </main>
 

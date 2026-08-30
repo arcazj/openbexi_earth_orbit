@@ -592,7 +592,9 @@ test('selected satellite screening runs in a Worker and renders a conjunction ev
   expect(threeRuntimeRequests.some(url => url.endsWith('/vendor/three/0.184.0/build/three.module.js'))).toBe(true);
   expect(threeRuntimeRequests.some(url => url.endsWith('/vendor/three/0.184.0/examples/jsm/controls/OrbitControls.js'))).toBe(true);
   expect(statusText).toContain('partial result');
-  expect(statusText).toContain('state propagations failed');
+  expect(statusText).toMatch(
+    /state propagations failed|additional events omitted by the result limit|element sets exceed the screening-time freshness policy|element epochs occur after the screening window/
+  );
   expectNoBrowserErrors(browserErrors);
 
   const afterScreening = await collectBrowserEvidence(page);

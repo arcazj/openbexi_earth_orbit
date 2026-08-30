@@ -35,6 +35,11 @@ MINUTES_PER_DAY = 1440.0
 CELESTRAK_MIN_REFRESH_HOURS = 2.0
 DEFAULT_SERVER_UPDATE_INTERVAL_HOURS = 24.0
 DEFAULT_HTTP_TIMEOUT_SECONDS = 30.0
+RECONCILIATION_MODE = "reconcile"
+UPDATE_LOCK_STALE_HOURS = 6.0
+RECONCILIATION_SHRINK_GUARD_MIN_EXISTING_RECORDS = 1_000
+RECONCILIATION_SHRINK_GUARD_MIN_RETAINED_FRACTION = 0.75
+BACKUP_RETENTION_PER_ARTIFACT = 7
 
 
 def _release_version() -> str:
@@ -261,20 +266,76 @@ def load_json(path: Path, default: object) -> object:
         raise SatelliteDataError(f"Invalid JSON in {path}: {exc}") from exc
 
 
+def _backup_timestamp() -> str:
+    return dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+
+def _create_collision_safe_backup(path: Path) -> Path:
+    timestamp = _backup_timestamp()
+    prefix = f"{path.name}.bak-{timestamp}"
+    pattern = re.compile(rf"{re.escape(prefix)}(?:-(\d+))?$")
+    collision = -1
+    for sibling in path.parent.iterdir():
+        match = pattern.fullmatch(sibling.name)
+        if match:
+            collision = max(collision, int(match.group(1) or 0))
+
+    while True:
+        collision += 1
+        suffix = "" if collision == 0 else f"-{collision}"
+        backup_path = path.parent / f"{prefix}{suffix}"
+        try:
+            fd = os.open(str(backup_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            continue
+        try:
+            with os.fdopen(fd, "wb") as backup_handle, path.open("rb") as source_handle:
+                while chunk := source_handle.read(1024 * 1024):
+                    backup_handle.write(chunk)
+        except Exception:
+            with contextlib.suppress(FileNotFoundError):
+                backup_path.unlink()
+            raise
+        return backup_path
+
+
+def _rotate_artifact_backups(path: Path, *, keep: int = BACKUP_RETENTION_PER_ARTIFACT) -> None:
+    pattern = re.compile(
+        rf"{re.escape(path.name)}\.bak-(?:(\d{{8}}T\d{{6}}Z)(?:-(\d+))?|(\d{{14}}))$"
+    )
+    matching: list[tuple[str, int, Path]] = []
+    for sibling in path.parent.iterdir():
+        match = pattern.fullmatch(sibling.name)
+        if match and sibling.is_file() and not sibling.is_symlink():
+            timestamp = match.group(1)
+            if timestamp is None:
+                legacy_timestamp = match.group(3) or ""
+                timestamp = f"{legacy_timestamp[:8]}T{legacy_timestamp[8:]}Z"
+            matching.append((timestamp, int(match.group(2) or 0), sibling))
+    matching.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    for _timestamp, _collision, stale_path in matching[max(0, keep):]:
+        with contextlib.suppress(FileNotFoundError):
+            stale_path.unlink()
+
+
 def atomic_write_text(path: Path, text: str, *, dry_run: bool = False, backup: bool = True) -> None:
     if dry_run:
         return
     path.parent.mkdir(parents=True, exist_ok=True)
     if backup and path.exists():
-        timestamp = dt.datetime.now().strftime("%Y%m%d%H%M%S")
-        backup_path = path.with_suffix(path.suffix + f".bak-{timestamp}")
-        backup_path.write_bytes(path.read_bytes())
+        _create_collision_safe_backup(path)
     fd, temp_name = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=str(path.parent))
     temp_path = Path(temp_name)
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
             handle.write(text)
         os.replace(temp_path, path)
+        if backup:
+            try:
+                _rotate_artifact_backups(path)
+            except Exception:
+                # Promotion already succeeded; cleanup must not prevent truthful metadata updates.
+                pass
     finally:
         with contextlib.suppress(FileNotFoundError):
             temp_path.unlink()
@@ -294,14 +355,85 @@ def atomic_write_json(
     atomic_write_text(path, text, dry_run=dry_run, backup=backup)
 
 
+def _restore_text_snapshot(
+    path: Path,
+    original_text: str | None,
+    *,
+    originally_existed: bool,
+    dry_run: bool,
+) -> None:
+    if dry_run:
+        return
+    if originally_existed:
+        if original_text is None:
+            raise SatelliteDataError(f"Missing rollback snapshot for {path}.")
+        current_text = path.read_text(encoding="utf-8") if path.exists() else None
+        if current_text != original_text:
+            atomic_write_text(path, original_text, backup=False)
+    elif path.exists():
+        path.unlink()
+
+
 def latest_success_time(meta: dict[str, object], data_path: Path) -> dt.datetime | None:
-    for key in ("fetched_at", "last_success_at"):
-        parsed = parse_iso_datetime(meta.get(key))
-        if parsed:
-            return parsed
+    successful_times = [
+        parsed
+        for key in ("fetched_at", "last_success_at", "revalidated_at")
+        if (parsed := parse_iso_datetime(meta.get(key))) is not None
+    ]
+    if successful_times:
+        return max(successful_times)
     if data_path.exists():
         return dt.datetime.fromtimestamp(data_path.stat().st_mtime, dt.timezone.utc)
     return None
+
+
+def reconciliation_shrink_error(
+    dataset: str,
+    previous_count: int,
+    candidate_count: int,
+    retained_count: int,
+    *,
+    allow_large_reconciliation_shrink: bool = False,
+) -> str | None:
+    if (
+        allow_large_reconciliation_shrink
+        or previous_count < RECONCILIATION_SHRINK_GUARD_MIN_EXISTING_RECORDS
+    ):
+        return None
+    minimum_count = math.ceil(
+        previous_count * RECONCILIATION_SHRINK_GUARD_MIN_RETAINED_FRACTION
+    )
+    if candidate_count >= minimum_count:
+        if retained_count >= minimum_count:
+            return None
+        retained_percent = retained_count / previous_count * 100.0
+        required_percent = RECONCILIATION_SHRINK_GUARD_MIN_RETAINED_FRACTION * 100.0
+        return (
+            f"{dataset} catalog replacement rejected an unrelated identity profile: "
+            f"{retained_count} candidate NORAD identities retain {retained_percent:.1f}% "
+            f"of the {previous_count}-record last-known-good catalog; at least "
+            f"{required_percent:.0f}% is required."
+        )
+    candidate_percent = candidate_count / previous_count * 100.0
+    required_percent = RECONCILIATION_SHRINK_GUARD_MIN_RETAINED_FRACTION * 100.0
+    return (
+        f"{dataset} catalog replacement rejected a dangerously truncated catalog: "
+        f"{candidate_count} candidate records provide {candidate_percent:.1f}% of "
+        f"the {previous_count}-record last-known-good catalog; at least "
+        f"{required_percent:.0f}% is required."
+    )
+
+
+def catalog_norad_ids(records: Iterable[object]) -> set[str]:
+    identities: set[str] = set()
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        try:
+            identities.add(normalize_norad_id(record.get("norad_id")))
+        except SatelliteDataError:
+            continue
+    return identities
 
 
 def age_hours(value: dt.datetime | None, *, now: dt.datetime | None = None) -> float | None:
@@ -392,10 +524,27 @@ def parse_tle_text(text: str) -> list[tuple[str, str, str]]:
     return blocks
 
 
+def decode_tle_catalog_id(value: object) -> str:
+    """Decode numeric or Space-Track Alpha-5 catalog fields without truncation."""
+
+    text = str(value or "").strip().upper()
+    if text.isdigit():
+        return normalize_norad_id(text)
+    match = re.fullmatch(r"([A-HJ-NP-Z])(\d{4})", text)
+    if not match:
+        raise SatelliteDataError(f"Invalid TLE catalog identifier: {text or '<empty>'}")
+    alpha5_alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ"
+    prefix_value = alpha5_alphabet.index(match.group(1)) + 10
+    return normalize_norad_id(f"{prefix_value}{match.group(2)}")
+
+
 def tle_norad_from_line1(line1: str | None) -> str:
     if not line1 or len(line1) < 7:
         return "no data"
-    return line1[2:7].strip()
+    try:
+        return decode_tle_catalog_id(line1[2:7])
+    except SatelliteDataError:
+        return "no data"
 
 
 def tle_norad_from_line2(line2: str | None) -> str:
@@ -411,8 +560,19 @@ def validate_tle_pair(line1: str | None, line2: str | None) -> bool:
     if not line1.startswith("1 ") or not line2.startswith("2 "):
         return False
     norad1 = tle_norad_from_line1(line1)
-    norad2 = re.sub(r"\D", "", tle_norad_from_line2(line2))
-    return bool(norad1 and norad2 and norad1 == norad2[: len(norad1)])
+    try:
+        norad2 = decode_tle_catalog_id(tle_norad_from_line2(line2))
+    except SatelliteDataError:
+        return False
+    return bool(norad1 != "no data" and norad1 == norad2)
+
+
+def tle_checksum_is_valid(line: str | None) -> bool:
+    if not line or len(line) < 69 or not line[68].isdigit():
+        return False
+    checksum = sum(int(character) for character in line[:68] if character.isdigit())
+    checksum += line[:68].count("-")
+    return checksum % 10 == int(line[68])
 
 
 def parse_float(value: str | None) -> float | None:
@@ -798,9 +958,12 @@ def load_satcat_launch_dates(root: Path | str) -> dict[str, dict[str, str]]:
         if not reader.fieldnames:
             return {}
         for row in reader:
-            norad = str(row.get("NORAD_CAT_ID") or "").strip()
+            try:
+                norad = normalize_norad_id(row.get("NORAD_CAT_ID"))
+            except SatelliteDataError:
+                continue
             launch_date = _valid_launch_date(row.get("LAUNCH_DATE"))
-            if not norad or not launch_date:
+            if not launch_date:
                 continue
             records[norad] = {
                 "norad_id": norad,
@@ -819,6 +982,20 @@ def catalog_revision_for_payload(payload: object) -> str:
         separators=(",", ":"),
     ).encode("utf-8")
     return "sha256:" + hashlib.sha256(material).hexdigest()
+
+
+def catalog_revision_for_text(text: str) -> str:
+    return "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def reconciliation_snapshot_is_current(meta: dict[str, object], revision: str | None) -> bool:
+    reconciled_revision = meta.get("last_reconciled_catalog_revision")
+    return bool(
+        revision
+        and isinstance(reconciled_revision, str)
+        and reconciled_revision == revision
+        and meta.get("last_reconciled_at")
+    )
 
 
 def is_meaningful_company_tag(value: object) -> bool:
@@ -913,6 +1090,47 @@ def refresh_gp_catalog_enrichment(
     return enriched, counts
 
 
+def enrich_gp_from_satcat(
+    records: Iterable[dict[str, object]],
+    satcat_records: dict[str, dict[str, str]],
+) -> tuple[list[dict[str, object]], int]:
+    """Refresh descriptive lifecycle fields without changing orbital elements."""
+
+    enriched: list[dict[str, object]] = []
+    changed = 0
+    for item in records:
+        record = dict(item)
+        try:
+            norad_id = normalize_norad_id(record.get("norad_id"))
+        except SatelliteDataError:
+            enriched.append(record)
+            continue
+        record["norad_id"] = norad_id
+        satcat = satcat_records.get(norad_id)
+        if satcat:
+            before = dict(record)
+            satellite_name = str(satcat.get("OBJECT_NAME") or record.get("satellite_name") or record.get("name") or "").strip()
+            lifecycle_status = satcat_lifecycle_status(satcat)
+            if satellite_name:
+                record["name"] = satellite_name
+                record["satellite_name"] = satellite_name
+            record.update(
+                {
+                    "international_designator": str(satcat.get("OBJECT_ID") or "").strip() or record.get("international_designator"),
+                    "launch_date": _valid_launch_date(satcat.get("LAUNCH_DATE")) or record.get("launch_date") or "no data",
+                    "launch_site": str(satcat.get("LAUNCH_SITE") or "").strip() or record.get("launch_site"),
+                    "decay_date": _valid_launch_date(satcat.get("DECAY_DATE")) or None,
+                    "object_type": normalize_object_type(satcat.get("OBJECT_TYPE")),
+                    "lifecycle_status": lifecycle_status,
+                    "operational_status": lifecycle_status,
+                }
+            )
+            if record != before:
+                changed += 1
+        enriched.append(record)
+    return enriched, changed
+
+
 def refresh_catalog_orbit_classes(
     records: Iterable[dict[str, object]],
 ) -> tuple[list[dict[str, object]], int]:
@@ -962,12 +1180,54 @@ def launch_events_from_satcat_records(records: dict[str, dict[str, str]]) -> lis
     return launches
 
 
+def merge_historical_launch_events(
+    existing: Iterable[dict[str, object]],
+    current: Iterable[dict[str, object]],
+) -> tuple[list[dict[str, object]], int]:
+    """Upsert current SATCAT rows without deleting previously observed launches."""
+
+    by_norad: dict[str, dict[str, object]] = {}
+    for item in existing:
+        if not isinstance(item, dict):
+            continue
+        try:
+            norad_id = normalize_norad_id(item.get("norad_id"))
+        except SatelliteDataError:
+            continue
+        record = dict(item)
+        record["norad_id"] = norad_id
+        by_norad.setdefault(norad_id, record)
+    previous_ids = set(by_norad)
+    current_ids: set[str] = set()
+    for item in current:
+        if not isinstance(item, dict):
+            continue
+        try:
+            norad_id = normalize_norad_id(item.get("norad_id"))
+        except SatelliteDataError:
+            continue
+        record = dict(item)
+        record["norad_id"] = norad_id
+        by_norad[norad_id] = record
+        current_ids.add(norad_id)
+
+    launches = sorted(
+        by_norad.values(),
+        key=lambda item: (
+            str(item.get("launch_date") or ""),
+            int(str(item["norad_id"])),
+        ),
+    )
+    return launches, len(previous_ids - current_ids)
+
+
 def build_launch_catalog(
     *,
     root: Path | str,
     dry_run: bool = False,
     now: dt.datetime | None = None,
     satcat_text: str | None = None,
+    mode: str = "incremental",
 ) -> UpdateResult:
     now = now or utc_now()
     root_path = Path(root).resolve()
@@ -977,7 +1237,7 @@ def build_launch_catalog(
     try:
         source_text = satcat_text if satcat_text is not None else input_path.read_text(encoding="utf-8")
         records = satcat_records_from_text(source_text)
-        launches = launch_events_from_satcat_records(records)
+        current_launches = launch_events_from_satcat_records(records)
     except Exception as exc:
         existing_meta = load_json(meta_path, {})
         failed_meta = dict(existing_meta) if isinstance(existing_meta, dict) else {}
@@ -999,27 +1259,42 @@ def build_launch_catalog(
             paths={"launches": str(output_path), "metadata": str(meta_path), "satcat": str(input_path)},
         )
 
-    previous = load_json(output_path, [])
-    changed = not isinstance(previous, list) or previous != launches
+    previous_payload = load_json(output_path, [])
+    previous = previous_payload if isinstance(previous_payload, list) else []
+    launches, retained_history = merge_historical_launch_events(previous, current_launches)
+    changed = not isinstance(previous_payload, list) or previous != launches
     if changed:
         atomic_write_json(output_path, launches, dry_run=dry_run, backup=True)
     newest_launch_date = max((str(item["launch_date"]) for item in launches), default=None)
     revision = catalog_revision_for_payload(launches)
+    previous_meta = load_json(meta_path, {})
+    previous_meta = previous_meta if isinstance(previous_meta, dict) else {}
     success_meta = {
         "schema_version": "2.2.0",
         "built_at": isoformat_utc(now),
         "last_success_at": isoformat_utc(now),
         "last_attempt_at": isoformat_utc(now),
         "last_status": "ok",
+        "mode": mode,
         "source": SATCAT_RELATIVE_PATH.as_posix(),
         "catalog_revision": revision,
+        "dataset_hash": revision,
         "newest_launch_date": newest_launch_date,
         "counts": {
             "satcat_records": len(records),
+            "source_records": len(current_launches),
+            "retained_history": retained_history,
             "records": len(launches),
             "six_digit_ids": sum(len(str(item["norad_id"])) >= 6 for item in launches),
         },
     }
+    if mode == RECONCILIATION_MODE:
+        success_meta["last_reconciled_at"] = isoformat_utc(now)
+        success_meta["last_reconciled_catalog_revision"] = revision
+    elif previous_meta.get("last_reconciled_at"):
+        success_meta["last_reconciled_at"] = previous_meta["last_reconciled_at"]
+        if previous_meta.get("last_reconciled_catalog_revision"):
+            success_meta["last_reconciled_catalog_revision"] = previous_meta["last_reconciled_catalog_revision"]
     atomic_write_json(meta_path, success_meta, dry_run=dry_run, backup=False, indent=2)
     return UpdateResult(
         changed=changed and not dry_run,
@@ -1049,8 +1324,11 @@ def merge_launch_date_sidecar_from_satcat(
     for item in existing_items:
         if not isinstance(item, dict):
             continue
-        norad = str(item.get("norad_id") or "").strip()
-        if not norad or norad in by_norad:
+        try:
+            norad = normalize_norad_id(item.get("norad_id"))
+        except SatelliteDataError:
+            continue
+        if norad in by_norad:
             continue
         by_norad[norad] = {
             "norad_id": norad,
@@ -1063,9 +1341,11 @@ def merge_launch_date_sidecar_from_satcat(
     updated = 0
     satellite_launch_dates_updated = 0
     for sat in satellites:
-        norad = str(sat.get("norad_id") or "").strip()
-        if not norad:
+        try:
+            norad = normalize_norad_id(sat.get("norad_id"))
+        except SatelliteDataError:
             continue
+        sat["norad_id"] = norad
         satcat_record = satcat_launch_dates.get(norad)
         launch_date = satcat_record.get("launch_date") if satcat_record else ""
         if not launch_date:
@@ -1154,7 +1434,7 @@ def should_replace_tle(existing: dict[str, object] | None, candidate: dict[str, 
 
 def preserve_existing_tags(existing: dict[str, object], candidate: dict[str, object]) -> dict[str, object]:
     merged = dict(candidate)
-    if existing.get("company") and existing.get("company") != "no data":
+    if is_meaningful_company_tag(existing.get("company")):
         merged["company"] = existing["company"]
     if existing.get("launch_date") and existing.get("launch_date") != "no data" and candidate.get("launch_date") == "no data":
         merged["launch_date"] = existing["launch_date"]
@@ -1217,9 +1497,13 @@ def build_satellites_from_tle_responses(
     by_norad: dict[str, dict[str, object]] = {}
     order: list[str] = []
     for record in current:
-        norad = str(record.get("norad_id", "")).strip()
-        if norad and norad not in by_norad:
+        try:
+            norad = normalize_norad_id(record.get("norad_id"))
+        except SatelliteDataError:
+            continue
+        if norad not in by_norad:
             by_norad[norad] = dict(record)
+            by_norad[norad]["norad_id"] = norad
             order.append(norad)
     initial_norad_ids = set(by_norad)
     updated_initial_ids: set[str] = set()
@@ -1236,10 +1520,12 @@ def build_satellites_from_tle_responses(
                 rejected += 1
                 continue
             candidate = transform_satellite_tle_object(company, name, line1, line2, launch_dates)
-            norad = str(candidate.get("norad_id", "")).strip()
-            if not norad:
+            try:
+                norad = normalize_norad_id(candidate.get("norad_id"))
+            except SatelliteDataError:
                 rejected += 1
                 continue
+            candidate["norad_id"] = norad
             existing_record = by_norad.get(norad)
             if mode == "all":
                 if existing_record is None:
@@ -1265,6 +1551,22 @@ def build_satellites_from_tle_responses(
         "rejected": rejected,
         "total": len(order),
     }
+
+
+def validate_complete_tle_snapshot(responses: Iterable[tuple[str, FetchResponse]]) -> str | None:
+    response_list = list(responses)
+    if not response_list:
+        return "Complete active TLE reconciliation returned no response."
+    for _company, response in response_list:
+        lines = [line.strip() for line in response.text.splitlines() if line.strip()]
+        blocks = parse_tle_text(response.text)
+        if not blocks:
+            return f"Complete active TLE reconciliation returned no usable records from {response.url}."
+        if len(lines) != len(blocks) * 3:
+            return f"Complete active TLE reconciliation returned a structurally incomplete response from {response.url}."
+        if any(not tle_checksum_is_valid(line) for _name, line1, line2 in blocks for line in (line1, line2)):
+            return f"Complete active TLE reconciliation returned a checksum-invalid response from {response.url}."
+    return None
 
 
 def update_tle_failure_metadata(
@@ -1318,6 +1620,9 @@ def update_tle_success_metadata(
         existing["last_attempt_at"] = isoformat_utc(now)
         url_meta[response.url] = existing
     success_meta = {
+        "schema_version": "2.2.0",
+        "dataset_format": "TLE_JSON_COMPATIBILITY",
+        "deprecated_compatibility": True,
         "fetched_at": isoformat_utc(now),
         "last_success_at": isoformat_utc(now),
         "last_attempt_at": isoformat_utc(now),
@@ -1330,6 +1635,22 @@ def update_tle_success_metadata(
         "dataset_hash": catalog_revision,
         "urls": url_meta,
     }
+    if mode == RECONCILIATION_MODE:
+        success_meta.update(
+            {
+                "last_reconciled_at": isoformat_utc(now),
+                "last_reconciled_catalog_revision": catalog_revision,
+                "source_status": "COMPLETE",
+                "partial_update": False,
+            }
+        )
+    else:
+        if meta.get("last_reconciled_at"):
+            success_meta["last_reconciled_at"] = meta["last_reconciled_at"]
+        if meta.get("last_reconciled_catalog_revision"):
+            success_meta["last_reconciled_catalog_revision"] = meta["last_reconciled_catalog_revision"]
+        success_meta["source_status"] = "PARTIAL"
+        success_meta["partial_update"] = True
     atomic_write_json(meta_path, success_meta, dry_run=dry_run, backup=False, indent=2)
 
 
@@ -1343,34 +1664,93 @@ def export_tle_data(
     now: dt.datetime | None = None,
     celestrak_min_refresh_hours: float = CELESTRAK_MIN_REFRESH_HOURS,
     allow_space_track: bool = False,
+    allow_large_reconciliation_shrink: bool = False,
 ) -> UpdateResult:
     now = now or utc_now()
     root_path = Path(root).resolve()
     tle_path = repo_path(root_path, TLE_RELATIVE_PATH)
     meta_path = repo_path(root_path, TLE_META_RELATIVE_PATH)
+    launch_dates_path = repo_path(root_path, LAUNCH_DATES_RELATIVE_PATH)
+    launch_dates_existed = launch_dates_path.exists()
+    last_known_good_launch_dates_text = (
+        launch_dates_path.read_text(encoding="utf-8")
+        if mode in {"all", RECONCILIATION_MODE} and launch_dates_existed
+        else None
+    )
     launch_dates = load_launch_dates(root_path)
     meta = load_json(meta_path, {})
     if not isinstance(meta, dict):
         meta = {}
+    last_known_good_meta = dict(meta)
+    last_known_good_text = (
+        tle_path.read_text(encoding="utf-8")
+        if mode in {"all", RECONCILIATION_MODE} and tle_path.exists()
+        else None
+    )
+
+    def reject_complete_replacement(
+        error: str,
+        message: str,
+        counts: dict[str, int],
+    ) -> UpdateResult:
+        _restore_text_snapshot(
+            tle_path,
+            last_known_good_text,
+            originally_existed=last_known_good_text is not None,
+            dry_run=dry_run,
+        )
+        _restore_text_snapshot(
+            launch_dates_path,
+            last_known_good_launch_dates_text,
+            originally_existed=launch_dates_existed,
+            dry_run=dry_run,
+        )
+        update_tle_failure_metadata(
+            meta_path,
+            last_known_good_meta,
+            mode=mode,
+            errors=[error],
+            now=now,
+            dry_run=dry_run,
+        )
+        return UpdateResult(
+            changed=False,
+            skipped=True,
+            mode=mode,
+            message=message,
+            counts=counts,
+            errors=[error],
+            paths={"tle": str(tle_path), "metadata": str(meta_path)},
+        )
 
     existing_payload = load_json(tle_path, [])
     existing = existing_payload if isinstance(existing_payload, list) else []
     configured_source_urls = source_urls_for_mode(mode)
 
     existing, local_orbit_reclassified = refresh_catalog_orbit_classes(existing)
-    local_orbit_changed = local_orbit_reclassified > 0
+    local_sidecar_counts = merge_launch_date_sidecar_from_satcat(root_path, existing, dry_run=dry_run)
+    local_tle_changed = (
+        local_orbit_reclassified > 0
+        or local_sidecar_counts["satellite_launch_dates_updated"] > 0
+    )
+    local_sidecar_changed = (
+        local_sidecar_counts["sidecar_added"] > 0
+        or local_sidecar_counts["sidecar_updated"] > 0
+    )
+    local_changed = local_tle_changed or local_sidecar_changed
     current_revision = catalog_revision_for_payload(existing)
     metadata_needs_refresh = (
         meta.get("catalog_revision") != current_revision
         or meta.get("dataset_hash") != current_revision
         or meta.get("source_urls") != configured_source_urls
     )
-    if local_orbit_changed or metadata_needs_refresh:
-        if local_orbit_changed:
+    if local_changed or metadata_needs_refresh:
+        if local_tle_changed:
             atomic_write_json(tle_path, existing, dry_run=dry_run, backup=True)
         local_meta = dict(meta)
         local_counts = dict(local_meta.get("counts", {})) if isinstance(local_meta.get("counts"), dict) else {}
         local_counts["orbit_reclassified"] = local_orbit_reclassified
+        local_counts.update(local_sidecar_counts)
         local_meta.update(
             {
                 "catalog_revision": current_revision,
@@ -1392,21 +1772,30 @@ def export_tle_data(
         latest = latest_success_time(meta, tle_path)
         if is_recent_enough(latest, celestrak_min_refresh_hours, now=now):
             return UpdateResult(
-                changed=local_orbit_changed and not dry_run,
+                changed=local_changed and not dry_run,
                 skipped=True,
                 mode=mode,
                 message=(
                     "TLE local orbit classification refresh completed; provider fetch skipped by the refresh guard."
-                    if local_orbit_changed
+                    if local_changed
                     else f"TLE update skipped; last successful fetch is newer than {celestrak_min_refresh_hours:g} hours."
                 ),
-                counts={"existing": len(existing), "total": len(existing), "orbit_reclassified": local_orbit_reclassified},
+                counts={
+                    "existing": len(existing),
+                    "total": len(existing),
+                    "orbit_reclassified": local_orbit_reclassified,
+                    **local_sidecar_counts,
+                },
                 paths={"tle": str(tle_path), "metadata": str(meta_path)},
             )
 
     source_urls = configured_source_urls
-    responses, not_modified, errors = fetch_tle_sources(source_urls, fetcher=fetcher, meta=meta)
-    if errors and allow_space_track:
+    complete_snapshot_current = reconciliation_snapshot_is_current(meta, current_revision)
+    request_meta = meta
+    if mode == RECONCILIATION_MODE and not complete_snapshot_current:
+        request_meta = {key: value for key, value in meta.items() if key != "urls"}
+    responses, not_modified, errors = fetch_tle_sources(source_urls, fetcher=fetcher, meta=request_meta)
+    if errors and allow_space_track and mode != RECONCILIATION_MODE:
         fallback_response = try_spacetrack_fallback()
         if fallback_response:
             responses.append(("SPACE-TRACK", fallback_response))
@@ -1415,10 +1804,10 @@ def export_tle_data(
     if errors and mode == "all":
         update_tle_failure_metadata(meta_path, meta, mode=mode, errors=errors, now=now, dry_run=dry_run)
         raise SatelliteDataError("--all TLE export failed before writing because one or more required sources failed.")
-    if errors and not responses:
+    if errors and (not responses or mode == RECONCILIATION_MODE):
         update_tle_failure_metadata(meta_path, meta, mode=mode, errors=errors, now=now, dry_run=dry_run)
         return UpdateResult(
-            changed=False,
+            changed=local_changed and not dry_run,
             skipped=True,
             mode=mode,
             message="CelesTrak unavailable; preserved existing TLE data.",
@@ -1427,7 +1816,37 @@ def export_tle_data(
             paths={"tle": str(tle_path), "metadata": str(meta_path)},
         )
 
+    if mode in {"all", RECONCILIATION_MODE} and responses and not_modified:
+        mixed_response_error = (
+            "Complete TLE replacement received mixed full and 304 source responses; "
+            "unchanged groups cannot be reconstructed from an empty replacement base."
+        )
+        return reject_complete_replacement(
+            mixed_response_error,
+            "TLE replacement requires a coherent complete response set; preserved existing data.",
+            {"existing": len(existing), "total": len(existing)},
+        )
+
     if not_modified and not responses:
+        if mode == RECONCILIATION_MODE and not complete_snapshot_current:
+            reconciliation_error = "Cannot reconcile TLE data from 304 without a prior complete active snapshot."
+            update_tle_failure_metadata(
+                meta_path,
+                meta,
+                mode=mode,
+                errors=[reconciliation_error],
+                now=now,
+                dry_run=dry_run,
+            )
+            return UpdateResult(
+                changed=local_changed and not dry_run,
+                skipped=True,
+                mode=mode,
+                message="TLE reconciliation requires a complete active response; preserved existing data.",
+                counts={"existing": len(existing), "total": len(existing), **local_sidecar_counts},
+                errors=[reconciliation_error],
+                paths={"tle": str(tle_path), "metadata": str(meta_path)},
+            )
         unchanged_meta = dict(meta)
         prior_urls = dict(meta.get("urls", {})) if isinstance(meta.get("urls"), dict) else {}
         url_meta = {
@@ -1449,33 +1868,124 @@ def export_tle_data(
                 "mode": mode,
                 "source_urls": source_urls,
                 "last_attempt_at": isoformat_utc(now),
+                "last_success_at": isoformat_utc(now),
+                "revalidated_at": isoformat_utc(now),
                 "last_status": "not-modified",
                 "catalog_revision": current_revision,
                 "dataset_hash": current_revision,
                 "urls": url_meta,
             }
         )
+        if mode == RECONCILIATION_MODE:
+            unchanged_meta["last_reconciled_at"] = isoformat_utc(now)
+            unchanged_meta["last_reconciled_catalog_revision"] = current_revision
+            unchanged_meta["source_status"] = "COMPLETE"
+            unchanged_meta["partial_update"] = False
         unchanged_meta.pop("last_error", None)
         atomic_write_json(meta_path, unchanged_meta, dry_run=dry_run, backup=False, indent=2)
         return UpdateResult(
-            changed=local_orbit_changed and not dry_run,
+            changed=local_changed and not dry_run,
             skipped=True,
             mode=mode,
             message="CelesTrak TLE catalog was not modified; preserved existing data.",
-            counts={"existing": len(existing), "total": len(existing), "orbit_reclassified": local_orbit_reclassified},
+            counts={
+                "existing": len(existing),
+                "total": len(existing),
+                "orbit_reclassified": local_orbit_reclassified,
+                **local_sidecar_counts,
+            },
             paths={"tle": str(tle_path), "metadata": str(meta_path)},
         )
 
-    base_records = [] if mode == "all" else [dict(item) for item in existing if isinstance(item, dict)]
+    if mode in {"all", RECONCILIATION_MODE}:
+        completeness_error = (
+            "Complete TLE replacement did not receive a full response from every configured source."
+            if len(responses) != len(source_urls)
+            else validate_complete_tle_snapshot(responses)
+        )
+        if completeness_error:
+            return reject_complete_replacement(
+                completeness_error,
+                "TLE replacement response was incomplete; preserved existing data.",
+                {"existing": len(existing), "total": len(existing), **local_sidecar_counts},
+            )
+
+    base_records = [] if mode in {"all", RECONCILIATION_MODE} else [
+        dict(item) for item in existing if isinstance(item, dict)
+    ]
     satellites, counts = build_satellites_from_tle_responses(responses, launch_dates, existing=base_records, mode=mode)
+    if mode == RECONCILIATION_MODE:
+        if counts.get("rejected", 0) or counts.get("total", 0) == 0:
+            validation_error = "Complete active TLE reconciliation contained rejected records or no usable records."
+            update_tle_failure_metadata(
+                meta_path,
+                meta,
+                mode=mode,
+                errors=[validation_error],
+                now=now,
+                dry_run=dry_run,
+            )
+            return UpdateResult(
+                changed=local_changed and not dry_run,
+                skipped=True,
+                mode=mode,
+                message="TLE reconciliation response failed record validation; preserved existing data.",
+                counts=counts,
+                errors=[validation_error],
+                paths={"tle": str(tle_path), "metadata": str(meta_path)},
+            )
+        prior_by_norad = {
+            str(item.get("norad_id") or "").strip(): item
+            for item in existing
+            if isinstance(item, dict) and str(item.get("norad_id") or "").strip()
+        }
+        satellites = [
+            preserve_existing_tags(prior_by_norad.get(str(item.get("norad_id") or ""), {}), item)
+            for item in satellites
+        ]
+        reconciled_by_norad = {
+            str(item.get("norad_id") or ""): item
+            for item in satellites
+            if str(item.get("norad_id") or "")
+        }
+        current_ids = set(reconciled_by_norad)
+        prior_ids = set(prior_by_norad)
+        common_ids = prior_ids & current_ids
+        updated = sum(
+            reconciled_by_norad[norad_id] != prior_by_norad[norad_id]
+            for norad_id in common_ids
+        )
+        counts.update(
+            {
+                "existing": len(prior_by_norad),
+                "added": len(current_ids - prior_ids),
+                "updated": updated,
+                "retained": len(common_ids) - updated,
+                "pruned": len(prior_ids - current_ids),
+            }
+        )
+    if mode in {"all", RECONCILIATION_MODE}:
+        previous_ids = catalog_norad_ids(existing)
+        candidate_ids = catalog_norad_ids(satellites)
+        shrink_error = reconciliation_shrink_error(
+            "TLE",
+            len(previous_ids),
+            len(candidate_ids),
+            len(previous_ids & candidate_ids),
+            allow_large_reconciliation_shrink=allow_large_reconciliation_shrink,
+        )
+        if shrink_error:
+            return reject_complete_replacement(
+                shrink_error,
+                "TLE catalog shrink guard rejected the response; preserved existing data.",
+                counts,
+            )
     sidecar_counts = merge_launch_date_sidecar_from_satcat(root_path, satellites, dry_run=dry_run)
-    counts.update(sidecar_counts)
-    changed = (
-        mode == "all" or
-        counts.get("added", 0) > 0 or
-        counts.get("updated", 0) > 0 or
-        counts.get("satellite_launch_dates_updated", 0) > 0
-    )
+    counts.update({
+        key: sidecar_counts.get(key, 0) + local_sidecar_counts.get(key, 0)
+        for key in sidecar_counts
+    })
+    changed = satellites != existing
     if changed:
         atomic_write_json(tle_path, satellites, dry_run=dry_run, backup=True)
     update_tle_success_metadata(
@@ -1572,11 +2082,15 @@ def build_satellites_from_omm_responses(
     mode: str,
 ) -> tuple[list[dict[str, object]], dict[str, int], list[dict[str, object]]]:
     current = [dict(item) for item in (existing or []) if isinstance(item, dict)]
-    initial_by_norad = {
-        str(item.get("norad_id") or "").strip(): item
-        for item in current
-        if str(item.get("norad_id") or "").strip()
-    }
+    initial_by_norad: dict[str, dict[str, object]] = {}
+    for item in current:
+        try:
+            norad_id = normalize_norad_id(item.get("norad_id"))
+        except SatelliteDataError:
+            continue
+        normalized_item = dict(item)
+        normalized_item["norad_id"] = norad_id
+        initial_by_norad.setdefault(norad_id, normalized_item)
     candidates: dict[str, dict[str, object]] = {}
     quarantined: list[dict[str, object]] = []
     fetched = 0
@@ -1619,7 +2133,7 @@ def build_satellites_from_omm_responses(
             if should_replace_omm(previous_candidate, candidate):
                 candidates[norad_id] = candidate
 
-    output_by_norad = {} if mode == "all" else dict(initial_by_norad)
+    output_by_norad = {} if mode in {"all", RECONCILIATION_MODE} else dict(initial_by_norad)
     added = 0
     updated = 0
     for norad_id, candidate in candidates.items():
@@ -1641,12 +2155,33 @@ def build_satellites_from_omm_responses(
         company_tags or {},
         existing=current,
     )
+    output_ids = set(output_by_norad)
+    if mode == RECONCILIATION_MODE:
+        reconciled_by_norad = {
+            str(record.get("norad_id") or ""): record
+            for record in satellites
+            if str(record.get("norad_id") or "")
+        }
+        common_ids = set(initial_by_norad) & set(reconciled_by_norad)
+        added = len(set(reconciled_by_norad) - set(initial_by_norad))
+        updated = sum(
+            reconciled_by_norad[norad_id] != initial_by_norad[norad_id]
+            for norad_id in common_ids
+        )
+        retained = len(common_ids) - updated
+    else:
+        retained = len((set(initial_by_norad) & output_ids) - {
+            norad_id
+            for norad_id, candidate in candidates.items()
+            if norad_id in initial_by_norad and should_replace_omm(initial_by_norad[norad_id], candidate)
+        })
     counts = {
         "existing": len(initial_by_norad),
         "fetched": fetched,
         "added": added,
         "updated": updated,
-        "retained": max(0, len(initial_by_norad) - updated),
+        "retained": retained,
+        "pruned": len(set(initial_by_norad) - output_ids),
         "duplicates": duplicates,
         "quarantined": len(quarantined),
         "total": len(satellites),
@@ -1712,6 +2247,7 @@ def export_gp_data(
     fetcher: Callable[..., FetchResponse] | None = None,
     now: dt.datetime | None = None,
     celestrak_min_refresh_hours: float = CELESTRAK_MIN_REFRESH_HOURS,
+    allow_large_reconciliation_shrink: bool = False,
 ) -> UpdateResult:
     now = now or utc_now()
     root_path = Path(root).resolve()
@@ -1720,15 +2256,24 @@ def export_gp_data(
     meta = load_json(meta_path, {})
     if not isinstance(meta, dict):
         meta = {}
+    last_known_good_meta = dict(meta)
+    last_known_good_text = (
+        gp_path.read_text(encoding="utf-8")
+        if mode in {"all", RECONCILIATION_MODE} and gp_path.exists()
+        else None
+    )
     existing_payload = load_json(gp_path, [])
     existing = existing_payload if isinstance(existing_payload, list) else []
 
     company_tags, tag_enrichment = load_gp_company_tag_enrichment(root_path)
+    satcat_records = load_satcat_records(root_path)
     locally_enriched, local_enrichment_counts = refresh_gp_catalog_enrichment(
         existing,
         company_tags,
         existing=existing,
     )
+    locally_enriched, satcat_enriched = enrich_gp_from_satcat(locally_enriched, satcat_records)
+    local_enrichment_counts["satcat_enriched"] = satcat_enriched
     local_enrichment_changed = locally_enriched != existing
     desired_tag_enrichment = {
         **tag_enrichment,
@@ -1776,7 +2321,12 @@ def export_gp_data(
             )
 
     source_urls = gp_source_urls_for_mode(mode)
-    responses, not_modified, errors = fetch_omm_sources(source_urls, fetcher=fetcher, meta=meta)
+    current_revision = catalog_revision_for_payload(existing)
+    complete_snapshot_current = reconciliation_snapshot_is_current(meta, current_revision)
+    request_meta = meta
+    if mode == RECONCILIATION_MODE and not complete_snapshot_current:
+        request_meta = {key: value for key, value in meta.items() if key != "urls"}
+    responses, not_modified, errors = fetch_omm_sources(source_urls, fetcher=fetcher, meta=request_meta)
     if errors or (not responses and not not_modified):
         failure_errors = errors or ["CelesTrak returned no GP/OMM response."]
         _update_gp_failure_metadata(
@@ -1793,6 +2343,25 @@ def export_gp_data(
         )
 
     if not_modified and not responses:
+        if mode == RECONCILIATION_MODE and not complete_snapshot_current:
+            reconciliation_error = "Cannot reconcile GP/OMM data from 304 without a prior complete active snapshot."
+            _update_gp_failure_metadata(
+                meta_path,
+                meta,
+                mode=mode,
+                errors=[reconciliation_error],
+                now=now,
+                dry_run=dry_run,
+            )
+            return UpdateResult(
+                changed=local_enrichment_changed and not dry_run,
+                skipped=True,
+                mode=mode,
+                message="GP/OMM reconciliation requires a complete active response; preserved existing data.",
+                counts={"existing": len(existing), "total": len(existing), **local_enrichment_counts},
+                errors=[reconciliation_error],
+                paths={"gp": str(gp_path), "metadata": str(meta_path)},
+            )
         unchanged_meta = dict(meta)
         unchanged_meta.update(
             {
@@ -1801,10 +2370,17 @@ def export_gp_data(
                 "dataset_format": "CCSDS_OMM_JSON",
                 "source_format": "CCSDS_OMM_JSON",
                 "last_attempt_at": isoformat_utc(now),
+                "last_success_at": isoformat_utc(now),
+                "revalidated_at": isoformat_utc(now),
                 "last_status": "not-modified",
                 "urls": _gp_url_metadata(meta, not_modified, now),
             }
         )
+        if mode == RECONCILIATION_MODE:
+            unchanged_meta["last_reconciled_at"] = isoformat_utc(now)
+            unchanged_meta["last_reconciled_catalog_revision"] = current_revision
+            unchanged_meta["source_status"] = "COMPLETE"
+            unchanged_meta["partial_update"] = False
         unchanged_meta.pop("last_error", None)
         atomic_write_json(meta_path, unchanged_meta, dry_run=dry_run, backup=False, indent=2)
         return UpdateResult(
@@ -1816,7 +2392,6 @@ def export_gp_data(
             paths={"gp": str(gp_path), "metadata": str(meta_path)},
         )
 
-    satcat_records = load_satcat_records(root_path)
     base_records = [dict(item) for item in existing if isinstance(item, dict)]
     try:
         satellites, counts, quarantine = build_satellites_from_omm_responses(
@@ -1851,6 +2426,59 @@ def export_gp_data(
             paths={"gp": str(gp_path), "metadata": str(meta_path)},
         )
 
+    if mode == RECONCILIATION_MODE and (
+        len(responses) != len(source_urls)
+        or counts["fetched"] == 0
+        or counts["omm"] == 0
+        or bool(quarantine)
+    ):
+        error = "Complete active GP/OMM reconciliation response failed structural validation."
+        _update_gp_failure_metadata(meta_path, meta, mode=mode, errors=[error], now=now, dry_run=dry_run)
+        return UpdateResult(
+            changed=local_enrichment_changed and not dry_run,
+            skipped=True,
+            mode=mode,
+            message="GP/OMM reconciliation response was incomplete; preserved existing data.",
+            counts=counts,
+            errors=[error],
+            paths={"gp": str(gp_path), "metadata": str(meta_path)},
+        )
+
+    if mode in {"all", RECONCILIATION_MODE}:
+        previous_ids = catalog_norad_ids(existing)
+        candidate_ids = catalog_norad_ids(satellites)
+        shrink_error = reconciliation_shrink_error(
+            "GP/OMM",
+            len(previous_ids),
+            len(candidate_ids),
+            len(previous_ids & candidate_ids),
+            allow_large_reconciliation_shrink=allow_large_reconciliation_shrink,
+        )
+        if shrink_error:
+            _restore_text_snapshot(
+                gp_path,
+                last_known_good_text,
+                originally_existed=last_known_good_text is not None,
+                dry_run=dry_run,
+            )
+            _update_gp_failure_metadata(
+                meta_path,
+                last_known_good_meta,
+                mode=mode,
+                errors=[shrink_error],
+                now=now,
+                dry_run=dry_run,
+            )
+            return UpdateResult(
+                changed=False,
+                skipped=True,
+                mode=mode,
+                message="GP/OMM catalog shrink guard rejected the response; preserved existing data.",
+                counts=counts,
+                errors=[shrink_error],
+                paths={"gp": str(gp_path), "metadata": str(meta_path)},
+            )
+
     changed = satellites != existing
     if changed:
         atomic_write_json(gp_path, satellites, dry_run=dry_run, backup=True)
@@ -1862,7 +2490,7 @@ def export_gp_data(
         (_valid_launch_date(item.get("launch_date")) for item in satellites if _valid_launch_date(item.get("launch_date"))),
         default=None,
     )
-    partial = mode != "all" or bool(quarantine)
+    partial = mode not in {"all", RECONCILIATION_MODE} or bool(quarantine)
     catalog_revision = catalog_revision_for_payload(satellites)
     success_meta = {
         "schema_version": "2.2.0",
@@ -1898,6 +2526,13 @@ def export_gp_data(
         "quarantine_truncated": max(0, len(quarantine) - 100),
         "urls": _gp_url_metadata(meta, [response for _company, response in responses], now),
     }
+    if mode == RECONCILIATION_MODE:
+        success_meta["last_reconciled_at"] = isoformat_utc(now)
+        success_meta["last_reconciled_catalog_revision"] = catalog_revision
+    elif meta.get("last_reconciled_at"):
+        success_meta["last_reconciled_at"] = meta["last_reconciled_at"]
+        if meta.get("last_reconciled_catalog_revision"):
+            success_meta["last_reconciled_catalog_revision"] = meta["last_reconciled_catalog_revision"]
     atomic_write_json(meta_path, success_meta, dry_run=dry_run, backup=False, indent=2)
     return UpdateResult(
         changed=(changed or local_enrichment_changed) and not dry_run,
@@ -2008,10 +2643,53 @@ def parse_satcat_csv(path: Path) -> dict[str, list[dict[str, str]]]:
             if object_type.upper() != "PAY":
                 continue
             record = {column: (row.get(column) or "").strip() for column in DECAYED_COLUMNS}
+            try:
+                record["NORAD_CAT_ID"] = normalize_norad_id(record["NORAD_CAT_ID"])
+            except SatelliteDataError:
+                continue
             record["OBJECT_TYPE"] = object_type
             object_name = record["OBJECT_NAME"] or "(UNKNOWN_OBJECT_NAME)"
             grouped.setdefault(object_name, []).append(record)
     return {key: grouped[key] for key in sorted(grouped)}
+
+
+def merge_historical_decayed_records(
+    existing: dict[str, list[dict[str, str]]],
+    current: dict[str, list[dict[str, str]]],
+) -> tuple[dict[str, list[dict[str, str]]], int]:
+    """Upsert confirmed decays by NORAD ID without pruning prior confirmations."""
+
+    by_norad: dict[str, dict[str, str]] = {}
+    for grouped in (existing,):
+        for records in grouped.values():
+            if not isinstance(records, list):
+                continue
+            for record in records:
+                if not isinstance(record, dict):
+                    continue
+                try:
+                    norad_id = normalize_norad_id(record.get("NORAD_CAT_ID"))
+                except SatelliteDataError:
+                    continue
+                normalized = {key: str(value or "").strip() for key, value in record.items()}
+                normalized["NORAD_CAT_ID"] = norad_id
+                by_norad.setdefault(norad_id, normalized)
+    previous_ids = set(by_norad)
+    current_ids: set[str] = set()
+    for records in current.values():
+        for record in records:
+            norad_id = normalize_norad_id(record.get("NORAD_CAT_ID"))
+            normalized = dict(record)
+            normalized["NORAD_CAT_ID"] = norad_id
+            by_norad[norad_id] = normalized
+            current_ids.add(norad_id)
+
+    grouped_result: dict[str, list[dict[str, str]]] = {}
+    for norad_id in sorted(by_norad, key=lambda value: (int(value), value)):
+        record = by_norad[norad_id]
+        object_name = record.get("OBJECT_NAME") or "(UNKNOWN_OBJECT_NAME)"
+        grouped_result.setdefault(object_name, []).append(record)
+    return {key: grouped_result[key] for key in sorted(grouped_result)}, len(previous_ids - current_ids)
 
 
 def refresh_satcat_csv(
@@ -2022,6 +2700,9 @@ def refresh_satcat_csv(
     fetcher: Callable[..., FetchResponse] | None = None,
     now: dt.datetime | None = None,
     interval_hours: float = DEFAULT_SERVER_UPDATE_INTERVAL_HOURS,
+    reconcile: bool = False,
+    build_launches: bool = True,
+    allow_large_reconciliation_shrink: bool = False,
 ) -> UpdateResult:
     now = now or utc_now()
     fetcher = fetcher or fetch_url
@@ -2031,6 +2712,16 @@ def refresh_satcat_csv(
     meta = load_json(meta_path, {})
     if not isinstance(meta, dict):
         meta = {}
+    if satcat_path.exists():
+        with satcat_path.open("r", encoding="utf-8", newline="") as handle:
+            current_text = handle.read()
+    else:
+        current_text = None
+    current_revision = (
+        catalog_revision_for_text(current_text)
+        if current_text is not None
+        else None
+    )
 
     if not force:
         latest = latest_success_time(meta, satcat_path)
@@ -2044,7 +2735,11 @@ def refresh_satcat_csv(
                 paths={"satcat": str(satcat_path), "metadata": str(meta_path)},
             )
 
-    headers = _metadata_request_headers(meta, CELESTRAK_SATCAT_CSV_URL)
+    complete_snapshot_current = reconciliation_snapshot_is_current(meta, current_revision)
+    request_meta = meta
+    if reconcile and not complete_snapshot_current:
+        request_meta = {key: value for key, value in meta.items() if key != "urls"}
+    headers = _metadata_request_headers(request_meta, CELESTRAK_SATCAT_CSV_URL)
     try:
         response = fetcher(CELESTRAK_SATCAT_CSV_URL, headers=headers)
     except Exception as exc:
@@ -2057,6 +2752,9 @@ def refresh_satcat_csv(
                 "last_status": "failed",
             }
         )
+        if current_revision:
+            failed_meta.setdefault("catalog_revision", current_revision)
+            failed_meta.setdefault("dataset_hash", current_revision)
         atomic_write_json(meta_path, failed_meta, dry_run=dry_run, backup=False, indent=2)
         return UpdateResult(
             changed=False,
@@ -2068,6 +2766,29 @@ def refresh_satcat_csv(
         )
 
     if response.not_modified:
+        if reconcile and not complete_snapshot_current:
+            error = "Cannot reconcile SATCAT from 304 without a matching complete snapshot revision."
+            failed_meta = dict(meta)
+            failed_meta.update(
+                {
+                    "source_url": CELESTRAK_SATCAT_CSV_URL,
+                    "last_attempt_at": isoformat_utc(now),
+                    "last_error": error,
+                    "last_status": "failed",
+                }
+            )
+            if current_revision:
+                failed_meta.setdefault("catalog_revision", current_revision)
+                failed_meta.setdefault("dataset_hash", current_revision)
+            atomic_write_json(meta_path, failed_meta, dry_run=dry_run, backup=False, indent=2)
+            return UpdateResult(
+                changed=False,
+                skipped=True,
+                mode="refresh-satcat",
+                message="SATCAT reconciliation requires a complete response; preserved existing data.",
+                errors=[error],
+                paths={"satcat": str(satcat_path), "metadata": str(meta_path)},
+            )
         url_meta = dict(meta.get("urls", {})) if isinstance(meta.get("urls"), dict) else {}
         existing = dict(url_meta.get(CELESTRAK_SATCAT_CSV_URL, {})) if isinstance(url_meta.get(CELESTRAK_SATCAT_CSV_URL), dict) else {}
         if response.headers.get("etag"):
@@ -2081,12 +2802,29 @@ def refresh_satcat_csv(
             {
                 "source_url": CELESTRAK_SATCAT_CSV_URL,
                 "last_attempt_at": isoformat_utc(now),
+                "last_success_at": isoformat_utc(now),
+                "revalidated_at": isoformat_utc(now),
                 "last_status": "not-modified",
+                "catalog_revision": meta.get("catalog_revision") or current_revision,
+                "dataset_hash": meta.get("dataset_hash") or current_revision,
                 "urls": url_meta,
             }
         )
+        if reconcile:
+            meta["last_reconciled_at"] = isoformat_utc(now)
+            meta["last_reconciled_catalog_revision"] = current_revision
+        meta.pop("last_error", None)
         atomic_write_json(meta_path, meta, dry_run=dry_run, backup=False, indent=2)
-        launch_result = build_launch_catalog(root=root_path, dry_run=dry_run, now=now) if satcat_path.exists() else None
+        launch_result = (
+            build_launch_catalog(
+                root=root_path,
+                dry_run=dry_run,
+                now=now,
+                mode=RECONCILIATION_MODE if reconcile else "incremental",
+            )
+            if build_launches and satcat_path.exists()
+            else None
+        )
         return UpdateResult(
             changed=bool(launch_result and launch_result.changed),
             skipped=True,
@@ -2113,6 +2851,9 @@ def refresh_satcat_csv(
                 "last_status": "failed",
             }
         )
+        if current_revision:
+            failed_meta.setdefault("catalog_revision", current_revision)
+            failed_meta.setdefault("dataset_hash", current_revision)
         atomic_write_json(meta_path, failed_meta, dry_run=dry_run, backup=False, indent=2)
         return UpdateResult(
             changed=False,
@@ -2123,7 +2864,77 @@ def refresh_satcat_csv(
             paths={"satcat": str(satcat_path), "metadata": str(meta_path)},
         )
 
-    atomic_write_text(satcat_path, response.text, dry_run=dry_run, backup=True)
+    try:
+        parsed_records = satcat_records_from_text(response.text)
+    except Exception as exc:
+        failed_meta = dict(meta)
+        failed_meta.update(
+            {
+                "source_url": CELESTRAK_SATCAT_CSV_URL,
+                "last_attempt_at": isoformat_utc(now),
+                "last_error": str(exc),
+                "last_status": "failed",
+            }
+        )
+        if current_revision:
+            failed_meta.setdefault("catalog_revision", current_revision)
+            failed_meta.setdefault("dataset_hash", current_revision)
+        atomic_write_json(meta_path, failed_meta, dry_run=dry_run, backup=False, indent=2)
+        return UpdateResult(
+            changed=False,
+            skipped=True,
+            mode="refresh-satcat",
+            message="CelesTrak SATCAT response was invalid; preserved existing satcat.csv.",
+            errors=[str(exc)],
+            paths={"satcat": str(satcat_path), "metadata": str(meta_path)},
+        )
+
+    previous_records: dict[str, dict[str, str]] = {}
+    if current_text is not None:
+        with contextlib.suppress(SatelliteDataError):
+            previous_records = satcat_records_from_text(current_text)
+    previous_record_count = len(previous_records)
+    shrink_error = (
+        reconciliation_shrink_error(
+            "SATCAT",
+            previous_record_count,
+            len(parsed_records),
+            len(set(previous_records) & set(parsed_records)),
+            allow_large_reconciliation_shrink=allow_large_reconciliation_shrink,
+        )
+        if current_text is not None
+        else None
+    )
+    if shrink_error:
+        failed_meta = dict(meta)
+        failed_meta.update(
+            {
+                "source_url": CELESTRAK_SATCAT_CSV_URL,
+                "last_attempt_at": isoformat_utc(now),
+                "last_error": shrink_error,
+                "last_status": "failed",
+            }
+        )
+        if current_revision:
+            failed_meta.setdefault("catalog_revision", current_revision)
+            failed_meta.setdefault("dataset_hash", current_revision)
+        atomic_write_json(meta_path, failed_meta, dry_run=dry_run, backup=False, indent=2)
+        return UpdateResult(
+            changed=False,
+            skipped=True,
+            mode="refresh-satcat",
+            message="SATCAT catalog shrink guard rejected the response; preserved existing data.",
+            counts={
+                "existing": previous_record_count,
+                "candidate": len(parsed_records),
+            },
+            errors=[shrink_error],
+            paths={"satcat": str(satcat_path), "metadata": str(meta_path)},
+        )
+
+    changed = current_text != response.text
+    if changed:
+        atomic_write_text(satcat_path, response.text, dry_run=dry_run, backup=True)
     url_meta = dict(meta.get("urls", {})) if isinstance(meta.get("urls"), dict) else {}
     source_info = dict(url_meta.get(CELESTRAK_SATCAT_CSV_URL, {})) if isinstance(url_meta.get(CELESTRAK_SATCAT_CSV_URL), dict) else {}
     if response.headers.get("etag"):
@@ -2139,30 +2950,48 @@ def refresh_satcat_csv(
         "last_attempt_at": isoformat_utc(now),
         "last_status": "ok",
         "source_url": CELESTRAK_SATCAT_CSV_URL,
-        "counts": {"bytes": len(response.text.encode("utf-8"))},
+        "catalog_revision": catalog_revision_for_text(response.text),
+        "dataset_hash": catalog_revision_for_text(response.text),
+        "counts": {
+            "bytes": len(response.text.encode("utf-8")),
+            "records": len(parsed_records),
+        },
         "urls": url_meta,
     }
+    if reconcile:
+        success_meta["last_reconciled_at"] = isoformat_utc(now)
+        success_meta["last_reconciled_catalog_revision"] = success_meta["catalog_revision"]
+    elif meta.get("last_reconciled_at"):
+        success_meta["last_reconciled_at"] = meta["last_reconciled_at"]
+        if meta.get("last_reconciled_catalog_revision"):
+            success_meta["last_reconciled_catalog_revision"] = meta["last_reconciled_catalog_revision"]
     atomic_write_json(meta_path, success_meta, dry_run=dry_run, backup=False, indent=2)
-    launch_result = build_launch_catalog(
-        root=root_path,
-        dry_run=dry_run,
-        now=now,
-        satcat_text=response.text,
+    launch_result = (
+        build_launch_catalog(
+            root=root_path,
+            dry_run=dry_run,
+            now=now,
+            satcat_text=response.text,
+            mode=RECONCILIATION_MODE if reconcile else "incremental",
+        )
+        if build_launches
+        else None
     )
     return UpdateResult(
-        changed=not dry_run,
+        changed=(changed or bool(launch_result and launch_result.changed)) and not dry_run,
         skipped=False,
         mode="refresh-satcat",
         message="SATCAT refresh completed.",
         counts={
             "bytes": len(response.text.encode("utf-8")),
-            "launch_records": launch_result.counts.get("records", 0),
+            "records": len(parsed_records),
+            "launch_records": launch_result.counts.get("records", 0) if launch_result else 0,
         },
-        errors=launch_result.errors,
+        errors=launch_result.errors if launch_result else [],
         paths={
             "satcat": str(satcat_path),
             "metadata": str(meta_path),
-            "launches": launch_result.paths["launches"],
+            **({"launches": launch_result.paths["launches"]} if launch_result else {}),
         },
     )
 
@@ -2208,7 +3037,7 @@ def build_decayed_db(
                 paths={"decayed": str(output_path), "metadata": str(meta_path), "satcat": str(input_path)},
             )
         if (
-            mode != "all" and
+            mode not in {"all", RECONCILIATION_MODE} and
             refresh_result.skipped and
             "not changed" in refresh_result.message.lower() and
             output_path.exists()
@@ -2276,8 +3105,13 @@ def build_decayed_db(
             paths={"decayed": str(output_path), "metadata": str(meta_path)},
         )
 
+    existing_payload = load_json(output_path, {})
+    existing_grouped = existing_payload if isinstance(existing_payload, dict) else {}
+    grouped, retained_history = merge_historical_decayed_records(existing_grouped, grouped)
     record_count = sum(len(records) for records in grouped.values())
-    atomic_write_json(output_path, grouped, dry_run=dry_run, backup=True, indent=2)
+    changed = not isinstance(existing_payload, dict) or grouped != existing_grouped
+    if changed:
+        atomic_write_json(output_path, grouped, dry_run=dry_run, backup=True, indent=2)
     newest_confirmed_decay_date = max(
         (
             _valid_launch_date(record.get("DECAY_DATE"))
@@ -2287,6 +3121,7 @@ def build_decayed_db(
         ),
         default=None,
     )
+    revision = catalog_revision_for_payload(grouped)
     success_meta = {
         "schema_version": "2.2.0",
         "built_at": isoformat_utc(now),
@@ -2297,17 +3132,29 @@ def build_decayed_db(
         "mode": mode,
         "source": SATCAT_RELATIVE_PATH.as_posix(),
         "satcat_refresh": update_result_for_metadata(refresh_result, root_path) if refresh_result else None,
-        "catalog_revision": catalog_revision_for_payload(grouped),
+        "catalog_revision": revision,
+        "dataset_hash": revision,
         "newest_confirmed_decay_date": newest_confirmed_decay_date,
-        "counts": {"objects": len(grouped), "records": record_count},
+        "counts": {
+            "objects": len(grouped),
+            "records": record_count,
+            "retained_history": retained_history,
+        },
     }
+    if mode == RECONCILIATION_MODE:
+        success_meta["last_reconciled_at"] = isoformat_utc(now)
+        success_meta["last_reconciled_catalog_revision"] = revision
+    elif meta.get("last_reconciled_at"):
+        success_meta["last_reconciled_at"] = meta["last_reconciled_at"]
+        if meta.get("last_reconciled_catalog_revision"):
+            success_meta["last_reconciled_catalog_revision"] = meta["last_reconciled_catalog_revision"]
     atomic_write_json(meta_path, success_meta, dry_run=dry_run, backup=False, indent=2)
     return UpdateResult(
-        changed=not dry_run,
+        changed=changed and not dry_run,
         skipped=False,
         mode=mode,
         message="Decayed DB build completed.",
-        counts={"objects": len(grouped), "records": record_count},
+        counts={"objects": len(grouped), "records": record_count, "retained_history": retained_history},
         paths={"decayed": str(output_path), "metadata": str(meta_path)},
     )
 
@@ -2323,17 +3170,63 @@ def try_spacetrack_fallback() -> FetchResponse | None:
     return None
 
 
+def _process_is_running(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
+
+
+def update_lock_is_stale(
+    lock_path: Path,
+    *,
+    now: dt.datetime | None = None,
+    stale_hours: float = UPDATE_LOCK_STALE_HOURS,
+) -> bool:
+    now = now or utc_now()
+    try:
+        text = lock_path.read_text(encoding="utf-8").strip()
+        parts = text.split(maxsplit=1)
+        try:
+            pid = int(parts[0]) if parts else 0
+        except ValueError:
+            pid = 0
+        created_at = parse_iso_datetime(parts[1]) if len(parts) == 2 else None
+        if created_at is None:
+            created_at = dt.datetime.fromtimestamp(lock_path.stat().st_mtime, tz=dt.timezone.utc)
+    except OSError:
+        return False
+    age_hours = max(0.0, (now - created_at).total_seconds() / 3600.0)
+    return (pid > 0 and not _process_is_running(pid)) or age_hours >= stale_hours
+
+
 @contextlib.contextmanager
 def update_lock(root: Path | str):
     lock_path = repo_path(root, UPDATE_LOCK_RELATIVE_PATH)
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     fd: int | None = None
+    acquired = False
+    for attempt in range(2):
+        try:
+            fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.write(fd, f"{os.getpid()} {isoformat_utc()}\n".encode("utf-8"))
+            acquired = True
+            break
+        except FileExistsError:
+            if attempt == 0 and update_lock_is_stale(lock_path):
+                with contextlib.suppress(FileNotFoundError):
+                    lock_path.unlink()
+                continue
+            break
     try:
-        fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        os.write(fd, f"{os.getpid()} {isoformat_utc()}\n".encode("utf-8"))
-        yield True
-    except FileExistsError:
-        yield False
+        yield acquired
     finally:
         if fd is not None:
             os.close(fd)
@@ -2341,33 +3234,83 @@ def update_lock(root: Path | str):
                 lock_path.unlink()
 
 
-def metadata_is_older_than(root: Path | str, relative_meta_path: Path, data_relative_path: Path, hours: float) -> bool:
+def metadata_is_older_than(
+    root: Path | str,
+    relative_meta_path: Path,
+    data_relative_path: Path,
+    hours: float,
+    *,
+    now: dt.datetime | None = None,
+) -> bool:
     meta_path = repo_path(root, relative_meta_path)
     data_path = repo_path(root, data_relative_path)
     meta = load_json(meta_path, {})
     if not isinstance(meta, dict):
         meta = {}
     latest = latest_success_time(meta, data_path)
-    return not is_recent_enough(latest, hours)
+    return not is_recent_enough(latest, hours, now=now)
+
+
+def metadata_reconciliation_is_older_than(
+    root: Path | str,
+    relative_meta_path: Path,
+    hours: float,
+    *,
+    now: dt.datetime | None = None,
+) -> bool:
+    meta = load_json(repo_path(root, relative_meta_path), {})
+    if not isinstance(meta, dict):
+        return True
+    return not is_recent_enough(parse_iso_datetime(meta.get("last_reconciled_at")), hours, now=now)
 
 
 def maybe_update_satellite_data(
     *,
     root: Path | str,
     interval_hours: float = DEFAULT_SERVER_UPDATE_INTERVAL_HOURS,
+    gp_interval_hours: float | None = None,
+    tle_interval_hours: float | None = None,
+    satcat_interval_hours: float | None = None,
+    launches_interval_hours: float | None = None,
+    decayed_interval_hours: float | None = None,
+    reconciliation_interval_hours: float | None = None,
     force: bool = False,
     dry_run: bool = False,
+    fetcher: Callable[..., FetchResponse] | None = None,
+    now: dt.datetime | None = None,
 ) -> dict[str, object]:
+    now = now or utc_now()
+    root_path = Path(root).resolve()
+
+    def configured_interval(value: float | None, fallback: float) -> float:
+        resolved = fallback if value is None else float(value)
+        if not math.isfinite(resolved) or resolved <= 0:
+            raise SatelliteDataError("Scheduled data intervals must be finite positive hours.")
+        return resolved
+
+    base_interval = configured_interval(interval_hours, DEFAULT_SERVER_UPDATE_INTERVAL_HOURS)
+    intervals = {
+        "gp": configured_interval(gp_interval_hours, base_interval),
+        "tle": configured_interval(tle_interval_hours, base_interval),
+        "satcat": configured_interval(satcat_interval_hours, base_interval),
+        "launches": configured_interval(launches_interval_hours, satcat_interval_hours or base_interval),
+        "decayed": configured_interval(decayed_interval_hours, satcat_interval_hours or base_interval),
+        "reconciliation": configured_interval(reconciliation_interval_hours, base_interval),
+    }
     results: dict[str, object] = {
-        "started_at": isoformat_utc(),
+        "started_at": isoformat_utc(now),
         "skipped": False,
         "lock_acquired": False,
+        "intervals_hours": intervals,
+        "due": {},
         "gp": None,
         "tle": None,
+        "satcat": None,
         "launches": None,
         "decayed": None,
+        "reconciliation": None,
     }
-    lock_context = contextlib.nullcontext(True) if dry_run else update_lock(root)
+    lock_context = contextlib.nullcontext(True) if dry_run else update_lock(root_path)
     with lock_context as acquired:
         results["lock_acquired"] = acquired
         if not acquired:
@@ -2375,43 +3318,174 @@ def maybe_update_satellite_data(
             results["message"] = "Another satellite data update is already running."
             return results
 
-        gp_due = force or metadata_is_older_than(root, GP_META_RELATIVE_PATH, GP_RELATIVE_PATH, interval_hours)
-        launches_due = force or metadata_is_older_than(
-            root, LAUNCHES_META_RELATIVE_PATH, LAUNCHES_RELATIVE_PATH, interval_hours
-        )
-        decayed_due = force or metadata_is_older_than(root, DECAYED_META_RELATIVE_PATH, DECAYED_RELATIVE_PATH, interval_hours)
-        if decayed_due:
-            results["decayed"] = build_decayed_db(
-                root=root,
-                mode="incremental",
-                force=force,
-                dry_run=dry_run,
-                interval_hours=interval_hours,
-                refresh_satcat=True,
-            ).to_dict()
-        if launches_due:
-            results["launches"] = build_launch_catalog(root=root, dry_run=dry_run).to_dict()
-        if gp_due:
-            results["gp"] = export_gp_data(
-                root=root,
-                mode="incremental",
-                force=force,
-                dry_run=dry_run,
-            ).to_dict()
-        results["tle"] = {
-            "changed": False,
-            "skipped": True,
-            "message": "Scheduled TLE export is deprecated; GP/OMM is the primary catalog.",
+        due = {
+            "gp": force or metadata_is_older_than(
+                root_path, GP_META_RELATIVE_PATH, GP_RELATIVE_PATH, intervals["gp"], now=now
+            ),
+            "tle": force or metadata_is_older_than(
+                root_path, TLE_META_RELATIVE_PATH, TLE_RELATIVE_PATH, intervals["tle"], now=now
+            ),
+            "satcat": force or metadata_is_older_than(
+                root_path, SATCAT_META_RELATIVE_PATH, SATCAT_RELATIVE_PATH, intervals["satcat"], now=now
+            ),
+            "launches": force or metadata_is_older_than(
+                root_path, LAUNCHES_META_RELATIVE_PATH, LAUNCHES_RELATIVE_PATH, intervals["launches"], now=now
+            ),
+            "decayed": force or metadata_is_older_than(
+                root_path, DECAYED_META_RELATIVE_PATH, DECAYED_RELATIVE_PATH, intervals["decayed"], now=now
+            ),
         }
-        if not gp_due and not launches_due and not decayed_due:
+        reconciliation_due = {
+            "gp": force or metadata_reconciliation_is_older_than(
+                root_path, GP_META_RELATIVE_PATH, intervals["reconciliation"], now=now
+            ),
+            "tle": force or metadata_reconciliation_is_older_than(
+                root_path, TLE_META_RELATIVE_PATH, intervals["reconciliation"], now=now
+            ),
+            "satcat": force or metadata_reconciliation_is_older_than(
+                root_path, SATCAT_META_RELATIVE_PATH, intervals["reconciliation"], now=now
+            ),
+            "launches": force or metadata_reconciliation_is_older_than(
+                root_path, LAUNCHES_META_RELATIVE_PATH, intervals["reconciliation"], now=now
+            ),
+            "decayed": force or metadata_reconciliation_is_older_than(
+                root_path, DECAYED_META_RELATIVE_PATH, intervals["reconciliation"], now=now
+            ),
+        }
+        results["due"] = {**due, "reconciliation": reconciliation_due}
+
+        def record_result(name: str, operation: Callable[[], UpdateResult]) -> UpdateResult | None:
+            try:
+                result = operation()
+            except Exception as exc:
+                results[name] = {
+                    "changed": False,
+                    "skipped": True,
+                    "mode": "scheduled",
+                    "message": f"{name} update failed; preserved last-known-good data.",
+                    "counts": {},
+                    "errors": [str(exc)],
+                    "paths": {},
+                }
+                return None
+            results[name] = update_result_for_metadata(result, root_path)
+            return result
+
+        satcat_result: UpdateResult | None = None
+        if due["satcat"] or reconciliation_due["satcat"]:
+            satcat_result = record_result(
+                "satcat",
+                lambda: refresh_satcat_csv(
+                    root=root_path,
+                    force=force or reconciliation_due["satcat"],
+                    dry_run=dry_run,
+                    fetcher=fetcher,
+                    now=now,
+                    interval_hours=intervals["satcat"],
+                    reconcile=reconciliation_due["satcat"],
+                    build_launches=False,
+                ),
+            )
+        satcat_changed = bool(satcat_result and satcat_result.changed)
+
+        if due["launches"] or reconciliation_due["launches"] or satcat_changed:
+            record_result(
+                "launches",
+                lambda: build_launch_catalog(
+                    root=root_path,
+                    dry_run=dry_run,
+                    now=now,
+                    mode=RECONCILIATION_MODE if reconciliation_due["launches"] else "incremental",
+                ),
+            )
+
+        if due["decayed"] or reconciliation_due["decayed"] or satcat_changed:
+            record_result(
+                "decayed",
+                lambda: build_decayed_db(
+                    root=root_path,
+                    mode=RECONCILIATION_MODE if reconciliation_due["decayed"] else "incremental",
+                    force=force or reconciliation_due["decayed"],
+                    dry_run=dry_run,
+                    now=now,
+                    interval_hours=intervals["decayed"],
+                    refresh_satcat=False,
+                ),
+            )
+
+        if due["tle"] or reconciliation_due["tle"] or satcat_changed:
+            record_result(
+                "tle",
+                lambda: export_tle_data(
+                    root=root_path,
+                    mode=RECONCILIATION_MODE if reconciliation_due["tle"] else "incremental",
+                    force=force or reconciliation_due["tle"],
+                    dry_run=dry_run,
+                    fetcher=fetcher,
+                    now=now,
+                    allow_space_track=False,
+                ),
+            )
+
+        if due["gp"] or reconciliation_due["gp"] or satcat_changed:
+            record_result(
+                "gp",
+                lambda: export_gp_data(
+                    root=root_path,
+                    mode=RECONCILIATION_MODE if reconciliation_due["gp"] else "incremental",
+                    force=force or reconciliation_due["gp"],
+                    dry_run=dry_run,
+                    fetcher=fetcher,
+                    now=now,
+                ),
+            )
+
+        reconciliation_names = [name for name, is_due in reconciliation_due.items() if is_due]
+        reconciliation_errors = [
+            error
+            for name in reconciliation_names
+            for error in (
+                results.get(name, {}).get("errors", [])
+                if isinstance(results.get(name), dict)
+                else [f"{name} reconciliation did not run"]
+            )
+        ]
+        reconciliation_completed = bool(reconciliation_names) and not reconciliation_errors
+        reconciliation_changed = any(
+            isinstance(results.get(name), dict) and bool(results[name].get("changed"))
+            for name in reconciliation_names
+        )
+        results["reconciliation"] = {
+            "changed": reconciliation_changed,
+            "skipped": not bool(reconciliation_names),
+            "mode": RECONCILIATION_MODE,
+            "message": (
+                "Daily satellite data reconciliation completed."
+                if reconciliation_completed
+                else (
+                    "Satellite data reconciliation completed with dataset errors."
+                    if reconciliation_names
+                    else "Satellite data reconciliation is not due."
+                )
+            ),
+            "due": bool(reconciliation_names),
+            "datasets": reconciliation_due,
+            "completed": reconciliation_completed,
+            "last_reconciled_at": isoformat_utc(now) if reconciliation_completed else None,
+            "counts": {"datasets": len(reconciliation_names)},
+            "errors": reconciliation_errors,
+            "paths": {},
+        }
+
+        if not any(due.values()) and not any(reconciliation_due.values()):
             results["skipped"] = True
-            results["message"] = f"Local data is newer than {interval_hours:g} hours."
-        nested_results = [results.get(key) for key in ("gp", "launches", "decayed")]
+            results["message"] = "All satellite datasets are within their configured freshness windows."
+        nested_results = [results.get(key) for key in ("gp", "tle", "satcat", "launches", "decayed")]
         results["degraded"] = any(
             isinstance(item, dict) and bool(item.get("errors"))
             for item in nested_results
         )
-    results["finished_at"] = isoformat_utc()
+    results["finished_at"] = isoformat_utc(now)
     return results
 
 
@@ -2429,6 +3503,11 @@ def build_parser() -> argparse.ArgumentParser:
     gp_parser.add_argument("--all", action="store_true", help="Replace the local GP catalog from the complete active source.")
     gp_parser.add_argument("--force", action="store_true", help="Ignore freshness checks.")
     gp_parser.add_argument("--dry-run", action="store_true", help="Compute changes without writing files.")
+    gp_parser.add_argument(
+        "--allow-large-catalog-shrink",
+        action="store_true",
+        help="Explicitly permit a production-scale full replacement below the catalog shrink guard.",
+    )
 
     export_parser = subparsers.add_parser(
         "export-tle",
@@ -2437,6 +3516,11 @@ def build_parser() -> argparse.ArgumentParser:
     export_parser.add_argument("--all", action="store_true", help="Use the legacy Java full-source group workflow.")
     export_parser.add_argument("--force", action="store_true", help="Ignore freshness checks.")
     export_parser.add_argument("--dry-run", action="store_true", help="Compute changes without writing files.")
+    export_parser.add_argument(
+        "--allow-large-catalog-shrink",
+        action="store_true",
+        help="Explicitly permit a production-scale full replacement below the catalog shrink guard.",
+    )
     export_parser.add_argument(
         "--allow-space-track-fallback",
         action="store_true",
@@ -2464,6 +3548,11 @@ def build_parser() -> argparse.ArgumentParser:
     satcat_parser = subparsers.add_parser("refresh-satcat", help="Download CelesTrak raw SATCAT CSV to json/satcat.csv.")
     satcat_parser.add_argument("--force", action="store_true", help="Ignore freshness checks.")
     satcat_parser.add_argument("--dry-run", action="store_true", help="Compute changes without writing files.")
+    satcat_parser.add_argument(
+        "--allow-large-catalog-shrink",
+        action="store_true",
+        help="Explicitly permit a production-scale full replacement below the catalog shrink guard.",
+    )
 
     launches_parser = subparsers.add_parser(
         "build-launches",
@@ -2480,6 +3569,15 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_SERVER_UPDATE_INTERVAL_HOURS,
         help="Required age before server-style updates run. Default: 24.",
     )
+    maybe_parser.add_argument("--gp-interval-hours", type=float, default=None, help="Override the GP/OMM update interval.")
+    maybe_parser.add_argument("--tle-interval-hours", type=float, default=None, help="Override the compatibility TLE interval.")
+    maybe_parser.add_argument("--satcat-interval-hours", type=float, default=None, help="Override the SATCAT/derived-data interval.")
+    maybe_parser.add_argument(
+        "--reconciliation-interval-hours",
+        type=float,
+        default=None,
+        help="Override the complete active-catalog reconciliation interval.",
+    )
     return parser
 
 
@@ -2494,6 +3592,7 @@ def main(argv: list[str] | None = None) -> int:
                 mode="all" if args.all else "incremental",
                 force=args.force,
                 dry_run=args.dry_run,
+                allow_large_reconciliation_shrink=args.allow_large_catalog_shrink,
             )
             _print_result(result)
             return 0
@@ -2510,6 +3609,7 @@ def main(argv: list[str] | None = None) -> int:
                 force=args.force,
                 dry_run=args.dry_run,
                 allow_space_track=args.allow_space_track_fallback,
+                allow_large_reconciliation_shrink=args.allow_large_catalog_shrink,
             )
             _print_result(result)
             return 0
@@ -2524,7 +3624,12 @@ def main(argv: list[str] | None = None) -> int:
             _print_result(result)
             return 0
         if args.command == "refresh-satcat":
-            result = refresh_satcat_csv(root=root, force=args.force, dry_run=args.dry_run)
+            result = refresh_satcat_csv(
+                root=root,
+                force=args.force,
+                dry_run=args.dry_run,
+                allow_large_reconciliation_shrink=args.allow_large_catalog_shrink,
+            )
             _print_result(result)
             return 0
         if args.command == "build-launches":
@@ -2535,6 +3640,10 @@ def main(argv: list[str] | None = None) -> int:
             result = maybe_update_satellite_data(
                 root=root,
                 interval_hours=args.interval_hours,
+                gp_interval_hours=args.gp_interval_hours,
+                tle_interval_hours=args.tle_interval_hours,
+                satcat_interval_hours=args.satcat_interval_hours,
+                reconciliation_interval_hours=args.reconciliation_interval_hours,
                 force=args.force,
                 dry_run=args.dry_run,
             )

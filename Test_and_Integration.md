@@ -19,6 +19,10 @@ Version 2.2 remains Experimental, non-operational, and in development. Tests mus
 ### Update and persistence
 
 - Cover incremental and full GP modes, dry run, freshness guard, `--force`, conditional requests, unchanged responses, backup creation, atomic replacement, metadata checksums, provenance, and catalog revision generation.
+- For prior GP, TLE, and SATCAT catalogs with at least 1,000 canonical records, reject every full/reconciliation candidate unless both total candidate size and canonical NORAD overlap are at least 75% of the last-known-good catalog. Exercise the exact 999/1,000 threshold, rounding, unrelated same-size identities, and independently failing size/overlap cases.
+- Verify `--force` bypasses freshness only and cannot bypass the production-scale shrink guard. The explicit `--allow-large-catalog-shrink` override may exist only on direct `export-gp`, `export-tle`, and `refresh-satcat` commands; `maybe-update`, `npm run serve:update`, and direct server arguments must not expose or forward it.
+- Verify changed artifacts receive unique collision-safe backups even for same-second promotions, rotate to the newest seven backups per artifact, and do not create backups for byte-identical or accepted not-modified responses.
+- Verify a valid conditional `304`/not-modified response records successful revalidation, clears a prior transient failure where applicable, leaves bytes/revision unchanged, and resets the relevant daily due age. Reject a reconciliation `304` that is not bound to the matching complete local revision.
 - Verify preferred GP and default incremental compatibility TLE maintenance each issue one CelesTrak `active`-group request. The default path must not request the removed overlapping/failing `last-30-days` group; explicit `export-tle --all` alone retains the historical multi-group workflow.
 - Verify GP group/tag enrichment joins the compatibility catalog by the complete canonical NORAD string, including six/nine-digit negative cases that must never match a truncated ID. Assert deterministic first meaningful compatibility tag, prior meaningful GP-tag retention for unmatched rows, placeholder handling, source catalog revision, tag-map revision, available/matched/tagged/unmatched counts, and local enrichment under a provider freshness skip.
 - Recompute `orbit_class` and compatibility `type` from finite numeric mean-element metrics for both GP and TLE output. Cover representative GPS/navigation `MEO`, near-circular GEO, LEO, Molniya/HEO, decaying, and other cases. The checked-in snapshot currently has `190` GP `MEO` records; record the final frozen count again rather than treating it as a provider invariant.
@@ -50,8 +54,8 @@ Version 2.2 remains Experimental, non-operational, and in development. Tests mus
 ### API and data health
 
 - Contract-test `/api/gp`, exact-sidecar `/api/gp-metadata`, `/api/launches`, `/api/decayed`, `/api/data-update-status`, deprecated `/api/tle`, and preferred-with-fallback `/api/satellites`, including cache validators, content type, body limits, path security, malformed-file behavior, and `404` when GP metadata is absent.
-- Verify data-update status returns composite `data_revision`; compatibility GP-only `catalog_revision`; `gp_revision`, `launch_revision`, and `decay_revision`; matching `datasets` entries; retrieval timestamp; newest orbital, launch, and confirmed-decay dates; TLE, OMM, six-digit, and quarantined counts; and last error. Assert the composite digest changes when any component changes and is stable for the same three component values.
-- Verify disabled, checking, updated, unchanged, partial, degraded, failed, and recovered scheduler states. Exercise launch and decay simultaneously due in one scheduler cycle and prove both branches run independently of GP. Failure/partial states must never report completion or a fabricated new revision.
+- Verify data-update status returns server composite `data_revision`; compatibility GP-only `catalog_revision`; GP, compatibility TLE, SATCAT, launch, and decay revisions at top level and under `datasets`; effective intervals; worker lifecycle; next check/retry; reconciliation time; retrieval/newest-event fields; format/identifier/quarantine counts; and bounded errors. Persist each of the five dataset errors in its metadata, reconstruct that history after server restart, and merge it with live state. Recursively sanitize `last_result`, including nested `error`/`errors`/message strings, so credential assignments, bearer values, URL user information, control characters, excessive length, and excessive item/depth counts cannot escape the public API. Assert the digest changes when any of its five components changes and is stable for the same values.
+- Verify disabled/default-off, scheduled, checking, updated, unchanged, partial, reconciled, degraded, failed, stopped, and recovered scheduler states. Exercise independent due clocks, simultaneous launch/decay work, a single shared SATCAT fetch, GP-or-TLE private registration, failure backoff/reset, stale-lock recovery, and graceful worker shutdown. Failure or partial states must never report complete reconciliation or fabricate a data revision.
 - Verify `catalog_state` is `fallback-tle` only when GP metadata is absent and the packaged TLE file is larger than the empty `[]` sentinel. Missing GP metadata with no TLE file, an empty file, or an empty TLE array must report `unavailable`; a larger malformed or observation-incomplete file still exercises the current availability signal and must not be documented as validated.
 
 ### Packaging and browser journeys
@@ -549,7 +553,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 ### Server Data Path
 
 - Test `/api/health` returns status `ok` and version metadata.
-- Test `/api/version` derives app version `2.2.0`, development publication state, and null candidate/release dates from `release/version.json`.
+- Test `/api/version` derives app version `2.2.1`, development publication state, and null candidate/release dates from `release/version.json`.
 - Test `/api/gp` returns valid mixed records, including canonical OMM and a six-digit string identity.
 - Test `/api/gp-metadata` returns the generated GP metadata sidecar unchanged and returns `404` when that sidecar is absent.
 - Test deprecated `/api/tle` returns valid compatibility TLE records and exposes reduced coverage; test `/api/satellites` prefers GP/OMM and falls back to that TLE dataset only when GP is unavailable.
@@ -557,7 +561,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test `/api/satellite-metadata` lists known metadata files.
 - Test `/api/satellite-metadata/starlink_V1.json` returns one known metadata payload.
 - Test `/api/decayed` returns the confirmed decay dataset.
-- Test `/api/data-update-status` returns scheduler state; composite `data_revision`; compatibility GP-only `catalog_revision`; all three top-level and nested per-dataset revisions; and disabled/default-off behavior unless scheduling is explicitly enabled. Verify `fallback-tle` requires absent GP metadata plus a packaged TLE file larger than the empty `[]` sentinel, that missing/empty inputs report `unavailable`, and that this availability signal is not presented as TLE validation.
+- Test `/api/data-update-status` returns scheduler state; five-component server `data_revision`; compatibility GP-only `catalog_revision`; GP/TLE/SATCAT/launch/decay top-level and nested revisions; intervals, retry/next-check, persistent dataset state/errors after restart, reconciliation time, and disabled/default-off behavior unless scheduling is explicitly enabled. Recursively verify nested result errors are bounded and redact credentials/control characters. Verify `fallback-tle` requires absent GP metadata plus a packaged TLE file larger than the empty `[]` sentinel, that missing/empty inputs report `unavailable`, and that this availability signal is not presented as TLE validation.
 - Test `/docs` serves the live Swagger/API documentation page.
 - Test `/openapi.json` contains OpenAPI paths for all supported API endpoints.
 - Test `swagger.html` exists and displays a standard Swagger/OpenAPI-style local page with API title, version badge, OAS badge, base URL/schema notes, grouped endpoint sections, colored method badges, and expandable endpoint details without starting `server.py`.
@@ -575,7 +579,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test `tools/satellite_data_tools.py` compiles with `py -m py_compile`.
 - Test `export-gp` incremental/full/dry-run contracts, OMM normalization, exact string identities, newest-epoch deduplication, quarantine, atomic promotion, metadata, and last-known-good behavior described in the Version 2.2 section.
 - Test `export-tle --all` support is present, uses HTTPS for every CelesTrak group, keeps the legacy group source order and first-seen NORAD behavior, and does not refresh N2YO launch dates by default.
-- Treat every `export-tle` assertion below as deprecated compatibility coverage; it cannot satisfy current six-digit or complete-catalog expectations.
+- Treat every `export-tle` assertion below as deprecated compatibility coverage. Numeric and Alpha-5 identifiers must normalize losslessly, but the TLE subset cannot satisfy complete current six-digit catalog expectations.
 - Test default `export-tle` makes one incremental `active`-group request, does not request `last-30-days`, and does not use the full legacy group sweep.
 - Test TLE transformation preserves frontend fields: `company`, `satellite_name`, `norad_id`, `launch_date`, `type`, `orbit_class`, orbit metric fields, `tle_line1`, and `tle_line2`.
 - Test orbit metric formulas and classification rules match the legacy Java behavior for LEO, MEO, GEO, HEO, and DECAYING cases.
@@ -583,12 +587,13 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 - Test CelesTrak failure preserves existing `json/tle/TLE.json`, records a failed attempt, and does not replace the last successful timestamp.
 - Test optional Space-Track fallback remains disabled unless credentials are explicitly configured.
 - Test normal incremental TLE refresh fills or updates `satellite_launch_dates.json` from local SATCAT data for touched NORAD records when SATCAT launch metadata is available; test N2YO HTML enrichment requires the explicit `export-tle --refresh-launch-dates` opt-in and remains excluded from release evidence.
-- Test `refresh-satcat --force` downloads CelesTrak raw SATCAT CSV to `json/satcat.csv` with metadata and preserves the local file on source failure.
+- Test `refresh-satcat --force` downloads CelesTrak raw SATCAT CSV to `json/satcat.csv` with metadata and preserves the local file on source failure; `--force` must not bypass the full-replacement shrink guard.
 - Test `build-decayed-db --all` reads `json/satcat.csv`, filters `DECAY_DATE` plus `OBJECT_TYPE=PAY`, groups by `OBJECT_NAME`, sorts top-level keys, and writes the Java-compatible schema.
 - Test `build-decayed-db --refresh-satcat --force` sends conditional SATCAT headers from stored metadata, refreshes SATCAT before rebuilding when changed, and skips the decayed rebuild when SATCAT returns unchanged and a valid decayed DB already exists.
 - Test `--dry-run` does not write generated data, metadata, temp files, or backups.
-- Test server scheduling is disabled by default, uses importable Python functions when enabled, runs incremental mode only, refreshes SATCAT before scheduled decayed rebuilds, uses `json/.satellite_data_update.lock`, and does not block static/API serving.
-- Test server startup with scheduling enabled checks the 24-hour freshness rule before any remote GP/SATCAT query and still respects the two-hour CelesTrak guard.
+- Test server scheduling is disabled by default and `--no-data-update` wins. When explicitly enabled, bind the HTTP server before asynchronous catch-up; use independent daily GP/TLE/SATCAT/reconciliation clocks; poll due state at most hourly; use one SATCAT fetch for launch/decay derivation; and stop the worker before closing the server.
+- Test normal cycles perform newest-epoch, non-pruning `PARTIAL` upserts. Test daily reconciliation prunes only after structurally complete, quarantine-free active GP/TLE responses and a complete SATCAT response; applies the 1,000-record dual 75% size/identity guard; rejects an unsafe `304`; treats a matching accepted `304` as successful revalidation that resets due age; preserves historical launch/decay events; keeps byte-identical data/revisions/backups stable; retains the newest seven collision-safe backups per changed artifact; and retains last-known-good files for malformed, timeout, HTTP, partial, or suspicious-shrink failures.
+- Test the shared `json/.satellite_data_update.lock` preserves a live owner and recovers a dead or expired owner. Verify isolated failures use bounded jittered exponential retry and reset after success. Use fixed fixtures, injected clocks/jitter, and mocked provider calls; guarded live-provider evidence remains separate.
 
 ### Regression Coverage
 
@@ -1008,7 +1013,7 @@ Expected:
 - The status icon changes from checking to connected.
 - Satellite data source shows packaged files after initial load because startup bootstraps from `json/gp/GP.json` before checking the optional server.
 - The reconnect/revision action loads validated live server data from `/api/gp`, refreshes launch/decay timelines, and labels the data source as live server. Deprecated `/api/tle` fallback must be visibly reduced coverage.
-- `/api/gp-metadata` matches the packaged GP sidecar, and `/api/data-update-status` exposes the composite and all three component revisions with a truthful `catalog_state`.
+- `/api/gp-metadata` matches the packaged GP sidecar, and `/api/data-update-status` exposes the composite plus all five GP/TLE/SATCAT/launch/decay component revisions with a truthful `catalog_state`.
 - When `index.html` is served from a different local static or IDE host with no API routes, the status check retries `http://127.0.0.1:8000` and connects to the Python server before switching to offline mode.
 - Swagger/API docs links open separate local UI, local Markdown companion, and live API documentation pages from Help.
 - If the server is stopped and the page is refreshed, the app returns to local/offline data behavior.
@@ -1802,7 +1807,7 @@ Checks not fully performed in this terminal:
 
 - The previous `displaySatelliteViewer.test.js` asset/manifest mismatch has been resolved by aligning `json/display_satellite_models.json` with the current `obj/` contents.
 - Live CelesTrak, N2YO, and optional Space-Track requests were not run; automated coverage uses fixtures/mocks and static checks to avoid live network dependencies.
-- Full visible-browser confirmation and long-running scheduled server refresh behavior remain manual.
+- Full visible-browser confirmation remains part of the Playwright matrix. Long-running real-provider scheduling, operational stale/degraded observation, and multi-day process supervision remain operator gates; deterministic background lifecycle and daily reconciliation are automated.
 
 ## Release 1.7.3 Verification Log
 

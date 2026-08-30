@@ -40,14 +40,14 @@ http://127.0.0.1:8000
 | `GET` | `/api/version` | Yes | Returns app/API version metadata, publication state/date, repository URL, and server identifier. |
 | `GET` | `/api/gp` | Yes | Returns the preferred mixed GP/OMM satellite dataset from `json/gp/GP.json`. |
 | `GET` | `/api/gp-metadata` | Yes | Returns the exact preferred-catalog sidecar from `json/gp/GP.meta.json`; returns `404` when it has not been exported. |
-| `GET` | `/api/tle` | Yes | Deprecated Version 2.2 compatibility route for `json/tle/TLE.json`; it cannot represent six-digit NORAD identifiers. |
+| `GET` | `/api/tle` | Yes | Deprecated Version 2.2 numeric/Alpha-5 compatibility subset from `json/tle/TLE.json`; it is not complete six-digit coverage. |
 | `GET` | `/api/satellites` | Yes | Generic catalog route that returns preferred GP/OMM with deprecated TLE fallback. |
 | `GET` | `/api/launches` | Yes | Returns SATCAT-backed launch events, including details-only records with no propagatable orbit. |
 | `GET` | `/api/satellite-metadata` | Yes | Lists available metadata JSON files under `json/satellites/`. |
 | `GET` | `/api/satellite-metadata/{file_name}` | Yes | Returns one metadata JSON file by safe file name. |
 | `GET` | `/api/display-satellite-models` | Yes | Returns a live manifest of `.glb` and `.obj`/`.mtl` models under `obj/`. |
 | `GET` | `/api/decayed` | Yes | Returns confirmed decayed satellite data from `json/decayed/decayed.json`. |
-| `GET` | `/api/data-update-status` | Yes | Returns scheduler and catalog health, a composite data revision, compatibility GP revision, per-dataset revisions, freshness/count diagnostics, newest dates, and last error. |
+| `GET` | `/api/data-update-status` | Yes | Returns scheduler lifecycle and backoff, effective intervals, restart-persistent GP/TLE/SATCAT/launch/decay status/errors, recursively sanitized nested cycle results, reconciliation time, a five-component data revision, freshness/count diagnostics, and newest dates. |
 | `GET` | `/openapi.json` | Yes | Returns the generated OpenAPI 3.0.3 schema. |
 | `GET` | `/docs` | Yes | Serves the live Swagger UI page. |
 | `GET` | `/api/v1/health/live` | Yes | Process liveness for API v1. |
@@ -82,7 +82,7 @@ Example response:
 {
   "status": "ok",
   "app": "openbexi_earth_orbit",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "release_date": null,
   "candidate_date": null,
   "publication_state": "development"
@@ -100,7 +100,7 @@ Example response:
 
 ```json
 {
-  "app_version": "2.2.0",
+  "app_version": "2.2.1",
   "api_version": "1.0.0",
   "release_date": null,
   "candidate_date": null,
@@ -109,7 +109,7 @@ Example response:
   "maturity": "experimental",
   "safety_class": "non-operational",
   "repository": "https://github.com/arcazj/openbexi_earth_orbit",
-  "server": "OpenBEXIHTTP/2.2.0"
+  "server": "OpenBEXIHTTP/2.2.1"
 }
 ```
 
@@ -223,9 +223,20 @@ Example response:
 
 ```json
 {
-  "enabled": false,
-  "state": "disabled",
+  "enabled": true,
+  "running": true,
+  "state": "succeeded",
   "interval_hours": 24,
+  "intervals_hours": {
+    "gp": 24,
+    "tle": 24,
+    "satcat": 24,
+    "reconciliation": 24
+  },
+  "consecutive_failures": 0,
+  "retry_delay_seconds": null,
+  "next_check_at": "2026-08-30T13:00:00Z",
+  "last_reconciled_at": "2026-08-29T12:00:00Z",
   "catalog_state": "current",
   "catalog_source_status": "COMPLETE",
   "data_revision": "sha256:composite-example",
@@ -233,10 +244,22 @@ Example response:
   "gp_revision": "sha256:gp-example",
   "launch_revision": "sha256:launch-example",
   "decay_revision": "sha256:decay-example",
+  "tle_revision": "sha256:tle-example",
+  "satcat_revision": "sha256:satcat-example",
   "datasets": {
     "gp": { "revision": "sha256:gp-example" },
     "launch": { "revision": "sha256:launch-example" },
-    "decay": { "revision": "sha256:decay-example" }
+    "decay": { "revision": "sha256:decay-example" },
+    "tle": { "revision": "sha256:tle-example" },
+    "satcat": { "revision": "sha256:satcat-example" }
+  },
+  "dataset_status": {
+    "gp": { "interval_hours": 24, "state": "updated", "due": true },
+    "tle": { "interval_hours": 24, "state": "updated", "due": true },
+    "satcat": { "interval_hours": 24, "state": "updated", "due": true },
+    "launches": { "interval_hours": 24, "state": "updated", "due": true },
+    "decayed": { "interval_hours": 24, "state": "updated", "due": true },
+    "reconciliation": { "interval_hours": 24, "state": "updated", "due": true }
   },
   "retrieval_timestamp": "2026-08-22T00:00:00Z",
   "newest_orbital_epoch": "2026-08-21T22:15:00Z",
@@ -246,11 +269,12 @@ Example response:
   "omm_count": 0,
   "six_digit_id_count": 0,
   "quarantined_count": 0,
-  "last_error": null
+  "last_error": null,
+  "last_errors": []
 }
 ```
 
-Counts and revision values are illustrative in this static example. `data_revision` is a deterministic digest of the GP, launch, and decay revision values and is the preferred browser refresh token. `catalog_revision` is retained as a compatibility field and contains the GP revision only; `gp_revision`, `launch_revision`, `decay_revision`, and `datasets` expose the components directly.
+Counts, times, state, and revision values are illustrative. The server `data_revision` is a deterministic digest of GP, compatibility TLE, SATCAT, launch, and decay revisions and is the preferred connected-browser refresh token. `catalog_revision` remains a compatibility field containing only the GP revision; the five named revision fields and `datasets` expose every component directly. Dataset sidecar errors survive restart and are merged with current cycle state. Public `last_error`, `last_errors`, `dataset_status`, and nested `last_result` error text is bounded, control-character normalized, and credential-redacted recursively. Static hosting computes its own packaged-file token because it has no scheduler or mutable provider state.
 
 `catalog_state` is `current`, `partial`, `degraded`, `fallback-tle`, or `unavailable`. When GP metadata is absent, a packaged TLE file larger than the empty `[]` sentinel yields `fallback-tle`; if no such artifact exists, the state is `unavailable`. With GP metadata present, normal `current`/`partial`/`degraded` evaluation applies. The fallback status is an artifact-availability signal, not proof that TLE parsing or propagation will succeed. A failed or partial update must preserve last-known-good artifacts and expose a truthful degraded/error state rather than reporting completion or fabricating a new revision.
 
@@ -258,7 +282,9 @@ Counts and revision values are illustrative in this static example. `data_revisi
 
 - The frontend can run from local static files and falls back to repository JSON when the Python server is offline.
 - The Python server is optional for using the static visualization, but it is required for API access, the live Swagger UI, and live OpenAPI JSON.
-- Scheduled GP/SATCAT/launch/decayed-data updates are disabled by default; start `server.py` with `--update-data-on-schedule` to enable background freshness checks. GP, launch, and confirmed-decay work is due independently, so launch and decay updates may both execute in one scheduler cycle.
-- `/api/gp` is the Version 2.2 primary orbital catalog. TLE routes remain temporary compatibility contracts and are not complete beyond the five-digit identifier boundary.
+- Scheduled provider access is disabled by default. Use `npm run serve:update`, or start `server.py` with `--update-data-on-schedule` and the `--gp-update-interval-hours`, `--tle-update-interval-hours`, `--satcat-update-interval-hours`, and `--reconciliation-interval-hours` controls. All default to daily operation; the legacy `--data-update-interval-hours` supplies the GP/TLE/SATCAT fallback. The server binds before background catch-up, coalesces SATCAT-derived work into one fetch, retries isolated failures with bounded jittered backoff, and stops the worker before closing the HTTP server.
+- Normal GP/TLE cycles are incremental `PARTIAL` upserts. Only a structurally valid complete active-source reconciliation may prune the active GP/TLE compatibility set and record `COMPLETE`. For established GP, TLE, and SATCAT catalogs with at least 1,000 records, a full/reconciliation replacement must retain at least 75% candidate size and 75% canonical NORAD overlap. `--force` bypasses freshness only. The explicit direct-command `--allow-large-catalog-shrink` recovery option is unavailable to `maybe-update` and the server. Launch and confirmed-decay history is retained. Accepted `304` revalidation resets due age without changing bytes/revisions/backups; changed artifacts retain the newest seven collision-safe backups per artifact; failures preserve last-known-good data.
+- `/api/gp` is the Version 2.2 primary orbital catalog. TLE routes remain temporary compatibility contracts. Numeric and Alpha-5 TLE identifiers are decoded to canonical full strings, but the format remains a reduced subset of current six-digit GP/OMM coverage.
+- GitHub Pages and other static hosts cannot run the Python scheduler; a deployment workflow must replace packaged data.
 - This Markdown page is intentionally static so Help documentation remains available without the Python server.
 - API responses are local development data for visualization and testing, not operational satellite products.

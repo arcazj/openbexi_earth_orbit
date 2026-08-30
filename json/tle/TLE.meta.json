@@ -1,33 +1,40 @@
 {
-  "fetched_at": "2026-08-23T17:42:02.137630Z",
-  "last_success_at": "2026-08-23T17:42:02.137630Z",
-  "last_attempt_at": "2026-08-23T19:27:11.532783Z",
-  "last_status": "not-modified",
-  "mode": "incremental",
+  "schema_version": "2.2.0",
+  "dataset_format": "TLE_JSON_COMPATIBILITY",
+  "deprecated_compatibility": true,
+  "fetched_at": "2026-08-30T02:13:23.342346Z",
+  "last_success_at": "2026-08-30T02:13:23.342346Z",
+  "last_attempt_at": "2026-08-30T02:15:25.896509Z",
+  "last_status": "failed",
+  "mode": "reconcile",
   "source_urls": [
     "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle"
   ],
   "celestrak_min_refresh_hours": 2.0,
   "counts": {
     "existing": 16517,
-    "fetched": 16063,
-    "added": 0,
-    "updated": 16063,
-    "retained": 454,
+    "fetched": 16049,
+    "added": 14,
+    "updated": 16017,
+    "retained": 18,
     "rejected": 0,
-    "total": 16517,
+    "total": 16049,
+    "pruned": 482,
     "sidecar_added": 0,
     "sidecar_updated": 0,
-    "satellite_launch_dates_updated": 0,
-    "orbit_reclassified": 0
+    "satellite_launch_dates_updated": 0
   },
+  "catalog_revision": "sha256:4642771a06caac6839f89ecfc797e4967e904fd4e0f4e9afef11ee870b50c55e",
+  "dataset_hash": "sha256:4642771a06caac6839f89ecfc797e4967e904fd4e0f4e9afef11ee870b50c55e",
   "urls": {
     "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle": {
-      "status": 304,
-      "last_attempt_at": "2026-08-23T19:27:11.532783Z"
+      "status": 200,
+      "last_attempt_at": "2026-08-30T02:13:23.342346Z"
     }
   },
-  "catalog_revision": "sha256:380a9d31b7a8c3498c33dff6d23a2970d21647d4de6f4966ae7170cbba996d1f",
-  "dataset_hash": "sha256:380a9d31b7a8c3498c33dff6d23a2970d21647d4de6f4966ae7170cbba996d1f",
-  "last_local_enrichment_at": "2026-08-23T17:50:00Z"
+  "last_reconciled_at": "2026-08-30T02:13:23.342346Z",
+  "last_reconciled_catalog_revision": "sha256:4642771a06caac6839f89ecfc797e4967e904fd4e0f4e9afef11ee870b50c55e",
+  "source_status": "COMPLETE",
+  "partial_update": false,
+  "last_error": "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle: HTTP 503 for https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle: "
 }

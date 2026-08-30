@@ -266,12 +266,15 @@ class V21HttpApiTests(V21ApiFixture):
         previous_revision_id = self.store.get_current_catalog_revision()["revision_id"]
         previous_objects = self.store.list_current_objects()
         self.assertGreaterEqual(len(previous_objects), 2)
-        missing_object = previous_objects[1]
 
         source_root = self.runtime_root / "incremental-source"
         tle_root = source_root / "json" / "tle"
         tle_root.mkdir(parents=True)
         source_records = json.loads((server.ROOT / "json" / "tle" / "TLE.json").read_text(encoding="utf-8"))
+        included_norad_id = source_records[0]["norad_id"]
+        missing_object = next(
+            item for item in previous_objects if item["norad_id"] != included_norad_id
+        )
         (tle_root / "TLE.json").write_text(json.dumps(source_records[:1]), encoding="utf-8")
         (tle_root / "TLE.meta.json").write_text(
             json.dumps({

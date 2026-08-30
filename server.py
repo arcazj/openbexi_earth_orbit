@@ -9,11 +9,14 @@ mandatory Python dependency installation step.
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import hashlib
 import ipaddress
 import json
+import math
 import mimetypes
 import os
+import random
 import re
 import secrets
 import threading
@@ -138,13 +141,115 @@ else:
 
 
 DATA_UPDATE_STATUS_LOCK = threading.Lock()
+DATA_UPDATE_ERROR_MAX_LENGTH = 1000
+DATA_UPDATE_ERROR_MAX_ITEMS = 10
+DATA_UPDATE_RESULT_MAX_DEPTH = 8
+DATA_UPDATE_RESULT_MAX_ITEMS = 100
+DATASET_STATUS_METADATA_NAMES = {
+    "gp": "gp",
+    "tle": "tle",
+    "satcat": "satcat",
+    "launch": "launches",
+    "decay": "decayed",
+}
+SENSITIVE_ERROR_ASSIGNMENT = re.compile(
+    r"(?i)\b(authorization|api[_-]?key|access[_-]?token|refresh[_-]?token|password|passwd|secret)"
+    r"(\s*[:=]\s*)([^&\s,;]+)"
+)
+BEARER_CREDENTIAL = re.compile(r"(?i)\bbearer\s+[^\s,;]+")
+URL_USERINFO = re.compile(r"(?i)(https?://)[^/@\s]+@")
 DATA_UPDATE_STATUS: dict[str, object] = {
     "enabled": False,
+    "running": False,
     "state": "disabled",
     "interval_hours": DEFAULT_SERVER_UPDATE_INTERVAL_HOURS,
+    "intervals_hours": {
+        "gp": DEFAULT_SERVER_UPDATE_INTERVAL_HOURS,
+        "tle": DEFAULT_SERVER_UPDATE_INTERVAL_HOURS,
+        "satcat": DEFAULT_SERVER_UPDATE_INTERVAL_HOURS,
+        "reconciliation": DEFAULT_SERVER_UPDATE_INTERVAL_HOURS,
+    },
+    "consecutive_failures": 0,
+    "next_check_at": None,
     "last_result": None,
     "last_error": None,
+    "last_errors": [],
 }
+
+
+def _bounded_public_error(value: object) -> str | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    text = "".join(" " if ord(character) < 32 or ord(character) == 127 else character for character in value)
+    text = URL_USERINFO.sub(r"\1<redacted>@", text)
+    text = BEARER_CREDENTIAL.sub("Bearer <redacted>", text)
+    text = SENSITIVE_ERROR_ASSIGNMENT.sub(r"\1\2<redacted>", text)
+    text = " ".join(text.split())
+    if len(text) > DATA_UPDATE_ERROR_MAX_LENGTH:
+        text = text[: DATA_UPDATE_ERROR_MAX_LENGTH - 3].rstrip() + "..."
+    return text or None
+
+
+def _bounded_public_errors(values: object) -> list[str]:
+    if not isinstance(values, (list, tuple)):
+        values = [values]
+    errors: list[str] = []
+    for value in values:
+        error = _bounded_public_error(value)
+        if error and error not in errors:
+            errors.append(error)
+        if len(errors) >= DATA_UPDATE_ERROR_MAX_ITEMS:
+            break
+    return errors
+
+
+def _data_update_result_key_is_sensitive(value: str) -> bool:
+    normalized = re.sub(r"[^a-z0-9]", "", value.lower())
+    return (
+        "authorization" in normalized
+        or "apikey" in normalized
+        or "token" in normalized
+        or "password" in normalized
+        or "passwd" in normalized
+        or "secret" in normalized
+    )
+
+
+def _public_data_update_result(value: object, *, depth: int = 0) -> object:
+    if depth >= DATA_UPDATE_RESULT_MAX_DEPTH:
+        return "<maximum depth omitted>"
+    if isinstance(value, dict):
+        public: dict[str, object] = {}
+        for index, (key, item) in enumerate(value.items()):
+            if index >= DATA_UPDATE_RESULT_MAX_ITEMS:
+                public["_omitted_items"] = len(value) - DATA_UPDATE_RESULT_MAX_ITEMS
+                break
+            public_key = "".join(
+                " " if ord(character) < 32 or ord(character) == 127 else character
+                for character in str(key)
+            ).strip()[:128]
+            if not public_key:
+                continue
+            normalized_key = public_key.lower()
+            if _data_update_result_key_is_sensitive(public_key):
+                public[public_key] = "<redacted>"
+            elif normalized_key == "errors":
+                public[public_key] = _bounded_public_errors(item)
+            elif normalized_key == "error":
+                public[public_key] = _bounded_public_error(item)
+            else:
+                public[public_key] = _public_data_update_result(item, depth=depth + 1)
+        return public
+    if isinstance(value, (list, tuple)):
+        return [
+            _public_data_update_result(item, depth=depth + 1)
+            for item in value[:DATA_UPDATE_RESULT_MAX_ITEMS]
+        ]
+    if isinstance(value, str):
+        return _bounded_public_error(value) or ""
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    return _bounded_public_error(str(value))
 
 
 def _set_data_update_status(**updates: object) -> None:
@@ -156,9 +261,21 @@ def _data_update_status_snapshot() -> dict[str, object]:
     with DATA_UPDATE_STATUS_LOCK:
         snapshot = dict(DATA_UPDATE_STATUS)
     health = _catalog_data_health(ROOT)
-    if not snapshot.get("last_error"):
-        snapshot["last_error"] = health.get("last_error")
+    live_error = _bounded_public_error(snapshot.get("last_error"))
+    metadata_errors = [
+        item.get("last_error")
+        for item in health.get("datasets", {}).values()
+        if isinstance(item, dict) and item.get("last_error")
+    ]
+    snapshot["last_error"] = live_error or health.get("last_error")
+    snapshot["last_errors"] = _bounded_public_errors(
+        [*(_bounded_public_errors(snapshot.get("last_errors"))), *metadata_errors]
+    )
+    if not health.get("last_reconciled_at") and snapshot.get("last_reconciled_at"):
+        health["last_reconciled_at"] = snapshot["last_reconciled_at"]
     snapshot.update({key: value for key, value in health.items() if key != "last_error"})
+    snapshot["dataset_status"] = _merged_dataset_status(snapshot, health)
+    snapshot["last_result"] = _public_data_update_result(snapshot.get("last_result"))
     return snapshot
 
 
@@ -189,11 +306,128 @@ def _metadata_revision(meta: dict[str, object]) -> str | None:
     return None
 
 
-def _composite_data_revision(*, gp: str | None, launch: str | None, decay: str | None) -> str:
+def _parse_iso_timestamp(value: str) -> float | None:
+    try:
+        parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=dt.timezone.utc)
+    return parsed.timestamp()
+
+
+def _newest_timestamp(values: list[object]) -> str | None:
+    candidates = [value.strip() for value in values if isinstance(value, str) and value.strip()]
+    parsed = [(epoch, value) for value in candidates if (epoch := _parse_iso_timestamp(value)) is not None]
+    if parsed:
+        return max(parsed, key=lambda item: item[0])[1]
+    return candidates[-1] if candidates else None
+
+
+def _metadata_timestamp(meta: dict[str, object], name: str) -> str | None:
+    value = meta.get(name)
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    return value if value and len(value) <= 128 and _parse_iso_timestamp(value) is not None else None
+
+
+def _metadata_dataset_history(meta: dict[str, object]) -> dict[str, object]:
+    last_status = meta.get("last_status")
+    if not isinstance(last_status, str) or not last_status.strip():
+        normalized_status = None
+    else:
+        normalized_status = last_status.strip()[:64]
+    return {
+        "last_status": normalized_status,
+        "last_attempt_at": _metadata_timestamp(meta, "last_attempt_at"),
+        "last_success_at": _metadata_timestamp(meta, "last_success_at"),
+        "last_error": _bounded_public_error(meta.get("last_error")),
+    }
+
+
+def _metadata_history_state(last_status: object) -> str:
+    normalized = str(last_status or "").strip().lower()
+    if normalized in {"failed", "failure", "partial", "degraded", "error"}:
+        return "degraded"
+    if normalized in {"ok", "success", "succeeded", "not-modified", "current"}:
+        return "current"
+    return "unknown"
+
+
+def _merged_dataset_status(
+    snapshot: dict[str, object],
+    health: dict[str, object],
+) -> dict[str, dict[str, object]]:
+    live_statuses = snapshot.get("dataset_status")
+    if not isinstance(live_statuses, dict):
+        live_statuses = {}
+    intervals = snapshot.get("intervals_hours")
+    if not isinstance(intervals, dict):
+        intervals = {}
+    health_datasets = health.get("datasets")
+    if not isinstance(health_datasets, dict):
+        health_datasets = {}
+
+    merged_statuses: dict[str, dict[str, object]] = {}
+    for metadata_name, status_name in DATASET_STATUS_METADATA_NAMES.items():
+        metadata = health_datasets.get(metadata_name)
+        if not isinstance(metadata, dict):
+            metadata = {}
+        interval_name = "satcat" if status_name in {"launches", "decayed"} else status_name
+        interval = intervals.get(interval_name, snapshot.get("interval_hours"))
+        status: dict[str, object] = {
+            "interval_hours": interval,
+            "state": _metadata_history_state(metadata.get("last_status")),
+            "due": None,
+        }
+        for key in ("last_status", "last_attempt_at", "last_success_at", "last_error"):
+            status[key] = metadata.get(key)
+
+        live = live_statuses.get(status_name)
+        if isinstance(live, dict):
+            status.update(live)
+            live_errors = _bounded_public_errors(live.get("errors"))
+            if live_errors:
+                status["errors"] = live_errors
+                status["last_error"] = live_errors[0]
+                status["last_status"] = "failed"
+                if not live.get("last_attempt_at") and isinstance(live.get("last_checked_at"), str):
+                    status["last_attempt_at"] = live["last_checked_at"]
+            elif "errors" in status:
+                status.pop("errors", None)
+            status["last_error"] = _bounded_public_error(status.get("last_error"))
+        merged_statuses[status_name] = status
+
+    for name, live in live_statuses.items():
+        if name in merged_statuses or not isinstance(live, dict):
+            continue
+        status = dict(live)
+        errors = _bounded_public_errors(status.get("errors"))
+        if errors:
+            status["errors"] = errors
+        else:
+            status.pop("errors", None)
+        if "last_error" in status:
+            status["last_error"] = _bounded_public_error(status.get("last_error"))
+        merged_statuses[name] = status
+    return merged_statuses
+
+
+def _composite_data_revision(
+    *,
+    gp: str | None,
+    launch: str | None,
+    decay: str | None,
+    tle: str | None = None,
+    satcat: str | None = None,
+) -> str:
     components = {
         "decay_revision": decay,
         "gp_revision": gp,
         "launch_revision": launch,
+        "satcat_revision": satcat,
+        "tle_revision": tle,
     }
     canonical = json.dumps(components, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return f"sha256:{hashlib.sha256(canonical).hexdigest()}"
@@ -212,14 +446,11 @@ def _catalog_data_health(root: Path) -> dict[str, object]:
     decay_meta = _load_metadata(root / "json" / "decayed" / "decayed.meta.json")
     satcat_meta = _load_metadata(root / "json" / "satcat.meta.json")
     tle_meta = _load_metadata(root / "json" / "tle" / "TLE.meta.json")
-    primary_errors = [
-        meta.get("last_error")
-        for meta in (gp_meta, satcat_meta, launch_meta, decay_meta)
-        if isinstance(meta.get("last_error"), str) and str(meta.get("last_error")).strip()
-    ]
+    dataset_metas = (gp_meta, tle_meta, satcat_meta, launch_meta, decay_meta)
+    primary_errors = _bounded_public_errors([meta.get("last_error") for meta in dataset_metas])
     primary_statuses = {
         str(meta.get("last_status") or "unknown").lower()
-        for meta in (gp_meta, launch_meta, decay_meta)
+        for meta in dataset_metas
         if meta
     }
     if not gp_meta:
@@ -228,7 +459,7 @@ def _catalog_data_health(root: Path) -> dict[str, object]:
             if _catalog_artifact_available(root / "json" / "tle" / "TLE.json")
             else "unavailable"
         )
-    elif primary_errors or primary_statuses.intersection({"failed", "partial"}):
+    elif primary_errors or primary_statuses.intersection({"failed", "failure", "partial", "degraded", "error"}):
         catalog_state = "degraded"
     elif str(gp_meta.get("source_status") or "").upper() == "PARTIAL" or gp_meta.get("partial_update") is True:
         catalog_state = "partial"
@@ -237,6 +468,15 @@ def _catalog_data_health(root: Path) -> dict[str, object]:
     gp_revision = _metadata_revision(gp_meta)
     launch_revision = _metadata_revision(launch_meta)
     decay_revision = _metadata_revision(decay_meta)
+    tle_revision = _metadata_revision(tle_meta)
+    satcat_revision = _metadata_revision(satcat_meta)
+    last_reconciled_at = _newest_timestamp(
+        [
+            value
+            for meta in (gp_meta, tle_meta, satcat_meta, launch_meta, decay_meta)
+            for value in (meta.get("last_reconciled_at"), meta.get("reconciled_at"))
+        ]
+    )
     return {
         "catalog_state": catalog_state,
         "catalog_source_status": gp_meta.get("source_status"),
@@ -244,20 +484,27 @@ def _catalog_data_health(root: Path) -> dict[str, object]:
             gp=gp_revision,
             launch=launch_revision,
             decay=decay_revision,
+            tle=tle_revision,
+            satcat=satcat_revision,
         ),
         "catalog_revision": gp_revision,
         "gp_revision": gp_revision,
         "launch_revision": launch_revision,
         "decay_revision": decay_revision,
+        "tle_revision": tle_revision,
+        "satcat_revision": satcat_revision,
         "datasets": {
-            "gp": {"revision": gp_revision},
-            "launch": {"revision": launch_revision},
-            "decay": {"revision": decay_revision},
+            "gp": {"revision": gp_revision, **_metadata_dataset_history(gp_meta)},
+            "launch": {"revision": launch_revision, **_metadata_dataset_history(launch_meta)},
+            "decay": {"revision": decay_revision, **_metadata_dataset_history(decay_meta)},
+            "tle": {"revision": tle_revision, **_metadata_dataset_history(tle_meta)},
+            "satcat": {"revision": satcat_revision, **_metadata_dataset_history(satcat_meta)},
         },
         "retrieval_timestamp": gp_meta.get("retrieval_timestamp") or gp_meta.get("fetched_at") or satcat_meta.get("fetched_at"),
         "newest_orbital_epoch": gp_meta.get("newest_orbital_epoch"),
         "newest_launch_date": launch_meta.get("newest_launch_date") or gp_meta.get("newest_launch_date"),
         "newest_confirmed_decay_date": decay_meta.get("newest_confirmed_decay_date"),
+        "last_reconciled_at": last_reconciled_at,
         "tle_count": _metadata_count(tle_meta, "total", "records"),
         "omm_count": _metadata_count(gp_meta, "omm", "total"),
         "six_digit_id_count": _metadata_count(gp_meta, "six_digit_ids"),
@@ -596,64 +843,346 @@ class DataUpdateScheduler:
         self,
         *,
         interval_hours: float = DEFAULT_SERVER_UPDATE_INTERVAL_HOURS,
+        gp_interval_hours: float | None = None,
+        tle_interval_hours: float | None = None,
+        satcat_interval_hours: float | None = None,
+        reconciliation_interval_hours: float = DEFAULT_SERVER_UPDATE_INTERVAL_HOURS,
         on_updated=None,
+        initial_delay_seconds: float = 1.0,
+        failure_backoff_base_seconds: float = 300.0,
+        failure_backoff_cap_seconds: float = 21_600.0,
+        jitter=None,
+        clock=None,
     ):
         self.interval_hours = max(1.0, float(interval_hours))
+        self.intervals_hours = {
+            "gp": max(1.0, float(gp_interval_hours if gp_interval_hours is not None else self.interval_hours)),
+            "tle": max(1.0, float(tle_interval_hours if tle_interval_hours is not None else self.interval_hours)),
+            "satcat": max(1.0, float(satcat_interval_hours if satcat_interval_hours is not None else self.interval_hours)),
+            "reconciliation": max(1.0, float(reconciliation_interval_hours)),
+        }
         self.on_updated = on_updated
+        self.initial_delay_seconds = max(0.0, float(initial_delay_seconds))
+        self.failure_backoff_base_seconds = max(60.0, float(failure_backoff_base_seconds))
+        self.failure_backoff_cap_seconds = max(
+            self.failure_backoff_base_seconds,
+            float(failure_backoff_cap_seconds),
+        )
+        self.jitter = jitter or random.uniform
+        self.clock = clock or time.time
+        self.consecutive_failures = 0
+        self.last_result: dict[str, object] | None = None
         self.stop_event = threading.Event()
         self.thread = threading.Thread(target=self._run, name="openbexi-data-update", daemon=True)
 
     def start(self) -> None:
+        if self.stop_event.is_set() or self.thread.ident is not None or self.thread.is_alive():
+            raise RuntimeError("The data-update scheduler can only be started once.")
+        started_at = self._timestamp()
         _set_data_update_status(
             enabled=True,
+            running=True,
+            worker_alive=True,
             state="scheduled",
             interval_hours=self.interval_hours,
+            intervals_hours=dict(self.intervals_hours),
+            dataset_status=self._dataset_status(None),
+            consecutive_failures=0,
+            retry_delay_seconds=None,
+            poll_interval_seconds=self._success_delay_seconds(None),
+            started_at=started_at,
+            stopped_at=None,
+            stop_requested=False,
+            shutdown_timed_out=False,
+            last_started_at=None,
+            last_finished_at=None,
+            last_cycle_state=None,
+            last_reconciled_at=None,
+            next_check_at=self._timestamp(self.clock() + self.initial_delay_seconds),
+            last_result=None,
+            last_error=None,
+            last_errors=[],
             tool_available=maybe_update_satellite_data is not None,
             import_error=DATA_TOOL_IMPORT_ERROR,
         )
         self.thread.start()
 
-    def stop(self) -> None:
+    def stop(self, timeout_seconds: float = 120.0) -> None:
         self.stop_event.set()
+        _set_data_update_status(
+            stop_requested=True,
+            state="stopping",
+            next_check_at=None,
+            retry_delay_seconds=None,
+        )
         if self.thread.is_alive():
-            self.thread.join(timeout=2.0)
+            self.thread.join(timeout=max(0.0, float(timeout_seconds)))
+        if self.thread.is_alive():
+            _set_data_update_status(
+                running=True,
+                worker_alive=True,
+                state="stopping",
+                shutdown_timed_out=True,
+            )
+        else:
+            _set_data_update_status(
+                running=False,
+                worker_alive=False,
+                state="stopped",
+                stopped_at=self._timestamp(),
+                shutdown_timed_out=False,
+            )
 
     def _run(self) -> None:
-        if self.stop_event.wait(1.0):
-            return
-        while not self.stop_event.is_set():
-            self.run_once()
-            sleep_seconds = min(3600.0, max(60.0, self.interval_hours * 3600.0 / 4.0))
-            self.stop_event.wait(sleep_seconds)
-
-    def run_once(self) -> None:
-        if maybe_update_satellite_data is None:
-            _set_data_update_status(state="unavailable", last_error=DATA_TOOL_IMPORT_ERROR)
-            return
-        _set_data_update_status(state="checking", last_started_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
         try:
-            result = maybe_update_satellite_data(root=ROOT, interval_hours=self.interval_hours)
+            if self.stop_event.wait(self.initial_delay_seconds):
+                return
+            while not self.stop_event.is_set():
+                state = self.run_once()
+                if self.stop_event.is_set():
+                    break
+                if state in {"failed", "degraded", "unavailable"}:
+                    sleep_seconds = self._failure_delay_seconds()
+                    retry_delay = sleep_seconds
+                else:
+                    sleep_seconds = self._success_delay_seconds(self.last_result)
+                    retry_delay = None
+                _set_data_update_status(
+                    next_check_at=self._timestamp(self.clock() + sleep_seconds),
+                    poll_interval_seconds=sleep_seconds,
+                    retry_delay_seconds=retry_delay,
+                )
+                if self.stop_event.wait(sleep_seconds):
+                    break
+        finally:
+            _set_data_update_status(
+                running=False,
+                worker_alive=False,
+                state="stopped",
+                stopped_at=self._timestamp(),
+                next_check_at=None,
+                retry_delay_seconds=None,
+                shutdown_timed_out=False,
+            )
+
+    def run_once(self) -> str:
+        if maybe_update_satellite_data is None:
+            self.consecutive_failures += 1
+            _set_data_update_status(
+                state="unavailable",
+                last_cycle_state="unavailable",
+                consecutive_failures=self.consecutive_failures,
+                last_error=DATA_TOOL_IMPORT_ERROR,
+                last_errors=[DATA_TOOL_IMPORT_ERROR] if DATA_TOOL_IMPORT_ERROR else [],
+            )
+            return "unavailable"
+        started_at = self._timestamp()
+        _set_data_update_status(
+            state="checking",
+            last_started_at=started_at,
+            next_check_at=None,
+            retry_delay_seconds=None,
+            last_error=None,
+            last_errors=[],
+        )
+        try:
+            result = maybe_update_satellite_data(
+                root=ROOT,
+                interval_hours=self.interval_hours,
+                gp_interval_hours=self.intervals_hours["gp"],
+                tle_interval_hours=self.intervals_hours["tle"],
+                satcat_interval_hours=self.intervals_hours["satcat"],
+                reconciliation_interval_hours=self.intervals_hours["reconciliation"],
+            )
+            if not isinstance(result, dict):
+                raise TypeError("Satellite data update returned a non-object result.")
         except Exception as exc:
+            self.consecutive_failures += 1
             _set_data_update_status(
                 state="failed",
+                last_cycle_state="failed",
+                consecutive_failures=self.consecutive_failures,
                 last_error=str(exc),
-                last_finished_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                last_errors=[str(exc)],
+                last_finished_at=self._timestamp(),
             )
-            return
-        state = "degraded" if result.get("degraded") else ("skipped" if result.get("skipped") else "succeeded")
+            return "failed"
+        self.last_result = result
+        result_errors = self._result_errors(result)
+        state = (
+            "degraded"
+            if result.get("degraded") or result_errors
+            else "skipped"
+            if result.get("skipped")
+            else "succeeded"
+        )
         registration_error = None
-        if state == "succeeded" and self.on_updated is not None:
+        gp_result = result.get("gp")
+        tle_result = result.get("tle")
+        catalog_changed = (
+            isinstance(gp_result, dict) and gp_result.get("changed") is True
+        ) or (
+            isinstance(tle_result, dict) and tle_result.get("changed") is True
+        )
+        if self.on_updated is not None and catalog_changed:
             try:
                 self.on_updated()
             except Exception as exc:
                 registration_error = str(exc)
                 state = "degraded"
+        if state == "degraded":
+            self.consecutive_failures += 1
+        else:
+            self.consecutive_failures = 0
+        finished_at = self._timestamp()
+        last_reconciled_at = self._last_reconciled_at(result)
         _set_data_update_status(
             state=state,
+            last_cycle_state=state,
+            consecutive_failures=self.consecutive_failures,
             last_result=result,
-            last_error=registration_error,
-            last_finished_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            last_error=registration_error or (result_errors[0] if result_errors else None),
+            last_errors=([registration_error] if registration_error else []) + result_errors,
+            last_finished_at=finished_at,
+            dataset_status=self._dataset_status(result, checked_at=finished_at),
+            **({"last_reconciled_at": last_reconciled_at} if last_reconciled_at else {}),
         )
+        return state
+
+    def _timestamp(self, epoch_seconds: float | None = None) -> str:
+        value = self.clock() if epoch_seconds is None else epoch_seconds
+        return dt.datetime.fromtimestamp(value, tz=dt.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+    def _failure_delay_seconds(self) -> float:
+        exponent = min(32, max(0, self.consecutive_failures - 1))
+        base = min(
+            self.failure_backoff_cap_seconds,
+            self.failure_backoff_base_seconds * (2 ** exponent),
+        )
+        lower = max(60.0, base * 0.8)
+        upper = min(self.failure_backoff_cap_seconds, base * 1.2)
+        if upper < lower:
+            lower = upper
+        jittered = float(self.jitter(lower, upper))
+        return min(self.failure_backoff_cap_seconds, max(60.0, jittered))
+
+    def _success_delay_seconds(self, result: dict[str, object] | None) -> float:
+        default_delay = min(3600.0, max(60.0, min(self.intervals_hours.values()) * 900.0))
+        if not isinstance(result, dict):
+            return default_delay
+        numeric_delay = next(
+            (
+                float(result[key])
+                for key in ("next_check_in_seconds", "next_due_in_seconds")
+                if isinstance(result.get(key), (int, float)) and not isinstance(result.get(key), bool)
+            ),
+            None,
+        )
+        if numeric_delay is not None:
+            return min(3600.0, max(60.0, numeric_delay))
+        timestamps = []
+        for container in (result, result.get("datasets"), result.get("schedule")):
+            if not isinstance(container, dict):
+                continue
+            for value in container.values():
+                if isinstance(value, dict):
+                    candidate = value.get("next_due_at") or value.get("next_check_at")
+                    if isinstance(candidate, str):
+                        timestamps.append(candidate)
+            for key in ("next_due_at", "next_check_at"):
+                candidate = container.get(key)
+                if isinstance(candidate, str):
+                    timestamps.append(candidate)
+        epochs = [self._parse_timestamp(value) for value in timestamps]
+        future_epochs = [value for value in epochs if value is not None]
+        if not future_epochs:
+            return default_delay
+        return min(3600.0, max(60.0, min(future_epochs) - self.clock()))
+
+    @staticmethod
+    def _parse_timestamp(value: str) -> float | None:
+        return _parse_iso_timestamp(value)
+
+    @staticmethod
+    def _result_errors(result: dict[str, object]) -> list[str]:
+        errors: list[str] = []
+        containers = [result]
+        containers.extend(
+            result[name]
+            for name in ("gp", "tle", "satcat", "launches", "decayed", "reconciliation")
+            if isinstance(result.get(name), dict)
+        )
+        for container in containers:
+            nested = container.get("errors")
+            if isinstance(nested, list):
+                errors.extend(str(item) for item in nested if str(item).strip())
+            elif isinstance(nested, str) and nested.strip():
+                errors.append(nested.strip())
+            single = container.get("error")
+            if isinstance(single, str) and single.strip():
+                errors.append(single.strip())
+        return list(dict.fromkeys(errors))
+
+    def _dataset_status(
+        self,
+        result: dict[str, object] | None,
+        *,
+        checked_at: str | None = None,
+    ) -> dict[str, dict[str, object]]:
+        due = result.get("due") if isinstance(result, dict) and isinstance(result.get("due"), dict) else {}
+        statuses: dict[str, dict[str, object]] = {}
+        configured_intervals = {
+            **self.intervals_hours,
+            "launches": self.intervals_hours["satcat"],
+            "decayed": self.intervals_hours["satcat"],
+        }
+        for name, interval in configured_intervals.items():
+            item = result.get(name) if isinstance(result, dict) and isinstance(result.get(name), dict) else None
+            due_value = due.get(name)
+            if name == "reconciliation" and isinstance(due_value, dict):
+                due_value = any(value is True for value in due_value.values())
+            if item is not None and isinstance(item.get("due"), bool):
+                due_value = item["due"]
+            status: dict[str, object] = {
+                "interval_hours": interval,
+                "state": "pending" if result is None else "not-due",
+                "due": due_value if isinstance(due_value, bool) else None,
+            }
+            if checked_at:
+                status["last_checked_at"] = checked_at
+            if item is not None:
+                errors = self._result_errors(item)
+                status["state"] = (
+                    "degraded"
+                    if errors
+                    else "reconciled"
+                    if name == "reconciliation" and item.get("completed") is True
+                    else "updated"
+                    if item.get("changed") is True
+                    else "skipped"
+                    if item.get("skipped") is True
+                    else "not-due"
+                    if name == "reconciliation" and due_value is False
+                    else "checked"
+                )
+                for key in ("changed", "skipped", "completed", "message", "next_due_at", "last_success_at"):
+                    if key in item:
+                        status[key] = item[key]
+                if errors:
+                    status["errors"] = errors
+            statuses[name] = status
+        return statuses
+
+    @staticmethod
+    def _last_reconciled_at(result: dict[str, object]) -> str | None:
+        values = [result.get("last_reconciled_at"), result.get("reconciled_at")]
+        reconciliation = result.get("reconciliation")
+        if isinstance(reconciliation, dict) and not reconciliation.get("skipped"):
+            values.extend(
+                reconciliation.get(key)
+                for key in ("last_reconciled_at", "reconciled_at", "finished_at")
+            )
+        return _newest_timestamp(values)
 
 
 def _openapi_v1_paths(json_object_schema: dict[str, object]) -> dict[str, object]:
@@ -1380,7 +1909,17 @@ def make_handler(
     return handler
 
 
-def parse_args() -> argparse.Namespace:
+def _interval_hours_argument(value: str) -> float:
+    try:
+        interval = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("interval must be a number of hours") from exc
+    if not math.isfinite(interval) or interval < 1.0:
+        raise argparse.ArgumentTypeError("interval must be at least 1 hour")
+    return interval
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Serve OpenBEXI Earth Orbit locally with API endpoints.")
     parser.add_argument("--host", default="127.0.0.1", help="Bind host. Default: 127.0.0.1")
     parser.add_argument("--port", default=8000, type=int, help="Bind port. Default: 8000")
@@ -1407,7 +1946,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--update-data-on-schedule",
         action="store_true",
-        help="Enable background GP/OMM, launch, and decay data updates after freshness checks.",
+        help="Enable background GP/OMM, TLE, SATCAT, launch, decay, and reconciliation cycles.",
     )
     parser.add_argument(
         "--no-data-update",
@@ -1417,8 +1956,32 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--data-update-interval-hours",
         default=DEFAULT_SERVER_UPDATE_INTERVAL_HOURS,
-        type=float,
-        help="Minimum age before scheduled data updates run. Default: 24.",
+        type=_interval_hours_argument,
+        help="Fallback minimum age for scheduled datasets. Default: 24.",
+    )
+    parser.add_argument(
+        "--gp-update-interval-hours",
+        default=None,
+        type=_interval_hours_argument,
+        help="GP/OMM update interval. Defaults to --data-update-interval-hours.",
+    )
+    parser.add_argument(
+        "--tle-update-interval-hours",
+        default=None,
+        type=_interval_hours_argument,
+        help="Deprecated compatibility TLE update interval. Defaults to --data-update-interval-hours.",
+    )
+    parser.add_argument(
+        "--satcat-update-interval-hours",
+        default=None,
+        type=_interval_hours_argument,
+        help="SATCAT, launch, and confirmed-decay update interval. Defaults to --data-update-interval-hours.",
+    )
+    parser.add_argument(
+        "--reconciliation-interval-hours",
+        default=DEFAULT_SERVER_UPDATE_INTERVAL_HOURS,
+        type=_interval_hours_argument,
+        help="Complete-source reconciliation interval. Default: 24.",
     )
     parser.add_argument(
         "--runtime-dir",
@@ -1430,7 +1993,7 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable the optional authenticated API v1 screening service.",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     if not is_loopback_host(args.host) and not args.allow_public:
         parser.error("non-loopback --host requires --allow-public")
     return args
@@ -1489,14 +2052,33 @@ def main() -> None:
     if args.update_data_on_schedule and not args.no_data_update:
         scheduler = DataUpdateScheduler(
             interval_hours=args.data_update_interval_hours,
+            gp_interval_hours=args.gp_update_interval_hours,
+            tle_interval_hours=args.tle_update_interval_hours,
+            satcat_interval_hours=args.satcat_update_interval_hours,
+            reconciliation_interval_hours=args.reconciliation_interval_hours,
             on_updated=v21_service.bootstrap_bundled_catalog if v21_service else None,
         )
         scheduler.start()
     else:
         _set_data_update_status(
             enabled=False,
+            running=False,
+            worker_alive=False,
             state="disabled",
             interval_hours=args.data_update_interval_hours,
+            intervals_hours={
+                "gp": args.gp_update_interval_hours or args.data_update_interval_hours,
+                "tle": args.tle_update_interval_hours or args.data_update_interval_hours,
+                "satcat": args.satcat_update_interval_hours or args.data_update_interval_hours,
+                "reconciliation": args.reconciliation_interval_hours,
+            },
+            dataset_status={},
+            consecutive_failures=0,
+            retry_delay_seconds=None,
+            next_check_at=None,
+            stop_requested=False,
+            shutdown_timed_out=False,
+            last_errors=[],
             tool_available=maybe_update_satellite_data is not None,
             import_error=DATA_TOOL_IMPORT_ERROR,
         )
@@ -1510,7 +2092,12 @@ def main() -> None:
     else:
         print("API v1: disabled or unavailable")
     if scheduler:
-        print(f"Data updates: enabled every {args.data_update_interval_hours:g} hours after freshness checks")
+        intervals = scheduler.intervals_hours
+        print(
+            "Data updates: enabled "
+            f"(GP {intervals['gp']:g}h, TLE {intervals['tle']:g}h, "
+            f"SATCAT {intervals['satcat']:g}h, reconciliation {intervals['reconciliation']:g}h)"
+        )
     else:
         print("Data updates: disabled")
     try:

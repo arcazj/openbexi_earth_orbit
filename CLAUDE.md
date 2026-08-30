@@ -42,6 +42,7 @@ Serve the source application with the optional Python API:
 
 ```powershell
 npm run serve
+npm run serve:update
 # http://127.0.0.1:8000/index.html
 ```
 
@@ -72,9 +73,10 @@ py tools/satellite_data_tools.py export-tle --all
 py tools/satellite_data_tools.py build-launches --dry-run
 py tools/satellite_data_tools.py build-decayed-db --all
 py tools/satellite_data_tools.py build-decayed-db --refresh-satcat --force
+py tools/satellite_data_tools.py maybe-update --dry-run --interval-hours 24 --reconciliation-interval-hours 24
 ```
 
-`export-gp` is primary in Version 2.2. `export-tle` is deprecated compatibility coverage and cannot represent six-digit NORAD IDs.
+`export-gp` is primary in Version 2.2. `export-tle` is deprecated compatibility coverage. Numeric and Space-Track Alpha-5 fields are decoded to canonical full NORAD strings, but TLE remains an incomplete subset of current six-digit GP/OMM coverage.
 
 For startup performance diagnostics, open `http://127.0.0.1:8000/index.html?perf=1`, then run:
 
@@ -167,13 +169,15 @@ Version 2.1 full-catalog screening requires UTC and a common TEME frame. OMM is 
 - `release/feature-flags.json`: auditable feature flags.
 - `release/static-artifact.json`: static publication allowlist and rewrite contract.
 - `json/gp/GP.json` and its metadata: preferred Version 2.2 mixed GP/OMM catalog plus retrieval/quality and compatibility-tag-enrichment revisions/counts.
-- `json/tle/TLE.json` and `json/tle/TLE.meta.json`: deprecated Version 2.2 compatibility catalog; incomplete for six-digit IDs and temporarily used only for exact-NORAD group/tag enrichment, never preferred orbital state.
+- `json/tle/TLE.json` and `json/tle/TLE.meta.json`: deprecated Version 2.2 numeric/Alpha-5 compatibility subset; temporarily used only for exact-NORAD group/tag enrichment and reduced-coverage fallback, never preferred orbital state.
 - SATCAT-backed launch data and `json/decayed/decayed.json`: lifecycle-event datasets independent of orbit availability.
 - `json/satellites/*.json`: satellite metadata and model configuration.
 - `json/decayed/decayed.json`: confirmed decayed-object data.
 - `validation/v2.0.0/`: scientific fixture manifest and checksums.
 - `validation/v2.1.0/`: development full-catalog executable evidence, checksums, and named-machine benchmark; review remains pending.
-- `release/evidence/openbexi-node-sbom-2.1.0-development.cdx.json` and `release/evidence/openbexi-node-sbom-2.2.0-development.cdx.json`: archived historical v2.1 and current v2.2 development SBOMs respectively; checksum-bound promotion evidence remains open.
+- `validation/v2.2.0/`: archived Version 2.2.0 development evidence and immutable sidecar.
+- `validation/v2.2.1/`: current checksum-bound Version 2.2.1 development evidence; independent review remains pending.
+- `release/evidence/openbexi-node-sbom-2.1.0-development.cdx.json`, `release/evidence/openbexi-node-sbom-2.2.0-development.cdx.json`, and `release/evidence/openbexi-node-sbom-2.2.1-development.cdx.json`: archived and current dependency evidence; checksum-bound promotion evidence remains open.
 - `data/ephemeris/solar_system_jpl_horizons_2020_2035_6h.json`: local JPL-derived visualization ephemeris.
 - `vendor/`: exact browser dependencies, integrity manifests, and license files.
 - `obj/`: local GLB and OBJ/MTL model assets.
@@ -182,11 +186,13 @@ Version 2.1 full-catalog screening requires UTC and a common TEME frame. OMM is 
 
 - Change release identity in `release/version.json`, run `npm run version:sync`, and verify with `npm run check:version`. `PROMPT_History.md` is historical context, not a runtime version source.
 - Treat the v2.0, v2.1, and v2.2 engineering checklists as separate open gates. Later development authorization never promotes an earlier version. `Test_and_Integration.md` preserves the historical regression record and current v2.2 integration matrix.
-- Keep the current release boundary: Version 2.2.0 is development, Experimental, and non-operational, with no candidate/release date. Its authorization covers GP/OMM/lifecycle continuity and the bounded filtering/details/layering/time/motion browser follow-up; Pc/CDM/covariance, alerts, reports, and maneuver recommendations remain unauthorized.
+- Keep the current release boundary: Version 2.2.1 is development, Experimental, and non-operational, with no candidate/release date. Its authorization covers GP/OMM/lifecycle continuity, the bounded filtering/details/layering/time/motion browser follow-up, and opt-in daily server maintenance; Pc/CDM/covariance, alerts, reports, and maneuver recommendations remain unauthorized.
 - Add or update deterministic tests for every behavioral change. `npm run test:unit` auto-discovers `tests/*.test.js`; Python and browser suites run separately or through `npm test`.
 - Preserve the single-node durable contract: SQLite is the queue/source of truth; all worker mutations require current attempt and worker ownership; result imports are atomic and checksum bound; static mode must remain functional.
 - Namespace persisted event-revision IDs by job/attempt while retaining engine event identity. Completed replay must create distinct immutable rows rather than collide with or overwrite the original job.
-- Preserve catalog privacy and lifecycle semantics: API responses strip private artifact paths; only a successful explicit full (`mode=all`) snapshot may reconcile `ABSENT`; incremental snapshots are `PARTIAL` and may not. GP, launch, and decay due work is independent; successful component promotions change the composite `data_revision`, while `catalog_revision` remains GP-only compatibility. Failed or unchanged updates do not fabricate revisions. Never synthesize TLE or truncate six-digit IDs. GP group/tag enrichment may join only by the complete canonical NORAD string and must record its compatibility source/tag-map revisions and match counts; default incremental TLE maintenance makes one `active` request.
+- Preserve catalog privacy and lifecycle semantics: API responses strip private artifact paths; normal GP/TLE updates are incremental `PARTIAL` upserts, while only a structurally valid complete `active` reconciliation may prune that active set and record `COMPLETE`. Launch and confirmed-decay history is never pruned by a later SATCAT omission. Coalesce SATCAT-derived work into one request per scheduler cycle. Successful GP, compatibility TLE, SATCAT, launch, or decay promotion changes the server composite `data_revision`, while `catalog_revision` remains GP-only compatibility. Conditional, byte-identical, failed, or rejected updates keep data bytes/revisions and last-known-good artifacts stable; metadata may record the check. Never synthesize TLE or truncate identifiers. Decode explicit Alpha-5 TLE fields to canonical full strings, but do not treat that compatibility subset as complete six-digit coverage. GP group/tag enrichment may join only by the complete canonical NORAD string and must record its compatibility source/tag-map revisions and match counts.
+- Preserve the production-scale replacement guard for GP, TLE, and SATCAT: once the prior catalog has at least 1,000 records, full/reconciliation candidates need both 75% size and 75% canonical NORAD overlap. `--force` never bypasses it. Keep `--allow-large-catalog-shrink` confined to reviewed direct `export-gp`, `export-tle`, and `refresh-satcat` recovery; do not add it to `maybe-update` or server arguments. Keep collision-safe backups at the newest seven per changed artifact, treat accepted `304` revalidation as successful freshness that resets due age without byte/revision/backup churn, and preserve restart-persistent, recursively redacted status errors for GP/TLE/SATCAT/launch/decay including nested results.
+- Keep scheduled provider access explicit: `npm run serve` is offline/default, `npm run serve:update` opts into daily GP/TLE/SATCAT update and complete reconciliation, and `--no-data-update` wins. Preserve per-dataset status, bounded retry/backoff, stale-lock recovery, background startup after bind, and worker shutdown before HTTP close. Static hosting, including GitHub Pages, cannot run this scheduler.
 - Keep capability discovery synchronized with server validation defaults and structured configuration limits. The browser must retain explicit Experimental/non-operational/Pc-unavailable wording and show partial coverage/unscreened interval counts.
 - Do not persist browser bearer tokens. Use authorization headers for JSON and SSE, never URL/query tokens. Do not pass API/provider secrets to the screening subprocess.
 - An adapter is not an admitted provider. Update `docs/governance/DATA_SOURCES.md` before using a new source, including license, access, retention, redistribution, integrity, cadence, and fallback.

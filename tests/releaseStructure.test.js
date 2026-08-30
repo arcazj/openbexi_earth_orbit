@@ -150,20 +150,25 @@ function run() {
   const packageLock = JSON.parse(read('package-lock.json'));
   const release = JSON.parse(read('release/version.json'));
   const archivedSbom = JSON.parse(read('release/evidence/openbexi-node-sbom-2.0.0.cdx.json'));
-  const developmentSbom = JSON.parse(read('release/evidence/openbexi-node-sbom-2.2.0-development.cdx.json'));
+  const developmentSbom = JSON.parse(read('release/evidence/openbexi-node-sbom-2.2.1-development.cdx.json'));
   const releaseModule = read('js/releaseVersion.js');
 
   assert(promptHistory.startsWith('# Prompt History'), 'PROMPT_History.md starts with Prompt History');
 
-  assert.strictEqual(release.version, '2.2.0', 'authoritative development version is 2.2.0');
-  assert.strictEqual(release.channel, 'development', 'Version 2.2.0 remains on the development channel');
-  assert.strictEqual(release.publicationState, 'development', 'Version 2.2.0 is not promoted');
+  assert.strictEqual(release.version, '2.2.1', 'authoritative development version is 2.2.1');
+  assert.strictEqual(release.channel, 'development', 'Version 2.2.1 remains on the development channel');
+  assert.strictEqual(release.publicationState, 'development', 'Version 2.2.1 is not promoted');
   assert.strictEqual(release.candidateAt, null, 'development build has no candidate date');
   assert.strictEqual(release.releasedAt, null, 'development build has no release date');
   assert.strictEqual(release.maturity, 'experimental', 'scientific maturity remains experimental');
   assert.strictEqual(release.safetyClass, 'non-operational', 'release remains non-operational');
   assert.strictEqual(packageJson.version, release.version, 'package version matches release metadata');
   assert.strictEqual(packageLock.version, release.version, 'lockfile version matches release metadata');
+  assert.strictEqual(
+    packageJson.scripts['serve:update'],
+    'node scripts/python.mjs server.py --host 127.0.0.1 --port 8000 --update-data-on-schedule --gp-update-interval-hours 24 --tle-update-interval-hours 24 --satcat-update-interval-hours 24 --reconciliation-interval-hours 24',
+    'serve:update starts the explicit opt-in daily maintenance server'
+  );
   assert.match(
     archivedSbom.serialNumber,
     /^urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
@@ -235,7 +240,16 @@ function run() {
     assert(image.alt.length > 0, `README image ${index + 1} has nonempty alternative text`);
   });
 
-  const repositoryFiles = filesUnder('.', new Set(['.git', 'node_modules', 'dist', 'vendor']));
+  const repositoryFiles = filesUnder('.', new Set([
+    '.git',
+    'artifacts',
+    'coverage',
+    'dist',
+    'node_modules',
+    'playwright-report',
+    'test-results',
+    'vendor'
+  ]));
   const repositoryFileSet = new Set(repositoryFiles);
   README_IMAGE_PATHS.forEach((imagePath, index) => {
     assert(repositoryFileSet.has(imagePath), `README image ${index + 1} has exact-case local file ${imagePath}`);
@@ -313,6 +327,7 @@ function run() {
   for (const supportedTool of [
     'tools/satellite_data_tools.py',
     'server.py',
+    'npm run serve:update',
     'npm run benchmark:full-catalog',
     'npm run benchmark:v21-service',
     'tools/preprocess_star_catalog.py',

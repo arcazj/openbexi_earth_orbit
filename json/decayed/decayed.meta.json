@@ -1,28 +1,21 @@
 {
   "schema_version": "2.2.0",
-  "built_at": "2026-08-22T20:42:05.709433Z",
-  "fetched_at": "2026-08-22T20:42:05.709433Z",
-  "last_success_at": "2026-08-22T20:42:05.709433Z",
-  "last_attempt_at": "2026-08-22T21:07:23.964319Z",
-  "last_status": "not-modified",
-  "mode": "incremental",
+  "built_at": "2026-08-30T02:13:23.342346Z",
+  "fetched_at": "2026-08-30T02:13:23.342346Z",
+  "last_success_at": "2026-08-30T02:13:23.342346Z",
+  "last_attempt_at": "2026-08-30T02:13:23.342346Z",
+  "last_status": "ok",
+  "mode": "reconcile",
   "source": "json/satcat.csv",
-  "catalog_revision": "sha256:29ac0766eb9b3dab432a1b4fd9aae4471ba1bec8ed62f9e52d9dfcfb9734ccb7",
-  "newest_confirmed_decay_date": "2026-08-20",
-  "satcat_refresh": {
-    "changed": false,
-    "skipped": true,
-    "mode": "refresh-satcat",
-    "message": "SATCAT source has not changed.",
-    "counts": {},
-    "errors": [],
-    "paths": {
-      "satcat": "json/satcat.csv",
-      "metadata": "json/satcat.meta.json"
-    }
-  },
+  "satcat_refresh": null,
+  "catalog_revision": "sha256:c3a0edaba721c2a1273cd5f081bfbf386da63d9301b8cf1c6f5be3b0b5738a40",
+  "dataset_hash": "sha256:c3a0edaba721c2a1273cd5f081bfbf386da63d9301b8cf1c6f5be3b0b5738a40",
+  "newest_confirmed_decay_date": "2026-08-28",
   "counts": {
-    "objects": 7421,
-    "records": 7577
-  }
+    "objects": 7439,
+    "records": 7595,
+    "retained_history": 0
+  },
+  "last_reconciled_at": "2026-08-30T02:13:23.342346Z",
+  "last_reconciled_catalog_revision": "sha256:c3a0edaba721c2a1273cd5f081bfbf386da63d9301b8cf1c6f5be3b0b5738a40"
 }

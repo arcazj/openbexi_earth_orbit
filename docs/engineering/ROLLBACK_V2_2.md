@@ -15,6 +15,9 @@ Abort promotion of a refreshed dataset or application build when any of these oc
 - a default incremental update repeats overlapping source requests or restores the removed `last-30-days` request instead of one `active` request;
 - the replacement loses valid six-digit objects or regresses the newest orbital, launch, or confirmed-decay date without an explained provider correction;
 - an HTTP, schema, quarantine-threshold, partial-write, or metadata failure replaces last-known-good artifacts or is reported as complete;
+- a reconciliation/full GP, TLE, or SATCAT replacement is promoted against an established catalog of at least 1,000 records while either candidate size or canonical NORAD overlap is below 75%; `--force` bypasses this guard; or unattended `maybe-update`/server operation gains a shrink override;
+- changed-artifact backups can collide, fail to retain the newest seven per artifact, or rotate a newer backup before an older one; an accepted `304` fails to reset due age or changes data/revision/backup state;
+- `/api/data-update-status` loses persisted GP/TLE/SATCAT/launch/decay failure history after restart, omits nested cycle errors, or exposes credential-like/control-character content without recursive public sanitization;
 - a details-only timeline record attempts propagation, or cache/revision refresh duplicates or hides events;
 - category controls/count/search/visibility diverge, explicit share state is lost, or debris/object classification silently excludes records;
 - simulation layers disagree on UTC, reverse/pause is incorrect, a valid JPL-derived position is extrapolated beyond the bundled range, or visual interpolation reaches screening/export state;
@@ -28,8 +31,8 @@ Abort promotion of a refreshed dataset or application build when any of these oc
 
 ## Immediate Containment
 
-1. Disable scheduled updates or stop `server.py` before changing generated data.
-2. Preserve logs, `release/version.json`, the complete `/api/data-update-status` response (composite `data_revision`, compatibility `catalog_revision`, and all per-dataset revisions), source revision, GP tag-enrichment source/tag-map revisions and counts, and SHA-256 hashes for current GP, TLE compatibility, SATCAT, launch, decay, and metadata files.
+1. Disable scheduled updates with `--no-data-update` or stop `server.py` before changing generated data. Confirm `/api/data-update-status` reports the worker stopped/disabled and no update lock is owned by a live process.
+2. Preserve logs, `release/version.json`, the complete public `/api/data-update-status` response (composite `data_revision`, compatibility `catalog_revision`, all per-dataset revisions and restart-persistent errors, and recursively redacted nested results), source revision, GP tag-enrichment source/tag-map revisions and counts, and SHA-256 hashes for current GP, TLE compatibility, SATCAT, launch, decay, and metadata files. Preserve private raw diagnostics only in an access-controlled location; do not copy secrets into the release record.
 3. Preserve the failed provider response only in an approved private evidence location; do not commit credentials, private paths, or data whose redistribution is unapproved.
 4. Keep the browser/server in an explicit degraded or offline state while the artifact set is inconsistent. Do not label legacy TLE fallback as complete current coverage.
 
@@ -37,7 +40,7 @@ Abort promotion of a refreshed dataset or application build when any of these oc
 
 1. Select one coherent archived artifact set. GP JSON and metadata, launch JSON and metadata, decay JSON and metadata, SATCAT provenance, and any compatibility TLE files must come from the same recorded promotion decision.
 2. Verify the archive hashes before restoration. Do not combine a new metadata sidecar with an older data file.
-3. Restore through the repository's atomic promotion/backup workflow. Do not hand-edit generated orbital records.
+3. Restore through the repository's atomic promotion/backup workflow. Select the intended collision-safe backup by artifact and timestamp/suffix; the automatic rotation retains only the newest seven matching backups per artifact. Do not hand-edit generated orbital records.
 4. Run the focused data/API/browser tests, then `npm run check`, `npm test`, and `npm run build` before serving the restored artifact.
 5. Restart the local server if used, confirm `/api/gp-metadata` matches the restored GP sidecar, and confirm `/api/data-update-status` names the restored composite and per-dataset revisions plus degraded/recovery history truthfully. When GP metadata is absent, a packaged TLE file larger than the empty `[]` sentinel yields `fallback-tle`; treat that as availability only and validate the TLE separately. Without such a file require `unavailable`; with GP metadata present require normal `current`/`partial`/`degraded` evaluation. Force clients/CDNs to revalidate the composite data revision.
 
@@ -51,6 +54,6 @@ Do not delete or downgrade the Version 2.1 runtime database. Stop the service an
 
 ## Re-enable Updates
 
-Re-enable scheduled or manual promotion only after the defect has a regression test, all replacement artifacts validate as one revision, request guards remain intact, and the data owner approves the provider/schema response. Recheck exact-identity tag enrichment, orbit classification, and one-request incremental behavior for a data defect. For a browser defect, rerun category/search virtualization, point-layer membership and density switching, selected-details, layering, signed-clock, interpolation failure/recovery, shared-position Mercator detailed/density budgets, in-place orbit refresh, ephemeris-boundary, static-network, and scientific-separation cases before redeployment. Record commands, hashes, counts by format, newest dates, quarantine reasons, operator, reviewer, elapsed recovery time, cache invalidation, and any data loss or coverage reduction.
+Re-enable scheduled or manual promotion only after the defect has a regression test, all replacement artifacts validate coherently, request guards remain intact, and the data owner approves the provider/schema response. Recheck exact-identity enrichment, orbit classification, one-request-per-format reconciliation, one-fetch SATCAT derivation, complete-only pruning, the 1,000-record dual 75% candidate-size/NORAD-overlap guard, the absence of a scheduler override, history retention, accepted-304 due-age reset, collision-safe seven-backup rotation, restart-persistent/redacted five-dataset status, stale-lock handling, retry/reset, and graceful stop. For a browser defect, rerun the documented visualization matrix. Record commands, hashes, counts, newest dates, reconciliation metadata, quarantine reasons, operator, reviewer, elapsed recovery time, cache invalidation, and any data loss or coverage reduction. Use `--allow-large-catalog-shrink` only in a reviewed direct `export-gp`, `export-tle`, or `refresh-satcat` recovery when the below-threshold replacement is intentional; `--force` is not a substitute.
 
 Until an archived rehearsal demonstrates these steps, rollback readiness remains an open v2.2 gate.

@@ -44,7 +44,7 @@ function run() {
   assert(tool.includes('CELESTRAK_SATCAT_CSV_URL = "https://celestrak.org/pub/satcat.csv"'), 'tool knows the CelesTrak raw SATCAT CSV source');
   assert(tool.includes('CELESTRAK_MIN_REFRESH_HOURS = 2.0'), 'tool enforces a 2-hour CelesTrak refresh guard');
   assert(tool.includes('UPDATE_LOCK_RELATIVE_PATH'), 'tool defines a lock file for scheduled updates');
-  assert(tool.includes('contextlib.nullcontext(True) if dry_run else update_lock(root)'), 'server-style dry-run does not create the lock file');
+  assert(tool.includes('contextlib.nullcontext(True) if dry_run else update_lock(root_path)'), 'server-style dry-run does not create the lock file');
   assert(tool.includes('SPACETRACK_USERNAME'), 'Space-Track fallback is explicit and credential-gated');
   assert(tool.includes('return None'), 'Space-Track fallback remains disabled by default');
   assert(tool.includes('fetcher:'), 'tool exposes injectable fetchers for no-network tests');
@@ -59,13 +59,21 @@ function run() {
   assert(tool.includes('def canonicalize_omm_record('), 'GP export canonicalizes OMM records');
   assert(tool.includes('def load_gp_company_tag_enrichment('), 'GP export restores stable group tags from the compatibility catalog');
   assert(tool.includes('def build_launch_catalog('), 'SATCAT launch events have an independent catalog builder');
-  assert(tool.includes('if launches_due:'), 'scheduled launch work has an independent due branch');
-  assert(!tool.includes('elif launches_due:'), 'scheduled decay work does not suppress due launch work');
+  assert(tool.includes('if due["launches"] or reconciliation_due["launches"] or satcat_changed:'), 'scheduled launch work has an independent due branch');
   assert(tool.includes('"parser_version": "2.2.0"'), 'GP metadata records the parser version');
 
   assert(server.includes('--update-data-on-schedule'), 'server exposes scheduled update opt-in flag');
   assert(server.includes('--no-data-update'), 'server exposes scheduled update disable flag');
   assert(server.includes('--data-update-interval-hours'), 'server exposes update interval control');
+  for (const intervalFlag of [
+    '--gp-update-interval-hours',
+    '--tle-update-interval-hours',
+    '--satcat-update-interval-hours',
+    '--reconciliation-interval-hours'
+  ]) {
+    assert(server.includes(intervalFlag), `server exposes ${intervalFlag}`);
+    assert(readme.includes(intervalFlag), `README documents ${intervalFlag}`);
+  }
   assert(server.includes('maybe_update_satellite_data'), 'server imports the Python data update function directly');
   assert(server.includes('/api/data-update-status'), 'server exposes data update status endpoint');
   assert(server.includes('/api/gp'), 'server exposes the GP/OMM catalog endpoint');
@@ -89,14 +97,20 @@ function run() {
     '--all',
     '--force',
     '--dry-run',
+    '--allow-large-catalog-shrink',
     '--allow-space-track-fallback',
     '--refresh-launch-dates',
     '--refresh-satcat',
-    '--interval-hours'
+    '--interval-hours',
+    '--gp-interval-hours',
+    '--tle-interval-hours',
+    '--satcat-interval-hours',
+    '--reconciliation-interval-hours'
   ]) {
     assert(readme.includes(option), `README documents the satellite data tool ${option} option`);
   }
   assert(readme.includes('--update-data-on-schedule'), 'README documents scheduled server updates');
+  assert(readme.includes('npm run serve:update'), 'README documents the daily update server command');
   assert(integration.includes('Data Maintenance Tools'), 'integration plan includes data maintenance tests');
   assert(swagger.includes('/api/data-update-status'), 'SWAGGER.md documents data update status');
   assert(swaggerHtml.includes('/api/data-update-status'), 'swagger.html documents data update status');
@@ -105,13 +119,16 @@ function run() {
   assert(python, 'Python runner is available for satellite data tool tests');
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'openbexi-data-tool-'));
   const script = `
+import contextlib
 import datetime as dt
+import io
 import json
 import pathlib
 import shutil
 import sys
 
 sys.path.insert(0, ${JSON.stringify(process.cwd())})
+import server as openbexi_server
 from tools import satellite_data_tools as s
 
 root = pathlib.Path(${JSON.stringify(tempRoot)})
@@ -165,13 +182,32 @@ finally:
     s.request.urlopen = original_urlopen
 assert fetched.text == "fixture"
 assert captured_request["request"].get_header("User-agent") == s.HTTP_USER_AGENT
-assert "2.2.0" in s.HTTP_USER_AGENT
+expected_release_version = json.loads(pathlib.Path("release/version.json").read_text(encoding="utf-8"))["version"]
+assert expected_release_version in s.HTTP_USER_AGENT
 
 all_args = s.build_parser().parse_args(["export-tle", "--all"])
 incremental_args = s.build_parser().parse_args(["export-tle"])
 explicit_n2yo_args = s.build_parser().parse_args(["export-tle", "--all", "--refresh-launch-dates"])
 gp_args = s.build_parser().parse_args(["export-gp", "--all", "--dry-run"])
 launch_args = s.build_parser().parse_args(["build-launches", "--dry-run"])
+for direct_command in ("export-gp", "export-tle", "refresh-satcat"):
+    direct_args = s.build_parser().parse_args([direct_command, "--allow-large-catalog-shrink"])
+    assert direct_args.allow_large_catalog_shrink is True
+for protected_command in ("maybe-update", "build-launches", "build-decayed-db"):
+    with contextlib.redirect_stderr(io.StringIO()):
+        try:
+            s.build_parser().parse_args([protected_command, "--allow-large-catalog-shrink"])
+        except SystemExit as exc:
+            assert exc.code == 2
+        else:
+            raise AssertionError(f"{protected_command} accepted the direct-only shrink override")
+with contextlib.redirect_stderr(io.StringIO()):
+    try:
+        openbexi_server.parse_args(["--allow-large-catalog-shrink"])
+    except SystemExit as exc:
+        assert exc.code == 2
+    else:
+        raise AssertionError("server accepted the direct-only shrink override")
 assert all_args.refresh_launch_dates is False
 assert incremental_args.refresh_launch_dates is False
 assert explicit_n2yo_args.refresh_launch_dates is True
@@ -277,6 +313,23 @@ assert omm_counts["duplicates"] == 1
 assert omm_counts["quarantined"] == 1
 assert omm_counts["six_digit_ids"] == 2
 assert len(quarantine) == 1 and "REF_FRAME" in quarantine[0]["reason"]
+
+reconcile_existing = [dict(record) for record in omm_records]
+reconcile_existing[1]["satellite_name"] = "STALE NAME"
+reconcile_existing.append({"norad_id": "424242", "satellite_name": "ABSENT SAT"})
+reconciled_records, reconcile_counts, reconcile_quarantine = s.build_satellites_from_omm_responses(
+    [("ACTIVE", omm_response)],
+    satcat_records,
+    existing=reconcile_existing,
+    mode=s.RECONCILIATION_MODE,
+)
+assert [record["norad_id"] for record in reconciled_records] == ["100001", "999999999"]
+assert reconcile_counts["added"] == 0
+assert reconcile_counts["updated"] == 1
+assert reconcile_counts["retained"] == 1
+assert reconcile_counts["pruned"] == 1
+assert reconcile_counts["quarantined"] == 1
+assert len(reconcile_quarantine) == 1
 
 gp_root = root / "gp"
 (gp_root / "json" / "gp").mkdir(parents=True)

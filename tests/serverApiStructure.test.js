@@ -38,6 +38,15 @@ function run() {
   assert(serverPy.includes('--update-data-on-schedule'), 'server.py exposes data update schedule opt-in');
   assert(serverPy.includes('--no-data-update'), 'server.py exposes data update disable flag');
   assert(serverPy.includes('--data-update-interval-hours'), 'server.py exposes data update interval flag');
+  for (const intervalFlag of [
+    '--gp-update-interval-hours',
+    '--tle-update-interval-hours',
+    '--satcat-update-interval-hours',
+    '--reconciliation-interval-hours'
+  ]) {
+    assert(serverPy.includes(intervalFlag), `server.py exposes ${intervalFlag}`);
+    assert(readme.includes(intervalFlag), `README documents ${intervalFlag}`);
+  }
   assert(serverPy.includes('maybe_update_satellite_data'), 'server.py imports the data tool function directly');
   assert(serverPy.includes('"data_revision": _composite_data_revision('), 'server.py exposes a deterministic composite data revision');
   assert(serverPy.includes('"gp_revision": gp_revision'), 'server.py exposes the GP dataset revision');
@@ -69,9 +78,10 @@ function run() {
     ['/api/launches', 'README documents launch events'],
     ['/api/data-update-status', 'README documents data health'],
     ['/api/display-satellite-models', 'README documents the model manifest'],
-    ['Deprecated, reduced-coverage TLE compatibility catalog', 'README labels the TLE API as deprecated'],
+    ['Deprecated numeric/Alpha-5 TLE compatibility subset; not complete six-digit coverage', 'README labels the TLE API as deprecated and reduced coverage'],
     ['tools/satellite_data_tools.py', 'README documents the Python data tool'],
     ['--update-data-on-schedule', 'README documents scheduled update opt-in']
+    ,['npm run serve:update', 'README documents the daily update server command']
   ].forEach(([text, message]) => {
     assert(readme.includes(text), message);
   });

@@ -34,7 +34,7 @@ The production runner does not enumerate every pair as its broad phase. The repo
 ## Durable Execution Semantics
 
 - Catalog revisions are copied into private content-addressed storage and tied to a SHA-256 dataset identity.
-- In Version 2.1, startup and successful scheduled TLE refreshes registered immutable revisions and reconciled observed records as `NEW`, `CHANGED`, or `REAPPEARED` (with stable observations recorded separately). Version 2.2 applies those semantics to preferred GP/OMM snapshots, with TLE retained only as a reduced-coverage fallback. Current scheduled GP metadata is `PARTIAL`; `ABSENT` is generated only from a successful explicit full (`mode=all`) source snapshot.
+- In Version 2.1, startup and successful scheduled TLE refreshes registered immutable revisions and reconciled observed records as `NEW`, `CHANGED`, or `REAPPEARED` (with stable observations recorded separately). Version 2.2 applies those semantics to preferred GP/OMM snapshots, with TLE retained as reduced-coverage fallback. Normal daily GP updates are `PARTIAL`; `ABSENT` is generated only from a registered `COMPLETE` snapshot, including a structurally valid complete active-source reconciliation or an explicit complete export. Failed, quarantined, or unproven conditional results cannot infer absence.
 - Jobs have explicit `QUEUED`, `RUNNING`, `CANCEL_REQUESTED`, `CANCELLED`, `SUCCEEDED`, `FAILED`, and `TIMED_OUT` states.
 - A normalized request plus principal-scoped idempotency key prevents accidental duplicate admission; a key reused for different input is rejected.
 - One local worker claims durable jobs. Attempt number and worker ownership fence every progress update, result import, and completion so a stale worker cannot complete a later attempt.
@@ -66,7 +66,7 @@ Unscreened intervals, propagation failures, detected and persisted candidate cou
 
 - TLE/OMM SGP4 states are catalog-screening inputs, not precision ephemerides or orbit-determination products.
 - Element age, maneuvers, drag, model mismatch, propagation horizon, source omissions, and shared catalog errors can dominate geometric miss-distance accuracy.
-- The legacy bundled TLE feed cannot represent newly assigned six-digit catalog identifiers. A successful bundled-catalog run is not current official full-catalog coverage.
+- The legacy bundled TLE feed can encode only a limited Alpha-5 subset of six-digit identifiers. A successful bundled-catalog run is not current official full-catalog coverage.
 - The bundled TLE snapshot does not reliably classify every payload, rocket body, debris object, or lifecycle state; the server preserves unknown classification instead of guessing.
 - No position covariance, cross-correlation model, hard-body radius, encounter-plane probability, or independently reviewed risk policy is available.
 - Tabulated ephemeris interpolation is bounded and linear in position/velocity between explicit samples. Extrapolation, ambiguous metadata, frame conversion, and time-scale conversion are rejected.
