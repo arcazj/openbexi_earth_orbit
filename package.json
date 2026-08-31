@@ -33,7 +33,7 @@
   },
   "dependencies": {
     "satellite.js": "6.0.2",
-    "three": "0.184.0"
+    "three": "0.185.1"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.12.1",
