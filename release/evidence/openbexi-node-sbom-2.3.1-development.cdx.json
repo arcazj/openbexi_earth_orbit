@@ -1,0 +1,140 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.5.schema.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:b2251605-42a7-4de3-b90f-38bef01027b7",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-08-30T20:36:44.531Z",
+    "lifecycles": [
+      {
+        "phase": "build"
+      }
+    ],
+    "tools": [
+      {
+        "vendor": "npm",
+        "name": "cli",
+        "version": "11.6.2"
+      }
+    ],
+    "component": {
+      "bom-ref": "openbexi_orbit@2.3.1",
+      "type": "library",
+      "name": "openbexi_earth_orbit",
+      "version": "2.3.1",
+      "scope": "required",
+      "purl": "pkg:npm/openbexi_orbit@2.3.1",
+      "properties": [
+        {
+          "name": "cdx:npm:package:private",
+          "value": "true"
+        }
+      ],
+      "externalReferences": []
+    }
+  },
+  "components": [
+    {
+      "bom-ref": "satellite.js@6.0.2",
+      "type": "library",
+      "name": "satellite.js",
+      "version": "6.0.2",
+      "scope": "required",
+      "author": "Shashwat Kandadai <shashwatak@gmail.com> (https://github.com/shashwatak)",
+      "description": "SGP4/SDP4 calculation library",
+      "purl": "pkg:npm/satellite.js@6.0.2",
+      "properties": [],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/satellite.js/-/satellite.js-6.0.2.tgz"
+        },
+        {
+          "type": "vcs",
+          "url": "git://github.com/shashwatak/satellite-js"
+        },
+        {
+          "type": "website",
+          "url": "https://github.com/shashwatak/satellite-js"
+        },
+        {
+          "type": "issue-tracker",
+          "url": "https://github.com/shashwatak/satellite-js/issues"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "5d62b1b6a545e71889d7101e898793fe8492cecba4a022d6be4ea73bf585cb8ba7d0cde0e1d8c053d4c0b4e0aa24bb585bdbf1c7da643c9d4bf484ce73ad3b18"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "bom-ref": "three@0.184.0",
+      "type": "library",
+      "name": "three",
+      "version": "0.184.0",
+      "scope": "required",
+      "author": "mrdoob",
+      "description": "JavaScript 3D library",
+      "purl": "pkg:npm/three@0.184.0",
+      "properties": [],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/three/-/three-0.184.0.tgz"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/mrdoob/three.js"
+        },
+        {
+          "type": "website",
+          "url": "https://threejs.org/"
+        },
+        {
+          "type": "issue-tracker",
+          "url": "https://github.com/mrdoob/three.js/issues"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "c2d4d18c6f76a4ce5e520fcab949c7b2a48094f336f7a6eb4ce70b80c46a11eca561387f09db6f294bc2cb20904f316e4ad89e5b1bd96fc9954ccbdd3f2529c6"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "openbexi_orbit@2.3.1",
+      "dependsOn": [
+        "satellite.js@6.0.2",
+        "three@0.184.0"
+      ]
+    },
+    {
+      "ref": "satellite.js@6.0.2",
+      "dependsOn": []
+    },
+    {
+      "ref": "three@0.184.0",
+      "dependsOn": []
+    }
+  ]
+}

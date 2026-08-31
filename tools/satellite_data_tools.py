@@ -40,6 +40,7 @@ UPDATE_LOCK_STALE_HOURS = 6.0
 RECONCILIATION_SHRINK_GUARD_MIN_EXISTING_RECORDS = 1_000
 RECONCILIATION_SHRINK_GUARD_MIN_RETAINED_FRACTION = 0.75
 BACKUP_RETENTION_PER_ARTIFACT = 7
+METADATA_ERROR_MAX_LENGTH = 2000
 
 
 def _release_version() -> str:
@@ -60,6 +61,9 @@ TLE_META_RELATIVE_PATH = Path("json") / "tle" / "TLE.meta.json"
 LAUNCH_DATES_RELATIVE_PATH = Path("json") / "tle" / "satellite_launch_dates.json"
 GP_RELATIVE_PATH = Path("json") / "gp" / "GP.json"
 GP_META_RELATIVE_PATH = Path("json") / "gp" / "GP.meta.json"
+TRACKED_DIRECTORY_RELATIVE_PATH = Path("json") / "tracked"
+TRACKED_MANIFEST_RELATIVE_PATH = TRACKED_DIRECTORY_RELATIVE_PATH / "TRACKED.manifest.json"
+TRACKED_META_RELATIVE_PATH = TRACKED_DIRECTORY_RELATIVE_PATH / "TRACKED.meta.json"
 LAUNCHES_RELATIVE_PATH = Path("json") / "launches" / "launches.json"
 LAUNCHES_META_RELATIVE_PATH = Path("json") / "launches" / "launches.meta.json"
 SATCAT_RELATIVE_PATH = Path("json") / "satcat.csv"
@@ -127,10 +131,32 @@ LEGACY_TLE_SOURCE_URLS = [
 
 INCREMENTAL_TLE_GROUPS = ("active",)
 
-# The active GP group is a complete current propagatable catalog. Fetching it
-# once avoids the extensive overlap and duplicate traffic of the legacy TLE
-# group list while supporting numeric catalog identifiers through nine digits.
-GP_SOURCE_GROUPS = ("active",)
+GP_EVENT_DEBRIS_GROUPS = (
+    "fengyun-1c-debris",
+    "iridium-33-debris",
+    "cosmos-2251-debris",
+)
+GP_SOURCE_GROUPS = ("active", *GP_EVENT_DEBRIS_GROUPS)
+GP_SOURCE_SCOPE_DESCRIPTION = (
+    "Configured current GP scope: active plus the Fengyun-1C, Iridium 33, and "
+    "Cosmos 2251 event-debris collections. These named collections are not an "
+    "all-debris feed, and lack of a GP join is not a provider-wide no-elements claim."
+)
+
+TRACKED_OBJECT_TYPES = (
+    "PAYLOAD",
+    "DEBRIS",
+    "ROCKET_BODY",
+    "MISSION_RELATED",
+    "UNKNOWN",
+)
+TRACKED_CHUNK_FILES = {
+    "PAYLOAD": "payload",
+    "DEBRIS": "debris",
+    "ROCKET_BODY": "rocket-body",
+    "MISSION_RELATED": "mission-related",
+    "UNKNOWN": "unknown",
+}
 
 PLACEHOLDER_COMPANY_TAGS = {
     "",
@@ -216,6 +242,11 @@ def isoformat_utc(value: dt.datetime | None = None) -> str:
     if value.tzinfo is None:
         value = value.replace(tzinfo=dt.timezone.utc)
     return value.astimezone(dt.timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _bounded_metadata_error(value: object) -> str:
+    normalized = re.sub(r"[\x00-\x1f\x7f]+", " ", str(value or "")).strip()
+    return normalized[:METADATA_ERROR_MAX_LENGTH]
 
 
 def parse_iso_datetime(value: object) -> dt.datetime | None:
@@ -370,6 +401,35 @@ def _restore_text_snapshot(
         current_text = path.read_text(encoding="utf-8") if path.exists() else None
         if current_text != original_text:
             atomic_write_text(path, original_text, backup=False)
+    elif path.exists():
+        path.unlink()
+
+
+def _restore_bytes_snapshot(
+    path: Path,
+    original_bytes: bytes | None,
+    *,
+    originally_existed: bool,
+    dry_run: bool,
+) -> None:
+    if dry_run:
+        return
+    if originally_existed:
+        if original_bytes is None:
+            raise SatelliteDataError(f"Missing byte rollback snapshot for {path}.")
+        current_bytes = path.read_bytes() if path.exists() else None
+        if current_bytes == original_bytes:
+            return
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, temp_name = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=str(path.parent))
+        temp_path = Path(temp_name)
+        try:
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(original_bytes)
+            os.replace(temp_path, path)
+        finally:
+            with contextlib.suppress(FileNotFoundError):
+                temp_path.unlink()
     elif path.exists():
         path.unlink()
 
@@ -698,6 +758,29 @@ def normalize_norad_id(value: object) -> str:
     return normalized
 
 
+def normalize_catalog_id(value: object) -> str:
+    """Normalize numeric or Alpha-5 catalog identity to an untruncated string."""
+
+    text = str(value or "").strip().upper()
+    if re.fullmatch(r"[A-HJ-NP-Z]\d{4}", text):
+        return decode_tle_catalog_id(text)
+    return normalize_norad_id(value)
+
+
+def alpha5_catalog_id(value: object) -> str | None:
+    """Return the reversible Alpha-5 form when the numeric ID requires it."""
+
+    norad_id = normalize_catalog_id(value)
+    numeric = int(norad_id)
+    if numeric < 100_000 or numeric > 339_999:
+        return None
+    prefix_value, suffix = divmod(numeric, 10_000)
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ"
+    if not 10 <= prefix_value < 10 + len(alphabet):
+        return None
+    return f"{alphabet[prefix_value - 10]}{suffix:04d}"
+
+
 def normalize_omm_epoch(value: object) -> str:
     text = str(value or "").strip()
     if not text or "T" not in text.upper():
@@ -835,6 +918,8 @@ def normalize_object_type(value: object) -> str:
         return "ROCKET_BODY"
     if normalized in {"DEB", "DEBRIS", "FRAGMENT", "FRAGMENTATION_DEBRIS"}:
         return "DEBRIS"
+    if normalized in {"M/R", "MR", "MISSION RELATED", "MISSION_RELATED"}:
+        return "MISSION_RELATED"
     return "UNKNOWN"
 
 
@@ -2015,6 +2100,52 @@ def gp_source_urls_for_mode(mode: str) -> list[str]:
     return [make_celestrak_group_url(group, output_format="json") for group in GP_SOURCE_GROUPS]
 
 
+def gp_source_scope_metadata(*, verified: bool) -> dict[str, object]:
+    return {
+        "source_groups": list(GP_SOURCE_GROUPS),
+        "source_scope_verified": verified,
+        "source_scope": {
+            "kind": "configured-current-gp-collections",
+            "active_group": "active",
+            "event_debris_groups": list(GP_EVENT_DEBRIS_GROUPS),
+            "all_debris": False,
+        },
+        "provider_completeness_claim": False,
+    }
+
+
+def gp_catalog_source_groups(meta: dict[str, object]) -> list[str]:
+    explicit = meta.get("catalog_source_groups")
+    if isinstance(explicit, list) and all(isinstance(item, str) and item for item in explicit):
+        return list(dict.fromkeys(item.lower() for item in explicit))
+    if meta.get("source_scope_verified") is True and meta.get("source_groups") == list(GP_SOURCE_GROUPS):
+        return list(GP_SOURCE_GROUPS)
+    if "source_scope_verified" not in meta:
+        legacy = meta.get("source_groups")
+        if isinstance(legacy, list) and all(isinstance(item, str) and item for item in legacy):
+            return list(dict.fromkeys(item.lower() for item in legacy))
+    urls = meta.get("urls")
+    if isinstance(urls, dict):
+        groups = [
+            extract_group_from_url(url).lower()
+            for url, item in urls.items()
+            if isinstance(url, str)
+            and isinstance(item, dict)
+            and item.get("status") in {200, 304}
+        ]
+        if groups:
+            return list(dict.fromkeys(groups))
+    return []
+
+
+def gp_source_scope_is_current(meta: dict[str, object]) -> bool:
+    return (
+        meta.get("source_groups") == list(GP_SOURCE_GROUPS)
+        and meta.get("source_scope_verified") is True
+        and gp_catalog_source_groups(meta) == list(GP_SOURCE_GROUPS)
+    )
+
+
 def fetch_omm_sources(
     urls: Iterable[str],
     *,
@@ -2202,8 +2333,14 @@ def _update_gp_failure_metadata(
     errors: list[str],
     now: dt.datetime,
     dry_run: bool,
+    invalidate_reconciliation_snapshot: bool = False,
 ) -> None:
+    prior_scope_verified = gp_source_scope_is_current(meta)
+    represented_groups = gp_catalog_source_groups(meta)
     failed_meta = dict(meta)
+    if not prior_scope_verified or invalidate_reconciliation_snapshot:
+        failed_meta.pop("last_reconciled_at", None)
+        failed_meta.pop("last_reconciled_catalog_revision", None)
     failed_meta.update(
         {
             "schema_version": "2.2.0",
@@ -2215,6 +2352,9 @@ def _update_gp_failure_metadata(
             "last_error": "; ".join(errors)[:2000],
             "last_status": "failed",
             "source_status": "DEGRADED",
+            "source_urls": gp_source_urls_for_mode(mode),
+            "catalog_source_groups": represented_groups,
+            **gp_source_scope_metadata(verified=prior_scope_verified),
         }
     )
     atomic_write_json(meta_path, failed_meta, dry_run=dry_run, backup=False, indent=2)
@@ -2256,7 +2396,7 @@ def export_gp_data(
     meta = load_json(meta_path, {})
     if not isinstance(meta, dict):
         meta = {}
-    last_known_good_meta = dict(meta)
+    provider_meta_at_start = dict(meta)
     last_known_good_text = (
         gp_path.read_text(encoding="utf-8")
         if mode in {"all", RECONCILIATION_MODE} and gp_path.exists()
@@ -2264,6 +2404,28 @@ def export_gp_data(
     )
     existing_payload = load_json(gp_path, [])
     existing = existing_payload if isinstance(existing_payload, list) else []
+    existing_revision_at_start = catalog_revision_for_payload(existing)
+    metadata_revision_matches_at_start = (
+        meta.get("catalog_revision") == existing_revision_at_start
+        and meta.get("dataset_hash") == existing_revision_at_start
+    )
+    source_scope_current_at_start = (
+        gp_source_scope_is_current(meta)
+        and metadata_revision_matches_at_start
+    )
+    if not metadata_revision_matches_at_start:
+        meta = dict(meta)
+        meta.update(
+            {
+                "catalog_revision": existing_revision_at_start,
+                "dataset_hash": existing_revision_at_start,
+                "catalog_source_groups": [],
+                **gp_source_scope_metadata(verified=False),
+            }
+        )
+        meta.pop("last_reconciled_at", None)
+        meta.pop("last_reconciled_catalog_revision", None)
+    last_known_good_meta = dict(meta)
 
     company_tags, tag_enrichment = load_gp_company_tag_enrichment(root_path)
     satcat_records = load_satcat_records(root_path)
@@ -2275,6 +2437,17 @@ def export_gp_data(
     locally_enriched, satcat_enriched = enrich_gp_from_satcat(locally_enriched, satcat_records)
     local_enrichment_counts["satcat_enriched"] = satcat_enriched
     local_enrichment_changed = locally_enriched != existing
+    locally_enriched_revision = catalog_revision_for_payload(locally_enriched)
+    if (
+        not source_scope_current_at_start
+        and local_enrichment_changed
+        and gp_source_scope_is_current(provider_meta_at_start)
+        and provider_meta_at_start.get("catalog_revision") == locally_enriched_revision
+        and provider_meta_at_start.get("dataset_hash") == locally_enriched_revision
+    ):
+        source_scope_current_at_start = True
+        meta = dict(provider_meta_at_start)
+        last_known_good_meta = dict(meta)
     desired_tag_enrichment = {
         **tag_enrichment,
         "matched_records": local_enrichment_counts["tag_source_matches"],
@@ -2295,8 +2468,13 @@ def export_gp_data(
                 "dataset_hash": catalog_revision_for_payload(existing),
                 "counts": local_counts,
                 "tag_enrichment": desired_tag_enrichment,
+                "catalog_source_groups": gp_catalog_source_groups(meta),
+                **gp_source_scope_metadata(verified=source_scope_current_at_start),
             }
         )
+        if not source_scope_current_at_start:
+            local_meta.pop("last_reconciled_at", None)
+            local_meta.pop("last_reconciled_catalog_revision", None)
         if local_enrichment_changed:
             local_meta["last_local_enrichment_at"] = isoformat_utc(now)
         else:
@@ -2304,7 +2482,7 @@ def export_gp_data(
         atomic_write_json(meta_path, local_meta, dry_run=dry_run, backup=False, indent=2)
         meta = local_meta
 
-    if mode != "all" and not force:
+    if mode != "all" and not force and source_scope_current_at_start:
         latest = latest_success_time(meta, gp_path)
         if is_recent_enough(latest, celestrak_min_refresh_hours, now=now):
             return UpdateResult(
@@ -2322,9 +2500,13 @@ def export_gp_data(
 
     source_urls = gp_source_urls_for_mode(mode)
     current_revision = catalog_revision_for_payload(existing)
-    complete_snapshot_current = reconciliation_snapshot_is_current(meta, current_revision)
+    complete_replacement = mode in {"all", RECONCILIATION_MODE}
+    complete_snapshot_current = (
+        gp_source_scope_is_current(meta)
+        and reconciliation_snapshot_is_current(meta, current_revision)
+    )
     request_meta = meta
-    if mode == RECONCILIATION_MODE and not complete_snapshot_current:
+    if not source_scope_current_at_start or (complete_replacement and not complete_snapshot_current):
         request_meta = {key: value for key, value in meta.items() if key != "urls"}
     responses, not_modified, errors = fetch_omm_sources(source_urls, fetcher=fetcher, meta=request_meta)
     if errors or (not responses and not not_modified):
@@ -2342,9 +2524,62 @@ def export_gp_data(
             paths={"gp": str(gp_path), "metadata": str(meta_path)},
         )
 
+    if not source_scope_current_at_start and not_modified:
+        scope_error = (
+            "Cannot establish the configured GP source scope from 304 responses; "
+            "a full response from every configured source is required."
+        )
+        _update_gp_failure_metadata(
+            meta_path,
+            meta,
+            mode=mode,
+            errors=[scope_error],
+            now=now,
+            dry_run=dry_run,
+        )
+        return UpdateResult(
+            changed=local_enrichment_changed and not dry_run,
+            skipped=True,
+            mode=mode,
+            message="GP/OMM source-scope verification failed; preserved existing data.",
+            counts={"existing": len(existing), "total": len(existing), **local_enrichment_counts},
+            errors=[scope_error],
+            paths={"gp": str(gp_path), "metadata": str(meta_path)},
+        )
+
+    if complete_replacement and responses and not_modified:
+        mixed_response_error = (
+            "Complete GP/OMM replacement received mixed full and 304 source responses; "
+            "unchanged groups cannot be reconstructed from an empty replacement base."
+        )
+        _update_gp_failure_metadata(
+            meta_path,
+            meta,
+            mode=mode,
+            errors=[mixed_response_error],
+            now=now,
+            dry_run=dry_run,
+            invalidate_reconciliation_snapshot=True,
+        )
+        return UpdateResult(
+            changed=local_enrichment_changed and not dry_run,
+            skipped=True,
+            mode=mode,
+            message="GP/OMM replacement requires a coherent complete response set; preserved existing data.",
+            counts={"existing": len(existing), "total": len(existing), **local_enrichment_counts},
+            errors=[mixed_response_error],
+            paths={"gp": str(gp_path), "metadata": str(meta_path)},
+        )
+
     if not_modified and not responses:
-        if mode == RECONCILIATION_MODE and not complete_snapshot_current:
-            reconciliation_error = "Cannot reconcile GP/OMM data from 304 without a prior complete active snapshot."
+        if (
+            not source_scope_current_at_start
+            or (complete_replacement and not complete_snapshot_current)
+        ):
+            reconciliation_error = (
+                "Cannot accept GP/OMM 304 responses without a prior eligible snapshot "
+                "for the configured source groups."
+            )
             _update_gp_failure_metadata(
                 meta_path,
                 meta,
@@ -2357,7 +2592,7 @@ def export_gp_data(
                 changed=local_enrichment_changed and not dry_run,
                 skipped=True,
                 mode=mode,
-                message="GP/OMM reconciliation requires a complete active response; preserved existing data.",
+                message="GP/OMM update requires prior configured-source coverage for 304 responses; preserved existing data.",
                 counts={"existing": len(existing), "total": len(existing), **local_enrichment_counts},
                 errors=[reconciliation_error],
                 paths={"gp": str(gp_path), "metadata": str(meta_path)},
@@ -2373,7 +2608,10 @@ def export_gp_data(
                 "last_success_at": isoformat_utc(now),
                 "revalidated_at": isoformat_utc(now),
                 "last_status": "not-modified",
+                "source_urls": source_urls,
+                "catalog_source_groups": list(GP_SOURCE_GROUPS),
                 "urls": _gp_url_metadata(meta, not_modified, now),
+                **gp_source_scope_metadata(verified=True),
             }
         )
         if mode == RECONCILIATION_MODE:
@@ -2426,19 +2664,24 @@ def export_gp_data(
             paths={"gp": str(gp_path), "metadata": str(meta_path)},
         )
 
-    if mode == RECONCILIATION_MODE and (
-        len(responses) != len(source_urls)
-        or counts["fetched"] == 0
-        or counts["omm"] == 0
-        or bool(quarantine)
+    if (
+        complete_replacement
+        and (
+            len(responses) != len(source_urls)
+            or counts["fetched"] == 0
+            or counts["omm"] == 0
+        )
+    ) or (
+        bool(quarantine)
+        and (mode == RECONCILIATION_MODE or not source_scope_current_at_start)
     ):
-        error = "Complete active GP/OMM reconciliation response failed structural validation."
+        error = "Complete configured-scope GP/OMM response failed structural validation."
         _update_gp_failure_metadata(meta_path, meta, mode=mode, errors=[error], now=now, dry_run=dry_run)
         return UpdateResult(
             changed=local_enrichment_changed and not dry_run,
             skipped=True,
             mode=mode,
-            message="GP/OMM reconciliation response was incomplete; preserved existing data.",
+            message="GP/OMM complete response was incomplete; preserved existing data.",
             counts=counts,
             errors=[error],
             paths={"gp": str(gp_path), "metadata": str(meta_path)},
@@ -2490,7 +2733,7 @@ def export_gp_data(
         (_valid_launch_date(item.get("launch_date")) for item in satellites if _valid_launch_date(item.get("launch_date"))),
         default=None,
     )
-    partial = mode not in {"all", RECONCILIATION_MODE} or bool(quarantine)
+    partial = not complete_replacement or bool(quarantine)
     catalog_revision = catalog_revision_for_payload(satellites)
     success_meta = {
         "schema_version": "2.2.0",
@@ -2508,6 +2751,8 @@ def export_gp_data(
         "partial_update": partial,
         "mode": mode,
         "source_urls": source_urls,
+        "catalog_source_groups": list(GP_SOURCE_GROUPS),
+        **gp_source_scope_metadata(verified=True),
         "celestrak_min_refresh_hours": celestrak_min_refresh_hours,
         "catalog_revision": catalog_revision,
         "dataset_hash": catalog_revision,
@@ -2524,12 +2769,16 @@ def export_gp_data(
         },
         "quarantine": quarantine[:100],
         "quarantine_truncated": max(0, len(quarantine) - 100),
-        "urls": _gp_url_metadata(meta, [response for _company, response in responses], now),
+        "urls": _gp_url_metadata(
+            meta,
+            [response for _company, response in responses] + not_modified,
+            now,
+        ),
     }
     if mode == RECONCILIATION_MODE:
         success_meta["last_reconciled_at"] = isoformat_utc(now)
         success_meta["last_reconciled_catalog_revision"] = catalog_revision
-    elif meta.get("last_reconciled_at"):
+    elif gp_source_scope_is_current(meta) and meta.get("last_reconciled_at"):
         success_meta["last_reconciled_at"] = meta["last_reconciled_at"]
         if meta.get("last_reconciled_catalog_revision"):
             success_meta["last_reconciled_catalog_revision"] = meta["last_reconciled_catalog_revision"]
@@ -2996,6 +3245,1130 @@ def refresh_satcat_csv(
     )
 
 
+def _optional_finite_number(
+    value: object,
+    *,
+    minimum: float | None = None,
+) -> float | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        number = float(text)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(number) or (minimum is not None and number < minimum):
+        return None
+    return number
+
+
+def _tracked_satcat_rows(
+    text: str,
+) -> tuple[dict[str, dict[str, str]], dict[str, int], list[dict[str, object]]]:
+    reader = csv.DictReader(io.StringIO(text))
+    required = {"OBJECT_NAME", "NORAD_CAT_ID", "OBJECT_TYPE", "DECAY_DATE"}
+    if not reader.fieldnames or not required.issubset(set(reader.fieldnames)):
+        missing = sorted(required - set(reader.fieldnames or []))
+        raise SatelliteDataError(
+            "SATCAT tracked-object input is missing required columns: " + ", ".join(missing)
+        )
+
+    records: dict[str, dict[str, str]] = {}
+    quarantine: list[dict[str, object]] = []
+    received = 0
+    duplicates = 0
+    rejected = 0
+    for row_number, row in enumerate(reader, start=2):
+        if not any(str(value or "").strip() for value in row.values()):
+            continue
+        received += 1
+        raw_id = row.get("NORAD_CAT_ID")
+        try:
+            norad_id = normalize_catalog_id(raw_id)
+        except SatelliteDataError as exc:
+            rejected += 1
+            quarantine.append(
+                {
+                    "source": "CELESTRAK_SATCAT",
+                    "row": row_number,
+                    "provider_catalog_id": str(raw_id or "").strip() or None,
+                    "reason": str(exc),
+                }
+            )
+            continue
+        if norad_id in records:
+            duplicates += 1
+            quarantine.append(
+                {
+                    "source": "CELESTRAK_SATCAT",
+                    "row": row_number,
+                    "provider_catalog_id": str(raw_id or "").strip() or None,
+                    "reason": "Duplicate catalog identity; deterministic last-row-wins policy applied.",
+                    "disposition": "DEDUPLICATED",
+                }
+            )
+        normalized = {key: str(value or "").strip() for key, value in row.items() if key}
+        normalized["NORAD_CAT_ID"] = norad_id
+        normalized["PROVIDER_NORAD_CAT_ID"] = str(raw_id or "").strip()
+        records[norad_id] = normalized
+    return records, {
+        "received": received,
+        "accepted": len(records),
+        "quarantined": rejected,
+        "duplicates": duplicates,
+        "issues": len(quarantine),
+    }, quarantine
+
+
+def _valid_gp_records_for_tracked_catalog(
+    payload: object,
+) -> tuple[dict[str, dict[str, object]], list[dict[str, object]]]:
+    records = payload if isinstance(payload, list) else []
+    valid: dict[str, dict[str, object]] = {}
+    quarantine: list[dict[str, object]] = []
+    for index, item in enumerate(records):
+        raw_id = item.get("norad_id") if isinstance(item, dict) else None
+        try:
+            if not isinstance(item, dict):
+                raise SatelliteDataError("GP catalog row must be an object.")
+            element_set = item.get("element_set")
+            if not isinstance(element_set, dict) or not isinstance(element_set.get("omm"), dict):
+                raise SatelliteDataError("GP catalog row has no OMM element set.")
+            omm = canonicalize_omm_record(element_set["omm"])
+            norad_id = normalize_catalog_id(item.get("norad_id") or omm.get("NORAD_CAT_ID"))
+            if norad_id != str(omm["NORAD_CAT_ID"]):
+                raise SatelliteDataError("GP record and OMM NORAD identifiers do not match.")
+            metrics = extract_orbit_metrics_from_omm(omm)
+            candidate = {
+                "norad_id": norad_id,
+                "name": str(item.get("satellite_name") or item.get("name") or omm["OBJECT_NAME"]).strip(),
+                "international_designator": str(
+                    item.get("international_designator") or omm.get("OBJECT_ID") or ""
+                ).strip() or None,
+                "company": str(item.get("company") or "CELESTRAK").strip(),
+                "object_type": normalize_object_type(item.get("object_type") or omm.get("OBJECT_TYPE")),
+                "orbit_class": determine_orbit(metrics),
+                "element_set": {
+                    "format": "OMM",
+                    "source": str(element_set.get("source") or "CELESTRAK"),
+                    "epoch": omm["EPOCH"],
+                    "time_scale": "UTC",
+                    "native_frame": "TEME",
+                    "propagation_theory": "SGP4",
+                    "line1": None,
+                    "line2": None,
+                    "omm": omm,
+                },
+                **metrics,
+            }
+        except Exception as exc:
+            quarantine.append(
+                {
+                    "source": "GP_OMM",
+                    "record_index": index,
+                    "provider_catalog_id": None if raw_id is None else str(raw_id),
+                    "reason": str(exc),
+                }
+            )
+            continue
+        previous = valid.get(norad_id)
+        if previous is None or should_replace_omm(previous, candidate):
+            valid[norad_id] = candidate
+    return valid, quarantine
+
+
+def _satcat_orbit_summary(row: dict[str, str]) -> tuple[dict[str, float | None], str]:
+    period_min = _optional_finite_number(row.get("PERIOD"), minimum=0.000001)
+    perigee_km = _optional_finite_number(row.get("PERIGEE"))
+    apogee_km = _optional_finite_number(row.get("APOGEE"))
+    inclination_deg = _optional_finite_number(row.get("INCLINATION"))
+    summary: dict[str, float | None] = {
+        "period_min": period_min,
+        "inclination_deg": inclination_deg,
+        "perigee_km": perigee_km,
+        "apogee_km": apogee_km,
+    }
+    metrics: dict[str, object] = {}
+    if period_min is not None:
+        metrics["period_min"] = period_min
+        metrics["mean_motion_rev_per_day"] = MINUTES_PER_DAY / period_min
+    if inclination_deg is not None:
+        metrics["inclination_deg"] = inclination_deg
+    if perigee_km is not None:
+        metrics["perigee_km"] = perigee_km
+    if apogee_km is not None:
+        metrics["apogee_km"] = apogee_km
+    if perigee_km is not None and apogee_km is not None:
+        metrics["estimated_altitude_km"] = (perigee_km + apogee_km) / 2.0
+    orbit_class = determine_orbit(metrics)
+    return summary, "UNKNOWN" if orbit_class == "no data" else orbit_class
+
+
+def _tracked_record(
+    norad_id: str,
+    row: dict[str, str] | None,
+    gp: dict[str, object] | None,
+) -> dict[str, object]:
+    row = row or {}
+    satcat_summary, satcat_orbit_class = _satcat_orbit_summary(row)
+    decay_date = _valid_launch_date(row.get("DECAY_DATE")) or None
+    has_current_elements = gp is not None and decay_date is None
+    rcs_text = str(row.get("RCS") or "").strip()
+    rcs_m2 = _optional_finite_number(rcs_text, minimum=0.0)
+    rcs_status = "PUBLISHED" if rcs_m2 is not None else "MISSING" if not rcs_text else "INVALID"
+    object_type = normalize_object_type(row.get("OBJECT_TYPE") or (gp or {}).get("object_type"))
+    if object_type not in TRACKED_OBJECT_TYPES:
+        object_type = "UNKNOWN"
+    name = str(
+        row.get("OBJECT_NAME")
+        or (gp or {}).get("name")
+        or f"NORAD {norad_id}"
+    ).strip()
+    orbit_class = str((gp or {}).get("orbit_class") or satcat_orbit_class).upper()
+    if orbit_class not in {"LEO", "MEO", "GEO", "HEO", "OTHER", "DECAYING"}:
+        orbit_class = "UNKNOWN"
+    operational_status = satcat_lifecycle_status(row) if row else "UNKNOWN"
+    lifecycle_status = (
+        "DECAYED"
+        if decay_date
+        else operational_status
+        if operational_status in {"ACTIVE", "INACTIVE"}
+        else "UNKNOWN"
+    )
+    if lifecycle_status == "UNKNOWN" and gp is not None:
+        lifecycle_status = "ACTIVE"
+    record: dict[str, object] = {
+        "object_id": f"obx:norad:{norad_id}",
+        "norad_id": norad_id,
+        "provider_catalog_id": str(row.get("PROVIDER_NORAD_CAT_ID") or norad_id),
+        "alpha5_id": alpha5_catalog_id(norad_id),
+        "name": name,
+        "satellite_name": name,
+        "international_designator": str(
+            row.get("OBJECT_ID") or (gp or {}).get("international_designator") or ""
+        ).strip() or None,
+        "object_type": object_type,
+        "orbit_class": orbit_class,
+        "type": orbit_class,
+        "lifecycle_status": lifecycle_status,
+        "operational_status": operational_status,
+        "catalog_membership_status": "PRESENT",
+        "launch_date": _valid_launch_date(row.get("LAUNCH_DATE")) or None,
+        "launch_site": str(row.get("LAUNCH_SITE") or "").strip() or None,
+        "decay_date": decay_date,
+        "owner": str(row.get("OWNER") or "").strip() or None,
+        "owner_code": str(row.get("OWNER") or "").strip() or None,
+        "company": str((gp or {}).get("company") or "").strip() or None,
+        "ops_status_code": str(row.get("OPS_STATUS_CODE") or "").strip() or None,
+        "data_status_code": str(row.get("DATA_STATUS_CODE") or "").strip() or None,
+        "orbit_center": str(row.get("ORBIT_CENTER") or "").strip() or None,
+        "orbit_type": str(row.get("ORBIT_TYPE") or "").strip() or None,
+        "rcs_m2": rcs_m2,
+        "rcs_status": rcs_status,
+        "rcs_size": None,
+        "physical_size_estimate": None,
+        "satcat_orbit_summary": satcat_summary,
+        "orbit_class_source": "GP_OMM" if gp else "SATCAT_SUMMARY" if satcat_orbit_class != "UNKNOWN" else "UNKNOWN",
+        "has_current_elements": has_current_elements,
+        "orbit_available": has_current_elements,
+        "metadata_only": not has_current_elements,
+        "propagation_status": "CURRENT_ELEMENTS" if has_current_elements else "NO_CURRENT_ELEMENTS",
+        "element_availability_status": "CURRENT_ELEMENTS" if has_current_elements else "NO_CURRENT_ELEMENTS",
+        "unavailable_reason": (
+            None
+            if has_current_elements
+            else "DECAYED"
+            if decay_date
+            else "NOT_AVAILABLE_IN_CONFIGURED_GP_SNAPSHOT"
+        ),
+        "source": "CELESTRAK_SATCAT" if row else "CELESTRAK_GP_OMM",
+    }
+    if gp is not None and has_current_elements:
+        record["element_reference"] = {
+            "catalog": GP_RELATIVE_PATH.as_posix(),
+            "norad_id": norad_id,
+            "format": "OMM",
+        }
+    return record
+
+
+def _load_tracked_records(root: Path) -> dict[str, dict[str, object]]:
+    records: dict[str, dict[str, object]] = {}
+    manifest = load_json(repo_path(root, TRACKED_MANIFEST_RELATIVE_PATH), {})
+    if not isinstance(manifest, dict):
+        return records
+    for path in _tracked_manifest_chunk_paths(root, manifest):
+        try:
+            payload = load_json(path, {})
+        except SatelliteDataError:
+            continue
+        chunk_records = payload.get("records", []) if isinstance(payload, dict) else payload
+        if not isinstance(chunk_records, list):
+            continue
+        for item in chunk_records:
+            if not isinstance(item, dict):
+                continue
+            try:
+                norad_id = normalize_catalog_id(item.get("norad_id"))
+            except SatelliteDataError:
+                continue
+            record = dict(item)
+            record["norad_id"] = norad_id
+            records[norad_id] = record
+    return records
+
+
+def _tracked_manifest_chunk_paths(root: Path, manifest: dict[str, object]) -> list[Path]:
+    tracked_root = repo_path(root, TRACKED_DIRECTORY_RELATIVE_PATH).resolve()
+    descriptors: list[object] = []
+    for name in ("chunks", "history_chunks"):
+        value = manifest.get(name)
+        if isinstance(value, list):
+            descriptors.extend(value)
+    quarantine = manifest.get("quarantine")
+    if isinstance(quarantine, dict):
+        descriptors.append(quarantine)
+
+    paths: list[Path] = []
+    for descriptor in descriptors:
+        raw_path = descriptor.get("path") if isinstance(descriptor, dict) else None
+        if not isinstance(raw_path, str) or not raw_path.strip():
+            continue
+        candidate = (root / Path(raw_path)).resolve()
+        if (
+            candidate.suffix.lower() != ".json"
+            or candidate == tracked_root
+            or tracked_root not in candidate.parents
+        ):
+            continue
+        paths.append(candidate)
+    return paths
+
+
+def _tracked_manifest_is_complete(root: Path, manifest_path: Path) -> bool:
+    manifest = load_json(manifest_path, {})
+    if not isinstance(manifest, dict):
+        return False
+    descriptors: list[dict[str, object]] = []
+    for name in ("chunks", "history_chunks"):
+        value = manifest.get(name)
+        if isinstance(value, list):
+            descriptors.extend(item for item in value if isinstance(item, dict))
+    if isinstance(manifest.get("quarantine"), dict):
+        descriptors.append(manifest["quarantine"])
+    paths = _tracked_manifest_chunk_paths(root, manifest)
+    if len(paths) != len(descriptors):
+        return False
+    for descriptor, path in zip(descriptors, paths):
+        try:
+            body = path.read_bytes()
+            digest = "sha256:" + hashlib.sha256(body).hexdigest()
+            if digest != descriptor.get("sha256") or len(body) != descriptor.get("bytes"):
+                return False
+            payload = json.loads(body)
+            records = payload.get("records") if isinstance(payload, dict) else None
+            if not isinstance(records, list) or len(records) != descriptor.get("count"):
+                return False
+            descriptor_scope = descriptor.get("scope")
+            descriptor_type = descriptor.get("object_type")
+            if descriptor_scope is not None:
+                if payload.get("scope") != descriptor_scope or payload.get("object_type") != descriptor_type:
+                    return False
+                for record in records:
+                    if not isinstance(record, dict) or record.get("object_type") != descriptor_type:
+                        return False
+                    is_current = (
+                        record.get("catalog_membership_status") == "PRESENT"
+                        and not record.get("decay_date")
+                    )
+                    if (descriptor_scope == "CURRENT") != is_current:
+                        return False
+        except (OSError, ValueError, TypeError):
+            return False
+    return True
+
+
+def _prune_unreferenced_tracked_chunks(root: Path, manifest_path: Path) -> None:
+    """Retain chunks referenced by the current and bounded backup manifests."""
+
+    tracked_root = repo_path(root, TRACKED_DIRECTORY_RELATIVE_PATH).resolve()
+    chunk_root = (tracked_root / "chunks").resolve()
+    if chunk_root == tracked_root or tracked_root not in chunk_root.parents or not chunk_root.is_dir():
+        return
+    manifest_paths = [manifest_path]
+    manifest_paths.extend(
+        sorted(
+            (
+                path
+                for path in manifest_path.parent.glob(manifest_path.name + ".bak-*")
+                if path.is_file() and not path.is_symlink()
+            ),
+            key=lambda path: path.name,
+            reverse=True,
+        )[:BACKUP_RETENTION_PER_ARTIFACT]
+    )
+    retained: set[Path] = set()
+    for candidate_manifest in manifest_paths:
+        payload = load_json(candidate_manifest, {})
+        if isinstance(payload, dict):
+            retained.update(_tracked_manifest_chunk_paths(root, payload))
+    for candidate in chunk_root.glob("*.json"):
+        resolved = candidate.resolve()
+        if (
+            resolved not in retained
+            and resolved.is_file()
+            and not resolved.is_symlink()
+            and chunk_root in resolved.parents
+        ):
+            with contextlib.suppress(FileNotFoundError):
+                resolved.unlink()
+
+
+def _tracked_record_comparison(record: dict[str, object]) -> dict[str, object]:
+    ignored = {
+        "observation_status",
+        "previous_lifecycle_status",
+        "reappeared_status",
+    }
+    return {key: value for key, value in record.items() if key not in ignored}
+
+
+def _tracked_absent_record(record: dict[str, object]) -> dict[str, object]:
+    absent = dict(record)
+    absent.pop("element_set", None)
+    absent.pop("element_reference", None)
+    for key in (
+        "inclination_deg",
+        "eccentricity",
+        "mean_motion_rev_per_day",
+        "semi_major_axis_km",
+    ):
+        absent.pop(key, None)
+    absent.update(
+        {
+            "lifecycle_status": "ABSENT",
+            "observation_status": "ABSENT",
+            "catalog_membership_status": "ABSENT",
+            "has_current_elements": False,
+            "orbit_available": False,
+            "metadata_only": True,
+            "propagation_status": "NO_CURRENT_ELEMENTS",
+            "element_availability_status": "NO_CURRENT_ELEMENTS",
+            "unavailable_reason": "ABSENT_FROM_PROVIDER_SNAPSHOT",
+        }
+    )
+    return absent
+
+
+def build_tracked_catalog(
+    *,
+    root: Path | str,
+    mode: str = "incremental",
+    dry_run: bool = False,
+    now: dt.datetime | None = None,
+    satcat_text: str | None = None,
+    gp_payload: object | None = None,
+) -> UpdateResult:
+    """Build the full provider-tracked inventory without inventing orbital state."""
+
+    now = now or utc_now()
+    root_path = Path(root).resolve()
+    satcat_path = repo_path(root_path, SATCAT_RELATIVE_PATH)
+    gp_path = repo_path(root_path, GP_RELATIVE_PATH)
+    manifest_path = repo_path(root_path, TRACKED_MANIFEST_RELATIVE_PATH)
+    meta_path = repo_path(root_path, TRACKED_META_RELATIVE_PATH)
+    previous_meta = load_json(meta_path, {})
+    previous_meta = previous_meta if isinstance(previous_meta, dict) else {}
+    if satcat_text is None:
+        if not satcat_path.exists():
+            error = _bounded_metadata_error("SATCAT input is unavailable.")
+            failed_meta = dict(previous_meta)
+            failed_meta.update(
+                {
+                    "schema_version": "2.3.0",
+                    "parser_version": "2.3.0",
+                    "dataset_format": "OPENBEXI_TRACKED_OBJECT_CHUNKS",
+                    "provider": "CelesTrak",
+                    "mode": mode,
+                    "last_attempt_at": isoformat_utc(now),
+                    "last_status": "failed",
+                    "source_status": "DEGRADED",
+                    "last_error": error,
+                }
+            )
+            atomic_write_json(meta_path, failed_meta, dry_run=dry_run, backup=False, indent=2)
+            return UpdateResult(
+                changed=False,
+                skipped=True,
+                mode=mode,
+                message="SATCAT is unavailable; preserved the tracked-object last-known-good catalog.",
+                errors=[error],
+                paths={"manifest": str(manifest_path), "metadata": str(meta_path)},
+            )
+        with satcat_path.open("r", encoding="utf-8", newline="") as handle:
+            satcat_text = handle.read()
+    if gp_payload is None:
+        gp_payload = load_json(gp_path, [])
+    gp_meta = load_json(repo_path(root_path, GP_META_RELATIVE_PATH), {})
+    gp_meta = gp_meta if isinstance(gp_meta, dict) else {}
+
+    satcat_revision = catalog_revision_for_text(satcat_text)
+    gp_revision = catalog_revision_for_payload(gp_payload if isinstance(gp_payload, list) else [])
+    input_revision = catalog_revision_for_payload(
+        {"satcat_revision": satcat_revision, "gp_revision": gp_revision}
+    )
+    previous_manifest_error: str | None = None
+    try:
+        previous_manifest = load_json(manifest_path, {})
+    except SatelliteDataError as exc:
+        previous_manifest = {}
+        previous_manifest_error = _bounded_metadata_error(exc)
+    previous_manifest = previous_manifest if isinstance(previous_manifest, dict) else {}
+    previous_provenance = previous_manifest.get("provenance")
+    previous_provenance = previous_provenance if isinstance(previous_provenance, dict) else {}
+    gp_metadata_revision_matches = (
+        gp_meta.get("catalog_revision") == gp_revision
+        and gp_meta.get("dataset_hash") == gp_revision
+    )
+    represented_gp_groups = gp_catalog_source_groups(gp_meta) if gp_metadata_revision_matches else []
+    if (
+        not represented_gp_groups
+        and previous_provenance.get("gp_revision") == gp_revision
+        and isinstance(previous_provenance.get("gp_source_groups"), list)
+    ):
+        represented_gp_groups = list(previous_provenance["gp_source_groups"])
+    represented_gp_scope = (
+        GP_SOURCE_SCOPE_DESCRIPTION
+        if represented_gp_groups == list(GP_SOURCE_GROUPS)
+        else (
+            "Last-known-good GP snapshot groups: "
+            + (", ".join(represented_gp_groups) if represented_gp_groups else "unrecorded")
+            + "; configured event-debris coverage remains pending a successful source-scope update."
+        )
+    )
+    all_chunks_available = False
+    if manifest_path.is_file() and previous_manifest_error is None:
+        try:
+            all_chunks_available = _tracked_manifest_is_complete(root_path, manifest_path)
+        except SatelliteDataError as exc:
+            previous_manifest_error = _bounded_metadata_error(exc)
+    if manifest_path.is_file() and not all_chunks_available:
+        error = _bounded_metadata_error(
+            previous_manifest_error
+            or "Existing tracked-object manifest closure is incomplete or corrupt."
+        )
+        failed_meta = dict(previous_meta)
+        failed_meta.update(
+            {
+                "schema_version": "2.3.0",
+                "parser_version": "2.3.0",
+                "dataset_format": "OPENBEXI_TRACKED_OBJECT_CHUNKS",
+                "provider": "CelesTrak",
+                "mode": mode,
+                "last_attempt_at": isoformat_utc(now),
+                "last_status": "failed",
+                "source_status": "DEGRADED",
+                "last_error": error,
+            }
+        )
+        atomic_write_json(meta_path, failed_meta, dry_run=dry_run, backup=False, indent=2)
+        return UpdateResult(
+            changed=False,
+            skipped=True,
+            mode=mode,
+            message="Tracked-object last-known-good closure failed validation; preserved existing artifacts.",
+            counts=(
+                dict(previous_meta.get("counts", {}))
+                if isinstance(previous_meta.get("counts"), dict)
+                else {}
+            ),
+            errors=[error],
+            paths={"manifest": str(manifest_path), "metadata": str(meta_path)},
+        )
+    manifest_revision_matches_metadata = bool(
+        previous_manifest.get("catalog_revision")
+        and previous_manifest.get("catalog_revision") == previous_meta.get("catalog_revision")
+    )
+    manifest_inputs_match = (
+        previous_provenance.get("satcat_revision") == satcat_revision
+        and previous_provenance.get("gp_revision") == gp_revision
+    )
+    prior_snapshot_is_reconciled = (
+        previous_meta.get("source_status") == "VERIFIED_SNAPSHOT"
+        and previous_meta.get("last_reconciled_catalog_revision")
+        == previous_meta.get("catalog_revision")
+    )
+    requested_reconciliation = mode in {"all", RECONCILIATION_MODE}
+    try:
+        satcat_records, coverage_counts, quarantine = _tracked_satcat_rows(satcat_text)
+    except Exception as exc:
+        error = _bounded_metadata_error(exc)
+        failed_meta = dict(previous_meta)
+        failed_meta.update(
+            {
+                "schema_version": "2.3.0",
+                "last_attempt_at": isoformat_utc(now),
+                "last_status": "failed",
+                "source_status": "DEGRADED",
+                "last_error": error,
+            }
+        )
+        atomic_write_json(meta_path, failed_meta, dry_run=dry_run, backup=False, indent=2)
+        return UpdateResult(
+            changed=False,
+            skipped=True,
+            mode=mode,
+            message="Tracked-object input failed validation; preserved last-known-good data.",
+            errors=[error],
+            paths={"manifest": str(manifest_path), "metadata": str(meta_path)},
+        )
+
+    satcat_meta = load_json(repo_path(root_path, SATCAT_META_RELATIVE_PATH), {})
+    satcat_meta = satcat_meta if isinstance(satcat_meta, dict) else {}
+    declared = (
+        satcat_meta.get("counts", {}).get("records")
+        if isinstance(satcat_meta.get("counts"), dict)
+        else None
+    )
+    provider_invariant = (
+        coverage_counts["accepted"]
+        + coverage_counts["quarantined"]
+        + coverage_counts["duplicates"]
+        == coverage_counts["received"]
+    )
+    satcat_metadata_matches = bool(
+        satcat_meta.get("catalog_revision") == satcat_revision
+        and satcat_meta.get("source_url") == CELESTRAK_SATCAT_CSV_URL
+        and str(satcat_meta.get("last_status") or "").lower() in {"ok", "not-modified"}
+        and isinstance(declared, int)
+        and not isinstance(declared, bool)
+        and declared >= 0
+    )
+    expected: int | None = declared if satcat_metadata_matches else None
+    expected_matches_received = (
+        expected == coverage_counts["received"] if expected is not None else None
+    )
+    verified_satcat_reconciliation = bool(
+        satcat_metadata_matches
+        and reconciliation_snapshot_is_current(satcat_meta, satcat_revision)
+        and provider_invariant
+        and expected_matches_received is True
+    )
+    if requested_reconciliation and not verified_satcat_reconciliation:
+        error = _bounded_metadata_error(
+            "Tracked reconciliation refused absence transitions because SATCAT is not a "
+            "verified complete reconciliation snapshot."
+        )
+        failed_meta = dict(previous_meta)
+        failed_meta.update(
+            {
+                "schema_version": "2.3.0",
+                "parser_version": "2.3.0",
+                "dataset_format": "OPENBEXI_TRACKED_OBJECT_CHUNKS",
+                "provider": "CelesTrak",
+                "mode": mode,
+                "last_attempt_at": isoformat_utc(now),
+                "last_status": "failed",
+                "source_status": "DEGRADED",
+                "last_error": error,
+                "attempted_source_satcat_revision": satcat_revision,
+                "attempted_source_gp_revision": gp_revision,
+            }
+        )
+        atomic_write_json(meta_path, failed_meta, dry_run=dry_run, backup=False, indent=2)
+        return UpdateResult(
+            changed=False,
+            skipped=True,
+            mode=mode,
+            message="Tracked reconciliation was not authorized; preserved last-known-good membership.",
+            counts=(
+                dict(previous_meta.get("counts", {}))
+                if isinstance(previous_meta.get("counts"), dict)
+                else {}
+            ),
+            errors=[error],
+            paths={"manifest": str(manifest_path), "metadata": str(meta_path)},
+        )
+
+    unchanged_inputs_eligible = (
+        previous_meta.get("input_revision") == input_revision
+        and all_chunks_available
+        and manifest_revision_matches_metadata
+        and manifest_inputs_match
+        and (not requested_reconciliation or prior_snapshot_is_reconciled)
+    )
+    source_group_provenance_matches = (
+        previous_provenance.get("gp_source_groups") == represented_gp_groups
+        and previous_meta.get("source_gp_groups") == represented_gp_groups
+    )
+    if unchanged_inputs_eligible and not source_group_provenance_matches:
+        refreshed_manifest = dict(previous_manifest)
+        refreshed_provenance = dict(previous_provenance)
+        refreshed_provenance.update(
+            {
+                "gp_source_groups": represented_gp_groups,
+                "gp_scope": represented_gp_scope,
+            }
+        )
+        refreshed_manifest.update(
+            {
+                "generated_at": isoformat_utc(now),
+                "provenance": refreshed_provenance,
+            }
+        )
+        refreshed_meta = dict(previous_meta)
+        refreshed_meta.update(
+            {
+                "mode": mode,
+                "source_gp_groups": represented_gp_groups,
+                "last_attempt_at": isoformat_utc(now),
+                "last_success_at": isoformat_utc(now),
+                "revalidated_at": isoformat_utc(now),
+                "last_status": "ok",
+            }
+        )
+        if requested_reconciliation:
+            refreshed_meta["last_reconciled_at"] = isoformat_utc(now)
+            refreshed_meta["last_reconciled_catalog_revision"] = previous_meta.get("catalog_revision")
+        refreshed_meta.pop("last_error", None)
+        manifest_snapshot = manifest_path.read_text(encoding="utf-8")
+        metadata_snapshot = meta_path.read_text(encoding="utf-8") if meta_path.exists() else None
+        try:
+            atomic_write_json(manifest_path, refreshed_manifest, dry_run=dry_run, backup=True)
+            if not dry_run and not _tracked_manifest_is_complete(root_path, manifest_path):
+                raise SatelliteDataError("Tracked manifest verification failed after provenance promotion.")
+            atomic_write_json(meta_path, refreshed_meta, dry_run=dry_run, backup=False, indent=2)
+        except Exception:
+            _restore_text_snapshot(
+                manifest_path,
+                manifest_snapshot,
+                originally_existed=True,
+                dry_run=dry_run,
+            )
+            _restore_text_snapshot(
+                meta_path,
+                metadata_snapshot,
+                originally_existed=metadata_snapshot is not None,
+                dry_run=dry_run,
+            )
+            raise
+        return UpdateResult(
+            changed=not dry_run,
+            skipped=False,
+            mode=mode,
+            message="Tracked-object source provenance was updated without rewriting catalog chunks.",
+            counts=(
+                dict(previous_meta.get("counts", {}))
+                if isinstance(previous_meta.get("counts"), dict)
+                else {}
+            ),
+            paths={"manifest": str(manifest_path), "metadata": str(meta_path)},
+        )
+
+    if unchanged_inputs_eligible:
+        refreshed_meta = dict(previous_meta)
+        refreshed_meta.update(
+            {
+                "last_attempt_at": isoformat_utc(now),
+                "last_success_at": isoformat_utc(now),
+                "revalidated_at": isoformat_utc(now),
+                "last_status": "not-modified",
+            }
+        )
+        if requested_reconciliation:
+            refreshed_meta["last_reconciled_at"] = isoformat_utc(now)
+            refreshed_meta["last_reconciled_catalog_revision"] = previous_meta.get("catalog_revision")
+        refreshed_meta.pop("last_error", None)
+        atomic_write_json(meta_path, refreshed_meta, dry_run=dry_run, backup=False, indent=2)
+        return UpdateResult(
+            changed=False,
+            skipped=True,
+            mode=mode,
+            message="Tracked-object sources have not changed.",
+            counts=dict(previous_meta.get("counts", {})) if isinstance(previous_meta.get("counts"), dict) else {},
+            paths={"manifest": str(manifest_path), "metadata": str(meta_path)},
+        )
+
+    gp_records, gp_quarantine = _valid_gp_records_for_tracked_catalog(gp_payload)
+    quarantine.extend(gp_quarantine)
+    previous = _load_tracked_records(root_path)
+    current: dict[str, dict[str, object]] = {}
+    for norad_id in sorted(satcat_records, key=lambda value: (int(value), value)):
+        candidate = _tracked_record(norad_id, satcat_records.get(norad_id), gp_records.get(norad_id))
+        prior = previous.get(norad_id)
+        if prior is None:
+            candidate["observation_status"] = "NEW"
+        elif prior.get("catalog_membership_status") == "ABSENT" or prior.get("lifecycle_status") == "ABSENT":
+            candidate["previous_lifecycle_status"] = "ABSENT"
+            candidate["reappeared_status"] = candidate["lifecycle_status"]
+            candidate["observation_status"] = "REAPPEARED"
+        elif _tracked_record_comparison(prior) == _tracked_record_comparison(candidate):
+            candidate["observation_status"] = "OBSERVED"
+        else:
+            candidate["observation_status"] = "CHANGED"
+        current[norad_id] = candidate
+
+    output = dict(current)
+    if mode in {"all", RECONCILIATION_MODE}:
+        for norad_id in sorted(set(previous) - set(current), key=lambda value: (int(value), value)):
+            output[norad_id] = _tracked_absent_record(previous[norad_id])
+    else:
+        for norad_id in sorted(set(previous) - set(current), key=lambda value: (int(value), value)):
+            output[norad_id] = previous[norad_id]
+
+    chunks: dict[str, list[dict[str, object]]] = {name: [] for name in TRACKED_OBJECT_TYPES}
+    history_chunks: dict[str, list[dict[str, object]]] = {
+        name: [] for name in TRACKED_OBJECT_TYPES
+    }
+    for norad_id in sorted(output, key=lambda value: (int(value), value)):
+        record = output[norad_id]
+        object_type = str(record.get("object_type") or "UNKNOWN")
+        selected_type = object_type if object_type in chunks else "UNKNOWN"
+        if record.get("catalog_membership_status") == "PRESENT" and not record.get("decay_date"):
+            chunks[selected_type].append(record)
+        else:
+            history_chunks[selected_type].append(record)
+
+    output_records = list(output.values())
+    counts: dict[str, object] = {
+        "expected": expected,
+        "expected_provider_records": None,
+        **coverage_counts,
+        "total": len(output_records),
+        "current": sum(
+            record.get("catalog_membership_status") == "PRESENT" and not record.get("decay_date")
+            for record in output_records
+        ),
+        "historical": sum(bool(record.get("decay_date")) for record in output_records),
+        "history_total": sum(len(records) for records in history_chunks.values()),
+        "absent": sum(record.get("catalog_membership_status") == "ABSENT" for record in output_records),
+        "propagatable": sum(record.get("has_current_elements") is True for record in output_records),
+        "metadata_only": sum(record.get("metadata_only") is True for record in output_records),
+        "current_propagatable": sum(
+            record.get("catalog_membership_status") == "PRESENT"
+            and not record.get("decay_date")
+            and record.get("has_current_elements") is True
+            for record in output_records
+        ),
+        "gp_only": len(set(gp_records) - set(satcat_records)),
+        "gp_quarantined": len(gp_quarantine),
+        "small_rcs_current": sum(
+            record.get("catalog_membership_status") == "PRESENT"
+            and not record.get("decay_date")
+            and isinstance(record.get("rcs_m2"), (int, float))
+            and float(record["rcs_m2"]) < 0.1
+            for record in output_records
+        ),
+        "missing_rcs_current": sum(
+            record.get("catalog_membership_status") == "PRESENT"
+            and not record.get("decay_date")
+            and record.get("rcs_status") == "MISSING"
+            for record in output_records
+        ),
+        "debris_small_rcs_current": sum(
+            record.get("object_type") == "DEBRIS"
+            and record.get("catalog_membership_status") == "PRESENT"
+            and not record.get("decay_date")
+            and isinstance(record.get("rcs_m2"), (int, float))
+            and float(record["rcs_m2"]) < 0.1
+            for record in output_records
+        ),
+        "debris_missing_rcs_current": sum(
+            record.get("object_type") == "DEBRIS"
+            and record.get("catalog_membership_status") == "PRESENT"
+            and not record.get("decay_date")
+            and record.get("rcs_status") == "MISSING"
+            for record in output_records
+        ),
+        "object_types": {
+            object_type: len(chunks[object_type]) + len(history_chunks[object_type])
+            for object_type in TRACKED_OBJECT_TYPES
+        },
+    }
+    counts["current_object_types"] = {
+        object_type: sum(
+            record.get("object_type") == object_type
+            and record.get("catalog_membership_status") == "PRESENT"
+            and not record.get("decay_date")
+            for record in output_records
+        )
+        for object_type in TRACKED_OBJECT_TYPES
+    }
+    counts["current_metadata_only"] = counts["current"] - counts["current_propagatable"]
+    counts["orbit_classes"] = {
+        orbit_class: sum(record.get("orbit_class") == orbit_class for record in output_records)
+        for orbit_class in ("LEO", "MEO", "GEO", "HEO", "OTHER", "DECAYING", "UNKNOWN")
+    }
+    counts["lifecycle_statuses"] = {
+        lifecycle: sum(record.get("lifecycle_status") == lifecycle for record in output_records)
+        for lifecycle in ("ACTIVE", "INACTIVE", "DECAYED", "ABSENT", "UNKNOWN")
+    }
+    catalog_partition_holds = counts["total"] == counts["propagatable"] + counts["metadata_only"]
+
+    chunk_payloads: dict[Path, object] = {}
+
+    def make_chunk(
+        object_type: str,
+        scope: str,
+        records: list[dict[str, object]],
+    ) -> dict[str, object]:
+        payload = {
+            "schema_version": "2.3.0",
+            "scope": scope,
+            "object_type": object_type,
+            "records": records,
+        }
+        text = json.dumps(payload, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
+        digest_hex = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        filename = f"{digest_hex}-{scope.lower()}-{TRACKED_CHUNK_FILES[object_type]}.json"
+        relative_path = TRACKED_DIRECTORY_RELATIVE_PATH / "chunks" / filename
+        path = repo_path(root_path, relative_path)
+        chunk_payloads[path] = payload
+        return {
+            "id": f"{scope.lower()}-{object_type.lower().replace('_', '-')}",
+            "path": relative_path.as_posix(),
+            "scope": scope,
+            "object_type": object_type,
+            "count": len(records),
+            "sha256": "sha256:" + digest_hex,
+            "bytes": len(text.encode("utf-8")),
+        }
+
+    chunk_descriptors = [
+        make_chunk(object_type, "CURRENT", chunks[object_type])
+        for object_type in TRACKED_OBJECT_TYPES
+    ]
+    history_chunk_descriptors = [
+        make_chunk(object_type, "HISTORICAL", history_chunks[object_type])
+        for object_type in TRACKED_OBJECT_TYPES
+    ]
+    descriptor_material = [
+        {"path": item["path"], "sha256": item["sha256"]}
+        for item in [*chunk_descriptors, *history_chunk_descriptors]
+    ]
+    quarantine_payload = {
+        "schema_version": "2.3.0",
+        "records": quarantine,
+    }
+    quarantine_text = json.dumps(
+        quarantine_payload,
+        ensure_ascii=False,
+        allow_nan=False,
+        separators=(",", ":"),
+    )
+    quarantine_digest = hashlib.sha256(quarantine_text.encode("utf-8")).hexdigest()
+    quarantine_relative_path = (
+        TRACKED_DIRECTORY_RELATIVE_PATH
+        / "chunks"
+        / f"{quarantine_digest}-quarantine.json"
+    )
+    quarantine_path = repo_path(root_path, quarantine_relative_path)
+    chunk_payloads[quarantine_path] = quarantine_payload
+    coverage_revision = catalog_revision_for_payload(
+        {
+            "row_accounting": coverage_counts,
+            "expected": expected,
+            "quarantine_sha256": "sha256:" + quarantine_digest,
+        }
+    )
+    catalog_revision = catalog_revision_for_payload(
+        {
+            "chunks": descriptor_material,
+            "coverage_revision": coverage_revision,
+        }
+    )
+    complete_snapshot = bool(
+        requested_reconciliation and verified_satcat_reconciliation
+    )
+    manifest = {
+        "schema_version": "2.3.0",
+        "catalog_kind": "provider_tracked_objects",
+        "catalog_revision": catalog_revision,
+        "coverage_revision": coverage_revision,
+        "generated_at": isoformat_utc(now),
+        "provider_completeness_claim": False,
+        "scientific_boundary": (
+            "All records published in the provider SATCAT snapshot are retained; only records with "
+            "validated current GP/OMM elements are propagatable. This is not an inventory of every "
+            "physical debris particle."
+        ),
+        "default_membership": "CURRENT",
+        "scope": {
+            "default": "CURRENT",
+            "current_records": counts["current"],
+            "historical_records": counts["history_total"],
+            "historical_decayed_records": counts["historical"],
+            "absent_records": counts["absent"],
+        },
+        "counts": counts,
+        "coverage": {
+            "expected": expected,
+            "expected_provider_records": None,
+            "received": coverage_counts["received"],
+            "accepted": coverage_counts["accepted"],
+            "quarantined": coverage_counts["quarantined"],
+            "duplicates": coverage_counts["duplicates"],
+            "complete_source_snapshot": complete_snapshot,
+            "provider_completeness_claim": False,
+            "invariant": "received == accepted + quarantined + duplicates",
+            "invariant_holds": provider_invariant,
+            "expected_matches_received": expected_matches_received,
+        },
+        "invariants": {
+            "provider_coverage_holds": provider_invariant,
+            "catalog_partition": "total == propagatable + metadata_only",
+            "catalog_partition_holds": catalog_partition_holds,
+            "current_chunk_count_holds": sum(item["count"] for item in chunk_descriptors) == counts["current"],
+            "history_chunk_count_holds": sum(item["count"] for item in history_chunk_descriptors) == counts["history_total"],
+        },
+        "taxonomy": {
+            "object_types": list(TRACKED_OBJECT_TYPES),
+            "lifecycle_semantics": "Lifecycle and provider observation transitions are independent from element availability.",
+            "observation_statuses": ["NEW", "OBSERVED", "CHANGED", "ABSENT", "REAPPEARED"],
+            "element_availability_statuses": ["CURRENT_ELEMENTS", "NO_CURRENT_ELEMENTS"],
+            "mission_related_source": "Not independently classified by CelesTrak SATCAT; no heuristic relabeling is applied.",
+            "duplicate_policy": "Duplicate NORAD identities are audited and resolved deterministically with the last SATCAT row winning.",
+            "rcs_semantics": "rcs_m2 is provider-published radar cross-section, not physical object size.",
+        },
+        "provenance": {
+            "provider": "CelesTrak",
+            "satcat_url": CELESTRAK_SATCAT_CSV_URL,
+            "satcat_revision": satcat_revision,
+            "gp_revision": gp_revision,
+            "gp_source_groups": represented_gp_groups,
+            "gp_scope": represented_gp_scope,
+            "gp_join": {
+                "satcat_intersection": len(set(gp_records) & set(satcat_records)),
+                "gp_only_excluded_from_tracked_scope": len(set(gp_records) - set(satcat_records)),
+                "policy": "The tracked scope is SATCAT-defined; GP-only identities remain in GP.json and are not counted twice.",
+            },
+        },
+        "chunks": chunk_descriptors,
+        "history_chunks": history_chunk_descriptors,
+        "quarantine": {
+            "path": quarantine_relative_path.as_posix(),
+            "count": len(quarantine),
+            "sha256": "sha256:" + quarantine_digest,
+            "bytes": len(quarantine_text.encode("utf-8")),
+        },
+    }
+
+    success_meta = {
+        "schema_version": "2.3.0",
+        "parser_version": "2.3.0",
+        "dataset_format": "OPENBEXI_TRACKED_OBJECT_CHUNKS",
+        "provider": "CelesTrak",
+        "mode": mode,
+        "source_status": "VERIFIED_SNAPSHOT" if complete_snapshot and provider_invariant else "PARTIAL",
+        "provider_completeness_claim": False,
+        "input_revision": input_revision,
+        "source_satcat_revision": satcat_revision,
+        "source_gp_revision": gp_revision,
+        "source_gp_groups": represented_gp_groups,
+        "catalog_revision": catalog_revision,
+        "coverage_revision": coverage_revision,
+        "dataset_hash": catalog_revision,
+        "fetched_at": isoformat_utc(now),
+        "last_attempt_at": isoformat_utc(now),
+        "last_success_at": isoformat_utc(now),
+        "last_status": "ok",
+        "counts": counts,
+        "coverage": manifest["coverage"],
+    }
+    if complete_snapshot:
+        success_meta["last_reconciled_at"] = isoformat_utc(now)
+        success_meta["last_reconciled_catalog_revision"] = catalog_revision
+    elif previous_meta.get("last_reconciled_at"):
+        success_meta["last_reconciled_at"] = previous_meta["last_reconciled_at"]
+        success_meta["last_reconciled_catalog_revision"] = previous_meta.get(
+            "last_reconciled_catalog_revision"
+        )
+
+    outputs = {
+        **chunk_payloads,
+        manifest_path: manifest,
+    }
+    original = {
+        path: (path.read_text(encoding="utf-8") if path.exists() else None)
+        for path in outputs
+    }
+    changed_paths = [
+        path
+        for path, payload in outputs.items()
+        if original[path] != json.dumps(payload, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
+    ]
+    manifest_snapshot = manifest_path.read_bytes() if manifest_path.exists() else None
+    metadata_snapshot = meta_path.read_bytes() if meta_path.exists() else None
+    try:
+        for path in changed_paths:
+            if path != manifest_path:
+                atomic_write_json(path, outputs[path], dry_run=dry_run, backup=False)
+        if not dry_run:
+            staged_manifest = dict(manifest)
+            for descriptor, path in zip(
+                [*chunk_descriptors, *history_chunk_descriptors, manifest["quarantine"]],
+                _tracked_manifest_chunk_paths(root_path, staged_manifest),
+            ):
+                body = path.read_bytes()
+                if (
+                    "sha256:" + hashlib.sha256(body).hexdigest() != descriptor["sha256"]
+                    or len(body) != descriptor["bytes"]
+                ):
+                    raise SatelliteDataError(f"Tracked chunk verification failed before manifest promotion: {path.name}")
+        if manifest_path in changed_paths:
+            atomic_write_json(manifest_path, manifest, dry_run=dry_run, backup=True)
+        if not dry_run and not _tracked_manifest_is_complete(root_path, manifest_path):
+            raise SatelliteDataError("Tracked manifest verification failed after promotion.")
+        atomic_write_json(meta_path, success_meta, dry_run=dry_run, backup=False, indent=2)
+        if not dry_run:
+            promoted_meta = load_json(meta_path, {})
+            if (
+                not isinstance(promoted_meta, dict)
+                or promoted_meta.get("catalog_revision") != manifest.get("catalog_revision")
+                or promoted_meta.get("coverage_revision") != manifest.get("coverage_revision")
+            ):
+                raise SatelliteDataError("Tracked metadata verification failed after promotion.")
+    except Exception:
+        _restore_bytes_snapshot(
+            manifest_path,
+            manifest_snapshot,
+            originally_existed=manifest_snapshot is not None,
+            dry_run=dry_run,
+        )
+        _restore_bytes_snapshot(
+            meta_path,
+            metadata_snapshot,
+            originally_existed=metadata_snapshot is not None,
+            dry_run=dry_run,
+        )
+        for path, original_text in original.items():
+            if path == manifest_path:
+                continue
+            _restore_text_snapshot(
+                path,
+                original_text,
+                originally_existed=original_text is not None,
+                dry_run=dry_run,
+            )
+        raise
+    if not dry_run:
+        with contextlib.suppress(Exception):
+            _prune_unreferenced_tracked_chunks(root_path, manifest_path)
+    return UpdateResult(
+        changed=bool(changed_paths) and not dry_run,
+        skipped=False,
+        mode=mode,
+        message="Tracked-object catalog build completed.",
+        counts={key: value for key, value in counts.items() if isinstance(value, int)},
+        errors=[],
+        paths={
+            "manifest": str(manifest_path),
+            "metadata": str(meta_path),
+            "quarantine": str(quarantine_path),
+        },
+    )
+
+
 def build_decayed_db(
     *,
     root: Path | str,
@@ -3027,13 +4400,25 @@ def build_decayed_db(
             interval_hours=interval_hours,
         )
         if refresh_result.errors and not input_path.exists():
+            error = _bounded_metadata_error("; ".join(refresh_result.errors))
+            failed_meta = dict(meta)
+            failed_meta.update(
+                {
+                    "mode": mode,
+                    "last_attempt_at": isoformat_utc(now),
+                    "last_error": error,
+                    "last_status": "failed",
+                    "source": SATCAT_RELATIVE_PATH.as_posix(),
+                }
+            )
+            atomic_write_json(meta_path, failed_meta, dry_run=dry_run, backup=False, indent=2)
             return UpdateResult(
                 changed=False,
                 skipped=True,
                 mode=mode,
                 message="SATCAT refresh failed and no local satcat.csv exists; preserved existing decayed DB.",
                 counts={},
-                errors=refresh_result.errors,
+                errors=[error],
                 paths={"decayed": str(output_path), "metadata": str(meta_path), "satcat": str(input_path)},
             )
         if (
@@ -3271,6 +4656,7 @@ def maybe_update_satellite_data(
     gp_interval_hours: float | None = None,
     tle_interval_hours: float | None = None,
     satcat_interval_hours: float | None = None,
+    tracked_interval_hours: float | None = None,
     launches_interval_hours: float | None = None,
     decayed_interval_hours: float | None = None,
     reconciliation_interval_hours: float | None = None,
@@ -3293,6 +4679,7 @@ def maybe_update_satellite_data(
         "gp": configured_interval(gp_interval_hours, base_interval),
         "tle": configured_interval(tle_interval_hours, base_interval),
         "satcat": configured_interval(satcat_interval_hours, base_interval),
+        "tracked": configured_interval(tracked_interval_hours, satcat_interval_hours or base_interval),
         "launches": configured_interval(launches_interval_hours, satcat_interval_hours or base_interval),
         "decayed": configured_interval(decayed_interval_hours, satcat_interval_hours or base_interval),
         "reconciliation": configured_interval(reconciliation_interval_hours, base_interval),
@@ -3306,6 +4693,7 @@ def maybe_update_satellite_data(
         "gp": None,
         "tle": None,
         "satcat": None,
+        "tracked": None,
         "launches": None,
         "decayed": None,
         "reconciliation": None,
@@ -3328,6 +4716,13 @@ def maybe_update_satellite_data(
             "satcat": force or metadata_is_older_than(
                 root_path, SATCAT_META_RELATIVE_PATH, SATCAT_RELATIVE_PATH, intervals["satcat"], now=now
             ),
+            "tracked": force or metadata_is_older_than(
+                root_path,
+                TRACKED_META_RELATIVE_PATH,
+                TRACKED_MANIFEST_RELATIVE_PATH,
+                intervals["tracked"],
+                now=now,
+            ),
             "launches": force or metadata_is_older_than(
                 root_path, LAUNCHES_META_RELATIVE_PATH, LAUNCHES_RELATIVE_PATH, intervals["launches"], now=now
             ),
@@ -3345,6 +4740,9 @@ def maybe_update_satellite_data(
             "satcat": force or metadata_reconciliation_is_older_than(
                 root_path, SATCAT_META_RELATIVE_PATH, intervals["reconciliation"], now=now
             ),
+            "tracked": force or metadata_reconciliation_is_older_than(
+                root_path, TRACKED_META_RELATIVE_PATH, intervals["reconciliation"], now=now
+            ),
             "launches": force or metadata_reconciliation_is_older_than(
                 root_path, LAUNCHES_META_RELATIVE_PATH, intervals["reconciliation"], now=now
             ),
@@ -3353,8 +4751,10 @@ def maybe_update_satellite_data(
             ),
         }
         results["due"] = {**due, "reconciliation": reconciliation_due}
+        executed_names: set[str] = set()
 
         def record_result(name: str, operation: Callable[[], UpdateResult]) -> UpdateResult | None:
+            executed_names.add(name)
             try:
                 result = operation()
             except Exception as exc:
@@ -3387,6 +4787,12 @@ def maybe_update_satellite_data(
                 ),
             )
         satcat_changed = bool(satcat_result and satcat_result.changed)
+        satcat_reconciled = bool(
+            satcat_result
+            and satcat_result.mode == "refresh-satcat"
+            and reconciliation_due["satcat"]
+            and not satcat_result.errors
+        )
 
         if due["launches"] or reconciliation_due["launches"] or satcat_changed:
             record_result(
@@ -3427,8 +4833,9 @@ def maybe_update_satellite_data(
                 ),
             )
 
+        gp_result: UpdateResult | None = None
         if due["gp"] or reconciliation_due["gp"] or satcat_changed:
-            record_result(
+            gp_result = record_result(
                 "gp",
                 lambda: export_gp_data(
                     root=root_path,
@@ -3439,37 +4846,77 @@ def maybe_update_satellite_data(
                     now=now,
                 ),
             )
+        gp_changed = bool(gp_result and gp_result.changed)
 
-        reconciliation_names = [name for name, is_due in reconciliation_due.items() if is_due]
+        tracked_reconciliation_attempted = False
+        if (
+            due["tracked"]
+            or reconciliation_due["tracked"]
+            or satcat_changed
+            or satcat_reconciled
+            or gp_changed
+        ):
+            tracked_reconciliation_attempted = bool(
+                reconciliation_due["tracked"] or satcat_reconciled
+            )
+            record_result(
+                "tracked",
+                lambda: build_tracked_catalog(
+                    root=root_path,
+                    mode=(
+                        RECONCILIATION_MODE
+                        if reconciliation_due["tracked"] or satcat_reconciled
+                        else "incremental"
+                    ),
+                    dry_run=dry_run,
+                    now=now,
+                ),
+            )
+
+        reconciliation_was_due = any(reconciliation_due.values())
+        effective_reconciliation = dict(reconciliation_due)
+        if tracked_reconciliation_attempted:
+            effective_reconciliation["tracked"] = True
+        reconciliation_names = [
+            name for name, was_attempted in effective_reconciliation.items() if was_attempted
+        ]
+        error_dependency_names = [
+            name
+            for name in reconciliation_due
+            if reconciliation_was_due
+            and (effective_reconciliation.get(name) or name in executed_names)
+        ]
         reconciliation_errors = [
             error
-            for name in reconciliation_names
+            for name in error_dependency_names
             for error in (
                 results.get(name, {}).get("errors", [])
                 if isinstance(results.get(name), dict)
                 else [f"{name} reconciliation did not run"]
+                if effective_reconciliation.get(name)
+                else []
             )
         ]
-        reconciliation_completed = bool(reconciliation_names) and not reconciliation_errors
+        reconciliation_completed = reconciliation_was_due and not reconciliation_errors
         reconciliation_changed = any(
             isinstance(results.get(name), dict) and bool(results[name].get("changed"))
             for name in reconciliation_names
         )
         results["reconciliation"] = {
             "changed": reconciliation_changed,
-            "skipped": not bool(reconciliation_names),
+            "skipped": not reconciliation_was_due,
             "mode": RECONCILIATION_MODE,
             "message": (
                 "Daily satellite data reconciliation completed."
                 if reconciliation_completed
                 else (
                     "Satellite data reconciliation completed with dataset errors."
-                    if reconciliation_names
+                    if reconciliation_was_due
                     else "Satellite data reconciliation is not due."
                 )
             ),
-            "due": bool(reconciliation_names),
-            "datasets": reconciliation_due,
+            "due": reconciliation_was_due,
+            "datasets": effective_reconciliation,
             "completed": reconciliation_completed,
             "last_reconciled_at": isoformat_utc(now) if reconciliation_completed else None,
             "counts": {"datasets": len(reconciliation_names)},
@@ -3480,7 +4927,10 @@ def maybe_update_satellite_data(
         if not any(due.values()) and not any(reconciliation_due.values()):
             results["skipped"] = True
             results["message"] = "All satellite datasets are within their configured freshness windows."
-        nested_results = [results.get(key) for key in ("gp", "tle", "satcat", "launches", "decayed")]
+        nested_results = [
+            results.get(key)
+            for key in ("gp", "tle", "satcat", "tracked", "launches", "decayed")
+        ]
         results["degraded"] = any(
             isinstance(item, dict) and bool(item.get("errors"))
             for item in nested_results
@@ -3500,7 +4950,11 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     gp_parser = subparsers.add_parser("export-gp", help="Export or incrementally update json/gp/GP.json from CelesTrak OMM JSON.")
-    gp_parser.add_argument("--all", action="store_true", help="Replace the local GP catalog from the complete active source.")
+    gp_parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Replace the local GP catalog from the complete configured GP source scope.",
+    )
     gp_parser.add_argument("--force", action="store_true", help="Ignore freshness checks.")
     gp_parser.add_argument("--dry-run", action="store_true", help="Compute changes without writing files.")
     gp_parser.add_argument(
@@ -3560,6 +5014,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     launches_parser.add_argument("--dry-run", action="store_true", help="Compute changes without writing files.")
 
+    tracked_parser = subparsers.add_parser(
+        "build-tracked",
+        help="Build the chunked provider-tracked object inventory from local SATCAT and GP data.",
+    )
+    tracked_parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Reconcile a verified complete SATCAT snapshot and mark missing prior identities absent.",
+    )
+    tracked_parser.add_argument("--dry-run", action="store_true", help="Compute changes without writing files.")
+
     maybe_parser = subparsers.add_parser("maybe-update", help="Run the server-style scheduled freshness check once.")
     maybe_parser.add_argument("--force", action="store_true", help="Ignore freshness checks.")
     maybe_parser.add_argument("--dry-run", action="store_true", help="Compute changes without writing files.")
@@ -3572,6 +5037,7 @@ def build_parser() -> argparse.ArgumentParser:
     maybe_parser.add_argument("--gp-interval-hours", type=float, default=None, help="Override the GP/OMM update interval.")
     maybe_parser.add_argument("--tle-interval-hours", type=float, default=None, help="Override the compatibility TLE interval.")
     maybe_parser.add_argument("--satcat-interval-hours", type=float, default=None, help="Override the SATCAT/derived-data interval.")
+    maybe_parser.add_argument("--tracked-interval-hours", type=float, default=None, help="Override the tracked-catalog build interval.")
     maybe_parser.add_argument(
         "--reconciliation-interval-hours",
         type=float,
@@ -3636,6 +5102,14 @@ def main(argv: list[str] | None = None) -> int:
             result = build_launch_catalog(root=root, dry_run=args.dry_run)
             _print_result(result)
             return 0
+        if args.command == "build-tracked":
+            result = build_tracked_catalog(
+                root=root,
+                mode=RECONCILIATION_MODE if args.all else "incremental",
+                dry_run=args.dry_run,
+            )
+            _print_result(result)
+            return 0
         if args.command == "maybe-update":
             result = maybe_update_satellite_data(
                 root=root,
@@ -3643,6 +5117,7 @@ def main(argv: list[str] | None = None) -> int:
                 gp_interval_hours=args.gp_interval_hours,
                 tle_interval_hours=args.tle_interval_hours,
                 satcat_interval_hours=args.satcat_interval_hours,
+                tracked_interval_hours=args.tracked_interval_hours,
                 reconciliation_interval_hours=args.reconciliation_interval_hours,
                 force=args.force,
                 dry_run=args.dry_run,

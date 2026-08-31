@@ -9,6 +9,11 @@ import {drawDayNightMercator} from './drawDayNight.js';
 import {mercatorPixelFromLonLat} from './orbit/orbitLinkGeometry.js';
 import {MARS_TEXTURE_URL} from './MarsFrameLoader.js';
 import {sceneToEciVector} from './sceneFrame.js';
+import {
+    isTrackedRecordPropagatable,
+    TRACKED_OBJECT_VISUALS,
+    trackedObjectVisual
+} from './trackedObjectCatalog.js';
 
 export let mercatorContainer, mercatorCanvasElement, mapBackgroundDiv;
 export let mercatorCtx, mapWidth = 400, mapHeight = 200;
@@ -31,6 +36,64 @@ const groundTrackCache = {
     startTimeMs: Number.NaN,
     lastBuiltRealMs: Number.NEGATIVE_INFINITY
 };
+const mercatorVisualCache = new WeakMap();
+
+function mercatorVisualSource(record) {
+    return record?.object_type ?? record?.objectType ?? record?.catalogObject?.object_type ??
+        record?.element_set?.omm?.OBJECT_TYPE ?? record?.meta?.object_type ??
+        record?.satellite_name ?? record?.name ?? '';
+}
+
+function mercatorVisual(record) {
+    const source = mercatorVisualSource(record);
+    const cached = mercatorVisualCache.get(record);
+    if (cached?.source === source) return cached.visual;
+    const visual = trackedObjectVisual(record);
+    mercatorVisualCache.set(record, { source, visual });
+    return visual;
+}
+
+function traceTrackedMarker(ctx, marker, x, y, radius) {
+    if (marker === 'diamond') {
+        ctx.moveTo(x, y - radius);
+        ctx.lineTo(x + radius, y);
+        ctx.lineTo(x, y + radius);
+        ctx.lineTo(x - radius, y);
+        ctx.closePath();
+        return;
+    }
+    if (marker === 'square') {
+        ctx.rect(x - radius, y - radius, radius * 2, radius * 2);
+        return;
+    }
+    if (marker === 'triangle') {
+        ctx.moveTo(x, y - radius);
+        ctx.lineTo(x + radius, y + radius);
+        ctx.lineTo(x - radius, y + radius);
+        ctx.closePath();
+        return;
+    }
+    if (marker === 'cross') {
+        ctx.moveTo(x - radius, y - radius);
+        ctx.lineTo(x + radius, y + radius);
+        ctx.moveTo(x + radius, y - radius);
+        ctx.lineTo(x - radius, y + radius);
+        return;
+    }
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+}
+
+function drawTrackedMarkerCue(ctx, visual, x, y, radius, filled) {
+    ctx.save();
+    ctx.beginPath();
+    traceTrackedMarker(ctx, visual.marker, x, y, radius);
+    ctx.strokeStyle = visual.color;
+    ctx.fillStyle = visual.color;
+    ctx.lineWidth = 2;
+    if (filled && visual.marker !== 'cross') ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+}
 
 export function isMarsMercatorContext(simParams) {
     return simParams?.otherSelection === 'Mars';
@@ -214,7 +277,7 @@ export function drawSelectedGroundTrack(
     options = {}
 ) {
     const selectedSat = findSelectedSatellite(simParams, sourceSatellites);
-    if (!simParams?.showOrbit || !selectedSat || !ctx) {
+    if (!simParams?.showOrbit || !selectedSat || !isTrackedRecordPropagatable(selectedSat) || !ctx) {
         groundTrackOptions.points.length = 0;
         groundTrackCache.satelliteKey = '';
         groundTrackCache.startTimeMs = Number.NaN;
@@ -289,6 +352,8 @@ export function updateMercatorMap(simParams, frameContext = {}) {
     mercatorCanvasElement.dataset.renderedMarkerCount = '0';
     mercatorCanvasElement.dataset.selectedMarkerNoradId = '';
     mercatorCanvasElement.dataset.selectedMarkerRendered = 'false';
+    mercatorCanvasElement.dataset.objectTypeMarkerCounts = '{}';
+    mercatorCanvasElement.dataset.debrisMarkerCount = '0';
 
     if (isMarsMercatorContext(simParams)) {
         mercatorCtx.save();
@@ -308,6 +373,7 @@ export function updateMercatorMap(simParams, frameContext = {}) {
     }
 
     const selectedSat = findSelectedSatellite(simParams);
+    const selectedRenderableSat = isTrackedRecordPropagatable(selectedSat) ? selectedSat : null;
 
     drawSelectedGroundTrack(simParams, mercatorCtx, globalThis.satellite, satellites, {
         realTimeMs: frameContext.realTimeMs
@@ -323,14 +389,16 @@ export function updateMercatorMap(simParams, frameContext = {}) {
         : satellite.gstime(jNow);
 
     let satsToRender;
-    if (simParams.showOnlySelectedSatellite && selectedSat) {
-        satsToRender = selectedSat.propagationInvalid && !isUsableOrbitPosition(frameContext.selectedPropagation?.position)
+    if (simParams.showOnlySelectedSatellite && selectedRenderableSat) {
+        satsToRender = selectedRenderableSat.propagationInvalid && !isUsableOrbitPosition(frameContext.selectedPropagation?.position)
             ? []
-            : [selectedSat];
+            : [selectedRenderableSat];
     } else {
-        satsToRender = satellites.filter(s => s.mesh?.visible && s.satrec);
-        if (selectedSat && !satsToRender.includes(selectedSat)) {
-            satsToRender = [selectedSat, ...satsToRender];
+        satsToRender = satellites.filter(
+            s => s.mesh?.visible && s.satrec && isTrackedRecordPropagatable(s)
+        );
+        if (selectedRenderableSat && !satsToRender.includes(selectedRenderableSat)) {
+            satsToRender = [selectedRenderableSat, ...satsToRender];
         }
     }
 
@@ -338,18 +406,18 @@ export function updateMercatorMap(simParams, frameContext = {}) {
     let satDrawData = satsToRender
         .map(s => {
             try {
-                if (!s.satrec) return null;
-                const exactSelectedPosition = s === selectedSat &&
+                if (!s.satrec || !isTrackedRecordPropagatable(s)) return null;
+                const exactSelectedPosition = s === selectedRenderableSat &&
                     isUsableOrbitPosition(frameContext.selectedPropagation?.position)
                     ? frameContext.selectedPropagation.position
                     : null;
-                if (s === selectedSat && s.propagationInvalid && !exactSelectedPosition) return null;
+                if (s === selectedRenderableSat && s.propagationInvalid && !exactSelectedPosition) return null;
                 const eciPosition = exactSelectedPosition || sceneToEciVector(mercatorEciScratch, s.mesh?.position);
                 if (!isUsableOrbitPosition(eciPosition)) return null;
                 const geo = satellite.eciToGeodetic(eciPosition, gmstNow);
                 if (!finiteLatLon(geo.latitude, geo.longitude)) return null;
                 const pt = latLonToMercator(geo.latitude * R2D, geo.longitude * R2D);
-                return { sat: s, pt };
+                return { sat: s, pt, visual: mercatorVisual(s) };
             } catch {
                 return null;
             }
@@ -361,42 +429,56 @@ export function updateMercatorMap(simParams, frameContext = {}) {
     mercatorCanvasElement.dataset.selectedMarkerRendered = String(
         !!selectedSat && satDrawData.some(({ sat }) => sat === selectedSat)
     );
+    const objectTypeMarkerCounts = {};
+    satDrawData.forEach(({ visual }) => {
+        const label = visual.label;
+        objectTypeMarkerCounts[label] = (objectTypeMarkerCounts[label] || 0) + 1;
+    });
+    mercatorCanvasElement.dataset.objectTypeMarkerCounts = JSON.stringify(objectTypeMarkerCounts);
+    mercatorCanvasElement.dataset.debrisMarkerCount = String(objectTypeMarkerCounts.Debris || 0);
 
     const densityMode = satDrawData.length > 1000;
     mercatorCanvasElement.dataset.markerMode = densityMode ? 'density' : 'detailed';
     if (densityMode) {
         const pointSize = w >= 800 ? 2 : 1;
-        mercatorCtx.save();
-        mercatorCtx.fillStyle = 'rgba(0, 221, 255, 0.78)';
-        mercatorCtx.beginPath();
-        satDrawData.forEach(({ sat, pt }) => {
-            if (!sat.isSelected) mercatorCtx.rect(Math.round(pt.x), Math.round(pt.y), pointSize, pointSize);
+        const markerColors = new Set();
+        satDrawData.forEach(({ sat, visual }) => {
+            if (!sat.isSelected) markerColors.add(visual.color);
         });
-        mercatorCtx.fill();
+        mercatorCtx.save();
+        mercatorCtx.globalAlpha = 0.78;
+        markerColors.forEach(color => {
+            mercatorCtx.fillStyle = color;
+            mercatorCtx.beginPath();
+            satDrawData.forEach(({ sat, pt, visual }) => {
+                if (sat.isSelected || visual.color !== color) return;
+                mercatorCtx.rect(Math.round(pt.x), Math.round(pt.y), pointSize, pointSize);
+            });
+            mercatorCtx.fill();
+        });
         mercatorCtx.restore();
         satDrawData = satDrawData.filter(({ sat }) => sat.isSelected);
     } else {
         satDrawData.sort((a, b) => a.pt.y - b.pt.y);
     }
 
-    satDrawData.forEach(({ sat, pt }) => {
+    satDrawData.forEach(({ sat, pt, visual: baseVisual }) => {
         const iconSize = 12;
         const leaderLen = 15;
         const pad = { x: 5, y: 3 };
         const name = sat.satellite_name;
+        const visual = sat.isSelected ? TRACKED_OBJECT_VISUALS.SELECTED : baseVisual;
 
         if (mercatorSatIconLoaded && mercatorSatIcon.complete && mercatorSatIcon.naturalHeight) {
             mercatorCtx.drawImage(mercatorSatIcon, pt.x - iconSize / 2, pt.y - iconSize / 2, iconSize, iconSize);
+            drawTrackedMarkerCue(mercatorCtx, visual, pt.x, pt.y, iconSize / 2 + 2, false);
         } else {
-            mercatorCtx.beginPath();
-            mercatorCtx.arc(pt.x, pt.y, iconSize / 2, 0, Math.PI * 2);
-            mercatorCtx.fillStyle = sat.isSelected ? 'rgba(255,0,0,0.8)' : 'rgba(0,255,0,0.8)';
-            mercatorCtx.fill();
+            drawTrackedMarkerCue(mercatorCtx, visual, pt.x, pt.y, iconSize / 2, true);
         }
         if (sat.isSelected) {
             mercatorCtx.beginPath();
             mercatorCtx.arc(pt.x, pt.y, iconSize + 4, 0, Math.PI * 2);
-            mercatorCtx.strokeStyle = 'rgba(255, 64, 64, 0.95)';
+            mercatorCtx.strokeStyle = 'rgba(255, 255, 255, 0.98)';
             mercatorCtx.lineWidth = 3;
             mercatorCtx.stroke();
 
@@ -446,12 +528,12 @@ export function updateMercatorMap(simParams, frameContext = {}) {
             mercatorCtx.fillStyle = 'rgba(0,0,0,0.6)';
             mercatorCtx.fillRect(best.rect.x, best.rect.y, best.rect.w, best.rect.h);
 
-            mercatorCtx.fillStyle = sat.isSelected ? '#ff8080' : '#00ddff';
+            mercatorCtx.fillStyle = visual.color;
             mercatorCtx.textAlign = 'left';
             mercatorCtx.textBaseline = 'middle';
             mercatorCtx.fillText(name, best.tx, best.ty + txtH / 2 - pad.y / 2 + 1);
         } else {
-            mercatorCtx.fillStyle = sat.isSelected ? '#ff4444' : '#00aaff';
+            mercatorCtx.fillStyle = visual.color;
             mercatorCtx.textAlign = 'center';
             mercatorCtx.textBaseline = 'bottom';
             mercatorCtx.fillText(name, pt.x, pt.y - iconSize / 2 - 2);

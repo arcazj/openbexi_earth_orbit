@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "policy": "regression-ceiling",
   "files": {
-    "index.html": 265000,
+    "index.html": 315000,
     "json/gp/GP.json": 24000000,
     "json/launches/launches.json": 10500000,
     "json/tle/TLE.json": 10500000,
@@ -18,14 +18,21 @@
       "exclude": [
         "js/conjunction/fullCatalogScreening.js",
         "js/domain/catalogLifecycle.js",
-        "js/domain/index.js"
+        "js/domain/index.js",
+        "js/satelliteCategoryFilter.js"
       ],
-      "maxBytes": 800000
+      "maxBytes": 875000
     },
     "vendoredBrowserRuntime": {
       "roots": ["vendor"],
       "extensions": [".js", ".mjs"],
       "maxBytes": 2600000
     }
+  },
+  "trackedCatalog": {
+    "manifest": "json/tracked/TRACKED.manifest.json",
+    "metadata": "json/tracked/TRACKED.meta.json",
+    "maxTotalBytes": 82000000,
+    "maxChunkBytes": 27000000
   }
 }

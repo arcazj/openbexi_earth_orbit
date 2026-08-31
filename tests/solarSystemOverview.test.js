@@ -209,7 +209,7 @@ function run() {
 
   const release = JSON.parse(fs.readFileSync('release/version.json', 'utf8'));
   assert(indexHtml.includes('const versionNumber = APP_VERSION;'), 'index.html uses authoritative browser release metadata');
-  assert.strictEqual(release.version, '2.2.1', 'Solar System remains available during Version 2.2 development');
+  assert.strictEqual(release.version, '2.3.1', 'Solar System remains available during Version 2.3.1 development');
 
   assert(
     readme.includes('bounded JPL-derived Solar System ephemeris'),

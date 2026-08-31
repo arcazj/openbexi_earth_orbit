@@ -85,6 +85,16 @@ async function run() {
     'http://127.0.0.1:8000/api/satellite-metadata/starlink_V1.json',
     'satellite metadata URL maps to server metadata endpoint'
   );
+  assert.strictEqual(
+    resolveServerDataUrl('json/tracked/TRACKED.manifest.json', 'http://remote.example:8000'),
+    'http://remote.example:8000/api/tracked-objects/manifest',
+    'tracked manifest follows the connected server'
+  );
+  assert.strictEqual(
+    resolveServerDataUrl('json/tracked/chunks/abc-current-debris.json', 'http://remote.example:8000'),
+    'http://remote.example:8000/api/tracked-objects/chunks/abc-current-debris.json',
+    'content-addressed tracked chunks follow the connected server'
+  );
 
   const validTle = [{
     norad_id: '25544',
@@ -104,6 +114,11 @@ async function run() {
     }
   }];
   assert.strictEqual(validateGpData(validGp), true, 'six-digit OMM GP data passes validation');
+  assert.strictEqual(validateGpData([{
+    ...validGp[0],
+    norad_id: 'A1234',
+    element_set: { ...validGp[0].element_set, omm: { ...validGp[0].element_set.omm, NORAD_CAT_ID: 'A1234' } }
+  }]), true, 'Alpha-5 GP identifiers pass validation without numeric coercion');
   assert.strictEqual(validateGpData([{ norad_id: '100001', element_set: { format: 'OMM' } }]), false);
   assert.strictEqual(
     catalogRevisionFromStatus({ data_revision: 'sha256:composite', catalog_revision: 'sha256:gp-only' }),
@@ -223,7 +238,8 @@ async function run() {
   const staticMetadata = {
     'json/gp/GP.meta.json': { catalog_revision: 'sha256:gp-one' },
     'json/launches/launches.meta.json': { catalog_revision: 'sha256:launch-one' },
-    'json/decayed/decayed.meta.json': { catalog_revision: 'sha256:decay-one' }
+    'json/decayed/decayed.meta.json': { catalog_revision: 'sha256:decay-one' },
+    'json/tracked/TRACKED.manifest.json': { manifest_hash: 'sha256:tracked-one' }
   };
   const staticFetchOptions = [];
   const staticFetch = async (url, options) => {
@@ -233,6 +249,7 @@ async function run() {
   const staticStatus = await loadStaticDataUpdateStatus({ fetchImpl: staticFetch });
   assert.match(staticStatus.data_revision, /^static:/);
   assert.strictEqual(staticStatus.launch_revision, 'sha256:launch-one');
+  assert.strictEqual(staticStatus.tracked_revision, 'sha256:tracked-one');
   assert(staticFetchOptions.every(options => options.cache === 'no-store'), 'static metadata polling bypasses browser caches');
 
   const staticChanges = [];
@@ -251,7 +268,8 @@ async function run() {
   const tleOnlyMetadata = {
     'json/tle/TLE.meta.json': { catalog_revision: 'sha256:tle-only' },
     'json/launches/launches.meta.json': { catalog_revision: 'sha256:launch-only' },
-    'json/decayed/decayed.meta.json': { catalog_revision: 'sha256:decay-only' }
+    'json/decayed/decayed.meta.json': { catalog_revision: 'sha256:decay-only' },
+    'json/tracked/TRACKED.manifest.json': { manifest_hash: 'sha256:tracked-only' }
   };
   const tleOnlyStatus = await loadStaticDataUpdateStatus({
     fetchImpl: async (url) => {

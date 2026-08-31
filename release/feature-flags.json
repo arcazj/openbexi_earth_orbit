@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "releaseVersion": "2.2.1",
+  "releaseVersion": "2.3.1",
   "flags": [
     {
       "id": "experimental_conjunction_screening",
@@ -37,6 +37,24 @@
         "action": "Stop new job admission, cancel active jobs, set this flag to false, regenerate release metadata, run the release checks, and restart the server.",
         "dataImpact": "Catalog snapshots and completed job history remain private and readable; no source catalog is modified.",
         "fallback": "The v2.0 browser selected-object screener and all visualization workflows remain available."
+      }
+    },
+    {
+      "id": "experimental_tracked_object_catalog",
+      "description": "Lazy browser access to the provider-tracked object inventory with metadata-only safety boundaries",
+      "enabled": true,
+      "enabledChannels": [
+        "development"
+      ],
+      "scope": "browser",
+      "scientificMaturity": "Experimental",
+      "safetyClass": "non-operational",
+      "owner": "project-maintainers",
+      "limitationsDocument": "docs/adr/0006-v2.3-tracked-object-catalog.md",
+      "rollback": {
+        "action": "Set enabled to false, regenerate browser metadata, rebuild and verify the static artifact, then redeploy the GP-only browser path.",
+        "dataImpact": "Tracked-object chunks and provenance remain available for audit but are not loaded by the browser.",
+        "fallback": "The Version 2.2 GP/OMM visualization, filters, timelines, and screening paths remain available."
       }
     }
   ]

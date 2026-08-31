@@ -1,8 +1,8 @@
 # v2.1 Full-Catalog Service Threat Model
 
-> Current application context: Version 2.2 reuses this durable-service boundary with preferred GP/OMM catalog input. Its provider/update, mixed-format validation, lifecycle-cache, static-packaging, and browser state/time/motion risks are covered by `THREAT_MODEL_V2.md`, ADR 0004, ADR 0005, and `RELEASE_CHECKLIST_V2_2.md`. This historical v2.1 model does not grant provider admission or operational approval.
+> Current application context: Version 2.3.1 reuses this durable-service boundary with preferred GP/OMM catalog input. Its four-group provider/update scope, mixed-format validation, tracked inventory, lifecycle cache, static packaging, special all-debris facets, and browser state/time/motion risks are covered by `THREAT_MODEL_V2.md`, ADRs 0004 through 0006, and `RELEASE_CHECKLIST_V2_3.md`. Metadata-only tracked records do not enter durable screening. This historical v2.1 model does not grant provider admission, redistribution, or operational approval.
 
-Last reviewed: 2026-08-23
+Last reviewed: 2026-08-30
 
 ## Scope and Trust Boundary
 

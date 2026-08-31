@@ -1,5 +1,40 @@
 # Prompt History
 
+## Approval Date: 2026-08-30  Version 2.3.1 Exact-Byte Repository Publication
+
+Repository and remote owner `arcazj` explicitly instructed, `commit and push to github`. The approval was recorded on local date `2026-08-30` at `2026-08-31T01:55:18Z`. The checked Git identity is `arcazj`, and `origin` is `https://github.com/arcazj/openbexi_earth_orbit`. This is the named repository/data/release-owner approval to commit the exact final Version `2.3.1` tree to `origin/master` in `arcazj/openbexi_earth_orbit` and publish that commit from the repository root at `https://arcazj.github.io/openbexi_earth_orbit/`.
+
+The one-publication scope covers the final post-recording checksum bytes for the Version 2.3.1 current source tree, derived tracked manifest/metadata/quarantine and its 13-file, 74,565,511-byte referenced closure at revision `sha256:7c1a20d93d1eb5faf7e2b964b13c7b4f0478f2eec95cc701ea1b1e57ef0d730c`, curated static artifact, validation manifest/sidecar, and other files included in that final commit. The pre-approval development seal was `14185ed9ef5969eb50dfffc162ea3a3495fad75a4008575569e865a94c6269d2`; it is identification evidence, not a substitute for the final post-recording seal. The approval follows the exact final committed bytes after this authorization is recorded and the static/validation fixed point is rebuilt.
+
+This approval does not cover later provider refreshes, regenerated or otherwise changed bytes, another branch, another repository, another hosting channel, or a future publication. It does not promote Version 2.3.1: publication state remains `development`, scientific maturity remains `Experimental`, safety class remains `non-operational`, and candidate/release dates remain null. Provider completeness, collision probability, CDM/covariance, operational risk, alerts, reports, maneuver recommendations, and safety use remain unauthorized. Independent scientific/security review and the successful four-group live-provider rehearsal remain open.
+
+The owner's instruction is also recorded as a one-publication waiver of the pre-publication rollback-rehearsal requirement for this exact `origin/master` and repository-root GitHub Pages publication. It does not claim that rollback was rehearsed. The rehearsal remains an open gap and is required again before any later publication or promotion unless a new named owner records another narrowly scoped decision.
+
+## Authorization Date: 2026-08-30  Version 2.3.0 Tracked-Object Development
+
+The user explicitly directed implementation of the tracked-object catalog prompt and its engineering recommendations as Version `2.3.0`. This authorization covers development and validation of the SATCAT-scoped inventory; it does not promote the version or approve redistribution of newly derived catalog bytes.
+
+Authorized scope:
+
+1. Represent every accepted record in the configured bundled SATCAT snapshot, including debris with very small or missing published radar cross-section, rocket bodies, payloads, unknown types, historical records, long identifiers, and current records without public orbital elements.
+2. Join SATCAT identity to the active GP/OMM snapshot by exact canonical NORAD ID. Only validated current GP/OMM records may be propagated, plotted, or admitted to screening; metadata-only and historical records remain searchable and inspectable without synthetic positions, elements, sizes, or risk state.
+3. Preserve provider object type and RCS as metadata, keep missing RCS explicit, and do not infer physical size from RCS. Define `All tracked` as snapshot accounting rather than a claim about every physical particle or every provider's universe.
+4. Publish content-addressed current/history/quarantine chunks behind an atomic manifest, verify descriptor hashes, byte counts, record counts, scope, type, partitioning, and canonical identifier uniqueness, and preserve the last-known-good manifest across interrupted, incomplete, or failed refreshes.
+5. Keep the browser responsive through prioritized and lazy chunk loading, independent orbit/type/history/tag filters, exact filter-union behavior, searchable metadata-only results, stale-request protection, bounded caches, and explicit tracked/propagatable/metadata-only/render-ready/quarantine counts.
+6. Integrate tracked-catalog maintenance with the opt-in server scheduler, composite revision, health/status API, static closure, rollback process, scientific/governance documentation, and deterministic source, API, browser, scale, security, and packaging tests.
+
+Development boundary:
+
+- Version 2.3 remains `development`, `Experimental`, and `non-operational`, with null candidate and release dates.
+- The implemented snapshot accounts for all accepted records in its configured bundled SATCAT input, but `provider_completeness_claim` remains false and no upstream total is asserted.
+- The Version 2.2.1 redistribution approval is byte-specific and does not cover new Version 2.3 tracked manifest, metadata, chunk, or quarantine bytes. Publication remains blocked pending a separate named approval.
+- Collision probability, covariance/CDM and hard-body assessment, operational risk scoring, alerts, reports, maneuver analysis, and safety decisions remain outside the authorization.
+- Delivery requires the Version 2.3 release checklist and strict validation corpus. Passing local tests does not close independent review, redistribution, rollback-rehearsal, or promotion gates.
+
+## Approval Date: 2026-08-29  Version 2.2.1 Exact-Byte Redistribution
+
+The repository owner confirmed that data-owner redistribution approval existed and authorized publishing commit `29bc814` through the repository-root GitHub Pages configuration. That approval applies only to the exact bundled-source bytes reviewed for Version 2.2.1, including the referenced quarantine artifact even when empty. It does not authorize later provider refreshes, regenerated artifacts, or the new Version 2.3 tracked catalog closure.
+
 ## Authorization Date: 2026-08-22  Version 2.2.0 GP/OMM Development
 
 The user explicitly directed implementation of the complete GP/OMM migration prompt and requested the application move to Version `2.2.0` with all Markdown documentation updated. This is the separate human authorization required after Version 2.1. ADR 0004 rebaselines Version 2.2 from the older roadmap's collision-likelihood placeholder to catalog continuity.

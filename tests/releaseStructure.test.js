@@ -150,14 +150,14 @@ function run() {
   const packageLock = JSON.parse(read('package-lock.json'));
   const release = JSON.parse(read('release/version.json'));
   const archivedSbom = JSON.parse(read('release/evidence/openbexi-node-sbom-2.0.0.cdx.json'));
-  const developmentSbom = JSON.parse(read('release/evidence/openbexi-node-sbom-2.2.1-development.cdx.json'));
+  const developmentSbom = JSON.parse(read('release/evidence/openbexi-node-sbom-2.3.1-development.cdx.json'));
   const releaseModule = read('js/releaseVersion.js');
 
   assert(promptHistory.startsWith('# Prompt History'), 'PROMPT_History.md starts with Prompt History');
 
-  assert.strictEqual(release.version, '2.2.1', 'authoritative development version is 2.2.1');
-  assert.strictEqual(release.channel, 'development', 'Version 2.2.1 remains on the development channel');
-  assert.strictEqual(release.publicationState, 'development', 'Version 2.2.1 is not promoted');
+  assert.strictEqual(release.version, '2.3.1', 'authoritative development version is 2.3.1');
+  assert.strictEqual(release.channel, 'development', 'Version 2.3.1 remains on the development channel');
+  assert.strictEqual(release.publicationState, 'development', 'Version 2.3.1 is not promoted');
   assert.strictEqual(release.candidateAt, null, 'development build has no candidate date');
   assert.strictEqual(release.releasedAt, null, 'development build has no release date');
   assert.strictEqual(release.maturity, 'experimental', 'scientific maturity remains experimental');
@@ -166,8 +166,14 @@ function run() {
   assert.strictEqual(packageLock.version, release.version, 'lockfile version matches release metadata');
   assert.strictEqual(
     packageJson.scripts['serve:update'],
-    'node scripts/python.mjs server.py --host 127.0.0.1 --port 8000 --update-data-on-schedule --gp-update-interval-hours 24 --tle-update-interval-hours 24 --satcat-update-interval-hours 24 --reconciliation-interval-hours 24',
+    'node scripts/python.mjs server.py --host 127.0.0.1 --port 8000 --update-data-on-schedule --gp-update-interval-hours 24 --tle-update-interval-hours 24 --satcat-update-interval-hours 24 --tracked-update-interval-hours 24 --reconciliation-interval-hours 24',
     'serve:update starts the explicit opt-in daily maintenance server'
+  );
+  const playwrightConfig = read('playwright.config.js');
+  assert.match(
+    playwrightConfig,
+    /process\.execPath,\s*['"]scripts\/python\.mjs['"]/,
+    'Playwright starts its loopback server through shared Python discovery'
   );
   assert.match(
     archivedSbom.serialNumber,
@@ -177,12 +183,12 @@ function run() {
   assert.match(
     developmentSbom.serialNumber,
     /^urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
-    'v2.2 development CycloneDX SBOM has a standards-compliant UUID serial number'
+    'v2.3.1 development CycloneDX SBOM has a standards-compliant UUID serial number'
   );
   assert.strictEqual(
     developmentSbom.metadata?.component?.version,
     release.version,
-    'v2.2 development SBOM matches authoritative version metadata'
+    'v2.3.1 development SBOM matches authoritative version metadata'
   );
   assert(indexHtml.includes('const versionNumber = APP_VERSION;'), 'index.html uses the imported version');
   assert(releaseModule.includes("export const APP_VERSION = RELEASE_METADATA.version"), 'browser version derives from generated release metadata');
@@ -264,13 +270,13 @@ function run() {
   const authoredMarkdownFiles = repositoryFiles
     .filter(file => /\.md$/i.test(file))
     .sort();
-  assert.strictEqual(authoredMarkdownFiles.length, 39, 'repository has the expected 39 project-authored Markdown files');
+  assert.strictEqual(authoredMarkdownFiles.length, 42, 'repository has the expected 42 project-authored Markdown files');
 
   const documentationLinks = markdownDestinations(sectionByHeading.get('All Project Documentation'))
     .map(localPathFromDestination)
     .filter(Boolean)
     .filter(file => /\.md$/i.test(file));
-  assert.strictEqual(documentationLinks.length, 39, 'README documentation inventory contains 39 Markdown links');
+  assert.strictEqual(documentationLinks.length, 42, 'README documentation inventory contains 42 Markdown links');
   assert.strictEqual(
     new Set(documentationLinks).size,
     documentationLinks.length,
@@ -341,7 +347,7 @@ function run() {
   )].map(match => match[1]);
   assert.deepStrictEqual(
     dataToolSubcommands,
-    ['export-gp', 'export-tle', 'build-decayed-db', 'refresh-satcat', 'build-launches', 'maybe-update'],
+    ['export-gp', 'export-tle', 'build-decayed-db', 'refresh-satcat', 'build-launches', 'build-tracked', 'maybe-update'],
     'satellite data tool exposes the expected maintained subcommands'
   );
   dataToolSubcommands.forEach(command => {

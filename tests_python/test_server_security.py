@@ -200,9 +200,12 @@ class StaticPathPolicyTests(unittest.TestCase):
             (root / "json" / "decayed").mkdir(parents=True)
             (root / "json" / "tle").mkdir(parents=True)
             gp_path = root / "json" / "gp" / "GP.json"
-            gp_path.write_text('[{"norad_id":"100001"}]', encoding="utf-8")
+            gp_bytes = b'[{"norad_id":"100001"}]'
+            gp_revision = f"sha256:{hashlib.sha256(gp_bytes).hexdigest()}"
+            gp_path.write_bytes(gp_bytes)
             (root / "json" / "gp" / "GP.meta.json").write_text(json.dumps({
-                "catalog_revision": "sha256:test-gp",
+                "catalog_revision": gp_revision,
+                "dataset_hash": gp_revision,
                 "retrieval_timestamp": "2026-08-20T01:00:00Z",
                 "newest_orbital_epoch": "2026-08-20T00:00:00.000Z",
                 "last_reconciled_at": "2026-08-20T02:00:00Z",
@@ -222,25 +225,33 @@ class StaticPathPolicyTests(unittest.TestCase):
                 "last_reconciled_at": "2026-08-20T04:00:00Z",
                 "counts": {"total": 10},
             }), encoding="utf-8")
+            satcat_bytes = b"OBJECT_NAME,NORAD_CAT_ID,DECAY_DATE\r\nTEST,100001,\r\n"
+            satcat_revision = f"sha256:{hashlib.sha256(satcat_bytes).hexdigest()}"
+            (root / "json" / "satcat.csv").write_bytes(satcat_bytes)
             (root / "json" / "satcat.meta.json").write_text(json.dumps({
-                "dataset_hash": "sha256:test-satcat",
+                "catalog_revision": satcat_revision,
+                "dataset_hash": satcat_revision,
                 "last_reconciled_at": "2026-08-20T03:00:00Z",
             }), encoding="utf-8")
 
             health = server._catalog_data_health(root)
 
             self.assertEqual(server._preferred_catalog_path(root), gp_path)
-            self.assertEqual(health["catalog_revision"], "sha256:test-gp")
-            self.assertEqual(health["gp_revision"], "sha256:test-gp")
+            self.assertEqual(health["catalog_revision"], gp_revision)
+            self.assertEqual(health["gp_revision"], gp_revision)
+            self.assertEqual(health["gp_payload_revision"], gp_revision)
+            self.assertTrue(health["gp_revision_match"])
             self.assertEqual(health["launch_revision"], "sha256:test-launch")
             self.assertEqual(health["decay_revision"], "sha256:test-decay")
             self.assertEqual(health["tle_revision"], "sha256:test-tle")
-            self.assertEqual(health["satcat_revision"], "sha256:test-satcat")
+            self.assertEqual(health["satcat_revision"], satcat_revision)
+            self.assertEqual(health["satcat_payload_revision"], satcat_revision)
+            self.assertTrue(health["satcat_revision_match"])
             components = {
                 "decay_revision": "sha256:test-decay",
-                "gp_revision": "sha256:test-gp",
+                "gp_revision": gp_revision,
                 "launch_revision": "sha256:test-launch",
-                "satcat_revision": "sha256:test-satcat",
+                "satcat_revision": satcat_revision,
                 "tle_revision": "sha256:test-tle",
             }
             canonical = json.dumps(
@@ -253,11 +264,11 @@ class StaticPathPolicyTests(unittest.TestCase):
                 health["data_revision"],
                 f"sha256:{hashlib.sha256(canonical).hexdigest()}",
             )
-            self.assertEqual(health["datasets"]["gp"]["revision"], "sha256:test-gp")
+            self.assertEqual(health["datasets"]["gp"]["revision"], gp_revision)
             self.assertEqual(health["datasets"]["launch"]["revision"], "sha256:test-launch")
             self.assertEqual(health["datasets"]["decay"]["revision"], "sha256:test-decay")
             self.assertEqual(health["datasets"]["tle"]["revision"], "sha256:test-tle")
-            self.assertEqual(health["datasets"]["satcat"]["revision"], "sha256:test-satcat")
+            self.assertEqual(health["datasets"]["satcat"]["revision"], satcat_revision)
             self.assertEqual(health["last_reconciled_at"], "2026-08-20T04:00:00Z")
             self.assertEqual(health["newest_launch_date"], "2026-08-20")
             self.assertEqual(health["newest_confirmed_decay_date"], "2026-08-19")
@@ -291,6 +302,55 @@ class StaticPathPolicyTests(unittest.TestCase):
     def test_resolved_symlink_or_traversal_cannot_escape_root(self):
         self.assertIsNone(server.resolve_static_request_path("/../server.py"))
         self.assertIsNone(server.resolve_static_request_path("/%2e%2e/server.py"))
+
+
+class HttpServerCapacityTests(unittest.TestCase):
+    class FakeRequest:
+        def __init__(self):
+            self.closed = False
+
+        def close(self):
+            self.closed = True
+
+    def test_request_slots_reject_excess_and_release_on_failures(self):
+        httpd = object.__new__(server.ThreadingHTTPServer)
+        httpd._request_slots = threading.BoundedSemaphore(2)
+        requests = [self.FakeRequest() for _ in range(3)]
+        accepted = []
+        with mock.patch.object(
+            server._ThreadingHTTPServer,
+            "process_request",
+            side_effect=lambda request, address: accepted.append((request, address)),
+        ):
+            for index, request in enumerate(requests):
+                httpd.process_request(request, ("127.0.0.1", index))
+        self.assertEqual(len(accepted), 2)
+        self.assertFalse(requests[0].closed)
+        self.assertFalse(requests[1].closed)
+        self.assertTrue(requests[2].closed)
+
+        httpd._request_slots.release()
+        httpd._request_slots.release()
+        with mock.patch.object(
+            server._ThreadingHTTPServer,
+            "process_request",
+            side_effect=RuntimeError("thread start failed"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "thread start failed"):
+                httpd.process_request(self.FakeRequest(), ("127.0.0.1", 4))
+        self.assertTrue(httpd._request_slots.acquire(blocking=False))
+        httpd._request_slots.release()
+
+        self.assertTrue(httpd._request_slots.acquire(blocking=False))
+        with mock.patch.object(
+            server._ThreadingHTTPServer,
+            "process_request_thread",
+            side_effect=RuntimeError("handler failed"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "handler failed"):
+                httpd.process_request_thread(self.FakeRequest(), ("127.0.0.1", 5))
+        self.assertTrue(httpd._request_slots.acquire(blocking=False))
+        httpd._request_slots.release()
 
 
 class CorsPolicyTests(unittest.TestCase):

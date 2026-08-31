@@ -22,7 +22,7 @@ import secrets
 import threading
 import time
 from http import HTTPStatus
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer as _ThreadingHTTPServer
 from pathlib import Path, PurePosixPath
 from urllib.parse import quote, unquote, urlparse
 
@@ -126,6 +126,41 @@ STATIC_BLOCKED_SUFFIXES = frozenset(
     }
 )
 SAFE_HOST_HEADER = re.compile(r"^[A-Za-z0-9.\-:\[\]]+$")
+MAX_CONCURRENT_REQUESTS = 8
+REQUEST_QUEUE_SIZE = 64
+REQUEST_SOCKET_TIMEOUT_SECONDS = 30.0
+
+
+class ThreadingHTTPServer(_ThreadingHTTPServer):
+    """Threaded local server with finite request and idle-socket capacity."""
+
+    daemon_threads = True
+    request_queue_size = REQUEST_QUEUE_SIZE
+
+    def __init__(self, *args, max_concurrent_requests: int = MAX_CONCURRENT_REQUESTS, **kwargs):
+        self._request_slots = threading.BoundedSemaphore(max(1, int(max_concurrent_requests)))
+        super().__init__(*args, **kwargs)
+
+    def get_request(self):
+        request, client_address = super().get_request()
+        request.settimeout(REQUEST_SOCKET_TIMEOUT_SECONDS)
+        return request, client_address
+
+    def process_request(self, request, client_address) -> None:
+        if not self._request_slots.acquire(blocking=False):
+            request.close()
+            return
+        try:
+            super().process_request(request, client_address)
+        except Exception:
+            self._request_slots.release()
+            raise
+
+    def process_request_thread(self, request, client_address) -> None:
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self._request_slots.release()
 
 try:
     from tools.satellite_data_tools import (
@@ -141,6 +176,12 @@ else:
 
 
 DATA_UPDATE_STATUS_LOCK = threading.Lock()
+TRACKED_CHUNK_VALIDATION_LOCK = threading.Lock()
+TRACKED_CHUNK_VALIDATION_CACHE_MAX_ITEMS = 128
+TRACKED_CHUNK_VALIDATION_CACHE: dict[tuple[object, ...], bool] = {}
+CATALOG_REVISION_CACHE_LOCK = threading.Lock()
+CATALOG_REVISION_CACHE_MAX_ITEMS = 16
+CATALOG_REVISION_CACHE: dict[tuple[object, ...], str] = {}
 DATA_UPDATE_ERROR_MAX_LENGTH = 1000
 DATA_UPDATE_ERROR_MAX_ITEMS = 10
 DATA_UPDATE_RESULT_MAX_DEPTH = 8
@@ -149,6 +190,7 @@ DATASET_STATUS_METADATA_NAMES = {
     "gp": "gp",
     "tle": "tle",
     "satcat": "satcat",
+    "tracked": "tracked",
     "launch": "launches",
     "decay": "decayed",
 }
@@ -167,6 +209,7 @@ DATA_UPDATE_STATUS: dict[str, object] = {
         "gp": DEFAULT_SERVER_UPDATE_INTERVAL_HOURS,
         "tle": DEFAULT_SERVER_UPDATE_INTERVAL_HOURS,
         "satcat": DEFAULT_SERVER_UPDATE_INTERVAL_HOURS,
+        "tracked": DEFAULT_SERVER_UPDATE_INTERVAL_HOURS,
         "reconciliation": DEFAULT_SERVER_UPDATE_INTERVAL_HOURS,
     },
     "consecutive_failures": 0,
@@ -421,6 +464,7 @@ def _composite_data_revision(
     decay: str | None,
     tle: str | None = None,
     satcat: str | None = None,
+    tracked: str | None = None,
 ) -> str:
     components = {
         "decay_revision": decay,
@@ -429,6 +473,8 @@ def _composite_data_revision(
         "satcat_revision": satcat,
         "tle_revision": tle,
     }
+    if tracked is not None:
+        components["tracked_revision"] = tracked
     canonical = json.dumps(components, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return f"sha256:{hashlib.sha256(canonical).hexdigest()}"
 
@@ -440,13 +486,119 @@ def _catalog_artifact_available(path: Path) -> bool:
         return False
 
 
+def _tracked_manifest_pointer_is_valid(manifest: dict[str, object]) -> bool:
+    return bool(
+        _metadata_revision(manifest)
+        and isinstance(manifest.get("counts"), dict)
+        and isinstance(manifest.get("chunks"), list)
+        and isinstance(manifest.get("history_chunks"), list)
+        and isinstance(manifest.get("quarantine"), dict)
+    )
+
+
+def _tracked_authoritative_counts(
+    payload: dict[str, object],
+) -> tuple[int, int, int, int, int] | None:
+    counts = payload.get("counts")
+    if not isinstance(counts, dict):
+        return None
+
+    current = counts.get("current")
+    total = counts.get("total")
+    history_total = counts.get("history_total")
+    historical = counts.get("historical")
+    absent = counts.get("absent")
+    values = (current, historical, absent, history_total, total)
+    if any(isinstance(value, bool) or not isinstance(value, int) or value < 0 for value in values):
+        return None
+    if historical > history_total or absent > history_total or total != current + history_total:
+        return None
+    return current, historical, absent, history_total, total
+
+
+def _tracked_availability_counts(payload: dict[str, object]) -> tuple[int, int, int, int] | None:
+    authoritative = _tracked_authoritative_counts(payload)
+    counts = payload.get("counts")
+    if authoritative is None or not isinstance(counts, dict):
+        return None
+    current, _, _, _, total = authoritative
+    values = tuple(
+        counts.get(name)
+        for name in (
+            "propagatable",
+            "metadata_only",
+            "current_propagatable",
+            "current_metadata_only",
+        )
+    )
+    if any(isinstance(value, bool) or not isinstance(value, int) or value < 0 for value in values):
+        return None
+    propagatable, metadata_only, current_propagatable, current_metadata_only = values
+    if total != propagatable + metadata_only or current != current_propagatable + current_metadata_only:
+        return None
+    return values
+
+
+def _tracked_metadata_pointer_error(
+    manifest: dict[str, object],
+    tracked_meta: dict[str, object],
+) -> str | None:
+    manifest_revision = _metadata_revision(manifest)
+    metadata_revision = tracked_meta.get("catalog_revision")
+    metadata_hash = tracked_meta.get("dataset_hash")
+    if (
+        not isinstance(metadata_revision, str)
+        or not metadata_revision
+        or metadata_hash != metadata_revision
+        or metadata_revision != manifest_revision
+    ):
+        return "Tracked manifest and metadata revisions are inconsistent."
+    manifest_counts = _tracked_authoritative_counts(manifest)
+    metadata_counts = _tracked_authoritative_counts(tracked_meta)
+    manifest_availability = _tracked_availability_counts(manifest)
+    metadata_availability = _tracked_availability_counts(tracked_meta)
+    if (
+        manifest_counts is None
+        or metadata_counts is None
+        or metadata_counts != manifest_counts
+        or manifest_availability is None
+        or metadata_availability != manifest_availability
+    ):
+        return "Tracked manifest and metadata counts are inconsistent."
+    return None
+
+
 def _catalog_data_health(root: Path) -> dict[str, object]:
     gp_meta = _load_metadata(root / "json" / "gp" / "GP.meta.json")
     launch_meta = _load_metadata(root / "json" / "launches" / "launches.meta.json")
     decay_meta = _load_metadata(root / "json" / "decayed" / "decayed.meta.json")
     satcat_meta = _load_metadata(root / "json" / "satcat.meta.json")
+    tracked_meta_path = root / "json" / "tracked" / "TRACKED.meta.json"
+    tracked_manifest_path = root / "json" / "tracked" / "TRACKED.manifest.json"
+    tracked_meta = _load_metadata(tracked_meta_path)
+    tracked_manifest_snapshot = _load_tracked_manifest_snapshot(root)
+    tracked_manifest = (
+        tracked_manifest_snapshot[0]
+        if tracked_manifest_snapshot is not None
+        else {}
+    )
+    gp_payload_matches, gp_payload_revision = (
+        _metadata_payload_revision_matches(root / "json" / "gp" / "GP.json", gp_meta)
+        if gp_meta
+        else (False, None)
+    )
+    satcat_payload_matches, satcat_payload_revision = (
+        _metadata_payload_revision_matches(root / "json" / "satcat.csv", satcat_meta)
+        if satcat_meta
+        else (False, None)
+    )
+    source_integrity_errors = []
+    if gp_meta and not gp_payload_matches:
+        source_integrity_errors.append("GP catalog bytes do not match the metadata revision.")
+    if satcat_meta and not satcat_payload_matches:
+        source_integrity_errors.append("SATCAT catalog bytes do not match the metadata revision.")
     tle_meta = _load_metadata(root / "json" / "tle" / "TLE.meta.json")
-    dataset_metas = (gp_meta, tle_meta, satcat_meta, launch_meta, decay_meta)
+    dataset_metas = (gp_meta, tle_meta, satcat_meta, tracked_meta, launch_meta, decay_meta)
     primary_errors = _bounded_public_errors([meta.get("last_error") for meta in dataset_metas])
     primary_statuses = {
         str(meta.get("last_status") or "unknown").lower()
@@ -459,7 +611,7 @@ def _catalog_data_health(root: Path) -> dict[str, object]:
             if _catalog_artifact_available(root / "json" / "tle" / "TLE.json")
             else "unavailable"
         )
-    elif primary_errors or primary_statuses.intersection({"failed", "failure", "partial", "degraded", "error"}):
+    elif source_integrity_errors or primary_errors or primary_statuses.intersection({"failed", "failure", "partial", "degraded", "error"}):
         catalog_state = "degraded"
     elif str(gp_meta.get("source_status") or "").upper() == "PARTIAL" or gp_meta.get("partial_update") is True:
         catalog_state = "partial"
@@ -470,10 +622,65 @@ def _catalog_data_health(root: Path) -> dict[str, object]:
     decay_revision = _metadata_revision(decay_meta)
     tle_revision = _metadata_revision(tle_meta)
     satcat_revision = _metadata_revision(satcat_meta)
+    tracked_manifest_revision = _metadata_revision(tracked_manifest)
+    tracked_metadata_revision = _metadata_revision(tracked_meta)
+    tracked_manifest_valid = False
+    tracked_manifest_error: str | None = None
+    if tracked_manifest_snapshot is not None:
+        tracked_manifest_valid, tracked_manifest_error = _validate_tracked_manifest_pointer(
+            root,
+            tracked_manifest_snapshot,
+        )
+    elif tracked_manifest_path.is_file():
+        tracked_manifest_error = "Tracked manifest is unreadable or invalid."
+    tracked_metadata_error = (
+        _tracked_metadata_pointer_error(tracked_manifest, tracked_meta)
+        if tracked_manifest_valid
+        else None
+    )
+    tracked_metadata_valid = tracked_metadata_revision is not None and tracked_metadata_error is None
+    tracked_artifacts_present = tracked_manifest_path.is_file() or tracked_meta_path.is_file()
+    tracked_revision_mismatch = bool(tracked_manifest_valid and tracked_metadata_error)
+    tracked_lineage_error = (
+        source_integrity_errors[0]
+        if source_integrity_errors
+        else _tracked_manifest_lineage_error(
+            tracked_manifest,
+            tracked_meta=tracked_meta,
+            gp_revision=gp_revision,
+            satcat_revision=satcat_revision,
+            gp_source_groups=gp_meta.get("catalog_source_groups"),
+        )
+        if tracked_manifest_valid
+        else None
+    )
+    tracked_pointer_error = (
+        tracked_manifest_error
+        if tracked_manifest_error
+        else "Tracked manifest is missing or invalid while tracked catalog state exists."
+        if tracked_artifacts_present and not tracked_manifest_valid
+        else "Tracked metadata is missing or invalid for the current manifest."
+        if tracked_artifacts_present and tracked_metadata_revision is None
+        else tracked_metadata_error
+        if tracked_revision_mismatch
+        else tracked_lineage_error
+        if tracked_lineage_error
+        else None
+    )
+    tracked_catalog_usable = bool(
+        tracked_manifest_valid
+        and tracked_metadata_valid
+        and tracked_pointer_error is None
+    )
+    tracked_revision = tracked_manifest_revision if tracked_catalog_usable else None
+    tracked_counts = tracked_manifest.get("counts") if tracked_catalog_usable else None
+    tracked_counts = tracked_counts if isinstance(tracked_counts, dict) else {}
+    if tracked_pointer_error and catalog_state != "unavailable":
+        catalog_state = "degraded"
     last_reconciled_at = _newest_timestamp(
         [
             value
-            for meta in (gp_meta, tle_meta, satcat_meta, launch_meta, decay_meta)
+            for meta in (gp_meta, tle_meta, satcat_meta, tracked_meta, launch_meta, decay_meta)
             for value in (meta.get("last_reconciled_at"), meta.get("reconciled_at"))
         ]
     )
@@ -486,19 +693,38 @@ def _catalog_data_health(root: Path) -> dict[str, object]:
             decay=decay_revision,
             tle=tle_revision,
             satcat=satcat_revision,
+            tracked=tracked_revision,
         ),
         "catalog_revision": gp_revision,
         "gp_revision": gp_revision,
+        "gp_payload_revision": gp_payload_revision,
+        "gp_revision_match": gp_payload_matches if gp_meta else None,
         "launch_revision": launch_revision,
         "decay_revision": decay_revision,
         "tle_revision": tle_revision,
         "satcat_revision": satcat_revision,
+        "satcat_payload_revision": satcat_payload_revision,
+        "satcat_revision_match": satcat_payload_matches if satcat_meta else None,
+        "tracked_revision": tracked_revision,
+        "tracked_metadata_revision": tracked_metadata_revision,
+        "tracked_pointer_valid": tracked_manifest_valid if tracked_artifacts_present else None,
+        "tracked_source_revision_match": (
+            tracked_lineage_error is None if tracked_manifest_valid else False
+        ) if tracked_artifacts_present else None,
+        "tracked_revision_match": (
+            tracked_manifest_revision == tracked_metadata_revision
+            if tracked_manifest_valid and tracked_metadata_valid
+            else False
+            if tracked_artifacts_present
+            else None
+        ),
         "datasets": {
             "gp": {"revision": gp_revision, **_metadata_dataset_history(gp_meta)},
             "launch": {"revision": launch_revision, **_metadata_dataset_history(launch_meta)},
             "decay": {"revision": decay_revision, **_metadata_dataset_history(decay_meta)},
             "tle": {"revision": tle_revision, **_metadata_dataset_history(tle_meta)},
             "satcat": {"revision": satcat_revision, **_metadata_dataset_history(satcat_meta)},
+            "tracked": {"revision": tracked_revision, **_metadata_dataset_history(tracked_meta)},
         },
         "retrieval_timestamp": gp_meta.get("retrieval_timestamp") or gp_meta.get("fetched_at") or satcat_meta.get("fetched_at"),
         "newest_orbital_epoch": gp_meta.get("newest_orbital_epoch"),
@@ -509,7 +735,28 @@ def _catalog_data_health(root: Path) -> dict[str, object]:
         "omm_count": _metadata_count(gp_meta, "omm", "total"),
         "six_digit_id_count": _metadata_count(gp_meta, "six_digit_ids"),
         "quarantined_count": _metadata_count(gp_meta, "quarantined"),
-        "last_error": primary_errors[0] if primary_errors else None,
+        "tracked_current_count": (
+            _metadata_count({"counts": tracked_counts}, "current")
+            if tracked_catalog_usable
+            else None
+        ),
+        "tracked_metadata_only_count": (
+            _metadata_count({"counts": tracked_counts}, "metadata_only")
+            if tracked_catalog_usable
+            else None
+        ),
+        "tracked_current_metadata_only_count": _metadata_count(
+            {"counts": tracked_counts}, "current_metadata_only"
+        ) if tracked_catalog_usable else None,
+        "last_error": (
+            tracked_pointer_error
+            if tracked_pointer_error
+            else source_integrity_errors[0]
+            if source_integrity_errors
+            else primary_errors[0]
+            if primary_errors
+            else None
+        ),
     }
 
 
@@ -558,6 +805,437 @@ def _preferred_catalog_path(root: Path = ROOT) -> Path:
     return root / "json" / "tle" / "TLE.json"
 
 
+def _tracked_manifest_path(root: Path | None = None) -> Path:
+    return (root or ROOT) / "json" / "tracked" / "TRACKED.manifest.json"
+
+
+def _path_stat_identity(path: Path) -> tuple[int, int, int, int]:
+    stat = path.stat()
+    return (stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_ino)
+
+
+def _file_sha256_revision(path: Path) -> str | None:
+    try:
+        resolved = path.resolve(strict=True)
+        before = _path_stat_identity(resolved)
+    except OSError:
+        return None
+    cache_key = (str(resolved), *before)
+    with CATALOG_REVISION_CACHE_LOCK:
+        cached = CATALOG_REVISION_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+    digest = hashlib.sha256()
+    try:
+        with resolved.open("rb") as stream:
+            while chunk := stream.read(1024 * 1024):
+                digest.update(chunk)
+        if _path_stat_identity(resolved) != before:
+            return None
+    except OSError:
+        return None
+    revision = f"sha256:{digest.hexdigest()}"
+    with CATALOG_REVISION_CACHE_LOCK:
+        stale_keys = [key for key in CATALOG_REVISION_CACHE if key[0] == str(resolved)]
+        for key in stale_keys:
+            CATALOG_REVISION_CACHE.pop(key, None)
+        if len(CATALOG_REVISION_CACHE) >= CATALOG_REVISION_CACHE_MAX_ITEMS:
+            CATALOG_REVISION_CACHE.pop(next(iter(CATALOG_REVISION_CACHE)))
+        CATALOG_REVISION_CACHE[cache_key] = revision
+    return revision
+
+
+def _load_json_object_snapshot(
+    path: Path,
+) -> tuple[dict[str, object], bytes, tuple[int, int, int, int]] | None:
+    try:
+        before = _path_stat_identity(path)
+        body = path.read_bytes()
+        after = _path_stat_identity(path)
+        if before != after:
+            return None
+        payload = json.loads(body)
+    except (OSError, UnicodeDecodeError, ValueError, TypeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    return payload, body, after
+
+
+def _metadata_payload_revision_matches(path: Path, metadata: dict[str, object]) -> tuple[bool, str | None]:
+    actual = _file_sha256_revision(path)
+    catalog_revision = metadata.get("catalog_revision")
+    dataset_hash = metadata.get("dataset_hash")
+    matches = bool(
+        actual
+        and isinstance(catalog_revision, str)
+        and isinstance(dataset_hash, str)
+        and actual == catalog_revision == dataset_hash
+    )
+    return matches, actual
+
+
+def _load_tracked_manifest_snapshot(
+    root: Path | None = None,
+) -> tuple[dict[str, object], tuple[object, ...], bytes] | None:
+    root = root or ROOT
+    path = _tracked_manifest_path(root)
+    try:
+        before = _path_stat_identity(path)
+        body = path.read_bytes()
+        after = _path_stat_identity(path)
+        if before != after:
+            return None
+        payload = json.loads(body)
+    except (OSError, ValueError, TypeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    identity = (
+        str(path.resolve()),
+        _metadata_revision(payload),
+        *after,
+        hashlib.sha256(body).hexdigest(),
+    )
+    return payload, identity, body
+
+
+def _tracked_manifest_descriptors(manifest: dict[str, object]) -> list[dict[str, object]]:
+    descriptors: list[dict[str, object]] = []
+    for name in ("chunks", "history_chunks"):
+        value = manifest.get(name)
+        if isinstance(value, list):
+            descriptors.extend(item for item in value if isinstance(item, dict))
+    quarantine = manifest.get("quarantine")
+    if isinstance(quarantine, dict) and quarantine.get("path"):
+        descriptors.append(quarantine)
+    return descriptors
+
+
+def _validate_tracked_chunk_payload(body: bytes, descriptor: dict[str, object]) -> bool:
+    expected_hash = str(descriptor.get("sha256") or "").lower().removeprefix("sha256:")
+    expected_bytes = descriptor.get("bytes")
+    expected_count = descriptor.get("count")
+    if (
+        not re.fullmatch(r"[a-f0-9]{64}", expected_hash)
+        or isinstance(expected_bytes, bool)
+        or not isinstance(expected_bytes, int)
+        or expected_bytes < 0
+        or len(body) != expected_bytes
+        or hashlib.sha256(body).hexdigest() != expected_hash
+        or isinstance(expected_count, bool)
+        or not isinstance(expected_count, int)
+        or expected_count < 0
+    ):
+        return False
+    try:
+        payload = json.loads(body)
+    except (UnicodeDecodeError, ValueError, TypeError):
+        return False
+    records = payload.get("records") if isinstance(payload, dict) else payload
+    if not isinstance(records, list) or len(records) != expected_count:
+        return False
+    descriptor_scope = descriptor.get("scope")
+    descriptor_type = descriptor.get("object_type")
+    if descriptor_scope is None:
+        return True
+    if (
+        not isinstance(payload, dict)
+        or descriptor_scope not in {"CURRENT", "HISTORICAL"}
+        or payload.get("scope") != descriptor_scope
+        or payload.get("object_type") != descriptor_type
+    ):
+        return False
+    for record in records:
+        if not isinstance(record, dict) or record.get("object_type") != descriptor_type:
+            return False
+        is_current = (
+            record.get("catalog_membership_status") == "PRESENT"
+            and not record.get("decay_date")
+        )
+        if (descriptor_scope == "CURRENT") != is_current:
+            return False
+    return True
+
+
+def _verified_tracked_chunk(
+    file_name: str,
+    root: Path | None = None,
+    *,
+    include_body: bool = False,
+    manifest_snapshot: tuple[dict[str, object], tuple[object, ...], bytes] | None = None,
+) -> dict[str, object] | None:
+    root = root or ROOT
+    safe_name = Path(file_name).name
+    if safe_name != file_name or not safe_name.endswith(".json"):
+        return None
+    snapshot = manifest_snapshot or _load_tracked_manifest_snapshot(root)
+    if snapshot is None:
+        return None
+    manifest, manifest_identity, _ = snapshot
+    relative = f"json/tracked/chunks/{safe_name}"
+    matches = [
+        descriptor
+        for descriptor in _tracked_manifest_descriptors(manifest)
+        if descriptor.get("path") == relative
+    ]
+    if len(matches) != 1:
+        return None
+    descriptor = matches[0]
+    resolved_root = root.resolve()
+    candidate = (root / relative).resolve()
+    chunk_root = (root / "json" / "tracked" / "chunks").resolve()
+    if (
+        chunk_root == resolved_root
+        or resolved_root not in chunk_root.parents
+        or candidate.parent != chunk_root
+        or resolved_root not in candidate.parents
+    ):
+        return None
+    try:
+        file_identity = _path_stat_identity(candidate)
+    except OSError:
+        return None
+    cache_key = (
+        manifest_identity,
+        str(candidate),
+        file_identity,
+        descriptor.get("sha256"),
+        descriptor.get("bytes"),
+        descriptor.get("count"),
+        descriptor.get("scope"),
+        descriptor.get("object_type"),
+    )
+    body: bytes | None = None
+    with TRACKED_CHUNK_VALIDATION_LOCK:
+        validated = TRACKED_CHUNK_VALIDATION_CACHE.get(cache_key)
+        if validated is None:
+            try:
+                body = candidate.read_bytes()
+                stable = _path_stat_identity(candidate) == file_identity
+            except OSError:
+                stable = False
+                body = None
+            validated = bool(
+                stable
+                and body is not None
+                and _validate_tracked_chunk_payload(body, descriptor)
+            )
+            if len(TRACKED_CHUNK_VALIDATION_CACHE) >= TRACKED_CHUNK_VALIDATION_CACHE_MAX_ITEMS:
+                TRACKED_CHUNK_VALIDATION_CACHE.pop(next(iter(TRACKED_CHUNK_VALIDATION_CACHE)))
+            TRACKED_CHUNK_VALIDATION_CACHE[cache_key] = validated
+    if not validated:
+        return None
+    if include_body and body is None:
+        try:
+            body = candidate.read_bytes()
+            if (
+                _path_stat_identity(candidate) != file_identity
+                or len(body) != descriptor.get("bytes")
+            ):
+                return None
+        except OSError:
+            return None
+    return {
+        "path": candidate,
+        "body": body if include_body else None,
+        "bytes": descriptor.get("bytes"),
+        "sha256": descriptor.get("sha256"),
+        "count": descriptor.get("count"),
+    }
+
+
+def _tracked_chunk_api_path(file_name: str, root: Path | None = None) -> Path | None:
+    verified = _verified_tracked_chunk(file_name, root)
+    path = verified.get("path") if verified is not None else None
+    return path if isinstance(path, Path) else None
+
+
+def _validate_tracked_manifest_pointer(
+    root: Path,
+    snapshot: tuple[dict[str, object], tuple[object, ...], bytes],
+) -> tuple[bool, str | None]:
+    manifest, _, _ = snapshot
+    if not _tracked_manifest_pointer_is_valid(manifest):
+        return False, "Tracked manifest schema is invalid."
+    if not re.match(r"^2\.3(?:\.|$)", str(manifest.get("schema_version") or "")):
+        return False, "Tracked manifest must use the Version 2.3 schema."
+    if manifest.get("provider_completeness_claim") is not False:
+        return False, "Tracked manifest must not claim provider-universe completeness."
+    invariants = manifest.get("invariants")
+    required_invariants = (
+        "provider_coverage_holds",
+        "catalog_partition_holds",
+        "current_chunk_count_holds",
+        "history_chunk_count_holds",
+    )
+    if not isinstance(invariants, dict) or any(invariants.get(name) is not True for name in required_invariants):
+        return False, "Tracked manifest accounting invariants are not satisfied."
+    chunks = manifest.get("chunks")
+    history_chunks = manifest.get("history_chunks")
+    if not all(isinstance(item, dict) for item in chunks + history_chunks):
+        return False, "Tracked manifest contains an invalid chunk descriptor."
+    descriptors = _tracked_manifest_descriptors(manifest)
+    paths = [descriptor.get("path") for descriptor in descriptors]
+    if any(not isinstance(path, str) or not path for path in paths) or len(paths) != len(set(paths)):
+        return False, "Tracked manifest chunk paths are invalid or duplicated."
+    for descriptor in descriptors:
+        path = str(descriptor["path"])
+        prefix = "json/tracked/chunks/"
+        if not path.startswith(prefix) or "/" in path[len(prefix):]:
+            return False, "Tracked manifest contains an invalid chunk path."
+        if _verified_tracked_chunk(
+            path[len(prefix):],
+            root,
+            manifest_snapshot=snapshot,
+        ) is None:
+            return False, f"Tracked manifest chunk validation failed: {Path(path).name}."
+    authoritative_counts = _tracked_authoritative_counts(manifest)
+    if authoritative_counts is None or _tracked_availability_counts(manifest) is None:
+        return False, "Tracked manifest authoritative counts are invalid."
+    current_expected, _, _, history_expected, _ = authoritative_counts
+    for expected, described, label in (
+        (current_expected, chunks, "current"),
+        (history_expected, history_chunks, "history"),
+    ):
+        described_counts = [item.get("count") for item in described]
+        if (
+            isinstance(expected, bool)
+            or not isinstance(expected, int)
+            or expected < 0
+            or any(
+                isinstance(count, bool) or not isinstance(count, int) or count < 0
+                for count in described_counts
+            )
+            or sum(described_counts) != expected
+        ):
+            return False, f"Tracked manifest {label} count does not match its chunks."
+    return True, None
+
+
+def _tracked_manifest_lineage_error(
+    manifest: dict[str, object],
+    *,
+    tracked_meta: dict[str, object],
+    gp_revision: str | None,
+    satcat_revision: str | None,
+    gp_source_groups: object,
+) -> str | None:
+    provenance = manifest.get("provenance")
+    provenance = provenance if isinstance(provenance, dict) else {}
+    for label, current_revision in (("GP", gp_revision), ("SATCAT", satcat_revision)):
+        manifest_revision = provenance.get(f"{label.lower()}_revision")
+        if not isinstance(current_revision, str) or not current_revision:
+            return f"Current {label} metadata revision is unavailable for tracked lineage verification."
+        if manifest_revision != current_revision:
+            return f"Tracked manifest {label} provenance is stale or missing."
+        metadata_revision = tracked_meta.get(f"source_{label.lower()}_revision")
+        if metadata_revision != current_revision:
+            return f"Tracked metadata {label} lineage is stale or missing."
+    manifest_groups = provenance.get("gp_source_groups")
+    metadata_groups = tracked_meta.get("source_gp_groups")
+    if (
+        not isinstance(manifest_groups, list)
+        or not all(isinstance(item, str) and item for item in manifest_groups)
+        or not isinstance(metadata_groups, list)
+        or not all(isinstance(item, str) and item for item in metadata_groups)
+        or not isinstance(gp_source_groups, list)
+        or not all(isinstance(item, str) and item for item in gp_source_groups)
+        or manifest_groups != metadata_groups
+        or manifest_groups != gp_source_groups
+    ):
+        return "Tracked GP source-group lineage is stale or missing."
+    return None
+
+
+def _load_coherent_tracked_catalog_snapshot(root: Path) -> dict[str, object] | None:
+    manifest_snapshot = _load_tracked_manifest_snapshot(root)
+    if manifest_snapshot is None:
+        return None
+    manifest, manifest_identity, manifest_body = manifest_snapshot
+    tracked_meta_path = root / "json" / "tracked" / "TRACKED.meta.json"
+    gp_path = root / "json" / "gp" / "GP.json"
+    gp_meta_path = root / "json" / "gp" / "GP.meta.json"
+    tracked_meta_snapshot = _load_json_object_snapshot(tracked_meta_path)
+    gp_meta_snapshot = _load_json_object_snapshot(gp_meta_path)
+    if tracked_meta_snapshot is None or gp_meta_snapshot is None:
+        return None
+    tracked_meta, tracked_meta_body, tracked_meta_identity = tracked_meta_snapshot
+    gp_meta, _, gp_meta_identity = gp_meta_snapshot
+    try:
+        gp_file_identity = _path_stat_identity(gp_path)
+    except OSError:
+        return None
+    gp_matches, gp_actual_revision = _metadata_payload_revision_matches(gp_path, gp_meta)
+    if not gp_matches:
+        return None
+
+    provenance = manifest.get("provenance")
+    provenance = provenance if isinstance(provenance, dict) else {}
+    manifest_satcat_revision = provenance.get("satcat_revision")
+    metadata_satcat_revision = tracked_meta.get("source_satcat_revision")
+    if (
+        not isinstance(manifest_satcat_revision, str)
+        or not manifest_satcat_revision
+        or not isinstance(metadata_satcat_revision, str)
+        or metadata_satcat_revision != manifest_satcat_revision
+    ):
+        return None
+    satcat_meta: dict[str, object] = {}
+    satcat_meta_path = root / "json" / "satcat.meta.json"
+    satcat_path = root / "json" / "satcat.csv"
+    satcat_meta_identity: tuple[int, int, int, int] | None = None
+    satcat_file_identity: tuple[int, int, int, int] | None = None
+    satcat_meta_snapshot = _load_json_object_snapshot(satcat_meta_path)
+    if satcat_meta_snapshot is None:
+        return None
+    satcat_meta, _, satcat_meta_identity = satcat_meta_snapshot
+    try:
+        satcat_file_identity = _path_stat_identity(satcat_path)
+    except OSError:
+        return None
+    satcat_matches, _ = _metadata_payload_revision_matches(satcat_path, satcat_meta)
+    if not satcat_matches:
+        return None
+
+    pointer_valid, _ = _validate_tracked_manifest_pointer(root, manifest_snapshot)
+    if (
+        not pointer_valid
+        or _tracked_metadata_pointer_error(manifest, tracked_meta) is not None
+        or _tracked_manifest_lineage_error(
+            manifest,
+            tracked_meta=tracked_meta,
+            gp_revision=gp_actual_revision,
+            satcat_revision=_metadata_revision(satcat_meta),
+            gp_source_groups=gp_meta.get("catalog_source_groups"),
+        ) is not None
+    ):
+        return None
+
+    stable_paths = (
+        (_tracked_manifest_path(root), tuple(manifest_identity[2:6])),
+        (tracked_meta_path, tracked_meta_identity),
+        (gp_meta_path, gp_meta_identity),
+        (gp_path, gp_file_identity),
+    )
+    try:
+        if any(_path_stat_identity(path) != identity for path, identity in stable_paths):
+            return None
+        if satcat_meta_identity is not None and (
+            _path_stat_identity(satcat_meta_path) != satcat_meta_identity
+            or _path_stat_identity(satcat_path) != satcat_file_identity
+        ):
+            return None
+    except OSError:
+        return None
+    return {
+        "manifest": manifest,
+        "manifest_snapshot": manifest_snapshot,
+        "manifest_body": manifest_body,
+        "metadata_body": tracked_meta_body,
+    }
+
+
 def _decode_request_path(raw_path: str) -> str | None:
     decoded = urlparse(raw_path).path
     for _ in range(3):
@@ -568,6 +1246,13 @@ def _decode_request_path(raw_path: str) -> str | None:
     if "\x00" in decoded or "\\" in decoded:
         return None
     return decoded
+
+
+def _normalized_request_path(raw_path: str) -> str | None:
+    decoded = _decode_request_path(raw_path)
+    if decoded is None:
+        return None
+    return "/" + "/".join(part for part in decoded.split("/") if part)
 
 
 def resolve_static_request_path(raw_path: str) -> tuple[Path, tuple[str, ...]] | None:
@@ -603,6 +1288,8 @@ def _static_path_parts_are_allowed(parts: tuple[str, ...]) -> bool:
         return True
     if len(lowered) == 3 and lowered[:2] == ("json", "satellites"):
         return Path(lowered[-1]).suffix == ".json"
+    if len(lowered) == 3 and lowered[:2] == ("json", "tracked"):
+        return lowered[-1] in {"tracked.manifest.json", "tracked.meta.json"}
 
     suffix = Path(lowered[-1]).suffix
     return any(
@@ -616,8 +1303,24 @@ def static_request_is_exposed(raw_path: str) -> bool:
     if resolved is None:
         return False
     candidate, request_parts = resolved
+    lowered_request_parts = tuple(part.lower() for part in request_parts)
+    if len(lowered_request_parts) == 4 and lowered_request_parts[:3] == (
+        "json",
+        "tracked",
+        "chunks",
+    ):
+        verified_chunk = _tracked_chunk_api_path(request_parts[-1])
+        return verified_chunk is not None and candidate == verified_chunk
     resolved_parts = () if candidate == ROOT else candidate.relative_to(ROOT).parts
     return _static_path_parts_are_allowed(request_parts) and _static_path_parts_are_allowed(resolved_parts)
+
+
+def _tracked_static_chunk_name(raw_path: str) -> str | None:
+    normalized = _normalized_request_path(raw_path)
+    if normalized is None:
+        return None
+    match = re.fullmatch(r"/json/tracked/chunks/([^/]+)", normalized, flags=re.IGNORECASE)
+    return match.group(1) if match else None
 
 
 def is_loopback_host(host: str) -> bool:
@@ -846,6 +1549,7 @@ class DataUpdateScheduler:
         gp_interval_hours: float | None = None,
         tle_interval_hours: float | None = None,
         satcat_interval_hours: float | None = None,
+        tracked_interval_hours: float | None = None,
         reconciliation_interval_hours: float = DEFAULT_SERVER_UPDATE_INTERVAL_HOURS,
         on_updated=None,
         initial_delay_seconds: float = 1.0,
@@ -859,6 +1563,16 @@ class DataUpdateScheduler:
             "gp": max(1.0, float(gp_interval_hours if gp_interval_hours is not None else self.interval_hours)),
             "tle": max(1.0, float(tle_interval_hours if tle_interval_hours is not None else self.interval_hours)),
             "satcat": max(1.0, float(satcat_interval_hours if satcat_interval_hours is not None else self.interval_hours)),
+            "tracked": max(
+                1.0,
+                float(
+                    tracked_interval_hours
+                    if tracked_interval_hours is not None
+                    else satcat_interval_hours
+                    if satcat_interval_hours is not None
+                    else self.interval_hours
+                ),
+            ),
             "reconciliation": max(1.0, float(reconciliation_interval_hours)),
         }
         self.on_updated = on_updated
@@ -992,6 +1706,7 @@ class DataUpdateScheduler:
                 gp_interval_hours=self.intervals_hours["gp"],
                 tle_interval_hours=self.intervals_hours["tle"],
                 satcat_interval_hours=self.intervals_hours["satcat"],
+                tracked_interval_hours=self.intervals_hours["tracked"],
                 reconciliation_interval_hours=self.intervals_hours["reconciliation"],
             )
             if not isinstance(result, dict):
@@ -1109,7 +1824,7 @@ class DataUpdateScheduler:
         containers = [result]
         containers.extend(
             result[name]
-            for name in ("gp", "tle", "satcat", "launches", "decayed", "reconciliation")
+            for name in ("gp", "tle", "satcat", "tracked", "launches", "decayed", "reconciliation")
             if isinstance(result.get(name), dict)
         )
         for container in containers:
@@ -1405,6 +2120,53 @@ def _openapi_document(host: str) -> dict[str, object]:
                     },
                 }
             },
+            "/api/tracked-objects": {
+                "get": {
+                    "summary": "Load the current provider-tracked object manifest",
+                    "responses": {
+                        "200": {
+                            "description": "Tracked-object coverage, revision, and chunk manifest",
+                            "content": {"application/json": {"schema": json_object_schema}},
+                        },
+                        "404": {"description": "Tracked-object catalog has not been built yet"},
+                        "503": {"description": "Tracked manifest, closure, or source lineage is not coherent"},
+                    },
+                }
+            },
+            "/api/tracked-objects/manifest": {
+                "get": {
+                    "summary": "Load the current provider-tracked object manifest",
+                    "responses": {
+                        "200": {
+                            "description": "Tracked-object coverage, revision, and chunk manifest",
+                            "content": {"application/json": {"schema": json_object_schema}},
+                        },
+                        "404": {"description": "Tracked-object catalog has not been built yet"},
+                        "503": {"description": "Tracked manifest, closure, or source lineage is not coherent"},
+                    },
+                }
+            },
+            "/api/tracked-objects/chunks/{file_name}": {
+                "get": {
+                    "summary": "Load one content-addressed tracked-object chunk referenced by the current manifest",
+                    "parameters": [
+                        {
+                            "name": "file_name",
+                            "in": "path",
+                            "required": True,
+                            "schema": {"type": "string"},
+                        }
+                    ],
+                    "responses": {
+                        "200": {
+                            "description": "Tracked-object chunk",
+                            "content": {"application/json": {"schema": json_object_schema}},
+                        },
+                        "404": {"description": "Chunk is not referenced by the current manifest"},
+                        "503": {"description": "Tracked manifest, closure, or source lineage is not coherent"},
+                    },
+                }
+            },
             "/api/satellites": {
                 "get": {
                     "summary": "Load the preferred GP/OMM catalog with legacy TLE fallback",
@@ -1694,6 +2456,10 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
         if not self.serve_static:
             self.send_error(HTTPStatus.NOT_FOUND, "Static hosting disabled")
             return
+        if self._handle_tracked_static_catalog(head_only=False):
+            return
+        if self._handle_tracked_static_chunk(head_only=False):
+            return
         if not static_request_is_exposed(self.path):
             self.send_error(HTTPStatus.NOT_FOUND, "Static resource is not exposed")
             return
@@ -1704,6 +2470,10 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
             return
         if not self.serve_static:
             self.send_error(HTTPStatus.NOT_FOUND, "Static hosting disabled")
+            return
+        if self._handle_tracked_static_catalog(head_only=True):
+            return
+        if self._handle_tracked_static_chunk(head_only=True):
             return
         if not static_request_is_exposed(self.path):
             self.send_error(HTTPStatus.NOT_FOUND, "Static resource is not exposed")
@@ -1751,6 +2521,98 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
 
     def _send_json_file(self, path: Path, *, head_only: bool = False) -> None:
         self._send_bytes(_safe_json_file(path), head_only=head_only)
+
+    def _send_tracked_catalog_unavailable(self, *, head_only: bool) -> None:
+        body = _json_bytes(
+            {
+                "type": "https://openbexi.example/problems/tracked-catalog-unavailable",
+                "title": "Tracked-object catalog unavailable",
+                "status": HTTPStatus.SERVICE_UNAVAILABLE,
+                "detail": (
+                    "The tracked-object catalog is temporarily unavailable because its "
+                    "manifest, metadata, chunks, or source lineage is not coherent."
+                ),
+                "code": "TRACKED_CATALOG_UNAVAILABLE",
+                "instance": urlparse(self.path).path,
+            }
+        )
+        self._send_bytes(
+            body,
+            content_type="application/problem+json; charset=utf-8",
+            status=HTTPStatus.SERVICE_UNAVAILABLE,
+            head_only=head_only,
+        )
+
+    def _tracked_catalog_request_snapshot(self, *, head_only: bool) -> dict[str, object] | None:
+        snapshot = _load_coherent_tracked_catalog_snapshot(ROOT)
+        if snapshot is not None:
+            return snapshot
+        self._send_tracked_catalog_unavailable(head_only=head_only)
+        return None
+
+    def _handle_tracked_static_catalog(self, *, head_only: bool) -> bool:
+        path = (_normalized_request_path(self.path) or "").rstrip("/").lower()
+        tracked_files = {
+            "/json/tracked/tracked.manifest.json": _tracked_manifest_path(),
+            "/json/tracked/tracked.meta.json": ROOT / "json" / "tracked" / "TRACKED.meta.json",
+        }
+        file_path = tracked_files.get(path)
+        if file_path is None:
+            return False
+        snapshot = self._tracked_catalog_request_snapshot(head_only=head_only)
+        if snapshot is None:
+            return True
+        body_key = "manifest_body" if file_path == _tracked_manifest_path() else "metadata_body"
+        self._send_bytes(snapshot[body_key], head_only=head_only)
+        return True
+
+    def _send_verified_tracked_chunk(
+        self,
+        verified: dict[str, object],
+        *,
+        head_only: bool,
+    ) -> None:
+        length = verified.get("bytes")
+        digest = str(verified.get("sha256") or "").lower().removeprefix("sha256:")
+        body = verified.get("body")
+        if (
+            isinstance(length, bool)
+            or not isinstance(length, int)
+            or not re.fullmatch(r"[a-f0-9]{64}", digest)
+            or (not head_only and (not isinstance(body, bytes) or len(body) != length))
+        ):
+            raise OSError("Verified tracked chunk response is inconsistent")
+        etag = f'"{digest}"'
+        if self.headers.get("If-None-Match") == etag:
+            self.send_response(HTTPStatus.NOT_MODIFIED)
+            self.send_header("ETag", etag)
+            self.end_headers()
+            return
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(length))
+        self.send_header("ETag", etag)
+        self.end_headers()
+        if not head_only:
+            self.wfile.write(body)
+
+    def _handle_tracked_static_chunk(self, *, head_only: bool) -> bool:
+        file_name = _tracked_static_chunk_name(self.path)
+        if file_name is None:
+            return False
+        snapshot = self._tracked_catalog_request_snapshot(head_only=head_only)
+        if snapshot is None:
+            return True
+        verified = _verified_tracked_chunk(
+            file_name,
+            include_body=not head_only,
+            manifest_snapshot=snapshot["manifest_snapshot"],
+        )
+        if verified is None:
+            self.send_error(HTTPStatus.NOT_FOUND, "Tracked-object chunk is not referenced")
+            return True
+        self._send_verified_tracked_chunk(verified, head_only=head_only)
+        return True
 
     def _handle_api(self, *, head_only: bool) -> bool:
         parsed = urlparse(self.path)
@@ -1818,6 +2680,29 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
                 return True
             if path == "/api/gp-metadata":
                 self._send_json_file(ROOT / "json" / "gp" / "GP.meta.json", head_only=head_only)
+                return True
+            if path in {"/api/tracked-objects", "/api/tracked-objects/manifest"}:
+                snapshot = self._tracked_catalog_request_snapshot(head_only=head_only)
+                if snapshot is None:
+                    return True
+                self._send_bytes(snapshot["manifest_body"], head_only=head_only)
+                return True
+            tracked_chunk_prefix = "/api/tracked-objects/chunks/"
+            if path.startswith(tracked_chunk_prefix):
+                snapshot = self._tracked_catalog_request_snapshot(head_only=head_only)
+                if snapshot is None:
+                    return True
+                match = re.fullmatch(r"/api/tracked-objects/chunks/([^/]+)", path)
+                file_name = unquote(match.group(1)) if match else ""
+                verified = _verified_tracked_chunk(
+                    file_name,
+                    include_body=not head_only,
+                    manifest_snapshot=snapshot["manifest_snapshot"],
+                )
+                if verified is None:
+                    self.send_error(HTTPStatus.NOT_FOUND, "Tracked-object chunk is not referenced")
+                    return True
+                self._send_verified_tracked_chunk(verified, head_only=head_only)
                 return True
             if path == "/api/tle":
                 self._send_json_file(ROOT / "json" / "tle" / "TLE.json", head_only=head_only)
@@ -1946,7 +2831,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--update-data-on-schedule",
         action="store_true",
-        help="Enable background GP/OMM, TLE, SATCAT, launch, decay, and reconciliation cycles.",
+        help="Enable background GP/OMM, TLE, SATCAT, tracked, launch, decay, and reconciliation cycles.",
     )
     parser.add_argument(
         "--no-data-update",
@@ -1976,6 +2861,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         type=_interval_hours_argument,
         help="SATCAT, launch, and confirmed-decay update interval. Defaults to --data-update-interval-hours.",
+    )
+    parser.add_argument(
+        "--tracked-update-interval-hours",
+        default=None,
+        type=_interval_hours_argument,
+        help="Tracked-object catalog rebuild interval. Defaults to --satcat-update-interval-hours.",
     )
     parser.add_argument(
         "--reconciliation-interval-hours",
@@ -2055,6 +2946,7 @@ def main() -> None:
             gp_interval_hours=args.gp_update_interval_hours,
             tle_interval_hours=args.tle_update_interval_hours,
             satcat_interval_hours=args.satcat_update_interval_hours,
+            tracked_interval_hours=args.tracked_update_interval_hours,
             reconciliation_interval_hours=args.reconciliation_interval_hours,
             on_updated=v21_service.bootstrap_bundled_catalog if v21_service else None,
         )
@@ -2070,6 +2962,11 @@ def main() -> None:
                 "gp": args.gp_update_interval_hours or args.data_update_interval_hours,
                 "tle": args.tle_update_interval_hours or args.data_update_interval_hours,
                 "satcat": args.satcat_update_interval_hours or args.data_update_interval_hours,
+                "tracked": (
+                    args.tracked_update_interval_hours
+                    or args.satcat_update_interval_hours
+                    or args.data_update_interval_hours
+                ),
                 "reconciliation": args.reconciliation_interval_hours,
             },
             dataset_status={},
@@ -2096,7 +2993,8 @@ def main() -> None:
         print(
             "Data updates: enabled "
             f"(GP {intervals['gp']:g}h, TLE {intervals['tle']:g}h, "
-            f"SATCAT {intervals['satcat']:g}h, reconciliation {intervals['reconciliation']:g}h)"
+            f"SATCAT {intervals['satcat']:g}h, tracked {intervals.get('tracked', intervals['satcat']):g}h, "
+            f"reconciliation {intervals['reconciliation']:g}h)"
         )
     else:
         print("Data updates: disabled")

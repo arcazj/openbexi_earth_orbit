@@ -77,7 +77,9 @@ function run() {
   assert(tleLoader.includes('markerProxy.visible = false'), 'new catalog marker proxies remain hidden before finite motion sampling');
   assert(tleLoader.includes('markerProxy.userData.positionReady = false'), 'catalog marker proxies expose explicit render readiness');
   assert(tleLoader.includes('new THREE.Points(geometry, material)'), 'catalog markers render through one dynamic point cloud');
-  assert(tleLoader.includes('const denseMode = drawnCount > 1000'), 'large globe catalogs use the compact point-cloud style');
+  assert(tleLoader.includes('export const GLOBE_DETAILED_ICON_LIMIT = 500'), 'the Globe icon limit is explicit and testable');
+  assert(tleLoader.includes("return Number(drawnCount) < GLOBE_DETAILED_ICON_LIMIT ? 'detailed' : 'density'"), 'fewer than 500 Globe markers retain icons while 500 or more use density mode');
+  assert(tleLoader.includes("const denseMode = globePointMarkerMode(drawnCount) === 'density'"), 'large globe catalogs use the compact point-cloud style');
   assert(tleLoader.includes('const nextMap = denseMode ? null : satellitePointCloud.userData.iconMap'), 'small catalogs retain icons while large catalogs avoid texture overdraw');
   assert(indexHtml.includes('s.mesh.userData.filterVisible = includedInDisplay'), 'logical display membership remains separate from point-marker visibility');
   assert(indexHtml.includes('s.mesh.userData.pointMarkerSuppressed = !!isDetailedModelForThisSat'), 'detailed-model replacement records durable point-marker suppression');

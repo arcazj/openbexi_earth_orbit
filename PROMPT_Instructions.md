@@ -13,7 +13,7 @@ Source/server startup prefers the exact integrity-checked browser dependencies u
 ### Before Starting Any Task
 
 - Inspect the working tree and preserve unrelated user changes.
-- Read `release/version.json`, `RELEASE_NOTES.md`, `ROADMAP.md`, and `docs/engineering/RELEASE_CHECKLIST.md` for current release scope and gates.
+- Read `release/version.json`, `RELEASE_NOTES.md`, `ROADMAP.md`, and the release checklist matching the authoritative version for current scope and gates.
 - Use `PROMPT_History.md` for historical requirements and `Test_and_Integration.md` for the regression record through Version 1.7.6.
 - Install the locked dependency graph with `npm ci` when setup is required.
 - Run `npm run check` and the applicable part of `npm test` before changing behavior when the environment permits.
@@ -69,7 +69,7 @@ Release Date: YYYY-MM-DD Version X.Y.Z - <short description>
 - `README.md`: current setup, usage, commands, features, architecture, limitations, and an index of every root Markdown file.
 - `RELEASE_NOTES.md`: concise user-facing candidate and release history.
 - `ROADMAP.md`: approved scope, sequencing, status, risks, and acceptance criteria.
-- `docs/engineering/RELEASE_CHECKLIST.md`: authoritative current v2.0 promotion gates.
+- `docs/engineering/RELEASE_CHECKLIST*.md`: version-specific promotion gates; the checklist matching `release/version.json` is current while older checklists remain historical evidence.
 - `release/evidence/`: retained evidence bound to the source, dependencies, data, and artifact under review.
-- `Test_and_Integration.md`: historical regression/manual record through Version 1.7.6 plus a pointer to current v2.0 gates; it is not the v2.0 release authority.
+- `Test_and_Integration.md`: historical regression/manual record through Version 1.7.6 plus the current integration matrix; it is not the release authority.
 - `CLAUDE.md`: repository commands, architecture, dependency delivery, and development rules; update it whenever those conventions change.

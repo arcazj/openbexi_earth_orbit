@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SOURCE_MANIFEST = path.join(ROOT, 'release', 'static-artifact.json');
 const RELEASE_METADATA = path.join(ROOT, 'release', 'version.json');
+const TRACKED_MANIFEST_PATH = 'json/tracked/TRACKED.manifest.json';
 const STATIC_RUNTIME_REPLACEMENTS = Object.freeze(new Map([
   ['https://unpkg.com/three@0.184.0/build/three.module.js', './vendor/three/0.184.0/build/three.module.js'],
   ['https://unpkg.com/three@0.184.0/examples/jsm/', './vendor/three/0.184.0/examples/jsm/'],
@@ -30,13 +31,15 @@ export const REQUIRED_STATIC_RUNTIME_PATHS = Object.freeze([
   'js/domain/v21Contracts.js',
   'js/orbit/multiFormatPropagationService.js',
   'js/orbit/satelliteMotionInterpolator.js',
-  'js/satelliteCategoryFilter.js',
   'js/simulationClock.js',
+  'js/trackedObjectCatalog.js',
   'json/decayed/decayed.meta.json',
   'json/gp/GP.json',
   'json/gp/GP.meta.json',
   'json/launches/launches.json',
   'json/launches/launches.meta.json',
+  'json/tracked/TRACKED.manifest.json',
+  'json/tracked/TRACKED.meta.json',
   'json/tle/TLE.json',
   'json/tle/TLE.meta.json',
   'vendor/satellite.js/6.0.2/satellite.es.js',
@@ -93,6 +96,177 @@ function sha256(file) {
   return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 }
 
+function trackedChunkDescriptors(manifest) {
+  const current = Array.isArray(manifest?.chunks) ? manifest.chunks : [];
+  const history = Array.isArray(manifest?.history_chunks) ? manifest.history_chunks : [];
+  const quarantine = manifest?.quarantine && typeof manifest.quarantine === 'object'
+    ? [manifest.quarantine]
+    : [];
+  return { current, history, quarantine, all: [...current, ...history, ...quarantine] };
+}
+
+function trackedCountSummary(payload, label) {
+  const counts = payload?.counts;
+  const current = counts?.current;
+  const history = counts?.history_total;
+  const historical = counts?.historical;
+  const absent = counts?.absent;
+  const total = counts?.total;
+  const propagatable = counts?.propagatable;
+  const metadataOnly = counts?.metadata_only;
+  const currentPropagatable = counts?.current_propagatable;
+  const currentMetadataOnly = counts?.current_metadata_only;
+  const values = [current, historical, absent, history, total, propagatable, metadataOnly, currentPropagatable, currentMetadataOnly];
+  if (!values.every(value => Number.isInteger(value) && value >= 0) ||
+      historical > history || absent > history || total !== current + history || total !== propagatable + metadataOnly ||
+      current !== currentPropagatable + currentMetadataOnly) {
+    throw new Error(`${label} tracked catalog counts are inconsistent.`);
+  }
+  return Object.freeze(values);
+}
+
+export function validateTrackedStaticCatalog(manifest, addInput, catalogRoot = ROOT) {
+  if (!manifest || typeof manifest !== 'object' || !/^2\.3(?:\.|$)/.test(String(manifest.schema_version ?? ''))) {
+    throw new Error('Tracked static catalog manifest must use the Version 2.3 schema.');
+  }
+  if (manifest.provider_completeness_claim !== false) {
+    throw new Error('Tracked static catalog must not claim provider-universe completeness.');
+  }
+
+  const descriptors = trackedChunkDescriptors(manifest);
+  if (descriptors.current.length === 0 || descriptors.all.length === 0) {
+    throw new Error('Tracked static catalog manifest must reference current content-addressed chunks.');
+  }
+  const paths = new Set();
+  const catalogIds = new Set();
+  let currentCount = 0;
+  let historyCount = 0;
+  let historicalCount = 0;
+  let absentCount = 0;
+  for (const [index, descriptor] of descriptors.all.entries()) {
+    if (!descriptor || typeof descriptor !== 'object') {
+      throw new Error(`Tracked static catalog descriptor ${index} is invalid.`);
+    }
+    const relative = normalizedRelative(descriptor.path ?? '');
+    const expectedHash = String(descriptor.sha256 ?? '').toLowerCase().replace(/^sha256:/, '');
+    if (!/^json\/tracked\/chunks\/[a-f0-9]{64}-[a-z0-9-]+\.json$/.test(relative) ||
+        !/^[a-f0-9]{64}$/.test(expectedHash) || !path.posix.basename(relative).startsWith(expectedHash)) {
+      throw new Error(`Tracked static catalog descriptor is not a local content-addressed chunk: ${relative || '<missing>'}.`);
+    }
+    if (paths.has(relative)) throw new Error(`Tracked static catalog repeats chunk path: ${relative}.`);
+    paths.add(relative);
+    addInput(relative);
+
+    const { resolved } = resolveInside(catalogRoot, relative, 'Tracked static catalog chunk');
+    const body = fs.readFileSync(resolved);
+    if (body.length !== Number(descriptor.bytes) || sha256(resolved) !== expectedHash) {
+      throw new Error(`Tracked static catalog chunk bytes or SHA-256 do not match: ${relative}.`);
+    }
+    let payload;
+    try {
+      payload = JSON.parse(body.toString('utf8'));
+    } catch {
+      throw new Error(`Tracked static catalog chunk is not valid JSON: ${relative}.`);
+    }
+    const records = Array.isArray(payload) ? payload : payload?.records;
+    if (!Array.isArray(records) || records.length !== Number(descriptor.count)) {
+      throw new Error(`Tracked static catalog chunk record count does not match: ${relative}.`);
+    }
+    const isCurrentDescriptor = descriptors.current.includes(descriptor);
+    const isHistoryDescriptor = descriptors.history.includes(descriptor);
+    if (isCurrentDescriptor || isHistoryDescriptor) {
+      const expectedScope = isCurrentDescriptor ? 'CURRENT' : 'HISTORICAL';
+      const expectedType = String(descriptor.object_type ?? '');
+      if (payload?.scope !== expectedScope || !expectedType || payload?.object_type !== expectedType) {
+        throw new Error(`Tracked static catalog chunk taxonomy does not match its descriptor: ${relative}.`);
+      }
+      for (const record of records) {
+        const noradId = String(record?.norad_id ?? '');
+        const recordIsCurrent = record?.catalog_membership_status === 'PRESENT' && !record?.decay_date;
+        if (!noradId || catalogIds.has(noradId) || record?.object_type !== expectedType ||
+            recordIsCurrent !== isCurrentDescriptor) {
+          throw new Error(`Tracked static catalog record violates identity, type, or scope partition: ${relative}.`);
+        }
+        catalogIds.add(noradId);
+        if (isHistoryDescriptor && record?.decay_date) historicalCount += 1;
+        if (isHistoryDescriptor && record?.catalog_membership_status === 'ABSENT') absentCount += 1;
+      }
+    }
+    if (isCurrentDescriptor) currentCount += records.length;
+    if (isHistoryDescriptor) historyCount += records.length;
+  }
+
+  const declaredCurrent = Number(manifest.counts?.current);
+  const declaredHistory = Number(manifest.counts?.history_total);
+  const declaredHistorical = Number(manifest.counts?.historical);
+  const declaredAbsent = Number(manifest.counts?.absent);
+  const declaredTotal = Number(manifest.counts?.total);
+  if (!Number.isInteger(declaredCurrent) || declaredCurrent !== currentCount ||
+      !Number.isInteger(declaredHistory) || declaredHistory !== historyCount ||
+      !Number.isInteger(declaredHistorical) || declaredHistorical !== historicalCount ||
+      !Number.isInteger(declaredAbsent) || declaredAbsent !== absentCount ||
+      !Number.isInteger(declaredTotal) || declaredTotal !== currentCount + historyCount) {
+    throw new Error('Tracked static catalog manifest counts do not match its referenced chunks.');
+  }
+  trackedCountSummary(manifest, 'Manifest');
+  if (manifest.invariants?.provider_coverage_holds !== true ||
+      manifest.invariants?.catalog_partition_holds !== true ||
+      manifest.invariants?.current_chunk_count_holds !== true ||
+      manifest.invariants?.history_chunk_count_holds !== true) {
+    throw new Error('Tracked static catalog manifest invariants are not satisfied.');
+  }
+  return Object.freeze({ paths: Object.freeze([...paths]), currentCount, historyCount });
+}
+
+export function validateTrackedStaticLineage({
+  trackedManifest,
+  trackedMetadata,
+  gpMetadata,
+  gpCatalogPath
+}) {
+  const gpCatalogRevision = String(gpMetadata?.catalog_revision ?? '');
+  const gpDatasetHash = String(gpMetadata?.dataset_hash ?? '');
+  const trackedManifestGpRevision = String(trackedManifest?.provenance?.gp_revision ?? '');
+  const trackedMetadataGpRevision = String(trackedMetadata?.source_gp_revision ?? '');
+  const trackedManifestGpGroups = trackedManifest?.provenance?.gp_source_groups;
+  const trackedMetadataGpGroups = trackedMetadata?.source_gp_groups;
+  const gpCatalogGroups = gpMetadata?.catalog_source_groups;
+  const trackedManifestSatcatRevision = String(trackedManifest?.provenance?.satcat_revision ?? '');
+  const trackedMetadataSatcatRevision = String(trackedMetadata?.source_satcat_revision ?? '');
+  const trackedRevision = String(trackedManifest?.catalog_revision ?? '');
+  const trackedMetadataRevision = String(trackedMetadata?.catalog_revision ?? '');
+  const trackedMetadataHash = String(trackedMetadata?.dataset_hash ?? '');
+
+  if (!trackedRevision || trackedMetadataRevision !== trackedRevision || trackedMetadataHash !== trackedRevision) {
+    throw new Error('Tracked static catalog manifest and metadata revisions are inconsistent.');
+  }
+  if (JSON.stringify(trackedCountSummary(trackedManifest, 'Manifest')) !==
+      JSON.stringify(trackedCountSummary(trackedMetadata, 'Metadata'))) {
+    throw new Error('Tracked static catalog manifest and metadata counts are inconsistent.');
+  }
+
+  if (!/^sha256:[a-f0-9]{64}$/.test(gpCatalogRevision) ||
+      gpDatasetHash !== gpCatalogRevision ||
+      `sha256:${sha256(gpCatalogPath)}` !== gpCatalogRevision) {
+    throw new Error('Packaged GP catalog bytes and metadata revisions do not match.');
+  }
+  if (trackedManifestGpRevision !== gpCatalogRevision ||
+      trackedMetadataGpRevision !== gpCatalogRevision) {
+    throw new Error('Tracked static catalog GP lineage does not match the packaged GP snapshot.');
+  }
+  if (!Array.isArray(trackedManifestGpGroups) ||
+      !Array.isArray(trackedMetadataGpGroups) ||
+      !Array.isArray(gpCatalogGroups) ||
+      JSON.stringify(trackedManifestGpGroups) !== JSON.stringify(trackedMetadataGpGroups) ||
+      JSON.stringify(trackedManifestGpGroups) !== JSON.stringify(gpCatalogGroups)) {
+    throw new Error('Tracked static catalog GP source-group lineage does not match the packaged GP metadata.');
+  }
+  if (!/^sha256:[a-f0-9]{64}$/.test(trackedManifestSatcatRevision) ||
+      trackedMetadataSatcatRevision !== trackedManifestSatcatRevision) {
+    throw new Error('Tracked static catalog SATCAT lineage does not match its metadata.');
+  }
+}
+
 function collectInputs(manifest, { includeOptional = true } = {}) {
   const inputs = new Map();
   const add = relative => {
@@ -141,6 +315,28 @@ function collectInputs(manifest, { includeOptional = true } = {}) {
       const vendorFile = path.resolve(vendorRoot, ...normalizedRelative(relative).split('/'));
       add(path.relative(ROOT, vendorFile));
     }
+  }
+
+  if (inputs.has(TRACKED_MANIFEST_PATH)) {
+    const trackedManifest = readJson(inputs.get(TRACKED_MANIFEST_PATH));
+    const trackedMetadataPath = inputs.get('json/tracked/TRACKED.meta.json');
+    if (!trackedMetadataPath) throw new Error('Tracked static catalog provenance metadata is missing.');
+    const trackedMetadata = readJson(trackedMetadataPath);
+    if (!trackedManifest.catalog_revision || trackedMetadata.catalog_revision !== trackedManifest.catalog_revision) {
+      throw new Error('Tracked static catalog manifest and metadata revisions do not match.');
+    }
+    const gpCatalogPath = inputs.get('json/gp/GP.json');
+    const gpMetadataPath = inputs.get('json/gp/GP.meta.json');
+    if (!gpCatalogPath || !gpMetadataPath) {
+      throw new Error('Tracked static catalog requires the packaged GP snapshot and metadata.');
+    }
+    validateTrackedStaticLineage({
+      trackedManifest,
+      trackedMetadata,
+      gpMetadata: readJson(gpMetadataPath),
+      gpCatalogPath
+    });
+    validateTrackedStaticCatalog(trackedManifest, add);
   }
 
   return [...inputs.entries()].sort(([a], [b]) => a.localeCompare(b));

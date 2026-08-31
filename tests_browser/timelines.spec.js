@@ -11,6 +11,23 @@ const GP_METADATA = Object.freeze({
   counts: { rejected: 0 }
 });
 
+const EMPTY_TRACKED_MANIFEST = Object.freeze({
+  schema_version: '2.3.0',
+  catalog_revision: 'sha256:timeline-tracked-empty',
+  generated_at: '2026-08-23T00:00:00Z',
+  default_membership: 'CURRENT',
+  counts: {
+    total: 0,
+    current: 0,
+    historical: 0,
+    history_total: 0,
+    quarantined: 0
+  },
+  chunks: [],
+  history_chunks: [],
+  quarantine: { count: 0 }
+});
+
 const OMM_CATALOG = Object.freeze([{
   satellite_name: 'OMM ACTIVE 100001',
   norad_id: '100001',
@@ -160,6 +177,14 @@ async function routeJson(page, patterns, payload) {
   }
 }
 
+async function routeEmptyTrackedCatalog(page) {
+  await routeJson(page, [
+    '**/json/tracked/TRACKED.manifest.json',
+    '**/api/tracked-objects',
+    '**/api/tracked-objects/manifest'
+  ], EMPTY_TRACKED_MANIFEST);
+}
+
 function createTimelineFixtureState() {
   return {
     gpCatalog: OMM_CATALOG,
@@ -205,6 +230,7 @@ async function bootTimelineFixture(page, state) {
     state.decayMetadataRequests += 1;
     return state.decayMetadata;
   });
+  await routeEmptyTrackedCatalog(page);
 
   await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => (
@@ -421,6 +447,7 @@ test('unavailable GP falls back to TLE and auxiliary-only revisions avoid anothe
     decayMetadataRequests += 1;
     return decayMetadata;
   });
+  await routeEmptyTrackedCatalog(page);
 
   await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => (

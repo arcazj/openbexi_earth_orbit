@@ -1,10 +1,31 @@
 export function satelliteSearchText(satData) {
     return [
         satData?.satellite_name,
+        satData?.name,
         satData?.norad_id,
+        satData?.provider_catalog_id,
+        satData?.alpha5_id,
         satData?.orbitType,
-        satData?.company
-    ].filter(Boolean).join(' ').toLowerCase();
+        satData?.orbit_class,
+        satData?.object_type,
+        satData?.lifecycle_status,
+        satData?.international_designator,
+        satData?.company,
+        satData?.operator,
+        ...(Array.isArray(satData?.tags) ? satData.tags : [])
+    ].filter(value => value !== undefined && value !== null && value !== '').join(' ').toLowerCase();
+}
+
+export function satelliteSearchBadges(satData) {
+    const badges = [];
+    const lifecycle = String(satData?.lifecycle_status ?? '').trim().toUpperCase();
+    if (['DECAYED', 'ABSENT', 'RETIRED'].includes(lifecycle) || satData?.decay_date) badges.push('Historical');
+    if (satData?.metadata_only === true || satData?.has_current_elements === false) badges.push('Metadata only');
+    const objectType = String(satData?.object_type ?? '').trim().toUpperCase().replaceAll('_', ' ');
+    if (objectType) {
+        badges.push(objectType.toLowerCase().replace(/\b\w/g, character => character.toUpperCase()));
+    }
+    return badges;
 }
 
 export function buildSatelliteSearchMatches(filteredSatellites = [], query = '', options = {}) {

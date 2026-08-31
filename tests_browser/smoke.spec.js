@@ -6,6 +6,7 @@ test('main application boots with local dependencies and a rendered WebGL canvas
   test.setTimeout(90_000);
   const pageErrors = [];
   const consoleErrors = [];
+  const requestFailures = [];
   const externalDependencyRequests = [];
   page.on('pageerror', error => pageErrors.push(error.message));
   page.on('console', message => {
@@ -14,10 +15,16 @@ test('main application boots with local dependencies and a rendered WebGL canvas
   page.on('request', request => {
     if (request.url().startsWith('https://unpkg.com/')) externalDependencyRequests.push(request.url());
   });
+  page.on('requestfailed', request => {
+    requestFailures.push({
+      url: request.url(),
+      errorText: request.failure()?.errorText || 'unknown network error'
+    });
+  });
 
   const response = await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
   expect(response?.ok()).toBeTruthy();
-  await expect(page).toHaveTitle(/Satellite Simulation/i);
+  await expect(page).toHaveTitle(/OpenBEXI Earth Orbit - Tracked Objects/i);
   await expect(page.locator('#menuToggleBtn')).toBeVisible();
   await expect(page.locator('#controlsContainer')).toBeVisible();
 
@@ -94,8 +101,13 @@ test('main application boots with local dependencies and a rendered WebGL canvas
   expect(defaultMeoCloud.matchedPositionCount).toBe(defaultMeoCloud.drawnCount);
   expect(defaultMeoCloud.uploadedNoradIds.toSorted()).toEqual(defaultMeoCloud.expectedNoradIds);
   expect(defaultMeoCloud.uploadedNoradIds).toContain('24876');
-  expect(defaultMeoCloud.markerMode).toBe('detailed');
-  expect(defaultMeoCloud.pointSize).toBeGreaterThan(0.025);
+  const expectedDefaultMarkerMode = defaultMeoCloud.drawnCount < 500 ? 'detailed' : 'density';
+  expect(defaultMeoCloud.markerMode).toBe(expectedDefaultMarkerMode);
+  if (expectedDefaultMarkerMode === 'detailed') {
+    expect(defaultMeoCloud.pointSize).toBeGreaterThan(0.025);
+  } else {
+    expect(defaultMeoCloud.pointSize).toBe(0.025);
+  }
 
   await page.waitForFunction(() => window.openbexiStartupPerformance
     ?.summary()
@@ -196,20 +208,29 @@ test('main application boots with local dependencies and a rendered WebGL canvas
   const health = await request.get('/api/health');
   expect(health.ok()).toBe(true);
   await expect(health.json()).resolves.toMatchObject({ status: 'ok' });
+  if (requestFailures.length > 0) {
+    await testInfo.attach('request-failures', {
+      body: JSON.stringify(requestFailures, null, 2),
+      contentType: 'application/json'
+    });
+  }
   expect(pageErrors).toEqual([]);
+  expect(requestFailures).toEqual([]);
   expect(consoleErrors).toEqual([]);
   expect(externalDependencyRequests).toEqual([]);
 });
 
 test('module graph failure produces a visible retry state instead of a black screen', async ({ page }) => {
   let failModuleOnce = true;
-  await page.route('**/js/mercatorMapLoader.js', route => {
+  const modulePattern = '**/js/mercatorMapLoader.js';
+  const failModule = route => {
     if (failModuleOnce) {
       failModuleOnce = false;
       return route.abort('connectionreset');
     }
     return route.continue();
-  });
+  };
+  await page.route(modulePattern, failModule);
   await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
 
   const alert = page.getByRole('alert');
@@ -223,7 +244,11 @@ test('module graph failure produces a visible retry state instead of a black scr
     errorCode: 'STARTUP_FAILED'
   });
 
-  await page.getByRole('button', { name: 'Retry', exact: true }).click();
+  await page.unroute(modulePattern, failModule);
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Network.clearBrowserCache');
+  await cdp.detach();
+  await page.getByRole('button', { name: 'Retry', exact: true }).click({ noWaitAfter: true });
   await page.waitForFunction(() => (
     window.openbexiStartupPerformance
       ?.summary()

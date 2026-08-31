@@ -21,6 +21,7 @@ import {
 } from './domain/orbitalPolicy.js';
 import { validateCatalog } from './domain/catalogValidation.js';
 import { parseCcsdsOmmJson } from './domain/orbitalSourceAdapters.js';
+import { trackedObjectVisual } from './trackedObjectCatalog.js';
 
 export let satellites = [];
 export let activeCatalogValidationSnapshot = null;
@@ -38,15 +39,159 @@ const DEFAULT_ORBIT_PERIOD_MINUTES = 96;
 const MIN_VALID_ORBIT_PERIOD_MINUTES = 1;
 const MAX_VALID_ORBIT_PERIOD_MINUTES = 45 * 24 * 60;
 const SATELLITE_POINT_CLOUD_NAME = 'satellitePointCloud';
+const pointColorCache = new Map();
+const pointVisualCache = new WeakMap();
+const disposedPointMarkerTextures = new WeakSet();
+const CANONICAL_POINT_MARKER_SIZE = 32;
+const DEFAULT_SATELLITE_ICON_ASSET = 'icons/ob_satellite.png';
+const POINT_ICON_ALPHA_SHADER_KEY = 'openbexi-point-icon-alpha-v1';
+export const GLOBE_DETAILED_ICON_LIMIT = 500;
+export const GLOBE_DETAILED_ICON_SIZE_PX = 16;
+const GLOBE_DENSITY_POINT_SIZE = 0.025;
+
+export function globePointMarkerMode(drawnCount) {
+    return Number(drawnCount) < GLOBE_DETAILED_ICON_LIMIT ? 'detailed' : 'density';
+}
+
+function createCanonicalPointMarkerMap() {
+    const size = CANONICAL_POINT_MARKER_SIZE;
+    const data = new Uint8Array(size * size * 4);
+    const center = (size - 1) / 2;
+    const solidRadius = center - 1.75;
+    const outerRadius = center - 0.25;
+    for (let y = 0; y < size; y += 1) {
+        for (let x = 0; x < size; x += 1) {
+            const distance = Math.hypot(x - center, y - center);
+            const alpha = distance <= solidRadius
+                ? 255
+                : distance >= outerRadius
+                    ? 0
+                    : Math.round(255 * (outerRadius - distance) / (outerRadius - solidRadius));
+            const offset = (y * size + x) * 4;
+            data[offset] = 255;
+            data[offset + 1] = 255;
+            data[offset + 2] = 255;
+            data[offset + 3] = alpha;
+        }
+    }
+    const texture = new THREE.DataTexture(data, size, size, THREE.RGBAFormat, THREE.UnsignedByteType);
+    texture.name = 'openbexiCanonicalPointMarker';
+    texture.colorSpace = THREE.NoColorSpace;
+    texture.magFilter = THREE.LinearFilter;
+    texture.minFilter = THREE.LinearFilter;
+    texture.generateMipmaps = false;
+    texture.needsUpdate = true;
+    texture.userData.openbexiOwned = true;
+    texture.userData.openbexiPointMarkerSource = 'procedural-fallback';
+    return texture;
+}
+
+function disposePointMarkerTexture(texture) {
+    if (!texture?.dispose || disposedPointMarkerTextures.has(texture)) return;
+    disposedPointMarkerTextures.add(texture);
+    texture.dispose();
+}
+
+export function applyPointIconAlphaShader(material) {
+    material.onBeforeCompile = shader => {
+        shader.fragmentShader = shader.fragmentShader.replace(
+            '#include <map_particle_fragment>',
+            `
+#if defined( USE_MAP ) || defined( USE_ALPHAMAP )
+    #if defined( USE_POINTS_UV )
+        vec2 openbexiPointIconUv = vUv;
+    #else
+        vec2 openbexiPointIconUv = ( uvTransform * vec3( gl_PointCoord.x, 1.0 - gl_PointCoord.y, 1 ) ).xy;
+    #endif
+#endif
+#ifdef USE_MAP
+    diffuseColor.a *= texture2D( map, openbexiPointIconUv ).a;
+#endif
+#ifdef USE_ALPHAMAP
+    diffuseColor.a *= texture2D( alphaMap, openbexiPointIconUv ).g;
+#endif
+`
+        );
+    };
+    material.customProgramCacheKey = () => POINT_ICON_ALPHA_SHADER_KEY;
+    material.userData.openbexiPointIconAlphaOnly = true;
+}
+
+function pointMarkerImageDiagnostics(texture) {
+    const image = texture?.image;
+    const width = Number(image?.naturalWidth ?? image?.videoWidth ?? image?.width ?? 0);
+    const height = Number(image?.naturalHeight ?? image?.videoHeight ?? image?.height ?? 0);
+    const complete = texture?.isDataTexture || image?.complete !== false;
+    return {
+        ready: Boolean(width > 0 && height > 0 && complete),
+        width: width > 0 ? width : 0,
+        height: height > 0 ? height : 0
+    };
+}
+
+function configuredPointMarker(baseMaterial) {
+    const configuredMap = baseMaterial?.map?.isTexture ? baseMaterial.map : null;
+    if (!configuredMap) {
+        return {
+            map: createCanonicalPointMarkerMap(),
+            source: 'procedural-fallback',
+            assetPath: null,
+            resolvedUrl: null
+        };
+    }
+    const assetPath = configuredMap.userData?.openbexiAssetPath ??
+        baseMaterial.userData?.openbexiIconAssetPath ?? null;
+    const explicitSource = baseMaterial.userData?.openbexiPointMarkerSource ??
+        configuredMap.userData?.openbexiPointMarkerSource ?? null;
+    return {
+        map: configuredMap,
+        source: explicitSource ?? (assetPath ? 'asset' : 'injected-texture'),
+        assetPath,
+        resolvedUrl: configuredMap.userData?.openbexiResolvedUrl ?? null
+    };
+}
+
+function pointColorRgb(color) {
+    if (!pointColorCache.has(color)) {
+        const parsed = new THREE.Color(color);
+        pointColorCache.set(color, Object.freeze([parsed.r, parsed.g, parsed.b]));
+    }
+    return pointColorCache.get(color);
+}
+
+function pointVisualSource(record) {
+    return record?.object_type ?? record?.objectType ?? record?.catalogObject?.object_type ??
+        record?.element_set?.omm?.OBJECT_TYPE ?? record?.meta?.object_type ??
+        record?.satellite_name ?? record?.name ?? '';
+}
+
+function pointVisual(record) {
+    const source = pointVisualSource(record);
+    const cached = pointVisualCache.get(record);
+    if (cached?.source === source) return cached;
+    const visual = trackedObjectVisual(record);
+    const entry = Object.freeze({ source, visual, rgb: pointColorRgb(visual.color) });
+    pointVisualCache.set(record, entry);
+    return entry;
+}
+
+const selectedPointRgb = pointColorRgb('#ffffff');
 
 function removeSatellitePointCloud(scene) {
     if (!satellitePointCloud) return;
     scene.remove(satellitePointCloud);
     satellitePointCloud.geometry?.dispose?.();
-    satellitePointCloud.material?.dispose?.();
     const sourceMaterial = satellitePointCloud.userData.sourceMaterial;
+    const ownedMarkerMaps = new Set();
+    for (const markerMap of [satellitePointCloud.material?.map, satellitePointCloud.userData.iconMap]) {
+        if (markerMap?.userData?.openbexiOwned) ownedMarkerMaps.add(markerMap);
+    }
     if (sourceMaterial?.userData?.openbexiOwned) {
-        sourceMaterial.map?.dispose?.();
+        if (sourceMaterial.map) ownedMarkerMaps.add(sourceMaterial.map);
+    }
+    for (const markerMap of ownedMarkerMaps) disposePointMarkerTexture(markerMap);
+    satellitePointCloud.material?.dispose?.();
+    if (sourceMaterial?.userData?.openbexiOwned) {
         sourceMaterial.dispose?.();
     }
     satellitePointCloud = null;
@@ -64,27 +209,48 @@ function createSatellitePointCloud(scene, capacity, baseMaterial) {
     geometry.setAttribute('color', colorAttribute);
     geometry.setDrawRange(0, 0);
 
-    const scale = satelliteConfig.scale || [0.1, 0.1, 0.1];
+    const marker = configuredPointMarker(baseMaterial);
     const material = new THREE.PointsMaterial({
         color: 0xffffff,
-        map: baseMaterial.map || null,
-        size: Math.max(0.02, Number(scale[0]) || 0.1),
-        sizeAttenuation: true,
+        map: marker.map,
+        size: GLOBE_DETAILED_ICON_SIZE_PX,
+        sizeAttenuation: false,
         transparent: true,
         alphaTest: Math.max(0.01, Number(baseMaterial.alphaTest) || 0.05),
         depthTest: baseMaterial.depthTest !== false,
         depthWrite: baseMaterial.depthWrite !== false,
         vertexColors: true
     });
+    applyPointIconAlphaShader(material);
     satellitePointCloud = new THREE.Points(geometry, material);
     satellitePointCloud.name = SATELLITE_POINT_CLOUD_NAME;
     satellitePointCloud.frustumCulled = false;
     satellitePointCloud.userData.capacity = capacity;
     satellitePointCloud.userData.drawnCount = 0;
     satellitePointCloud.userData.sourceMaterial = baseMaterial;
-    satellitePointCloud.userData.iconMap = material.map;
+    satellitePointCloud.userData.iconMap = marker.map;
+    satellitePointCloud.userData.iconSource = marker.source;
+    satellitePointCloud.userData.iconAssetPath = marker.assetPath;
+    satellitePointCloud.userData.iconResolvedUrl = marker.resolvedUrl;
     satellitePointCloud.userData.baseSize = material.size;
+    satellitePointCloud.userData.baseSizeAttenuation = material.sizeAttenuation;
     scene.add(satellitePointCloud);
+}
+
+function replaceFailedPointIcon(failedTexture) {
+    if (!failedTexture) return;
+    if (satellitePointCloud?.userData?.iconMap === failedTexture) {
+        const fallbackMap = createCanonicalPointMarkerMap();
+        satellitePointCloud.userData.iconMap = fallbackMap;
+        satellitePointCloud.userData.iconSource = 'procedural-fallback';
+        satellitePointCloud.userData.iconAssetPath = null;
+        satellitePointCloud.userData.iconResolvedUrl = null;
+        if (globePointMarkerMode(satellitePointCloud.userData.drawnCount) === 'detailed') {
+            satellitePointCloud.material.map = fallbackMap;
+            satellitePointCloud.material.needsUpdate = true;
+        }
+    }
+    disposePointMarkerTexture(failedTexture);
 }
 
 function pointCloudRecordReady(record) {
@@ -98,12 +264,17 @@ export function syncSatellitePointCloud(sourceSatellites = satellites) {
     const positionAttribute = satellitePointCloud.geometry.getAttribute('position');
     const colorAttribute = satellitePointCloud.geometry.getAttribute('color');
     let drawnCount = 0;
+    let selectedDrawnCount = 0;
+    const objectTypeMarkerCounts = {};
     for (const satelliteRecord of sourceSatellites) {
         const position = satelliteRecord?.mesh?.position;
         if (!pointCloudRecordReady(satelliteRecord)) continue;
         positionAttribute.setXYZ(drawnCount, position.x, position.y, position.z);
-        if (satelliteRecord.isSelected) colorAttribute.setXYZ(drawnCount, 1, 0.1, 0.1);
-        else colorAttribute.setXYZ(drawnCount, 1, 1, 1);
+        const { visual: baseVisual, rgb: baseRgb } = pointVisual(satelliteRecord);
+        const [r, g, b] = satelliteRecord.isSelected ? selectedPointRgb : baseRgb;
+        colorAttribute.setXYZ(drawnCount, r, g, b);
+        objectTypeMarkerCounts[baseVisual.label] = (objectTypeMarkerCounts[baseVisual.label] || 0) + 1;
+        if (satelliteRecord.isSelected) selectedDrawnCount += 1;
         drawnCount += 1;
     }
     satellitePointCloud.geometry.setDrawRange(0, drawnCount);
@@ -111,13 +282,20 @@ export function syncSatellitePointCloud(sourceSatellites = satellites) {
     colorAttribute.needsUpdate = true;
     satellitePointCloud.visible = drawnCount > 0;
     satellitePointCloud.userData.drawnCount = drawnCount;
-    const denseMode = drawnCount > 1000;
+    satellitePointCloud.userData.objectTypeMarkerCounts = objectTypeMarkerCounts;
+    satellitePointCloud.userData.selectedDrawnCount = selectedDrawnCount;
+    const denseMode = globePointMarkerMode(drawnCount) === 'density';
     const nextMap = denseMode ? null : satellitePointCloud.userData.iconMap;
     if (satellitePointCloud.material.map !== nextMap) {
         satellitePointCloud.material.map = nextMap;
         satellitePointCloud.material.needsUpdate = true;
     }
-    satellitePointCloud.material.size = denseMode ? 0.025 : satellitePointCloud.userData.baseSize;
+    const nextSizeAttenuation = denseMode ? true : satellitePointCloud.userData.baseSizeAttenuation;
+    if (satellitePointCloud.material.sizeAttenuation !== nextSizeAttenuation) {
+        satellitePointCloud.material.sizeAttenuation = nextSizeAttenuation;
+        satellitePointCloud.material.needsUpdate = true;
+    }
+    satellitePointCloud.material.size = denseMode ? GLOBE_DENSITY_POINT_SIZE : satellitePointCloud.userData.baseSize;
     return drawnCount;
 }
 
@@ -135,12 +313,25 @@ export function getSatellitePointCloudDiagnostics(sourceSatellites = satellites)
         }
         cursor += 1;
     }
+    const detailedMarkerImage = pointMarkerImageDiagnostics(satellitePointCloud?.userData?.iconMap);
     return {
         drawnCount,
         matchedPositionCount: uploadedNoradIds.length,
         uploadedNoradIds,
+        objectTypeMarkerCounts: { ...(satellitePointCloud?.userData?.objectTypeMarkerCounts || {}) },
+        debrisDrawnCount: satellitePointCloud?.userData?.objectTypeMarkerCounts?.Debris || 0,
+        selectedDrawnCount: satellitePointCloud?.userData?.selectedDrawnCount || 0,
         markerMode: satellitePointCloud?.material?.map ? 'detailed' : 'density',
-        pointSize: satellitePointCloud?.material?.size || 0
+        pointSize: satellitePointCloud?.material?.size || 0,
+        pointSizeAttenuation: satellitePointCloud?.material?.sizeAttenuation === true,
+        detailedMarkerSource: satellitePointCloud?.userData?.iconSource ?? null,
+        detailedMarkerAssetPath: satellitePointCloud?.userData?.iconAssetPath ?? null,
+        detailedMarkerResolvedUrl: satellitePointCloud?.userData?.iconResolvedUrl ?? null,
+        detailedMarkerTextureUuid: satellitePointCloud?.userData?.iconMap?.uuid ?? null,
+        detailedMarkerUsesAlphaTint: satellitePointCloud?.material?.userData?.openbexiPointIconAlphaOnly === true,
+        detailedMarkerReady: detailedMarkerImage.ready,
+        detailedMarkerWidth: detailedMarkerImage.width,
+        detailedMarkerHeight: detailedMarkerImage.height
     };
 }
 const MIN_ORBIT_SAMPLE_COUNT = 96;
@@ -1076,7 +1267,8 @@ export async function setupTLESatellites(scene, options = {}) {
         tleMetaOverride = null,
         gpDataSource = null,
         tleDataSource = 'local files',
-        satelliteMaterialOverride = null
+        satelliteMaterialOverride = null,
+        satelliteIconTextureLoader = textureLoader
     } = options;
     const catalogRuntimePolicy = resolveCatalogRuntimePolicy(options);
     const GP_BASE_URL = 'json/gp/';
@@ -1190,7 +1382,8 @@ export async function setupTLESatellites(scene, options = {}) {
             return satellites;
         }
 
-        const satIconFullUrl = getFullGitHubUrl('icons/ob_satellite.png', GITHUB_REPO_RAW_BASE_URL);
+        const configuredIconAsset = satelliteConfig.icon || DEFAULT_SATELLITE_ICON_ASSET;
+        const satIconFullUrl = getFullGitHubUrl(configuredIconAsset, GITHUB_REPO_RAW_BASE_URL);
         let satMaterial = satelliteMaterialOverride;
 
         if (!satMaterial && !satIconFullUrl) {
@@ -1207,23 +1400,36 @@ export async function setupTLESatellites(scene, options = {}) {
             ctx.textBaseline = 'middle';
             ctx.fillText('S', 16, 16);
             const placeholderTexture = new THREE.CanvasTexture(placeholderCanvas);
+            placeholderTexture.userData.openbexiOwned = true;
+            placeholderTexture.userData.openbexiPointMarkerSource = 'procedural-fallback';
             satMaterial = new THREE.SpriteMaterial({map: placeholderTexture});
+            satMaterial.userData.openbexiPointMarkerSource = 'procedural-fallback';
         } else if (!satMaterial) {
-            satMaterial = new THREE.SpriteMaterial({
-                map: textureLoader.load(satIconFullUrl,
-                    () => {
-                        console.log("3D Satellite icon loaded from:", satIconFullUrl);
-                    },
-                    undefined,
-                    (err) => {
-                        console.error('Error loading 3D satellite icon from:', satIconFullUrl, err, '. Using placeholder.');
-                        if (satMaterial) {
-                            satMaterial.map = null;
-                            satMaterial.color?.set?.(0xff3333);
-                            satMaterial.needsUpdate = true;
-                        }
-                })
-            });
+            let requestedIconTexture = null;
+            requestedIconTexture = satelliteIconTextureLoader.load(
+                satIconFullUrl,
+                () => {
+                    console.log("3D Satellite icon loaded from:", satIconFullUrl);
+                },
+                undefined,
+                (err) => {
+                    console.error('Error loading 3D satellite icon from:', satIconFullUrl, err, '. Using placeholder.');
+                    if (satMaterial) {
+                        satMaterial.map = null;
+                        satMaterial.color?.set?.(0xff3333);
+                        satMaterial.needsUpdate = true;
+                    }
+                    replaceFailedPointIcon(requestedIconTexture);
+                }
+            );
+            requestedIconTexture.name = 'openbexiSatelliteIcon';
+            requestedIconTexture.userData.openbexiOwned = true;
+            requestedIconTexture.userData.openbexiPointMarkerSource = 'asset';
+            requestedIconTexture.userData.openbexiAssetPath = configuredIconAsset.replace(/^\//, '');
+            requestedIconTexture.userData.openbexiResolvedUrl = satIconFullUrl;
+            satMaterial = new THREE.SpriteMaterial({ map: requestedIconTexture });
+            satMaterial.userData.openbexiPointMarkerSource = 'asset';
+            satMaterial.userData.openbexiIconAssetPath = requestedIconTexture.userData.openbexiAssetPath;
         }
         if (!satelliteMaterialOverride) satMaterial.userData.openbexiOwned = true;
         const loadedSatellites = await processSatellites(scene, catalogData, satMaterial, options);

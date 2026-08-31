@@ -1,0 +1,92 @@
+{
+  "schema_version": "2.3.0",
+  "parser_version": "2.3.0",
+  "dataset_format": "OPENBEXI_TRACKED_OBJECT_CHUNKS",
+  "provider": "CelesTrak",
+  "mode": "incremental",
+  "source_status": "VERIFIED_SNAPSHOT",
+  "provider_completeness_claim": false,
+  "input_revision": "sha256:b6f6d17f06ae2ea0b4585be296f8197d0cff08e35b9be2053991ef48932c7e98",
+  "source_satcat_revision": "sha256:fb9c778a881e720d15fb359ca34a0477f2f2b533600d46c22094e589081cb545",
+  "source_gp_revision": "sha256:b5314199094c140abc58d4cec4b3cdee15711958224d7547926823c10640add0",
+  "catalog_revision": "sha256:7c1a20d93d1eb5faf7e2b964b13c7b4f0478f2eec95cc701ea1b1e57ef0d730c",
+  "coverage_revision": "sha256:0e894191252555e3fd1fb93f44e34a66dca0f9e1c601616066e9e94f066c5d9f",
+  "dataset_hash": "sha256:7c1a20d93d1eb5faf7e2b964b13c7b4f0478f2eec95cc701ea1b1e57ef0d730c",
+  "fetched_at": "2026-08-30T17:28:10.296696Z",
+  "last_attempt_at": "2026-08-30T20:54:52.620324Z",
+  "last_success_at": "2026-08-30T20:54:52.620324Z",
+  "last_status": "ok",
+  "counts": {
+    "expected": 70474,
+    "expected_provider_records": null,
+    "received": 70474,
+    "accepted": 70474,
+    "quarantined": 0,
+    "duplicates": 0,
+    "issues": 0,
+    "total": 70474,
+    "current": 34960,
+    "historical": 35514,
+    "history_total": 35514,
+    "absent": 0,
+    "propagatable": 16470,
+    "metadata_only": 54004,
+    "current_propagatable": 16470,
+    "gp_only": 0,
+    "gp_quarantined": 0,
+    "small_rcs_current": 8032,
+    "missing_rcs_current": 20350,
+    "debris_small_rcs_current": 7852,
+    "debris_missing_rcs_current": 3123,
+    "object_types": {
+      "PAYLOAD": 27584,
+      "DEBRIS": 35838,
+      "ROCKET_BODY": 6887,
+      "MISSION_RELATED": 0,
+      "UNKNOWN": 165
+    },
+    "current_object_types": {
+      "PAYLOAD": 19989,
+      "DEBRIS": 12490,
+      "ROCKET_BODY": 2425,
+      "MISSION_RELATED": 0,
+      "UNKNOWN": 56
+    },
+    "current_metadata_only": 18490,
+    "orbit_classes": {
+      "LEO": 60932,
+      "MEO": 3866,
+      "GEO": 1786,
+      "HEO": 47,
+      "OTHER": 188,
+      "DECAYING": 1613,
+      "UNKNOWN": 2042
+    },
+    "lifecycle_statuses": {
+      "ACTIVE": 16980,
+      "INACTIVE": 1502,
+      "DECAYED": 35514,
+      "ABSENT": 0,
+      "UNKNOWN": 16478
+    }
+  },
+  "coverage": {
+    "expected": 70474,
+    "expected_provider_records": null,
+    "received": 70474,
+    "accepted": 70474,
+    "quarantined": 0,
+    "duplicates": 0,
+    "complete_source_snapshot": true,
+    "provider_completeness_claim": false,
+    "invariant": "received == accepted + quarantined + duplicates",
+    "invariant_holds": true,
+    "expected_matches_received": true
+  },
+  "last_reconciled_at": "2026-08-30T17:28:53.283945Z",
+  "last_reconciled_catalog_revision": "sha256:7c1a20d93d1eb5faf7e2b964b13c7b4f0478f2eec95cc701ea1b1e57ef0d730c",
+  "revalidated_at": "2026-08-30T20:54:52.620324Z",
+  "source_gp_groups": [
+    "active"
+  ]
+}

@@ -1,5 +1,6 @@
 import contextlib
 import inspect
+import hashlib
 import io
 import json
 import tempfile
@@ -17,9 +18,14 @@ def status_snapshot():
 
 
 def write_dataset_metadata(root: Path, *, tle_error: str) -> dict[str, dict[str, object]]:
+    gp_bytes = b"[]"
+    gp_revision = f"sha256:{hashlib.sha256(gp_bytes).hexdigest()}"
+    satcat_bytes = b"OBJECT_NAME,NORAD_CAT_ID,DECAY_DATE\r\n"
+    satcat_revision = f"sha256:{hashlib.sha256(satcat_bytes).hexdigest()}"
     metadata = {
         "gp": {
-            "catalog_revision": "sha256:gp-history",
+            "catalog_revision": gp_revision,
+            "dataset_hash": gp_revision,
             "last_status": "ok",
             "last_attempt_at": "2026-08-29T01:00:00Z",
             "last_success_at": "2026-08-29T01:00:00Z",
@@ -32,7 +38,8 @@ def write_dataset_metadata(root: Path, *, tle_error: str) -> dict[str, dict[str,
             "last_error": tle_error,
         },
         "satcat": {
-            "dataset_hash": "sha256:satcat-history",
+            "catalog_revision": satcat_revision,
+            "dataset_hash": satcat_revision,
             "last_status": "not-modified",
             "last_attempt_at": "2026-08-29T03:00:00Z",
             "last_success_at": "2026-08-29T03:00:00Z",
@@ -50,6 +57,12 @@ def write_dataset_metadata(root: Path, *, tle_error: str) -> dict[str, dict[str,
             "last_success_at": "2026-08-29T05:00:00Z",
         },
     }
+    gp_path = root / "json" / "gp" / "GP.json"
+    gp_path.parent.mkdir(parents=True, exist_ok=True)
+    gp_path.write_bytes(gp_bytes)
+    satcat_path = root / "json" / "satcat.csv"
+    satcat_path.parent.mkdir(parents=True, exist_ok=True)
+    satcat_path.write_bytes(satcat_bytes)
     paths = {
         "gp": root / "json" / "gp" / "GP.meta.json",
         "tle": root / "json" / "tle" / "TLE.meta.json",
@@ -89,6 +102,7 @@ class ServerDataUpdateSchedulerTests(unittest.TestCase):
             gp_interval_hours=24,
             tle_interval_hours=36,
             satcat_interval_hours=48,
+            tracked_interval_hours=54,
             reconciliation_interval_hours=72,
             on_updated=registered,
             clock=lambda: 1_800_000_000.0,
@@ -104,6 +118,7 @@ class ServerDataUpdateSchedulerTests(unittest.TestCase):
             gp_interval_hours=24,
             tle_interval_hours=36,
             satcat_interval_hours=48,
+            tracked_interval_hours=54,
             reconciliation_interval_hours=72,
         )
         registered.assert_called_once_with()
@@ -295,6 +310,7 @@ class ServerDataUpdateSchedulerTests(unittest.TestCase):
             gp_interval_hours=24,
             tle_interval_hours=24,
             satcat_interval_hours=24,
+            tracked_interval_hours=24,
             reconciliation_interval_hours=24,
         )
 
@@ -414,6 +430,7 @@ class ServerDataUpdateSchedulerTests(unittest.TestCase):
                     "gp": kwargs["gp_interval_hours"],
                     "tle": kwargs["tle_interval_hours"],
                     "satcat": kwargs["satcat_interval_hours"],
+                    "tracked": kwargs["tracked_interval_hours"],
                     "reconciliation": kwargs["reconciliation_interval_hours"],
                 }
 
@@ -430,6 +447,7 @@ class ServerDataUpdateSchedulerTests(unittest.TestCase):
             "--gp-update-interval-hours", "24",
             "--tle-update-interval-hours", "24",
             "--satcat-update-interval-hours", "24",
+            "--tracked-update-interval-hours", "24",
             "--reconciliation-interval-hours", "24",
         ])
         with (
@@ -445,6 +463,7 @@ class ServerDataUpdateSchedulerTests(unittest.TestCase):
         self.assertEqual(scheduler_kwargs["gp_interval_hours"], 24)
         self.assertEqual(scheduler_kwargs["tle_interval_hours"], 24)
         self.assertEqual(scheduler_kwargs["satcat_interval_hours"], 24)
+        self.assertEqual(scheduler_kwargs["tracked_interval_hours"], 24)
         self.assertEqual(scheduler_kwargs["reconciliation_interval_hours"], 24)
 
     def test_cli_defaults_to_daily_intervals_and_accepts_per_dataset_overrides(self):
@@ -453,25 +472,36 @@ class ServerDataUpdateSchedulerTests(unittest.TestCase):
         self.assertIsNone(defaults.gp_update_interval_hours)
         self.assertIsNone(defaults.tle_update_interval_hours)
         self.assertIsNone(defaults.satcat_update_interval_hours)
+        self.assertIsNone(defaults.tracked_update_interval_hours)
         self.assertEqual(defaults.reconciliation_interval_hours, 24)
+
+        inherited = server.DataUpdateScheduler(
+            interval_hours=30,
+            satcat_interval_hours=27,
+        )
+        self.assertEqual(inherited.intervals_hours["tracked"], 27)
 
         configured = server.parse_args([
             "--update-data-on-schedule",
             "--gp-update-interval-hours", "25",
             "--tle-update-interval-hours", "26",
             "--satcat-update-interval-hours", "27",
-            "--reconciliation-interval-hours", "28",
+            "--tracked-update-interval-hours", "28",
+            "--reconciliation-interval-hours", "29",
         ])
         self.assertEqual(configured.gp_update_interval_hours, 25)
         self.assertEqual(configured.tle_update_interval_hours, 26)
         self.assertEqual(configured.satcat_update_interval_hours, 27)
-        self.assertEqual(configured.reconciliation_interval_hours, 28)
+        self.assertEqual(configured.tracked_update_interval_hours, 28)
+        self.assertEqual(configured.reconciliation_interval_hours, 29)
 
         with contextlib.redirect_stderr(io.StringIO()):
             with self.assertRaises(SystemExit):
                 server.parse_args(["--gp-update-interval-hours", "0.5"])
             with self.assertRaises(SystemExit):
                 server.parse_args(["--gp-update-interval-hours", "nan"])
+            with self.assertRaises(SystemExit):
+                server.parse_args(["--tracked-update-interval-hours", "0.5"])
 
 
 if __name__ == "__main__":

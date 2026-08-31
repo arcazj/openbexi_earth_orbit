@@ -2,7 +2,7 @@
 export const RELEASE_METADATA = Object.freeze({
   schemaVersion: 1,
   product: "openbexi-earth-orbit",
-  version: "2.2.1",
+  version: "2.3.1",
   baselineRuntimeVersion: "1.7.6",
   channel: "development",
   publicationState: "development",
@@ -17,7 +17,8 @@ export const APP_VERSION = RELEASE_METADATA.version;
 export const RELEASE_DATE = RELEASE_METADATA.releasedAt ?? RELEASE_METADATA.candidateAt;
 
 export const RELEASE_FEATURE_FLAGS = Object.freeze({
-  "experimental_conjunction_screening": Object.freeze({"enabled":true,"scope":"browser","scientificMaturity":"Experimental","safetyClass":"non-operational"})
+  "experimental_conjunction_screening": Object.freeze({"enabled":true,"scope":"browser","scientificMaturity":"Experimental","safetyClass":"non-operational"}),
+  "experimental_tracked_object_catalog": Object.freeze({"enabled":true,"scope":"browser","scientificMaturity":"Experimental","safetyClass":"non-operational"})
 });
 export const EXPERIMENTAL_CONJUNCTION_SCREENING_ENABLED =
   RELEASE_FEATURE_FLAGS.experimental_conjunction_screening?.enabled === true;

@@ -229,13 +229,42 @@ export function buildConjunctionScreeningRequest({
         partial_update: sourceStatus === 'PARTIAL' || dataset?.partial_update === true || primaryProvenance.partial_update === true,
         license_id: firstDefined(dataset?.license_id, primaryProvenance.license_id, null)
     } : null;
-    const catalogMetadata = dataset ? {
-        source_urls: Array.isArray(dataset.source_urls) ? [...dataset.source_urls] : [],
-        accepted_count: catalog.length,
-        rejected_count: finiteNumber(dataset.rejectedCount) ?? 0,
-        stale_count_at_ingestion: finiteNumber(firstDefined(dataset.staleCount, dataset?.quality?.freshness?.STALE)) ?? 0,
-        retained_count: finiteNumber(dataset.retainedCount)
-    } : null;
+    const catalogMetadata = dataset ? (() => {
+        const propagatableCount = finiteNumber(firstDefined(
+            dataset.propagatable_count,
+            dataset.propagatable_population
+        )) ?? catalog.length;
+        const trackedCount = finiteNumber(firstDefined(
+            dataset.tracked_count,
+            dataset.tracked_population
+        ));
+        const explicitMetadataOnlyExcludedCount = finiteNumber(firstDefined(
+            dataset.metadata_only_excluded_count,
+            dataset.metadata_only_population
+        ));
+        const metadataOnlyExcludedCount = explicitMetadataOnlyExcludedCount ?? (
+            trackedCount === null ? null : Math.max(0, trackedCount - propagatableCount)
+        );
+        const explicitCoverageFraction = finiteNumber(firstDefined(dataset.screening_coverage_fraction));
+        const screeningCoverageFraction = explicitCoverageFraction ?? (
+            trackedCount === null
+                ? null
+                : trackedCount > 0
+                    ? Math.min(1, propagatableCount / trackedCount)
+                    : 1
+        );
+        return {
+            source_urls: Array.isArray(dataset.source_urls) ? [...dataset.source_urls] : [],
+            accepted_count: catalog.length,
+            rejected_count: finiteNumber(dataset.rejectedCount) ?? 0,
+            stale_count_at_ingestion: finiteNumber(firstDefined(dataset.staleCount, dataset?.quality?.freshness?.STALE)) ?? 0,
+            retained_count: finiteNumber(dataset.retainedCount),
+            tracked_count: trackedCount,
+            propagatable_count: propagatableCount,
+            metadata_only_excluded_count: metadataOnlyExcludedCount,
+            screening_coverage_fraction: screeningCoverageFraction
+        };
+    })() : null;
     return {
         schema_version: DOMAIN_SCHEMA_VERSION,
         request_id: requestId,
@@ -801,6 +830,10 @@ export function createConjunctionPanel({
             const ageDays = finiteNumber(catalogMetadata?.ageDays);
             const stale = finiteNumber(firstDefined(catalogMetadata?.staleCount, catalogMetadata?.quality?.freshness?.STALE)) || 0;
             const retained = finiteNumber(catalogMetadata?.retainedCount);
+            const metadataOnlyExcluded = finiteNumber(firstDefined(
+                catalogMetadata?.metadata_only_excluded_count,
+                catalogMetadata?.metadata_only_population
+            ));
             const provider = firstDefined(catalogMetadata?.provider, catalogMetadata?.source_id, catalogMetadata?.sourceId, null);
             const partial = catalogMetadata?.partial_update === true ||
                 String(catalogMetadata?.source_status || '').toUpperCase() === 'PARTIAL';
@@ -811,6 +844,9 @@ export function createConjunctionPanel({
                 stale ? `${stale.toLocaleString()} stale` : null,
                 retained === null ? null : `${retained.toLocaleString()} retained`,
                 rejected ? `${rejected.toLocaleString()} rejected` : null,
+                metadataOnlyExcluded === null
+                    ? null
+                    : `${metadataOnlyExcluded.toLocaleString()} metadata-only excluded`,
                 partial ? 'partial refresh' : null
             ].filter(Boolean).join(', ');
             updateReadinessStatus();

@@ -1,26 +1,27 @@
 # OpenBEXI Earth Orbit
 
-OpenBEXI Earth Orbit is an interactive browser application for exploring Earth-orbiting objects, launch and re-entry events, propagated trajectories, and experimental conjunction-screening results. It uses CelesTrak GP/OMM data as its primary orbital source and retains a reduced-coverage TLE compatibility path.
+OpenBEXI Earth Orbit is an interactive browser application for exploring Earth-orbiting objects, launch and re-entry events, propagated trajectories, and experimental conjunction-screening results. It uses CelesTrak GP/OMM for propagated positions, a SATCAT-derived tracked-object inventory for searchable metadata coverage, and a reduced-coverage TLE compatibility path.
 
-> **Status:** Version `2.2.1` is a development build, not a release candidate or release. Its scientific maturity is **Experimental** and its safety class is **non-operational**. Do not use it for navigation, mission planning, collision avoidance, or safety decisions; collision probability is unavailable.
+> **Status:** Version `2.3.1` is a development build, not a release candidate or release. Its scientific maturity is **Experimental** and its safety class is **non-operational**. Do not use it for navigation, mission planning, collision avoidance, or safety decisions; collision probability is unavailable.
 
 ## Live Demo
 
 [Launch OpenBEXI Earth Orbit](https://arcazj.github.io/openbexi_earth_orbit/index.html)
 
-The GitHub Pages deployment runs the static visualization and selected-object browser screener. Authenticated durable full-catalog jobs require the optional local Python server.
+Repository owner `arcazj` has authorized the exact final Version 2.3.1 commit for one publication through `origin/master` in `arcazj/openbexi_earth_orbit` and the repository-root GitHub Pages deployment linked above. This byte-specific approval includes the final tracked closure, static artifact, validation corpus, and current source tree; it does not cover a later refresh or changed build. Version 2.3.1 remains Experimental, non-operational, and in development publication state. Authenticated durable full-catalog jobs require the optional local Python server.
 
 ## Features
 
-- Explore active satellites and orbital debris on an interactive 3D Earth globe or 2D Mercator map.
+- Search every accepted record in the bundled SATCAT snapshot, with current objects shown by default and historical/decayed records available by explicit opt-in, including payloads, debris, rocket bodies, unknown objects, and entries with small or missing radar cross-section.
+- Plot only objects with validated current GP/OMM elements on the interactive 3D Earth globe or 2D Mercator map; metadata-only objects never receive synthetic positions. For 0 through 499 drawn objects, the Globe uses the bundled same-origin `icons/ob_satellite.png` alpha silhouette at a fixed 16 screen pixels and tints it by object type or selection; from 500 upward it uses compact perspective-attenuated density points. Positioned debris is red, and red identifies object type only, not risk, proximity, size, mass, or radar cross-section.
 - Load mixed GP/OMM and legacy TLE elements without truncating six-digit NORAD identifiers.
-- Filter the catalog by `ALL`, `GEO`, `MEO`, `LEO`, `HRO`, `Debris`, `Others`, and dependent catalog tags.
-- Search by satellite name, NORAD ID, orbit class, or tag, then inspect consolidated object and orbital-element details.
+- Combine independent orbit, object-type, history, and tag filters. In the exact `ALL` orbit plus `Debris` object-type workflow, narrow debris further by position availability, reported RCS, owner/country, launch year, launch site, provider status, and designator/tag, with separate matched, positioned, and metadata-only counts. No mass or weight filter is offered because the admitted data does not supply authoritative mass.
+- Search by tracked-object name, NORAD ID, orbit class, or tag, then inspect consolidated object and orbital-element details.
 - Display selected trajectories, footprints, ground tracks, day/night lighting, detailed models, and observer-oriented views.
-- Move forward, pause, or reverse one shared simulation clock for satellites and the Solar System view.
+- Move forward, pause, or reverse one shared simulation clock for tracked objects and the Solar System view.
 - Explore launch and confirmed or predicted re-entry timelines that refresh when their data revisions change.
 - Add stars, the Milky Way, Moon, Mars, and a bounded JPL-derived Solar System ephemeris to the scene.
-- Run Experimental selected-object screening in the browser or optional authenticated full-catalog jobs through the local service.
+- Run Experimental selected-object screening in the browser or optional authenticated full-catalog jobs through the local service; selected-object summaries and exports disclose how many current tracked records were excluded because they lack current elements.
 - Share a reproducible view and run either as a curated static artifact or with the local API server.
 
 ## Images
@@ -63,7 +64,7 @@ npm run build
 node scripts/python.mjs -m http.server 8001 --bind 127.0.0.1 --directory dist
 ```
 
-Open [http://127.0.0.1:8001/index.html](http://127.0.0.1:8001/index.html). Publish only the contents of `dist/`; see [Static Deployment](docs/engineering/STATIC_DEPLOYMENT.md) for the deployment contract.
+Open [http://127.0.0.1:8001/index.html](http://127.0.0.1:8001/index.html). Publish only the contents of `dist/`; see [Static Deployment](docs/engineering/STATIC_DEPLOYMENT.md) for the deployment contract. The exact final Version 2.3.1 artifact is approved only for the recorded `origin/master` and repository-root GitHub Pages publication; rebuilds, refreshed data, and other channels require renewed exact-byte review.
 
 ## API
 
@@ -82,12 +83,15 @@ Start the API with `npm run serve` or `py server.py --host 127.0.0.1 --port 8000
 | [`GET /api/satellites`](http://127.0.0.1:8000/api/satellites) | Preferred GP catalog with legacy TLE fallback | None |
 | [`GET /api/tle`](http://127.0.0.1:8000/api/tle) | Deprecated numeric/Alpha-5 TLE compatibility subset; not complete six-digit coverage | None |
 | [`GET /api/launches`](http://127.0.0.1:8000/api/launches), [`GET /api/decayed`](http://127.0.0.1:8000/api/decayed) | SATCAT-backed launch events and confirmed decays | None |
+| [`GET /api/tracked-objects/manifest`](http://127.0.0.1:8000/api/tracked-objects/manifest), `GET /api/tracked-objects/chunks/{file_name}` | Tracked-object manifest and allowlisted chunks; incoherent pointer, closure, or current GP/SATCAT lineage fails closed with bounded `503 TRACKED_CATALOG_UNAVAILABLE` | None |
 | [`GET /api/satellite-metadata`](http://127.0.0.1:8000/api/satellite-metadata), [`GET /api/display-satellite-models`](http://127.0.0.1:8000/api/display-satellite-models) | Satellite metadata and supported model manifest | None |
-| [`GET /api/data-update-status`](http://127.0.0.1:8000/api/data-update-status) | Scheduler lifecycle, per-dataset due/status/error fields, five-component data revision, freshness, and reconciliation diagnostics | None |
+| [`GET /api/data-update-status`](http://127.0.0.1:8000/api/data-update-status) | Scheduler lifecycle, per-dataset due/status/error fields, six-component data revision, freshness, and reconciliation diagnostics | None |
 | `GET /api/v1/health/live`, `/health/ready`, `/capabilities` | Durable-service discovery, readiness, and supported limits | None |
 | `GET /api/v1/catalog-revisions`, `/screening-jobs`, `/conjunction-events` | Revision, job, and event queries | Viewer bearer token or higher |
 | `POST`, `DELETE`, retry, and replay job routes | Submit, cancel, retry, or replay durable screening jobs | Analyst bearer token or higher; mutating creates/replays require `Idempotency-Key` |
 | `GET /api/v1/screening-jobs/{job_id}/stream` | Resumable server-sent job progress | Viewer bearer token or higher; resume with `Last-Event-ID` |
+
+The tracked manifest, metadata, every referenced chunk, and their current GP/SATCAT source revisions must form one coherent publication before either the tracked API routes or the equivalent `server.py` static aliases serve them. The server also verifies raw GP/SATCAT bytes against their metadata hashes and responds from the exact validated manifest/metadata snapshot. A bounded `503 TRACKED_CATALOG_UNAVAILABLE` response makes the client retain its GP-only fallback instead of accepting a partial or stale tracked index.
 
 Configure independently generated tokens of at least 24 characters with `OPENBEXI_API_VIEWER_TOKEN`, `OPENBEXI_API_ANALYST_TOKEN`, and `OPENBEXI_API_ADMIN_TOKEN`. Send tokens only in the `Authorization: Bearer ...` header; never place them in URLs, browser storage, source files, or logs. The built-in server is loopback-only by default and is not an approved public multi-user deployment. See [Security Policy](SECURITY.md), [Server Deployment](docs/engineering/SERVER_DEPLOYMENT_V2_1.md), and the [API reference](SWAGGER.md).
 
@@ -115,12 +119,13 @@ Every subcommand supports `-h` and `--help`.
 
 | Subcommand | Purpose and outputs | Options |
 | --- | --- | --- |
-| `export-gp` | Update primary `json/gp/GP.json` and `GP.meta.json` from CelesTrak active OMM JSON. | `--all` replaces from the complete active source; `--force` bypasses freshness checks only; `--dry-run` computes without writing; `--allow-large-catalog-shrink` explicitly overrides the production-scale shrink guard for this direct command. All default to false. |
+| `export-gp` | Update primary `json/gp/GP.json` and `GP.meta.json` from the CelesTrak active group plus three event-specific debris groups. | `--all` replaces from one complete response for each configured group; completeness applies only to that configured partial scope, never the provider universe; `--force` bypasses freshness checks only; `--dry-run` computes without writing; `--allow-large-catalog-shrink` explicitly overrides the production-scale shrink guard for this direct command. All default to false. |
 | `export-tle` | Update deprecated `json/tle/TLE.json` compatibility data and metadata. | `--all` uses the legacy multi-group workflow; `--force` bypasses freshness checks only; `--dry-run`; `--allow-large-catalog-shrink` explicitly overrides the production-scale shrink guard for this direct command; `--allow-space-track-fallback` enables only the credential-gated fallback hook, which currently supplies no remote fallback; `--refresh-launch-dates` opts into legacy N2YO HTML enrichment that is not approved as release evidence. All default to false. |
 | `refresh-satcat` | Refresh `json/satcat.csv` and metadata, then rebuild the launch catalog. | `--force` bypasses freshness checks only; `--dry-run`; `--allow-large-catalog-shrink` explicitly overrides the production-scale shrink guard for this direct command. All default to false. |
 | `build-launches` | Build `json/launches/launches.json` and metadata from local SATCAT. | `--dry-run`, default false. |
 | `build-decayed-db` | Build confirmed-decay JSON and metadata from SATCAT `PAY` rows with decay dates. | `--all` runs a full rebuild; `--force`; `--dry-run`; `--refresh-satcat` refreshes SATCAT first. All default to false. |
-| `maybe-update` | Run one scheduler-style GP, compatibility TLE, SATCAT, launch, confirmed-decay, and reconciliation cycle. | `--force` bypasses freshness checks only; `--dry-run`; `--interval-hours HOURS`, default `24`; optional `--gp-interval-hours`, `--tle-interval-hours`, `--satcat-interval-hours`, and `--reconciliation-interval-hours` overrides. No catalog-shrink override is available. |
+| `build-tracked` | Build the content-addressed tracked-object manifest and chunks from local SATCAT plus current GP/OMM without inventing positions or making a provider request. | `--all` reconciles a verified complete SATCAT snapshot and may mark missing prior identities absent; `--dry-run` computes without writing. Both default to false. |
+| `maybe-update` | Run one scheduler-style GP, compatibility TLE, SATCAT, tracked-object, launch, confirmed-decay, and reconciliation cycle. | `--force` bypasses freshness checks only; `--dry-run`; `--interval-hours HOURS`, default `24`; optional `--gp-interval-hours`, `--tle-interval-hours`, `--satcat-interval-hours`, `--tracked-interval-hours`, and `--reconciliation-interval-hours` overrides. No catalog-shrink override is available. |
 
 Common commands:
 
@@ -130,13 +135,14 @@ py tools/satellite_data_tools.py export-gp --force
 py tools/satellite_data_tools.py refresh-satcat --force
 py tools/satellite_data_tools.py build-launches --dry-run
 py tools/satellite_data_tools.py build-decayed-db --refresh-satcat --force
+py tools/satellite_data_tools.py build-tracked --all --dry-run
 py tools/satellite_data_tools.py maybe-update --dry-run
 py tools/satellite_data_tools.py maybe-update --dry-run --interval-hours 24 --reconciliation-interval-hours 24
 ```
 
-The tool uses HTTPS-only provider URLs, conditional ETag and Last-Modified requests, validation and per-record quarantine, a stale-lock-aware single-writer boundary, atomic promotion, content-aware data writes, and last-known-good preservation. For an established GP, TLE, or SATCAT catalog with at least 1,000 records, every reconciliation or full replacement must contain at least 75% as many candidate records **and** retain at least 75% of the prior canonical NORAD identities. `--force` bypasses freshness only and never bypasses this guard. Only the direct `export-gp`, `export-tle`, and `refresh-satcat` commands expose the explicit `--allow-large-catalog-shrink` recovery override; `maybe-update` and the server scheduler never expose or pass it. Changed data promotions create collision-safe timestamped backups and retain the newest seven backups per artifact. Unchanged data creates no backup; an accepted `304 Not Modified`/conditional revalidation records a successful revalidation time and resets the applicable daily due age without changing data bytes or revisions. `--dry-run` writes no data, metadata, temporary files, locks, or backups.
+The tool uses HTTPS-only provider URLs, conditional ETag and Last-Modified requests, validation and per-record quarantine, a stale-lock-aware single-writer boundary, atomic promotion, content-aware data writes, and last-known-good preservation. For an established GP, TLE, or SATCAT catalog with at least 1,000 records, every reconciliation or full replacement must contain at least 75% as many candidate records **and** retain at least 75% of the prior canonical NORAD identities. `--force` bypasses freshness only and never bypasses this guard. Only the direct `export-gp`, `export-tle`, and `refresh-satcat` commands expose the explicit `--allow-large-catalog-shrink` recovery override; `maybe-update` and the server scheduler never expose or pass it. Changed fixed-name data promotions create collision-safe timestamped backups and retain the newest seven backups per artifact. Tracked chunks are content addressed and verified before the manifest is promoted; unchanged input retains the pointer without backup churn. Unchanged provider data creates no backup; an accepted `304 Not Modified`/conditional revalidation records a successful revalidation time and resets the applicable daily due age without changing data bytes or revisions. `--dry-run` writes no data, metadata, temporary files, locks, or backups.
 
-GP and compatibility TLE refreshes retain the two-hour CelesTrak guard; server-managed checks default to 24 hours. A normal incremental cycle upserts newer records and is `PARTIAL`. A due reconciliation accepts pruning only from a structurally valid complete `active` GP/TLE response and records `COMPLETE`; SATCAT-derived launch and confirmed-decay history is retained even when a later source snapshot omits an older event. GP/OMM preserves full NORAD strings. TLE decoding supports numeric and explicit Alpha-5 catalog fields such as `A0001` to canonical `100001`, but remains a deprecated subset and never substitutes for complete six-digit GP/OMM coverage.
+GP and compatibility TLE refreshes retain the two-hour CelesTrak guard; server-managed checks default to 24 hours. GP requests `active`, `fengyun-1c-debris`, `iridium-33-debris`, and `cosmos-2251-debris` once each per due cycle. Those event groups are a documented partial positioned-debris subset, not complete debris or provider coverage. A normal incremental cycle upserts the newest validated record per exact NORAD identity and is `PARTIAL`. A due GP reconciliation accepts pruning only after all four configured responses are structurally valid and quarantine-free; TLE reconciliation retains its own configured scope. Metadata distinguishes configured `source_groups` from accepted-byte `catalog_source_groups`. During migration from active-only data, failed, quarantined, partial, or `304`-only responses preserve last-known-good bytes, remain due, and retry every group without inherited validators. SATCAT-derived launch and confirmed-decay history is retained even when a later source snapshot omits an older event. The `2026-08-30T20:33:29Z` live four-group GP refresh returned HTTP 503, so the last-known-good snapshot was preserved with actual catalog scope `[active]`: all 12,490 current debris records remain searchable and zero currently have a validated GP/OMM position. GP/OMM preserves full NORAD strings. TLE decoding supports numeric and explicit Alpha-5 catalog fields such as `A0001` to canonical `100001`, but remains a deprecated subset and never substitutes for complete six-digit GP/OMM coverage.
 
 </details>
 
@@ -150,7 +156,7 @@ npm run serve
 npm run serve:update
 # Equivalent direct command:
 py server.py --host 127.0.0.1 --port 8000
-py server.py --host 127.0.0.1 --port 8000 --update-data-on-schedule --gp-update-interval-hours 24 --tle-update-interval-hours 24 --satcat-update-interval-hours 24 --reconciliation-interval-hours 24
+py server.py --host 127.0.0.1 --port 8000 --update-data-on-schedule --gp-update-interval-hours 24 --tle-update-interval-hours 24 --satcat-update-interval-hours 24 --tracked-update-interval-hours 24 --reconciliation-interval-hours 24
 ```
 
 | Option | Default | Description |
@@ -161,17 +167,18 @@ py server.py --host 127.0.0.1 --port 8000 --update-data-on-schedule --gp-update-
 | `--allow-public` | false | Required acknowledgement for a non-loopback bind. |
 | `--cors-origin ORIGIN` | None | Add an exact allowed CORS origin; repeatable. Loopback HTTP(S) is allowed by default. Use `*` only for an intentionally public read-only deployment. |
 | `--no-static` | false | Disable serving `index.html` and repository static files. |
-| `--update-data-on-schedule` | false | After the HTTP bind, start background GP, compatibility TLE, SATCAT, launch, confirmed-decay, and reconciliation checks; continue until shutdown. |
+| `--update-data-on-schedule` | false | After the HTTP bind, start background GP, compatibility TLE, SATCAT, tracked-object, launch, confirmed-decay, and reconciliation checks; continue until shutdown. |
 | `--no-data-update` | false | Disable updates even when scheduling was requested. |
 | `--data-update-interval-hours HOURS` | `24` | Legacy/fallback GP, TLE, and SATCAT interval; minimum `1` hour. |
 | `--gp-update-interval-hours HOURS` | fallback interval | GP/OMM freshness interval; minimum `1` hour. |
 | `--tle-update-interval-hours HOURS` | fallback interval | Deprecated compatibility TLE freshness interval; minimum `1` hour. |
 | `--satcat-update-interval-hours HOURS` | fallback interval | SATCAT plus derived launch/confirmed-decay interval; minimum `1` hour. |
-| `--reconciliation-interval-hours HOURS` | `24` | Complete active-source reconciliation interval; minimum `1` hour. |
+| `--tracked-update-interval-hours HOURS` | SATCAT interval | Tracked-object catalog rebuild interval; minimum `1` hour. |
+| `--reconciliation-interval-hours HOURS` | `24` | Complete configured-source reconciliation interval; minimum `1` hour. |
 | `--runtime-dir DIR` | `runtime` | Private v2.1 database and job-artifact directory; it must remain inside the project root. |
 | `--no-v21-service` | false | Disable the authenticated durable screening service. |
 
-Scheduled provider access is disabled by default; `npm run serve` never enables it, while `npm run serve:update` explicitly selects daily maintenance. Due work shares one lock and one SATCAT fetch per cycle. The scheduler always retains the production-scale catalog guard and has no shrink override. Unchanged payloads keep their data bytes, revision, and backup count stable; an accepted conditional revalidation advances successful freshness and resets the daily due age. Dataset failures are isolated, persisted in the GP/TLE/SATCAT/launch/decay metadata sidecars, retained across server restart, and retried with jittered exponential backoff from a nominal five minutes up to six hours. `/api/data-update-status` exposes all five dataset histories plus live state, due flags, effective intervals, failure count, retry/next-check times, reconciliation time, worker state, and graceful-shutdown state. Its public errors and nested `last_result` values are recursively bounded, control-character normalized, and credential-redacted. A durable-service bootstrap failure leaves the static and unversioned APIs available while reporting the v1 service unavailable.
+Scheduled provider access is disabled by default; `npm run serve` never enables it, while `npm run serve:update` explicitly selects daily maintenance. Due work shares one lock and one SATCAT fetch per cycle; tracked data is derived locally without another provider request. The scheduler always retains the production-scale catalog guard and has no shrink override. Unchanged payloads keep their data bytes, revision, and backup count stable; an accepted conditional revalidation advances successful freshness and resets the daily due age. Dataset failures are isolated, persisted in the GP/TLE/SATCAT/tracked/launch/decay metadata sidecars, retained across server restart, and retried with jittered exponential backoff from a nominal five minutes up to six hours. `/api/data-update-status` exposes all six dataset histories plus live state, due flags, effective intervals, failure count, retry/next-check times, reconciliation time, worker state, and graceful-shutdown state. Its public errors and nested `last_result` values are recursively bounded, control-character normalized, and credential-redacted. A durable-service bootstrap failure leaves the static and unversioned APIs available while reporting the v1 service unavailable.
 
 GitHub Pages and other static hosts cannot execute `server.py` or this scheduler. They serve the packaged snapshot until a separate deployment workflow replaces the generated files.
 
@@ -261,7 +268,7 @@ This fixed-purpose helper has no CLI options. Passing `--help` starts the fixed 
 | Command | Purpose |
 | --- | --- |
 | `npm run serve` | Start the loopback static/API server through shared Python discovery. |
-| `npm run serve:update` | Start the loopback server with explicit daily GP/TLE/SATCAT update and reconciliation scheduling. |
+| `npm run serve:update` | Start the loopback server with explicit daily GP/TLE/SATCAT/tracked/launch/decay maintenance and reconciliation scheduling. |
 | `npm run build` | Build the curated `dist/` artifact. |
 | `npm run check` | Run syntax, Python compilation, version, dependency, artifact, validation, and budget gates. |
 | `npm test` | Run JavaScript, Python, and Playwright browser suites. |
@@ -287,7 +294,7 @@ Focused commands are `npm run test:unit`, `npm run test:python`, and `npm run te
 
 ## All Project Documentation
 
-This index covers all 39 project-authored Markdown files in the source tree. Historical and archived documents are retained for traceability and do not override current release metadata, ADRs, or gates. Generated build copies, dependency documentation, and the vendored satellite.js license are excluded.
+This index covers all 42 project-authored Markdown files in the source tree. Historical and archived documents are retained for traceability and do not override current release metadata, ADRs, or gates. Generated build copies, dependency documentation, and the vendored satellite.js license are excluded.
 
 <details>
 <summary><strong>Overview and project guidance (5)</strong></summary>
@@ -308,13 +315,14 @@ This index covers all 39 project-authored Markdown files in the source tree. His
 </details>
 
 <details>
-<summary><strong>Architecture decisions (5)</strong></summary>
+<summary><strong>Architecture decisions (6)</strong></summary>
 
 - [ADR 0001: Quality Gates and Local-First Server](docs/adr/0001-v2-quality-gates-and-local-first-server.md) - Version 2.0 decision for authoritative release metadata, CI gates, and the local-first serving boundary.
 - [ADR 0002: Browser Conjunction Screening](docs/adr/0002-browser-selected-object-conjunction-screening.md) - Version 2.0 decision for bounded selected-object screening in a Web Worker without collision-probability claims.
-- [ADR 0003: Durable Full-Catalog Screening](docs/adr/0003-v2.1-durable-full-catalog-screening.md) - Version 2.1 decision for authenticated Python/SQLite job control and an isolated Node screening runner, retained under v2.2.
-- [ADR 0004: GP/OMM Catalog Continuity](docs/adr/0004-v2.2-gp-omm-catalog-continuity.md) - Current Version 2.2 decision for preferred GP/OMM data, lossless identities, lifecycle datasets, compatibility, and rollback.
-- [ADR 0005: Browser State, Time, and Motion](docs/adr/0005-v2.2-browser-state-time-and-motion-continuity.md) - Current Version 2.2 decision for unified filters, simulation time, display interpolation, render readiness, and ephemeris bounds.
+- [ADR 0003: Durable Full-Catalog Screening](docs/adr/0003-v2.1-durable-full-catalog-screening.md) - Version 2.1 decision for authenticated Python/SQLite job control and an isolated Node screening runner, retained in Version 2.3.
+- [ADR 0004: GP/OMM Catalog Continuity](docs/adr/0004-v2.2-gp-omm-catalog-continuity.md) - Retained Version 2.2 decision for preferred GP/OMM data, lossless identities, lifecycle datasets, compatibility, and rollback.
+- [ADR 0005: Browser State, Time, and Motion](docs/adr/0005-v2.2-browser-state-time-and-motion-continuity.md) - Retained Version 2.2 decision for unified filters, simulation time, display interpolation, render readiness, and ephemeris bounds.
+- [ADR 0006: Provider-Tracked Object Catalog](docs/adr/0006-v2.3-tracked-object-catalog.md) - Version 2.3 decision, amended for 2.3.1, for SATCAT-scoped metadata coverage, exact GP-only positions, partial event-group debris coverage, content-addressed publication, and independent facets.
 
 </details>
 
@@ -350,7 +358,7 @@ This index covers all 39 project-authored Markdown files in the source tree. His
 <details>
 <summary><strong>Validation and evidence (3)</strong></summary>
 
-- [Test and Integration Plan](Test_and_Integration.md) - Current Version 2.2 verification matrix plus retained historical regression procedures and logs.
+- [Test and Integration Plan](Test_and_Integration.md) - Current Version 2.3.1 verification matrix plus retained historical regression procedures and logs.
 - [Validation Corpus Policy](docs/validation/VALIDATION_CORPUS.md) - Corpus tiers, checksum-manifest requirements, existing fixtures, and independent-review requirements.
 - [v2.0 Local Verification](release/evidence/v2.0-local-verification.md) - Historical local environment, checks, artifact hashes, browser measurements, screenshots, and unresolved v2.0 gates.
 
@@ -366,15 +374,17 @@ This index covers all 39 project-authored Markdown files in the source tree. His
 </details>
 
 <details>
-<summary><strong>Release and rollback (7)</strong></summary>
+<summary><strong>Release and rollback (9)</strong></summary>
 
-- [Release Notes](RELEASE_NOTES.md) - Current Version 2.2 development changes and concise summaries of earlier versions.
+- [Release Notes](RELEASE_NOTES.md) - Current Version 2.3.1 development changes and concise summaries of earlier versions.
 - [v2.0 Release Checklist](docs/engineering/RELEASE_CHECKLIST.md) - Version-specific v2.0 promotion evidence, open security/deployment gates, and rollout requirements.
 - [v2.1 Release Checklist](docs/engineering/RELEASE_CHECKLIST_V2_1.md) - Version-specific v2.1 implementation evidence and remaining validation, data, security, and operations gates.
-- [v2.2 Release Checklist](docs/engineering/RELEASE_CHECKLIST_V2_2.md) - Current Version 2.2 scope, automated evidence, controlled-data checks, rollback readiness, and candidate decision.
+- [v2.2 Release Checklist](docs/engineering/RELEASE_CHECKLIST_V2_2.md) - Historical Version 2.2 scope, automated evidence, controlled-data checks, rollback readiness, and candidate decision.
+- [v2.3 Release Checklist](docs/engineering/RELEASE_CHECKLIST_V2_3.md) - Version 2.3 tracked-catalog data, browser, API, scale, governance, and promotion gates.
 - [Rollback Policy](docs/engineering/ROLLBACK.md) - Cross-version abort triggers, application/data restoration rules, and compatibility expectations.
 - [v2.1 Service Rollback](docs/engineering/ROLLBACK_V2_1.md) - Durable-service disablement, artifact preservation, data recovery, and rehearsal procedure.
 - [v2.2 Data and Browser Rollback](docs/engineering/ROLLBACK_V2_2.md) - Coherent GP/lifecycle/browser containment, last-known-good restoration, re-enable criteria, and evidence requirements.
+- [v2.3 Tracked-Catalog Rollback](docs/engineering/ROLLBACK_V2_3.md) - Feature disablement, manifest/chunk restoration, cache invalidation, and re-enable criteria for the tracked-object catalog.
 
 </details>
 

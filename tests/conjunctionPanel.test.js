@@ -35,7 +35,11 @@ const request = buildConjunctionScreeningRequest({
     provider: 'Fixture Provider',
     retrieved_at: start.toISOString(),
     source_status: 'COMPLETE',
-    partial_update: false
+    partial_update: false,
+    tracked_count: 12,
+    propagatable_count: 2,
+    metadata_only_excluded_count: 10,
+    screening_coverage_fraction: 1 / 6
   }
 });
 
@@ -50,6 +54,39 @@ assert.strictEqual(request.primary_object_id, 'obx:norad:25544');
 assert.strictEqual(request.configuration.configuration_version, '2.0.0');
 assert.strictEqual(request.configuration.max_results, 100);
 assert.strictEqual(request.dataset_provenance.provider, 'Fixture Provider');
+assert.deepStrictEqual(request.catalog_metadata, {
+  source_urls: [],
+  accepted_count: 2,
+  rejected_count: 0,
+  stale_count_at_ingestion: 0,
+  retained_count: null,
+  tracked_count: 12,
+  propagatable_count: 2,
+  metadata_only_excluded_count: 10,
+  screening_coverage_fraction: 1 / 6
+});
+const unavailableCoverageRequest = buildConjunctionScreeningRequest({
+  primary,
+  catalog: [primary, secondary],
+  startTime: start,
+  durationHours: 6,
+  coarseStepSeconds: 60,
+  screeningRadiusKm: 100,
+  refinementToleranceSeconds: 0.5,
+  maxResults: 100,
+  dataset: {
+    datasetId: 'fixture-without-tracked-manifest',
+    datasetHash: 'test:fixture-without-tracked-manifest',
+    provider: 'Fixture Provider'
+  }
+});
+assert.strictEqual(unavailableCoverageRequest.catalog_metadata.propagatable_count, 2);
+assert.strictEqual(unavailableCoverageRequest.catalog_metadata.tracked_count, null);
+assert.strictEqual(unavailableCoverageRequest.catalog_metadata.metadata_only_excluded_count, null);
+assert.strictEqual(unavailableCoverageRequest.catalog_metadata.screening_coverage_fraction, null);
+const unavailableCoverageExport = buildConjunctionExportPayload(unavailableCoverageRequest, { events: [] });
+assert.strictEqual(unavailableCoverageExport.request.catalogSnapshot.metadata.tracked_count, null);
+assert.strictEqual(unavailableCoverageExport.request.catalogSnapshot.metadata.screening_coverage_fraction, null);
 assert.throws(() => buildConjunctionScreeningRequest({ primary: null, catalog: [secondary], startTime: start }), /primary/i);
 assert.throws(() => buildConjunctionScreeningRequest({
   primary,
@@ -93,6 +130,8 @@ assert.strictEqual(exported.limitations.collision_probability.status, 'unavailab
 assert.strictEqual(exported.result.events.length, 2);
 assert.strictEqual(exported.request.catalog, undefined, 'exports do not duplicate the complete catalog');
 assert.strictEqual(exported.request.catalogSnapshot.objectCount, 2);
+assert.strictEqual(exported.request.catalogSnapshot.metadata.metadata_only_excluded_count, 10);
+assert.strictEqual(exported.request.catalog_metadata.screening_coverage_fraction, 1 / 6);
 assert.strictEqual(exported.request.catalogSnapshot.objects.length, 2);
 assert.strictEqual(exported.request.catalogSnapshot.objects[1].element_set.line1, 'line-1');
 assert.strictEqual(exported.replay.input_status, 'SELF_CONTAINED_FROZEN_CATALOG');

@@ -1,6 +1,6 @@
 {
   "name": "openbexi_orbit",
-  "version": "2.2.1",
+  "version": "2.3.1",
   "private": true,
   "type": "module",
   "engines": {
@@ -22,7 +22,7 @@
     "check:version": "node scripts/check-version.mjs",
     "sbom": "node scripts/generate-sbom.mjs",
     "serve": "node scripts/python.mjs server.py --host 127.0.0.1 --port 8000",
-    "serve:update": "node scripts/python.mjs server.py --host 127.0.0.1 --port 8000 --update-data-on-schedule --gp-update-interval-hours 24 --tle-update-interval-hours 24 --satcat-update-interval-hours 24 --reconciliation-interval-hours 24",
+    "serve:update": "node scripts/python.mjs server.py --host 127.0.0.1 --port 8000 --update-data-on-schedule --gp-update-interval-hours 24 --tle-update-interval-hours 24 --satcat-update-interval-hours 24 --tracked-update-interval-hours 24 --reconciliation-interval-hours 24",
     "test": "npm run test:unit && npm run test:python && npm run test:browser",
     "test:all": "npm test",
     "test:browser": "node scripts/run-browser-tests.mjs",

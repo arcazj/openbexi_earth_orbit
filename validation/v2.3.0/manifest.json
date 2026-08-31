@@ -1,0 +1,2324 @@
+{
+  "schemaVersion": 1,
+  "corpusId": "openbexi-earth-orbit-v2.3.0-development-evidence",
+  "corpusVersion": "2.3.0-development",
+  "releaseVersion": "2.3.0",
+  "generatedAt": "2026-08-30T20:04:25.881Z",
+  "publicationState": "development",
+  "scientificMaturity": "experimental",
+  "safetyClass": "non-operational",
+  "generation": {
+    "command": "py tools/satellite_data_tools.py build-tracked --all",
+    "tool": "tools/satellite_data_tools.py",
+    "toolVersion": "2.3.0",
+    "verificationCommand": "npm run check:validation"
+  },
+  "review": {
+    "status": "pending",
+    "reviewer": null,
+    "reviewedAt": null,
+    "scope": "Independent review of tracked-source scope, availability demotion, catalog accounting, browser behavior, static lineage, scale, and scientific limitations remains open."
+  },
+  "redistribution": {
+    "status": "pending",
+    "approved": false,
+    "reviewer": null,
+    "approvedAt": null,
+    "boundaryId": "v2.2.1-exact-bytes-only",
+    "requiredApprovalScope": "v2.3-exact-manifest-chunks-metadata-quarantine-static-bytes",
+    "scope": "The bundled SATCAT and GP source bytes retain their exact Version 2.2.1 approval. Newly derived Version 2.3 manifest, metadata, quarantine, chunks, validation, and static bytes are not approved for publication."
+  },
+  "claims": {
+    "accuracy": false,
+    "operationalUse": false,
+    "providerCompleteness": false,
+    "physicalDebrisCompleteness": false,
+    "rcsPhysicalSizeInference": false,
+    "fullTrackedScreeningCoverage": false,
+    "acceptanceUse": "Development regression evidence only; no candidate, validation, publication, or operational claim."
+  },
+  "conventions": {
+    "timeScale": "UTC",
+    "propagationFrame": "TEME",
+    "positionUnits": "km",
+    "velocityUnits": "km/s",
+    "rcsUnits": "m2",
+    "identifierEncoding": "canonical decimal strings"
+  },
+  "tolerances": {
+    "contentHashes": "exact SHA-256",
+    "catalogCounts": 0,
+    "identityDuplicates": 0,
+    "benchmarkUse": "Observed values are regression evidence; enforced ceilings are defined in the executable benchmark and release budgets.",
+    "scientificAccuracy": "Not evaluated by this tracked-metadata corpus."
+  },
+  "excludedCases": [
+    {
+      "id": "provider-universe-completeness",
+      "reason": "The configured provider does not publish an authoritative expected total; expected_provider_records remains null."
+    },
+    {
+      "id": "metadata-only-propagation",
+      "reason": "Records without validated current GP/OMM elements are deliberately excluded from propagation, rendering, and screening."
+    },
+    {
+      "id": "physical-size-from-rcs",
+      "reason": "Radar cross-section is metadata and is not a physical-size estimator."
+    }
+  ],
+  "datasetUse": {
+    "training": false,
+    "tuning": false,
+    "acceptance": "development-regression-only"
+  },
+  "sources": [
+    {
+      "id": "celestrak-satcat-bundled",
+      "provider": "CelesTrak",
+      "artifact": "json/satcat.csv",
+      "metadataArtifact": "json/satcat.meta.json",
+      "revision": "sha256:fb9c778a881e720d15fb359ca34a0477f2f2b533600d46c22094e589081cb545",
+      "scope": "configured-bundled-satcat-snapshot",
+      "url": "https://celestrak.org/pub/satcat.csv",
+      "license": {
+        "spdx": "NOASSERTION",
+        "sourceBytesApproval": "v2.2.1-exact-bytes-approved",
+        "derivedProductRedistributionStatus": "v2.3-derived-bytes-pending"
+      }
+    },
+    {
+      "id": "celestrak-active-gp-bundled",
+      "provider": "CelesTrak",
+      "artifact": "json/gp/GP.json",
+      "metadataArtifact": "json/gp/GP.meta.json",
+      "revision": "sha256:b5314199094c140abc58d4cec4b3cdee15711958224d7547926823c10640add0",
+      "scope": "configured-active-gp-snapshot",
+      "url": "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=json",
+      "license": {
+        "spdx": "NOASSERTION",
+        "sourceBytesApproval": "v2.2.1-exact-bytes-approved",
+        "derivedProductRedistributionStatus": "v2.3-derived-bytes-pending"
+      }
+    }
+  ],
+  "artifacts": [
+    {
+      "path": ".gitattributes",
+      "role": "versioned project artifact",
+      "bytes": 96,
+      "sha256": "103a39b127ee48946040925fef351c1c8391b63da4d0552e3e1b95c9914ea259"
+    },
+    {
+      "path": ".github/dependabot.yml",
+      "role": "continuous-integration policy",
+      "bytes": 332,
+      "sha256": "6e7bc99b97439d3cb2b8a6f84254bf9e0556a322ba6d12eaed108b50677ad82b"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "role": "continuous-integration policy",
+      "bytes": 1906,
+      "sha256": "2c90c1521b6cf2b7c67aa7a305ad5b3da1a9cba01582fb9bae4b5ba2732c223d"
+    },
+    {
+      "path": ".nvmrc",
+      "role": "continuous-integration policy",
+      "bytes": 3,
+      "sha256": "f14b4987904bcb5814e4459a057ed4d20f58a633152288a761214dcd28780b56"
+    },
+    {
+      "path": "CLAUDE.md",
+      "role": "project documentation and governance",
+      "bytes": 22473,
+      "sha256": "08d8d474cb644b79019f9c63e6a2925b4201d58f32da9d9e5262a657ba486e18"
+    },
+    {
+      "path": "CONTRIBUTING.md",
+      "role": "project documentation and governance",
+      "bytes": 2404,
+      "sha256": "b5adb9f7981fcf6c584920a868af8829cabb158854d17786e7ad66c523185fda"
+    },
+    {
+      "path": "css/style.css",
+      "role": "browser presentation surface",
+      "bytes": 51206,
+      "sha256": "6d1dca42cca40c5b40370cfe840f35bf3d4c139ddf9e39e63a870f01660b2e60"
+    },
+    {
+      "path": "data/ephemeris/README.md",
+      "role": "bounded ephemeris data and documentation",
+      "bytes": 2120,
+      "sha256": "cacfc09b5403fef041f61445f556c6593ff97160a6c57fc531531d93833f8e31"
+    },
+    {
+      "path": "data/ephemeris/solar_system_jpl_horizons_2020_2035_6h.json",
+      "role": "bounded ephemeris data and documentation",
+      "bytes": 15558309,
+      "sha256": "57f8bbaa433938527e5a9012f4c2b51ac166a1e44edd26f96aa8b106628a3655"
+    },
+    {
+      "path": "data/ephemeris/solar_system_jpl_horizons_reference_samples.json",
+      "role": "bounded ephemeris data and documentation",
+      "bytes": 8235,
+      "sha256": "2dc10a1e25f8d36aa0dec5ce9d4fee9319f2130f66887d21bc9ed6cdf650d0f4"
+    },
+    {
+      "path": "DEPENDENCIES.md",
+      "role": "project documentation and governance",
+      "bytes": 3023,
+      "sha256": "15a4e6202bd5f86d5617c1bd9701d9f201111db31e201a051153bf007f94c129"
+    },
+    {
+      "path": "display_satellite.html",
+      "role": "browser presentation surface",
+      "bytes": 45976,
+      "sha256": "afc4fdc36cb3365c19dfa6264ba211bfdff314a9b79fb65cae9cf8ddaa2fe437"
+    },
+    {
+      "path": "docs/adr/0001-v2-quality-gates-and-local-first-server.md",
+      "role": "project documentation and governance",
+      "bytes": 2217,
+      "sha256": "d979baa13857f445326d490d602c52cb8a8385824889f39a2631169c5489338e"
+    },
+    {
+      "path": "docs/adr/0002-browser-selected-object-conjunction-screening.md",
+      "role": "project documentation and governance",
+      "bytes": 4549,
+      "sha256": "abad76e2ef64a181ecf8d4e686537babccafb9dd638b5b53f625464ece2c290c"
+    },
+    {
+      "path": "docs/adr/0003-v2.1-durable-full-catalog-screening.md",
+      "role": "project documentation and governance",
+      "bytes": 4273,
+      "sha256": "175e40a3fa08c212d8106aa29ed65086b55986cf478d517915f3cd9a7b057527"
+    },
+    {
+      "path": "docs/adr/0004-v2.2-gp-omm-catalog-continuity.md",
+      "role": "project documentation and governance",
+      "bytes": 8702,
+      "sha256": "f45deb7a879e794f17d13d1fd7abbb9dcce2a002ca714a862384f005647dce70"
+    },
+    {
+      "path": "docs/adr/0005-v2.2-browser-state-time-and-motion-continuity.md",
+      "role": "project documentation and governance",
+      "bytes": 9671,
+      "sha256": "aae43dbee33048d4d381ed6d53d1b6cf77555be54416067d8cd473ad342d00ed"
+    },
+    {
+      "path": "docs/adr/0006-v2.3-tracked-object-catalog.md",
+      "role": "project documentation and governance",
+      "bytes": 3980,
+      "sha256": "48cfd83e417faef67c2469d4fc05d507b602e9e40c3ca678f3249c9a1acef963"
+    },
+    {
+      "path": "docs/conjunction-screening-v2.md",
+      "role": "project documentation and governance",
+      "bytes": 9028,
+      "sha256": "9121b08265d33af76db80135ea732cec25ecf576956583575533b6ebe84969ea"
+    },
+    {
+      "path": "docs/engineering/PERFORMANCE_BUDGETS.md",
+      "role": "project documentation and governance",
+      "bytes": 21777,
+      "sha256": "123af10ee68e355b2aab5a368a08076c59b77b4b33b49dba3e183e1cad7a85f3"
+    },
+    {
+      "path": "docs/engineering/RELEASE_CHECKLIST_V2_1.md",
+      "role": "project documentation and governance",
+      "bytes": 8120,
+      "sha256": "539478ab0539d71c15f563c56dc2c58d1a61fc75841983f89ccbc6a28f7c9425"
+    },
+    {
+      "path": "docs/engineering/RELEASE_CHECKLIST_V2_2.md",
+      "role": "project documentation and governance",
+      "bytes": 12681,
+      "sha256": "a60900d6bdaee6732152244880991f88dbcf41edc33214b153504ddb636cc240"
+    },
+    {
+      "path": "docs/engineering/RELEASE_CHECKLIST_V2_3.md",
+      "role": "project documentation and governance",
+      "bytes": 7127,
+      "sha256": "9a099c87c61b5879ac29957e7064ca5a6e0f16749b46d77df90a7ae4b31b9be1"
+    },
+    {
+      "path": "docs/engineering/RELEASE_CHECKLIST.md",
+      "role": "project documentation and governance",
+      "bytes": 3545,
+      "sha256": "68abf06eb72d555d3013c10dc0ca585c0f281d18d8d3fa0703689814bb7487e0"
+    },
+    {
+      "path": "docs/engineering/ROLLBACK_V2_1.md",
+      "role": "project documentation and governance",
+      "bytes": 4786,
+      "sha256": "4ff5ae2052d09071c5b4845ddcd532349ecde687c98395f9d13c0d8907557cc3"
+    },
+    {
+      "path": "docs/engineering/ROLLBACK_V2_2.md",
+      "role": "project documentation and governance",
+      "bytes": 9318,
+      "sha256": "5816d98fa044474ef1d0f2e512eeb1a3ba2ac47d64c657b0e91f0a737ddf5f34"
+    },
+    {
+      "path": "docs/engineering/ROLLBACK_V2_3.md",
+      "role": "project documentation and governance",
+      "bytes": 4107,
+      "sha256": "75685b8294ca4321871bbe168f9a83d5e8c42ec9c78b378d0c78514a878f80c2"
+    },
+    {
+      "path": "docs/engineering/ROLLBACK.md",
+      "role": "project documentation and governance",
+      "bytes": 4408,
+      "sha256": "1760109cdbdcbb5eb5db4515e2d25abd4df740636aeccf1a5ea5e695b0e6321f"
+    },
+    {
+      "path": "docs/engineering/SERVER_DEPLOYMENT_V2_1.md",
+      "role": "project documentation and governance",
+      "bytes": 13851,
+      "sha256": "d770e2d6a142e45c59e8d5f2d7ec89e3ee93cfc8625527563d1312cb6774a1ba"
+    },
+    {
+      "path": "docs/engineering/STATIC_DEPLOYMENT.md",
+      "role": "project documentation and governance",
+      "bytes": 13533,
+      "sha256": "68a8d1e63514b823a95cb4ebb9d6256d17bcf81000dc192a7f177e9720ddaf38"
+    },
+    {
+      "path": "docs/engineering/THREAT_MODEL_V2_1.md",
+      "role": "project documentation and governance",
+      "bytes": 5996,
+      "sha256": "ef6738ce74ad197947303e4bde0b1d4e5b59aa090932b6101b71fe19b75f006e"
+    },
+    {
+      "path": "docs/engineering/THREAT_MODEL_V2.md",
+      "role": "project documentation and governance",
+      "bytes": 16181,
+      "sha256": "8ec382f1ac74d68b1fd48205b2d900ea3565d276659d81a93bf9f586730849d9"
+    },
+    {
+      "path": "docs/governance/DATA_SOURCES.md",
+      "role": "project documentation and governance",
+      "bytes": 23242,
+      "sha256": "ce2aaa94ba26d6d40820c9ff9ee9588188470e7dea001f743f915d6eca66b15e"
+    },
+    {
+      "path": "docs/governance/V2_POLICY.md",
+      "role": "project documentation and governance",
+      "bytes": 7830,
+      "sha256": "e6d1769d67f23bea0ab3c4c7beee219594c3d4312ca7f1a999dcd14be1f6333d"
+    },
+    {
+      "path": "docs/orbital-domain-contracts-v2.md",
+      "role": "project documentation and governance",
+      "bytes": 14120,
+      "sha256": "96070fe906728fed4eb0e76add54d657c76ba602293aa87ee8d9e10d200822a0"
+    },
+    {
+      "path": "docs/science/EXPERIMENTAL_CONJUNCTION_SCREENING_V2.md",
+      "role": "project documentation and governance",
+      "bytes": 12555,
+      "sha256": "0a135380f7c82f6cada8a23d5933af41b9e65bc9103b93dc166671447dc73996"
+    },
+    {
+      "path": "docs/science/EXPERIMENTAL_FULL_CATALOG_SCREENING_V2_1.md",
+      "role": "project documentation and governance",
+      "bytes": 16523,
+      "sha256": "7bbbea6c62a38daefbb5f2bfab7f0098db669bcf491454c44d52056414636073"
+    },
+    {
+      "path": "docs/validation/VALIDATION_CORPUS.md",
+      "role": "project documentation and governance",
+      "bytes": 7966,
+      "sha256": "847aa1eefecf9af7d5e206c8fda1e7ebe8da7ee4312f6adf42e6348378372672"
+    },
+    {
+      "path": "index.html",
+      "role": "browser presentation surface",
+      "bytes": 284853,
+      "sha256": "302ff3bd7a6132136f1d290e674c0976d97158340b7383cdb0b0cbea990a47e4"
+    },
+    {
+      "path": "js/animationTimer.js",
+      "role": "browser runtime implementation",
+      "bytes": 861,
+      "sha256": "1bc6c584399c4b64d6af9d05d464556e41b7dee7f37f9f9b44118f2aca319eb1"
+    },
+    {
+      "path": "js/conjunction/conjunctionPanel.js",
+      "role": "browser runtime implementation",
+      "bytes": 40552,
+      "sha256": "b9bdebf4e2ea8b89040d8e24d75fa3b0b837914a5889a7f9af518f60c7403b05"
+    },
+    {
+      "path": "js/conjunction/conjunctionScreening.js",
+      "role": "browser runtime implementation",
+      "bytes": 52462,
+      "sha256": "a5a843273f16803e23ed76ac957815afb2781c6ff81453a4eb8cdb042b2925c3"
+    },
+    {
+      "path": "js/conjunction/conjunctionVisualization.js",
+      "role": "browser runtime implementation",
+      "bytes": 5690,
+      "sha256": "4cc0ca2d63357f49624f2c6e122cc334b5497e64cd5164ea09eeaf0fd32652ec"
+    },
+    {
+      "path": "js/conjunction/conjunctionWorker.js",
+      "role": "browser runtime implementation",
+      "bytes": 7789,
+      "sha256": "3f7c2be82ae1dbb858684f9815b01003307c9e2b38c423c2071c8874d58462c7"
+    },
+    {
+      "path": "js/conjunction/conjunctionWorkerClient.js",
+      "role": "browser runtime implementation",
+      "bytes": 8966,
+      "sha256": "dd78f407719cb6f50f88c81aa2b06bb67487d82eaa764dea51de2134e2a40e03"
+    },
+    {
+      "path": "js/conjunction/conjunctionWorkerProtocol.js",
+      "role": "browser runtime implementation",
+      "bytes": 3182,
+      "sha256": "473e6b90fbcfbbf7e86870585d1b526059cb5a19b147d9b319424c98fa7d590e"
+    },
+    {
+      "path": "js/conjunction/fullCatalogClient.js",
+      "role": "browser runtime implementation",
+      "bytes": 18810,
+      "sha256": "2d761d63d831adb39dc7c75c28d5bc8d7e77f7c8eec2f1b9781786fc0f2b61ff"
+    },
+    {
+      "path": "js/conjunction/fullCatalogScreening.js",
+      "role": "browser runtime implementation",
+      "bytes": 46106,
+      "sha256": "95f2bd2678c04270a13900b99abfa6ceb632855693939c72d6e1b23f98e2cb13"
+    },
+    {
+      "path": "js/coverage/beamFootprint.js",
+      "role": "browser runtime implementation",
+      "bytes": 2981,
+      "sha256": "b0b876a9b32d9928ba3196f29c668126257e6ef006d598ee4674abaac9bb41fa"
+    },
+    {
+      "path": "js/coverage/coverageGrid.js",
+      "role": "browser runtime implementation",
+      "bytes": 5170,
+      "sha256": "b6cddce12289452d2b97add4a33d3073e2d40b29d9693ae9142b1984cbc50c17"
+    },
+    {
+      "path": "js/decayPredictor.js",
+      "role": "browser runtime implementation",
+      "bytes": 21229,
+      "sha256": "3468adfabb7e1424eab29e36600ab42d79f6da836bbb7786410339654d5d7063"
+    },
+    {
+      "path": "js/dependencyBootstrap.js",
+      "role": "browser runtime implementation",
+      "bytes": 6954,
+      "sha256": "6a571309dfb85187c4773a8d4e9949c4664e3213934a117c38f1d04273f8de74"
+    },
+    {
+      "path": "js/domain/catalogLifecycle.js",
+      "role": "browser runtime implementation",
+      "bytes": 4537,
+      "sha256": "0444975b98bc9b964796cd469d70ee7ebf9a96ff755b1a05fcc5cd8c4bddcf3c"
+    },
+    {
+      "path": "js/domain/catalogValidation.js",
+      "role": "browser runtime implementation",
+      "bytes": 31277,
+      "sha256": "06b78efac2887e5e22ec333febffae25ed3d8fbb1b074d4d885a6eacb40c6662"
+    },
+    {
+      "path": "js/domain/contracts.js",
+      "role": "browser runtime implementation",
+      "bytes": 80636,
+      "sha256": "b5e74d803ad1bc632013e94de8a4fad99a9dbb765effd6c021684be664ed28a0"
+    },
+    {
+      "path": "js/domain/index.js",
+      "role": "browser runtime implementation",
+      "bytes": 263,
+      "sha256": "7960cb3149d95c58b97e76b07ffc2cf35f082dee465b93fa42e085258c6fd68d"
+    },
+    {
+      "path": "js/domain/objectIdentity.js",
+      "role": "browser runtime implementation",
+      "bytes": 8022,
+      "sha256": "d425985948209a05c53c7f790da7ec8b739f6c90006ab133cc6ab0418da341f6"
+    },
+    {
+      "path": "js/domain/orbitalPolicy.js",
+      "role": "browser runtime implementation",
+      "bytes": 11741,
+      "sha256": "e797f877dc391db4e283c6c75653b0d356e884601fc20353d6ec98647af14c3e"
+    },
+    {
+      "path": "js/domain/orbitalSourceAdapters.js",
+      "role": "browser runtime implementation",
+      "bytes": 40828,
+      "sha256": "53276aaacacb7f767548c5b7c9f8375f618855f91861a35b6b69b06f1718b830"
+    },
+    {
+      "path": "js/domain/v21Contracts.js",
+      "role": "browser runtime implementation",
+      "bytes": 11803,
+      "sha256": "cf6d0992b6fd63f2179e42603f061b32cd5642e998c4a949e038488b1a3b0e06"
+    },
+    {
+      "path": "js/drawDayNight.js",
+      "role": "browser runtime implementation",
+      "bytes": 8205,
+      "sha256": "37b02551126d0926e760460ec554843b3d8ce7ccd1fcd86fdf6a2bf770616d04"
+    },
+    {
+      "path": "js/EarthFrameLoader.js",
+      "role": "browser runtime implementation",
+      "bytes": 8477,
+      "sha256": "f504c98effcc112e7d526edce3f30a31288b961918883f8c33744f0adb08f05b"
+    },
+    {
+      "path": "js/ganttTimelineLoader.js",
+      "role": "browser runtime implementation",
+      "bytes": 29748,
+      "sha256": "a013b2db89c4a4a5eea11614dea7bcc79d35fe505a1353be50b637adacb9a7cb"
+    },
+    {
+      "path": "js/MarsFrameLoader.js",
+      "role": "browser runtime implementation",
+      "bytes": 3637,
+      "sha256": "710dd73c3eeb379f606494cf43967811761d428f20e035ad0e1fc37498f6ae11"
+    },
+    {
+      "path": "js/mercatorMapLoader.js",
+      "role": "browser runtime implementation",
+      "bytes": 18149,
+      "sha256": "e0032d528b41ee7fcf6c5e3f585d88d7baa00e28940e95c1e1cdf2ae77e8fe72"
+    },
+    {
+      "path": "js/MoonFrameLoader.js",
+      "role": "browser runtime implementation",
+      "bytes": 3294,
+      "sha256": "588ade7b6d122a284be8fc3830352fa03a68cae1faa589ea93bf70efa5d2025c"
+    },
+    {
+      "path": "js/orbit/multiFormatPropagationService.js",
+      "role": "browser runtime implementation",
+      "bytes": 27809,
+      "sha256": "cf3c998c01ef3711378977892f8b5721ac7a135e99f409b06a7bfed8b72384e1"
+    },
+    {
+      "path": "js/orbit/orbitLinkGeometry.js",
+      "role": "browser runtime implementation",
+      "bytes": 6352,
+      "sha256": "76ad14e5177e7346a16902adce4dec82170f8b9778287d152dbd64bc2eceacf3"
+    },
+    {
+      "path": "js/orbit/propagationService.js",
+      "role": "browser runtime implementation",
+      "bytes": 15135,
+      "sha256": "64ec93f2cbbe982ca62e9437987320181be3da918b12c872b45a87b484ab03b4"
+    },
+    {
+      "path": "js/orbit/satelliteMotionInterpolator.js",
+      "role": "browser runtime implementation",
+      "bytes": 23598,
+      "sha256": "cd2f1409d80234f5b34f0f7577651314ff12349e23ee0c88f202e7ac5b53d32e"
+    },
+    {
+      "path": "js/orbitFrameLoader.js",
+      "role": "browser runtime implementation",
+      "bytes": 5154,
+      "sha256": "8015c542e82e96c44e31b026f3ec4b0c317b9c5967a6cc3d15a701291e69fe5c"
+    },
+    {
+      "path": "js/reentryTimeline.js",
+      "role": "browser runtime implementation",
+      "bytes": 33234,
+      "sha256": "8854f731ca3f40b8c9d6581333884e93db11e47a9525628270f2c67c9fb6414f"
+    },
+    {
+      "path": "js/releaseVersion.js",
+      "role": "browser runtime implementation",
+      "bytes": 1129,
+      "sha256": "e33602ad36bc7791ee99dc2476882f915490140ff193c15d7614c99fe1b91805"
+    },
+    {
+      "path": "js/rf/rfLinkBudget.js",
+      "role": "browser runtime implementation",
+      "bytes": 5859,
+      "sha256": "dba44d748515e49ef94a7a317e02852598e87efccd5483a620012acc20e524dd"
+    },
+    {
+      "path": "js/satelliteCategoryFilter.js",
+      "role": "browser runtime implementation",
+      "bytes": 4094,
+      "sha256": "4ae82afe9cfb8ec8a178668629900f8336d8c49dde7b150e78ef8e3578e9fcb7"
+    },
+    {
+      "path": "js/SatelliteConfigurationLoader.js",
+      "role": "browser runtime implementation",
+      "bytes": 3267,
+      "sha256": "0d2a9ebcfc9b5b146f214a7c0d1fa2bc9ea4d0cf310fb089da693be1111fad0e"
+    },
+    {
+      "path": "js/SatelliteConstantLoader.js",
+      "role": "browser runtime implementation",
+      "bytes": 559,
+      "sha256": "7e8c37c35f7d51f8cdd8abb0e838026cde07e9c664aeb4256d1418c2ae8586c3"
+    },
+    {
+      "path": "js/satelliteFootprintLoader.js",
+      "role": "browser runtime implementation",
+      "bytes": 10594,
+      "sha256": "297069bde6f032931326fc93d6b7698584f806ecc3fb2384a23adcedbf9661f8"
+    },
+    {
+      "path": "js/SatelliteMenuLoader.js",
+      "role": "browser runtime implementation",
+      "bytes": 30029,
+      "sha256": "32fc23a514127df1c492798eb400b72ec35d59d92c4ee334f975e994238dcb2c"
+    },
+    {
+      "path": "js/satelliteModelLoader.js",
+      "role": "browser runtime implementation",
+      "bytes": 23983,
+      "sha256": "8f98217395910f348dc8fd443fe2dfed9a017e71452ef383b206d5f6da35070e"
+    },
+    {
+      "path": "js/satelliteModelResolver.js",
+      "role": "browser runtime implementation",
+      "bytes": 9467,
+      "sha256": "448033f016a61049f60880b504812a5488e0cbdde7c0a914e628cf562062e6d9"
+    },
+    {
+      "path": "js/satelliteSearchUtils.js",
+      "role": "browser runtime implementation",
+      "bytes": 2546,
+      "sha256": "a3183db9e1fa83d77a811013f381a2ba14ee3da933e170420fcad2455097dc31"
+    },
+    {
+      "path": "js/satelliteShortcutLabels.js",
+      "role": "browser runtime implementation",
+      "bytes": 1423,
+      "sha256": "bf1e5c6c941f0cd0fb62ad7b03b745d7de1b3bea17887e742255d1ee39453208"
+    },
+    {
+      "path": "js/satelliteTLELoader.js",
+      "role": "browser runtime implementation",
+      "bytes": 54081,
+      "sha256": "e11e882322935b74ab1be3dd8f32e6a4e1b8e3475beb87bfb5ec09cc7782bde1"
+    },
+    {
+      "path": "js/satelliteYawPitchRollLoader.js",
+      "role": "browser runtime implementation",
+      "bytes": 6167,
+      "sha256": "32e1bd7edaed3552426d971f47173a91726d073e8b8c903947092b372c2cfce1"
+    },
+    {
+      "path": "js/sceneFrame.js",
+      "role": "browser runtime implementation",
+      "bytes": 22332,
+      "sha256": "182f35aef237885a71b5403159dc00e0063d8accf42b1e2c2aa9c26fa2c351f6"
+    },
+    {
+      "path": "js/serverConnection.js",
+      "role": "browser runtime implementation",
+      "bytes": 18666,
+      "sha256": "f0cffef07a69f51476bb3b79ac2fa98a9208ba919959fc848136719c44087096"
+    },
+    {
+      "path": "js/shareState.js",
+      "role": "browser runtime implementation",
+      "bytes": 8204,
+      "sha256": "721fb3147ad214ce4a6cd6de8dce21007d7a22b62cdcc5dd0c85a6ac93736cd1"
+    },
+    {
+      "path": "js/simulationClock.js",
+      "role": "browser runtime implementation",
+      "bytes": 5088,
+      "sha256": "23b01809a8cb4b0af86b99415bf0484084592a6b643212b6159b4d00d8adcd00"
+    },
+    {
+      "path": "js/solarSystemEphemeris.js",
+      "role": "browser runtime implementation",
+      "bytes": 10652,
+      "sha256": "4b7ecf3674fe7700fe519a34369046327d4cac7fe14b7fdaa5a63d6656d1c7be"
+    },
+    {
+      "path": "js/solarSystemOverviewLoader.js",
+      "role": "browser runtime implementation",
+      "bytes": 33584,
+      "sha256": "5b219cc0cf3a11e036301be64c44ba67697c180ae378b4c292b4d2e99c9c3c68"
+    },
+    {
+      "path": "js/starSkyUtils.js",
+      "role": "browser runtime implementation",
+      "bytes": 4419,
+      "sha256": "de554e1da72ffc021e6cf5515322b6b5be8c46e561b9c2a8c26c46cf6b281642"
+    },
+    {
+      "path": "js/startupPerformance.js",
+      "role": "browser runtime implementation",
+      "bytes": 4266,
+      "sha256": "937ae1075a81951ebcd96f55e9853e58c4c494bb21c67b5a4b1068259a8c18cc"
+    },
+    {
+      "path": "js/trackedObjectCatalog.js",
+      "role": "browser runtime implementation",
+      "bytes": 32150,
+      "sha256": "79c7fa51c0ac6e9a3718fbd47239b478e8ad07cd11ec486bc529c42dc021d48e"
+    },
+    {
+      "path": "json/decayed/decayed.json",
+      "role": "bundled runtime data",
+      "bytes": 1983320,
+      "sha256": "b02713aab728b1e6f57a205080dcb967560452e3ecb44d7cc7963cff1ea1289c"
+    },
+    {
+      "path": "json/decayed/decayed.meta.json",
+      "role": "bundled runtime data",
+      "bytes": 823,
+      "sha256": "c7521c19415f6213280bffb7a294718b2fca64cf59736cde2740518778d3a61f"
+    },
+    {
+      "path": "json/display_satellite_models.json",
+      "role": "bundled runtime data",
+      "bytes": 2361,
+      "sha256": "ce11cbbb77d447df68510b3ab50b93b9901fce4ae8f3c3286fc5820347662cf7"
+    },
+    {
+      "path": "json/gp/GP.json",
+      "role": "bundled GP/OMM source snapshot",
+      "bytes": 23133164,
+      "sha256": "b5314199094c140abc58d4cec4b3cdee15711958224d7547926823c10640add0"
+    },
+    {
+      "path": "json/gp/GP.meta.json",
+      "role": "bundled GP/OMM source snapshot",
+      "bytes": 2243,
+      "sha256": "5a2034bb5124f7a897f2496abe395ebd1e35728231e93f747f9662338eeed29a"
+    },
+    {
+      "path": "json/launches/launches.json",
+      "role": "bundled runtime data",
+      "bytes": 10178853,
+      "sha256": "b1d350401e84b1456824c77ee9ec10d269337603fb90d75bdaa093ea496ce809"
+    },
+    {
+      "path": "json/launches/launches.meta.json",
+      "role": "bundled runtime data",
+      "bytes": 805,
+      "sha256": "747d29bb72d37f40cd947f51d5971ff5e8c4549bc5b09534e03aafff1a9a63ee"
+    },
+    {
+      "path": "json/satcat.csv",
+      "role": "bundled SATCAT source snapshot",
+      "bytes": 6719955,
+      "sha256": "fb9c778a881e720d15fb359ca34a0477f2f2b533600d46c22094e589081cb545"
+    },
+    {
+      "path": "json/satcat.meta.json",
+      "role": "bundled SATCAT source snapshot",
+      "bytes": 893,
+      "sha256": "d15fe5854aaf9be2f7b8bb94de65d609c752e6409bba635f5db82bfc6e8086f6"
+    },
+    {
+      "path": "json/satellites/0.json",
+      "role": "bundled runtime data",
+      "bytes": 347,
+      "sha256": "a8d24654213e8b5e46b267119e8bd19adff1f541163e3bb9ce462789eeaeda8d"
+    },
+    {
+      "path": "json/satellites/ISS.json",
+      "role": "bundled runtime data",
+      "bytes": 284,
+      "sha256": "2764eacf0f31707d6953f1ed168b8d0351399700031bb3a28109f25fe0397cf5"
+    },
+    {
+      "path": "json/satellites/O3b.json",
+      "role": "bundled runtime data",
+      "bytes": 2142,
+      "sha256": "5df0a99a03a4b07f2725378a934bb860209a81ccbde7fbb17a6f5ce4fc4ce535"
+    },
+    {
+      "path": "json/satellites/oneweb.json",
+      "role": "bundled runtime data",
+      "bytes": 2333,
+      "sha256": "daf26fa09cc2270335bbe04fcce9f0679df3a7f77b70385305cd7ed4e60d9a2f"
+    },
+    {
+      "path": "json/satellites/satellite_template.json",
+      "role": "bundled runtime data",
+      "bytes": 1753,
+      "sha256": "76dbddffb064092911ea5da7ac297df17987d781cbaa47c2a4dffdf39bf5d468"
+    },
+    {
+      "path": "json/satellites/starlink_V1.json",
+      "role": "bundled runtime data",
+      "bytes": 2303,
+      "sha256": "c17e8aea110e47b7e40483d6f548a4a8435bcbfb629105c3cda75da319bd95ce"
+    },
+    {
+      "path": "json/satellites/starlink_v2.json",
+      "role": "bundled runtime data",
+      "bytes": 2230,
+      "sha256": "c31dcd7a89f9cc61db27bdec23975739c6c72aca349810932ec76fe376a2e312"
+    },
+    {
+      "path": "json/tle/satellite_launch_dates.json",
+      "role": "bundled runtime data",
+      "bytes": 1682307,
+      "sha256": "c38bde04b7daf78478c5e0ddfe2369fc545be0ea5d252c3c21964d6973e05738"
+    },
+    {
+      "path": "json/tle/TLE.json",
+      "role": "bundled runtime data",
+      "bytes": 9115275,
+      "sha256": "4642771a06caac6839f89ecfc797e4967e904fd4e0f4e9afef11ee870b50c55e"
+    },
+    {
+      "path": "json/tle/TLE.meta.json",
+      "role": "bundled runtime data",
+      "bytes": 1485,
+      "sha256": "fffad273e05fd669af83b5d87eee564c87232d9b3c118ab6dbc3d1cd3211cad3"
+    },
+    {
+      "path": "json/tracked/chunks/08fc365c814b4e98d4adac965f31567ac04b10c8925666d13397c1c7aa804cfa-current-rocket-body.json",
+      "role": "content-addressed tracked catalog chunk",
+      "bytes": 2589331,
+      "sha256": "08fc365c814b4e98d4adac965f31567ac04b10c8925666d13397c1c7aa804cfa"
+    },
+    {
+      "path": "json/tracked/chunks/0ead1a054dd63c47cdc147dc164f3ef1058912a2d8be173baa34f1d5aaace8af-quarantine.json",
+      "role": "content-addressed tracked catalog chunk",
+      "bytes": 39,
+      "sha256": "0ead1a054dd63c47cdc147dc164f3ef1058912a2d8be173baa34f1d5aaace8af"
+    },
+    {
+      "path": "json/tracked/chunks/22adeac4ee6f5e716f8c989ef3aa3e025cf82ead74af37a95f21a9be5825e1a9-current-mission-related.json",
+      "role": "content-addressed tracked catalog chunk",
+      "bytes": 89,
+      "sha256": "22adeac4ee6f5e716f8c989ef3aa3e025cf82ead74af37a95f21a9be5825e1a9"
+    },
+    {
+      "path": "json/tracked/chunks/295989798b38b6eeb9b388c6ba614a3281d02bc577b797630fe14297cb44ae07-historical-payload.json",
+      "role": "content-addressed tracked catalog chunk",
+      "bytes": 7847423,
+      "sha256": "295989798b38b6eeb9b388c6ba614a3281d02bc577b797630fe14297cb44ae07"
+    },
+    {
+      "path": "json/tracked/chunks/3b1c5a259cac2408cd1056c893a885f3e8e41edad8b980311ccfdd41bcba9763-current-debris.json",
+      "role": "content-addressed tracked catalog chunk",
+      "bytes": 13304407,
+      "sha256": "3b1c5a259cac2408cd1056c893a885f3e8e41edad8b980311ccfdd41bcba9763"
+    },
+    {
+      "path": "json/tracked/chunks/6b98740b67d902ebb5fa1637f16596b7c99751bc65b9d360c22e01114e1c64f6-historical-mission-related.json",
+      "role": "content-addressed tracked catalog chunk",
+      "bytes": 92,
+      "sha256": "6b98740b67d902ebb5fa1637f16596b7c99751bc65b9d360c22e01114e1c64f6"
+    },
+    {
+      "path": "json/tracked/chunks/ba19c4679dc6806f6a694d5ee59d2d9acda2e40f079f2621f1d6036213326711-historical-unknown.json",
+      "role": "content-addressed tracked catalog chunk",
+      "bytes": 112510,
+      "sha256": "ba19c4679dc6806f6a694d5ee59d2d9acda2e40f079f2621f1d6036213326711"
+    },
+    {
+      "path": "json/tracked/chunks/c121f1307c45161c7b98c145c9fd16c74de2900a7c42ec5a367bb66be3258298-historical-debris.json",
+      "role": "content-addressed tracked catalog chunk",
+      "bytes": 24215754,
+      "sha256": "c121f1307c45161c7b98c145c9fd16c74de2900a7c42ec5a367bb66be3258298"
+    },
+    {
+      "path": "json/tracked/chunks/cae0186aeb7bd859bc01c0313f74dda8ed57207174fbb08366db0159ca440bfe-current-unknown.json",
+      "role": "content-addressed tracked catalog chunk",
+      "bytes": 59160,
+      "sha256": "cae0186aeb7bd859bc01c0313f74dda8ed57207174fbb08366db0159ca440bfe"
+    },
+    {
+      "path": "json/tracked/chunks/f928ad3607f7079831056dc487686b2cfbd73e5a448f0bf5e3f49ae23df0c373-current-payload.json",
+      "role": "content-addressed tracked catalog chunk",
+      "bytes": 21789231,
+      "sha256": "f928ad3607f7079831056dc487686b2cfbd73e5a448f0bf5e3f49ae23df0c373"
+    },
+    {
+      "path": "json/tracked/chunks/fbbfe76441a13e6ca244879987980782cdaeb26c38940a3e4b216631bb6f3f2f-historical-rocket-body.json",
+      "role": "content-addressed tracked catalog chunk",
+      "bytes": 4637847,
+      "sha256": "fbbfe76441a13e6ca244879987980782cdaeb26c38940a3e4b216631bb6f3f2f"
+    },
+    {
+      "path": "json/tracked/TRACKED.manifest.json",
+      "role": "tracked catalog publication metadata",
+      "bytes": 6700,
+      "sha256": "eb19e4fe0bafd69170b1bb556627de47b3004fe74e51c7caeb8bcba0bdfc841c"
+    },
+    {
+      "path": "json/tracked/TRACKED.meta.json",
+      "role": "tracked catalog publication metadata",
+      "bytes": 2860,
+      "sha256": "71cd416d008f8d1d926beed0d26eccd466ddb1abdd2e0ececcecbfe70114d8eb"
+    },
+    {
+      "path": "LICENSE.md",
+      "role": "project documentation and governance",
+      "bytes": 1058,
+      "sha256": "11a8a7b94c23bfe025ccce437bde33cce8891bed89b3a883adb05c7cfbdcb4f2"
+    },
+    {
+      "path": "markdown_viewer.html",
+      "role": "browser presentation surface",
+      "bytes": 12955,
+      "sha256": "adf1b88bfc0a864544497b49ccacef55c89a4f1e7f35d81a99fde84c1647037b"
+    },
+    {
+      "path": "obj/SSL_1300.glb",
+      "role": "canonical visualization model",
+      "bytes": 8517244,
+      "sha256": "651b30cebf57bd08fedcfb34c31127f7a466b7897ccac2aafa8ea9908cccfcf0"
+    },
+    {
+      "path": "package-lock.json",
+      "role": "versioned project artifact",
+      "bytes": 3852,
+      "sha256": "e9b0f92dd19bd4cf78bfd7d47bf2441c9471a19146d28702a39be47f3d086420"
+    },
+    {
+      "path": "package.json",
+      "role": "versioned project artifact",
+      "bytes": 2101,
+      "sha256": "581b5d8609a8d3a96a6692fcd7f83f6c6e24752db494d1c5466f19b4783939b0"
+    },
+    {
+      "path": "playwright.config.js",
+      "role": "versioned project artifact",
+      "bytes": 1772,
+      "sha256": "42422cb93b09a3564626610aa23e67f00ea5e2cb2378a077b2498280463b70e3"
+    },
+    {
+      "path": "PROMPT_History.md",
+      "role": "project documentation and governance",
+      "bytes": 288796,
+      "sha256": "51872f1a6fc60e852ac6009c70dd96c68a49e8145994721d3af0b97ce6ea5709"
+    },
+    {
+      "path": "PROMPT_IMPLEMENT_ROADMAP_V2.md",
+      "role": "project documentation and governance",
+      "bytes": 28624,
+      "sha256": "fd4859db1c74bb2c4fa8257c4249f0b042c98f9ed342962d5eb8ec63fe1b81f5"
+    },
+    {
+      "path": "PROMPT_Instructions.md",
+      "role": "project documentation and governance",
+      "bytes": 6056,
+      "sha256": "a8efaaa56d65d5ee591850649c6c4eec2f0049baeb08d4179907558834f4ca71"
+    },
+    {
+      "path": "PROMPT4beamFormingSimulator3DWithMercatorMap_V2.MD",
+      "role": "project documentation and governance",
+      "bytes": 22124,
+      "sha256": "90d33cc1fdd3c7413a8df1753881c75b4da204badf92cdefcedf6ba691a12af6"
+    },
+    {
+      "path": "README.md",
+      "role": "project documentation and governance",
+      "bytes": 31158,
+      "sha256": "bb0bcf9bfe7baae0bb7802b08c37a3fc330eb9574bbf339bbba9d76d2b9e868e"
+    },
+    {
+      "path": "RELEASE_NOTES.md",
+      "role": "project documentation and governance",
+      "bytes": 21279,
+      "sha256": "c35920cf8edd6c89eb4c7a751b93f2f8bffe3bc9dda2398262949acde041da93"
+    },
+    {
+      "path": "release/asset-budgets.json",
+      "role": "release metadata and evidence",
+      "bytes": 1048,
+      "sha256": "9faa526b2201db2dd2642eb5fad4cc90a73cddb53f1315d61110c419c78807a4"
+    },
+    {
+      "path": "release/evidence/openbexi-node-sbom-2.2.1-development.cdx.json",
+      "role": "release metadata and evidence",
+      "bytes": 3464,
+      "sha256": "2357e999928fdcf7141fdfc299130f7588b292289df55ea8f1deb73df152e17f"
+    },
+    {
+      "path": "release/evidence/openbexi-node-sbom-2.3.0-development.cdx.json",
+      "role": "release metadata and evidence",
+      "bytes": 3464,
+      "sha256": "f31da5d617aba2df49c513632479494b8ff113b4c0934d826d4c73a346754541"
+    },
+    {
+      "path": "release/evidence/v2.0-local-verification.md",
+      "role": "project documentation and governance",
+      "bytes": 5731,
+      "sha256": "d14f582fc96f4286b2347530159d9eaeb7a172b928d62b5c79cd4d934abb6748"
+    },
+    {
+      "path": "release/feature-flags.json",
+      "role": "release metadata and evidence",
+      "bytes": 2822,
+      "sha256": "93953aaa65f4f44a1cb8c6ee824eb7a72aedcbf9da17317b051846b7ff53fd6a"
+    },
+    {
+      "path": "release/static-artifact.json",
+      "role": "release metadata and evidence",
+      "bytes": 1888,
+      "sha256": "53b5d40f86fbc7021fddabf71596a7b9babb6e2f62f82f78093a95f06a5e6db8"
+    },
+    {
+      "path": "release/version.json",
+      "role": "release metadata and evidence",
+      "bytes": 338,
+      "sha256": "897bed683a07c6143f990cbd9db4d84190d26d037fbbbbba5c5ed5bfbb93fce9"
+    },
+    {
+      "path": "ROADMAP.md",
+      "role": "project documentation and governance",
+      "bytes": 92971,
+      "sha256": "009545c46732b226d84567ac0fb3c5bb7178803a668a1065052f250bc5ba88b4"
+    },
+    {
+      "path": "scripts/benchmark-full-catalog.mjs",
+      "role": "build, validation, and lifecycle tooling",
+      "bytes": 15035,
+      "sha256": "88f92377403b83472ddaf8b89ac25b7fa3d15dea2d702cb52da001ee32eff3d0"
+    },
+    {
+      "path": "scripts/build-static.mjs",
+      "role": "build, validation, and lifecycle tooling",
+      "bytes": 17949,
+      "sha256": "8fa11a1207197e2465d8f73e425bc1b4281d2e7dece7ad4ea161d2586e2bcc18"
+    },
+    {
+      "path": "scripts/check-asset-budgets.mjs",
+      "role": "build, validation, and lifecycle tooling",
+      "bytes": 3742,
+      "sha256": "8ee28c17d1350eae04a62012ad72bb87c46e8fe3c6cda895678abe0ad74e81c1"
+    },
+    {
+      "path": "scripts/check-js-syntax.mjs",
+      "role": "build, validation, and lifecycle tooling",
+      "bytes": 793,
+      "sha256": "a6ad8e8b768246e54e3d1a82ef5b158f1c7987bf8ca5425520a3c5206579902e"
+    },
+    {
+      "path": "scripts/check-validation-manifest.mjs",
+      "role": "build, validation, and lifecycle tooling",
+      "bytes": 61450,
+      "sha256": "6f8ab6c2e602022fdd85685b1c2b2ea174bbe2ea3c34535883120d6f625a061c"
+    },
+    {
+      "path": "scripts/check-version.mjs",
+      "role": "build, validation, and lifecycle tooling",
+      "bytes": 9314,
+      "sha256": "efc58d0fcd7ebf179228dcee7ab28159491e87594edca0053b3bb12bc9932c91"
+    },
+    {
+      "path": "scripts/generate-sbom.mjs",
+      "role": "build, validation, and lifecycle tooling",
+      "bytes": 1229,
+      "sha256": "651b1d3c4c9efc7ab67eefda28c569c5bf3f9cec18b12357fa68a86510edc74e"
+    },
+    {
+      "path": "scripts/orbital-catalog-input.mjs",
+      "role": "build, validation, and lifecycle tooling",
+      "bytes": 4876,
+      "sha256": "91bf2d795ea00e7bb8b111f59e813d1d5615350ddfdf146354c67dd67147b24d"
+    },
+    {
+      "path": "scripts/python-discovery.mjs",
+      "role": "build, validation, and lifecycle tooling",
+      "bytes": 2928,
+      "sha256": "95b29798ddee85b86c43fac52bcbd15c2ed9150d580cb948acf16cd2f5c1aa5e"
+    },
+    {
+      "path": "scripts/python.mjs",
+      "role": "build, validation, and lifecycle tooling",
+      "bytes": 471,
+      "sha256": "8367d07bbccec95de58df9311ceafbd0b4379beba02e320dae3cd3f1b5332299"
+    },
+    {
+      "path": "scripts/run-browser-tests.mjs",
+      "role": "build, validation, and lifecycle tooling",
+      "bytes": 5006,
+      "sha256": "7fa7b8f0ae8eee4c8fb83c68dc977ac5ca038edfb9d277928e6f4ccaa3cc4f64"
+    },
+    {
+      "path": "scripts/run-full-catalog-screening.mjs",
+      "role": "build, validation, and lifecycle tooling",
+      "bytes": 22302,
+      "sha256": "bf6ca5a0fd29858c3fdbbe96095ec919bfe855a2c5a7c932bfed455bcbf82578"
+    },
+    {
+      "path": "scripts/sync-version.mjs",
+      "role": "build, validation, and lifecycle tooling",
+      "bytes": 1779,
+      "sha256": "334ac04d4ec72ea20f38ae8d255ec8c5948034f5395719b0ad2fd9d161de7d45"
+    },
+    {
+      "path": "scripts/vendor-browser-dependencies.mjs",
+      "role": "build, validation, and lifecycle tooling",
+      "bytes": 9091,
+      "sha256": "0b98e001e466f0cf62ad58025b2c930d596cc01a814a9431ff020e084973df2d"
+    },
+    {
+      "path": "SECURITY.md",
+      "role": "project documentation and governance",
+      "bytes": 3260,
+      "sha256": "456a77d449300c8e87ac3e3b383c00f24eba416ad3e3c3e5dd2dfe7d742c56da"
+    },
+    {
+      "path": "server.py",
+      "role": "server and durable-service implementation",
+      "bytes": 107479,
+      "sha256": "2bfd774f2a53a9d75dd588acc4eeb26552f61ed2cd05a01744b3512f42409358"
+    },
+    {
+      "path": "services/__init__.py",
+      "role": "server and durable-service implementation",
+      "bytes": 61,
+      "sha256": "9fb35d5dbcffd68c1c281e27468dba9648006293ceeb995ae7bd666df91c8ecd"
+    },
+    {
+      "path": "services/v21/__init__.py",
+      "role": "server and durable-service implementation",
+      "bytes": 656,
+      "sha256": "0b489ba0fdbb6d9740568413971edd662f384cb2a05901374362032d857c8c6c"
+    },
+    {
+      "path": "services/v21/api.py",
+      "role": "server and durable-service implementation",
+      "bytes": 34392,
+      "sha256": "30c35d42acc91b49fa24da4ed2d2aff8d7236ba34e4f25e2bf0edb07602cd210"
+    },
+    {
+      "path": "services/v21/catalog_registry.py",
+      "role": "server and durable-service implementation",
+      "bytes": 12270,
+      "sha256": "e0752cb54eba26860da1519e2584e338de11cebab10e088dff1c71036dea9d01"
+    },
+    {
+      "path": "services/v21/feature_flags.py",
+      "role": "server and durable-service implementation",
+      "bytes": 2073,
+      "sha256": "076ca8f4fc312ee882696a6f6bcc4b0849acac0bce9abb0a53db18ad5972c64e"
+    },
+    {
+      "path": "services/v21/http_api.py",
+      "role": "server and durable-service implementation",
+      "bytes": 14203,
+      "sha256": "017c1b06bee8a892ac4c59b5e73f677a3f4b562e97f12014561d7f01940dc2fe"
+    },
+    {
+      "path": "services/v21/job_manager.py",
+      "role": "server and durable-service implementation",
+      "bytes": 27751,
+      "sha256": "3b04db1f45a9826050a7de5fce6111df16a564786a509a9d329bb8aa878e04f4"
+    },
+    {
+      "path": "services/v21/job_store.py",
+      "role": "server and durable-service implementation",
+      "bytes": 84722,
+      "sha256": "835c759d889fbcfbe2744770b38046a72fdf142fef82f74a75d7a2c2addd4c2f"
+    },
+    {
+      "path": "services/v21/migrations/0001_initial.sql",
+      "role": "server and durable-service implementation",
+      "bytes": 10008,
+      "sha256": "096a6f1c5858ca0efa69ccfa5d6c3a91f06e65cb405354330b2fe9089c9cd580"
+    },
+    {
+      "path": "services/v21/security.py",
+      "role": "server and durable-service implementation",
+      "bytes": 10053,
+      "sha256": "e3c9f376256a63605bcd92c26d2ea196fd7a250de94462ed2da43ec05fbbe428"
+    },
+    {
+      "path": "swagger.html",
+      "role": "browser presentation surface",
+      "bytes": 36506,
+      "sha256": "bd966a6cb4521ee2200b96eae0495481445c1d6fffbab3b546294800e87f6060"
+    },
+    {
+      "path": "SWAGGER.md",
+      "role": "project documentation and governance",
+      "bytes": 15537,
+      "sha256": "343871e039767dc08e00ee5a19c0400524b82566a8091b1cef096ed17755e699"
+    },
+    {
+      "path": "Test_and_Integration.md",
+      "role": "project documentation and governance",
+      "bytes": 202149,
+      "sha256": "844a0531bc5eae66f2653a8b360ab161e3fd9c2f5ab76941da0f2754775fc92b"
+    },
+    {
+      "path": "tests_browser/conjunction.spec.js",
+      "role": "Playwright browser regression",
+      "bytes": 33476,
+      "sha256": "83e8013816841644059229f4def243c3dfb1d82b8ff96f248fdba4d35e1beb2d"
+    },
+    {
+      "path": "tests_browser/satelliteFilters.spec.js",
+      "role": "Playwright browser regression",
+      "bytes": 57107,
+      "sha256": "53ef373af43a4cb2ef72225248b3c9f1db72dc3d84a836ececee2cbc98838887"
+    },
+    {
+      "path": "tests_browser/smoke.spec.js",
+      "role": "Playwright browser regression",
+      "bytes": 11742,
+      "sha256": "f4193cf6e6a00765a2339e749be92f1fe4d35f4eb2761481d940d9486b3d124e"
+    },
+    {
+      "path": "tests_browser/staticDeployment.spec.js",
+      "role": "Playwright browser regression",
+      "bytes": 8088,
+      "sha256": "d671a2fc8d50bac0f06eccfaffa3e64c6cca56c6756cda23e34e38cac1e343aa"
+    },
+    {
+      "path": "tests_browser/timelines.spec.js",
+      "role": "Playwright browser regression",
+      "bytes": 20044,
+      "sha256": "8130b44521e76062c99624a823c1ea93051bb513127bc81bfa00cd78342961b3"
+    },
+    {
+      "path": "tests_browser/timeSimulation.spec.js",
+      "role": "Playwright browser regression",
+      "bytes": 16131,
+      "sha256": "a4e3d10c3d60441b17485976cafe1705b509927859fb8d2a1c41a503b674cd39"
+    },
+    {
+      "path": "tests_python/test_satellite_data_scheduler.py",
+      "role": "Python service and data regression",
+      "bytes": 41681,
+      "sha256": "cdc98a80d9c3fddbcf2679b3f28b3c548f0c64b2a7b8cbb0abc257d8473f22b8"
+    },
+    {
+      "path": "tests_python/test_server_data_update_scheduler.py",
+      "role": "Python service and data regression",
+      "bytes": 21739,
+      "sha256": "ad25c71331a6c302b06d7cec1cf6fe35501e69b021157aa38d0c156740fca2cf"
+    },
+    {
+      "path": "tests_python/test_server_security.py",
+      "role": "Python service and data regression",
+      "bytes": 24248,
+      "sha256": "c736a16b7db07221c912730e8b74b12fcc30b2df22efc12ae0dc7c9c5173a84e"
+    },
+    {
+      "path": "tests_python/test_v21_api.py",
+      "role": "Python service and data regression",
+      "bytes": 22788,
+      "sha256": "05ca31b07359e45f7eef6973faff1bfccab884d2a04cb822d74c034440108c5d"
+    },
+    {
+      "path": "tests_python/test_v21_catalog_registry.py",
+      "role": "Python service and data regression",
+      "bytes": 7382,
+      "sha256": "ab1bd61f7b805e0d777ff16989b3a8fe5c2d57dc9c3e677d711ad22c6a5cb6c4"
+    },
+    {
+      "path": "tests_python/test_v21_feature_flags.py",
+      "role": "Python service and data regression",
+      "bytes": 2775,
+      "sha256": "5dd68f638dc178dc5eeb3baaf4948df5a02d74e660c27d3590aa9e588173de03"
+    },
+    {
+      "path": "tests_python/test_v21_job_manager.py",
+      "role": "Python service and data regression",
+      "bytes": 14996,
+      "sha256": "d37d7545ff6b4cc36f741e2101c1d35485037ef0ddc11409ed1596983d6acdd9"
+    },
+    {
+      "path": "tests_python/test_v21_job_store.py",
+      "role": "Python service and data regression",
+      "bytes": 28239,
+      "sha256": "17bef44b15cde9ed40cbf819cdb19f4ad4af46554e21111f9b43785097dc8ed5"
+    },
+    {
+      "path": "tests_python/test_v21_security.py",
+      "role": "Python service and data regression",
+      "bytes": 4828,
+      "sha256": "552d1ee0a343fd1fd758cbbdf5b50f5826739dc0a602e25964c86a8698d51ded"
+    },
+    {
+      "path": "tests_python/test_v23_tracked_api.py",
+      "role": "Python service and data regression",
+      "bytes": 20457,
+      "sha256": "cc9ca58d1d5a478d4fb519d9daa7d60b679aef077565e7264fb997425c52b728"
+    },
+    {
+      "path": "tests_python/test_v23_tracked_catalog.py",
+      "role": "Python service and data regression",
+      "bytes": 31833,
+      "sha256": "b1c6cf069b3c33355fcfad51a3b2777dadb1a23942ccefc093035912f59b9e0f"
+    },
+    {
+      "path": "tests/animationTimer.test.js",
+      "role": "JavaScript regression",
+      "bytes": 1539,
+      "sha256": "7a97f7b9978dcf6ee78fe5c786d13782458c88f08e9f3319cdd21e965f016c4e"
+    },
+    {
+      "path": "tests/beamFootprint.test.js",
+      "role": "JavaScript regression",
+      "bytes": 1206,
+      "sha256": "85bbccf913190e00a6d16457894466d12f4bf2ef4ab5924a21fd96687546e67d"
+    },
+    {
+      "path": "tests/catalogArtifactClassification.test.js",
+      "role": "JavaScript regression",
+      "bytes": 2204,
+      "sha256": "a9d1c4ffa8625aa8de8e9be2c2000703d37056169b7805c3a64560561adf8fd5"
+    },
+    {
+      "path": "tests/catalogLoaderIntegration.test.js",
+      "role": "JavaScript regression",
+      "bytes": 12716,
+      "sha256": "45499302c31b97e2956f9d4a78dea69c7c2bd2f00dc669273f6c6c3f9ba109c9"
+    },
+    {
+      "path": "tests/catalogValidation.test.js",
+      "role": "JavaScript regression",
+      "bytes": 9524,
+      "sha256": "51d14278387ea4638f27ad0930286b4ed6dfa559d79d5e5a9804912a9b46bd2c"
+    },
+    {
+      "path": "tests/conjunctionPanel.test.js",
+      "role": "JavaScript regression",
+      "bytes": 7448,
+      "sha256": "f78d71fa3c971fa1c96887eed92f165cabef23d1e48fd7c0e78e1793a8e9dc53"
+    },
+    {
+      "path": "tests/conjunctionScreening.test.js",
+      "role": "JavaScript regression",
+      "bytes": 22670,
+      "sha256": "e24684571a63fba67bc3772bd318a133bd3a58d216226db3c33b7bda2ef7aa49"
+    },
+    {
+      "path": "tests/conjunctionUx.test.js",
+      "role": "JavaScript regression",
+      "bytes": 2450,
+      "sha256": "e4dc61dab0ccc5f12bef5ac6a4d33901e16721bea0f9adc330affe24f426a964"
+    },
+    {
+      "path": "tests/conjunctionVisualization.test.js",
+      "role": "JavaScript regression",
+      "bytes": 2071,
+      "sha256": "b494b29d50f80c4851e3745985dd97291d6b59da0079b565ee70091b81f79c6e"
+    },
+    {
+      "path": "tests/conjunctionWorkerProtocol.test.js",
+      "role": "JavaScript regression",
+      "bytes": 15986,
+      "sha256": "5b89ec43904f6d63e4f4128803ca018ce9b09ba3de0969777df8a4cd2955046a"
+    },
+    {
+      "path": "tests/coverageGrid.test.js",
+      "role": "JavaScript regression",
+      "bytes": 2155,
+      "sha256": "f346404311df66821e311831fd579c520414153258352dd810ff509542834929"
+    },
+    {
+      "path": "tests/dayNight.test.js",
+      "role": "JavaScript regression",
+      "bytes": 886,
+      "sha256": "df53798d6d5772012cba07c19d5d3c2eacf205beb767cbd0c8227ba0ccc18afb"
+    },
+    {
+      "path": "tests/decayCacheRefresh.test.js",
+      "role": "JavaScript regression",
+      "bytes": 1974,
+      "sha256": "0554440536a3ed3658d9318f1976410f615f8fdbe02334f394c8d5ba51aa98a9"
+    },
+    {
+      "path": "tests/decayPredictor.test.js",
+      "role": "JavaScript regression",
+      "bytes": 1745,
+      "sha256": "9774f960a273cfbb6c7bad6b7b924bf53ca99c0e7703f9f529dfe812685c4c55"
+    },
+    {
+      "path": "tests/displaySatelliteViewer.test.js",
+      "role": "JavaScript regression",
+      "bytes": 5701,
+      "sha256": "ce1e8eaf8fef1ae38f964654a32049d2bbfb3ed02b857db9b47d88093dbdcc16"
+    },
+    {
+      "path": "tests/domainFoundations.test.js",
+      "role": "JavaScript regression",
+      "bytes": 11188,
+      "sha256": "5ac42147796b590946f9bb503b4405a690d255b5ae160d25fcb99b7d96d2c858"
+    },
+    {
+      "path": "tests/earthStarsMilkyWay.test.js",
+      "role": "JavaScript regression",
+      "bytes": 5476,
+      "sha256": "a07d8fc50715ab07326dd3c1b6c63b1700e56a7a51823ef040efdd247596de88"
+    },
+    {
+      "path": "tests/encodingUx.test.js",
+      "role": "JavaScript regression",
+      "bytes": 1512,
+      "sha256": "c15004592eac8e9694b0b04e5b58507d50333bdda2fc454297db2588d52a6f08"
+    },
+    {
+      "path": "tests/fullCatalogBenchmark.test.js",
+      "role": "JavaScript regression",
+      "bytes": 6090,
+      "sha256": "6681d47358c3ea5c499cdc7191184cbf75580d5d0b9a98c35a052dcddc4774b7"
+    },
+    {
+      "path": "tests/fullCatalogClient.test.js",
+      "role": "JavaScript regression",
+      "bytes": 9857,
+      "sha256": "7ae337fe689f33fa54910fbdf7fac9efda370192fdd85add58f924a7e20e37cc"
+    },
+    {
+      "path": "tests/fullCatalogRunner.test.js",
+      "role": "JavaScript regression",
+      "bytes": 13225,
+      "sha256": "aeb2fd78aacd288694e6730d1c25ea5872d2c97df1420a509647537bc1e92e46"
+    },
+    {
+      "path": "tests/fullCatalogScreening.test.js",
+      "role": "JavaScript regression",
+      "bytes": 17443,
+      "sha256": "6ff0a4f18ccb2dbf386881c3f2d2b2a520693e5f1e5bca810594454aed583ac6"
+    },
+    {
+      "path": "tests/gpCatalogLoader.test.js",
+      "role": "JavaScript regression",
+      "bytes": 9994,
+      "sha256": "8be1638bf0b19a50687ffbdd4cad6e08edf71177fe3becc974029a3118ea188d"
+    },
+    {
+      "path": "tests/launchTimelineCatalog.test.js",
+      "role": "JavaScript regression",
+      "bytes": 3900,
+      "sha256": "53619abfe8138dc49060a17aaee4dc5791a594b0650f3ef1bf65fa8e2336376b"
+    },
+    {
+      "path": "tests/marsFrame.test.js",
+      "role": "JavaScript regression",
+      "bytes": 2993,
+      "sha256": "d05119a51a5c12f6cfb2f1f3c46deb49046cd62b4e7625cff42de3c08a34d121"
+    },
+    {
+      "path": "tests/menuUx.test.js",
+      "role": "JavaScript regression",
+      "bytes": 74766,
+      "sha256": "2d594ce39a055dc17c081ddc5c3842241311230d7c8a3e3a7530d77213199c55"
+    },
+    {
+      "path": "tests/mercatorMotionReuse.test.js",
+      "role": "JavaScript regression",
+      "bytes": 4815,
+      "sha256": "cc1fe10ba64bdaeff432342f5c3be471847d27cf6d141e5deb6e04e3bb9bfb1c"
+    },
+    {
+      "path": "tests/modelLighting.test.js",
+      "role": "JavaScript regression",
+      "bytes": 3540,
+      "sha256": "61dd1a6e47a665c3f6678d58ee26b3551c289f666fc2d945ace5fb07029f903b"
+    },
+    {
+      "path": "tests/modelResolver.test.js",
+      "role": "JavaScript regression",
+      "bytes": 6175,
+      "sha256": "cc92855901c4873974b54caced098f6a898d68a54dff159b42ca848f16f5e545"
+    },
+    {
+      "path": "tests/modelVisualFraming.test.js",
+      "role": "JavaScript regression",
+      "bytes": 6479,
+      "sha256": "815bde0a8981f803d7e277bd99d1366b76443d0e234af2addccebc549a4c2a4d"
+    },
+    {
+      "path": "tests/multiFormatPropagationService.test.js",
+      "role": "JavaScript regression",
+      "bytes": 8113,
+      "sha256": "f1207c2532d751297e04b84771856ba2a10c22a125777c1bcc078a94312c950e"
+    },
+    {
+      "path": "tests/orbitalSourceAdapters.test.js",
+      "role": "JavaScript regression",
+      "bytes": 6215,
+      "sha256": "236158de70bc5c65839afe3137baa5bb639cd7675265223133b49a653b8107c9"
+    },
+    {
+      "path": "tests/orbitLinkGeometry.test.js",
+      "role": "JavaScript regression",
+      "bytes": 2963,
+      "sha256": "d66dd60a7bfaa8987a8b04987267af61d196767f00176b5f3d8fd0704a411664"
+    },
+    {
+      "path": "tests/propagationService.test.js",
+      "role": "JavaScript regression",
+      "bytes": 13520,
+      "sha256": "00e895c115facd5e3394b2114b0abd711b0ac25c7cda1447311d865423969985"
+    },
+    {
+      "path": "tests/releaseStructure.test.js",
+      "role": "JavaScript regression",
+      "bytes": 15156,
+      "sha256": "6b91296b037c5de666e1e7f2f1a3f5e1abc02e182efb5a3ca50c455bb52e2ee0"
+    },
+    {
+      "path": "tests/rfLinkBudget.test.js",
+      "role": "JavaScript regression",
+      "bytes": 1927,
+      "sha256": "bd2f4e5d2ef8fa748bed320c7ed46e8f7d6a709779d2810fe147c4193f596589"
+    },
+    {
+      "path": "tests/runAll.js",
+      "role": "JavaScript regression",
+      "bytes": 838,
+      "sha256": "59b83e0de01db5e22f7a7bb2d644bb2eb67408781afe11cb1e69a7bf6e64cfa1"
+    },
+    {
+      "path": "tests/satelliteCategoryFilter.test.js",
+      "role": "JavaScript regression",
+      "bytes": 3499,
+      "sha256": "4c55e9d787ca34c1d1415e8326ecc32d835e34786766fce662ddb4129643f829"
+    },
+    {
+      "path": "tests/satelliteDataTools.test.js",
+      "role": "JavaScript regression",
+      "bytes": 29624,
+      "sha256": "7fb2a63ba3f24c66820a70993e24c213a85ba53103e74f5829fe6d7b598c7dbd"
+    },
+    {
+      "path": "tests/satelliteMotionInterpolator.test.js",
+      "role": "JavaScript regression",
+      "bytes": 19359,
+      "sha256": "a43eb80d61d569c598f3024011a40843b7051ac02378fed14149bf5e39bfa1ef"
+    },
+    {
+      "path": "tests/satelliteOrbitOcclusion.test.js",
+      "role": "JavaScript regression",
+      "bytes": 9968,
+      "sha256": "fb8fa4f17682fe166f98a55b80e4ae418c59a6e1a062fe3f36da26208fae9b57"
+    },
+    {
+      "path": "tests/satelliteSearchUtils.test.js",
+      "role": "JavaScript regression",
+      "bytes": 4006,
+      "sha256": "a06da2e66569a14d0459597ad28757dc80e81e2352c9ed8fdc644ec85b9bbaba"
+    },
+    {
+      "path": "tests/sceneFrameRoundTrip.test.js",
+      "role": "JavaScript regression",
+      "bytes": 833,
+      "sha256": "d6cfb32e1332f80f9bc084473519b8c59590950765ab908ffdb089312d1a1c33"
+    },
+    {
+      "path": "tests/selectedSatelliteView.test.js",
+      "role": "JavaScript regression",
+      "bytes": 8471,
+      "sha256": "ac4239b3012511ea38a8e46360b35ae0688a75b3ed702adac73f687c53ebe8b1"
+    },
+    {
+      "path": "tests/serverApiStructure.test.js",
+      "role": "JavaScript regression",
+      "bytes": 11901,
+      "sha256": "4d63dd2b325b67c0bdf9814438df3bc2e9b95e771ee8a497fe37c63ef04e3500"
+    },
+    {
+      "path": "tests/serverConnection.test.js",
+      "role": "JavaScript regression",
+      "bytes": 13091,
+      "sha256": "c4c56c59aa13f078181f4903f28c2657cce7db5c9afecad3a601935a2c191d87"
+    },
+    {
+      "path": "tests/shareState.test.js",
+      "role": "JavaScript regression",
+      "bytes": 5604,
+      "sha256": "a7a721152717a6383dfc9cdc12a66b153a6b1424f78d34c65fa993d309faba9a"
+    },
+    {
+      "path": "tests/shortcutLabels.test.js",
+      "role": "JavaScript regression",
+      "bytes": 1749,
+      "sha256": "c5d05eb7b8b6e1b5ffa9707330c15d8a601b7bcc4beddae3d4cddb3b576c471e"
+    },
+    {
+      "path": "tests/simulationClock.test.js",
+      "role": "JavaScript regression",
+      "bytes": 2812,
+      "sha256": "d78c31fa2eced059dd6f3b2f647b1212c53d0b90e567ad5f71e1c002d0ed3f10"
+    },
+    {
+      "path": "tests/solarSystemEphemeris.test.js",
+      "role": "JavaScript regression",
+      "bytes": 10308,
+      "sha256": "7eeb4ae679f5fd67808833e284569f95f313ad622ec63a925fd339635aab3519"
+    },
+    {
+      "path": "tests/solarSystemOverview.test.js",
+      "role": "JavaScript regression",
+      "bytes": 12611,
+      "sha256": "354fd2f26d766d823687e8ee2ae4dbd52cef9c51ad2c7be821b2f7663ae5522c"
+    },
+    {
+      "path": "tests/startupPerformance.test.js",
+      "role": "JavaScript regression",
+      "bytes": 2801,
+      "sha256": "4fc047006a06664ad8871b2cebc3c45a030430204204bdefd1a433969b8ed365"
+    },
+    {
+      "path": "tests/startupStructure.test.js",
+      "role": "JavaScript regression",
+      "bytes": 6665,
+      "sha256": "633832976a7d17ae6cd718b150537a15575431d0918fa484fc38fb9ad0a2eace"
+    },
+    {
+      "path": "tests/staticArtifact.test.js",
+      "role": "JavaScript regression",
+      "bytes": 12634,
+      "sha256": "d62fcc8903cb3e31059e880ab85ae1bec4ff1289f96470171959421a0a003081"
+    },
+    {
+      "path": "tests/staticWorkerDeployment.test.js",
+      "role": "JavaScript regression",
+      "bytes": 3813,
+      "sha256": "c16cd87082e1df7860e67b178ae8acf2aa3df24ec11c148fc098b947629018ca"
+    },
+    {
+      "path": "tests/timelineFreshness.test.js",
+      "role": "JavaScript regression",
+      "bytes": 9109,
+      "sha256": "52087879101b7533ccdf191c9a6d9d8143cbba38330e2b6d3f3b198fd89f00ef"
+    },
+    {
+      "path": "tests/trackedObjectCatalog.test.js",
+      "role": "JavaScript regression",
+      "bytes": 13774,
+      "sha256": "499352da1042ac65baaf7babaf99a071cecad1b8f3ccf7c4b44053f061b0ea59"
+    },
+    {
+      "path": "tests/trackedObjectCatalogBenchmark.test.js",
+      "role": "JavaScript regression",
+      "bytes": 3810,
+      "sha256": "ee7a66dc7f80673a6243cec7aa92b89a2dbecf736575fe21867ded48ac0b8f42"
+    },
+    {
+      "path": "tests/trackedObjectCatalogRealManifest.test.js",
+      "role": "JavaScript regression",
+      "bytes": 4016,
+      "sha256": "af786c42c1ec67b03165c62f71e79bd8f44a55ee66e9f8f89a745949fc36ceb1"
+    },
+    {
+      "path": "tests/v21Contracts.test.js",
+      "role": "JavaScript regression",
+      "bytes": 5407,
+      "sha256": "b78694cdcf589ec5e0d8037a4ae6e06dc00ef8e4ef90716fca930331aef38340"
+    },
+    {
+      "path": "tools/benchmark_v21_service.py",
+      "role": "data and benchmark tooling",
+      "bytes": 28756,
+      "sha256": "4af446f20b813dc8d1149a72e32e2544b26a46745c0adb88544693a9f5193d5d"
+    },
+    {
+      "path": "tools/generate_jpl_ephemeris.py",
+      "role": "data and benchmark tooling",
+      "bytes": 7879,
+      "sha256": "0cf853fab27533a842cba64aef0f8c66b6532a1b895ef906a2f0aac8469e1dec"
+    },
+    {
+      "path": "tools/preprocess_star_catalog.py",
+      "role": "data and benchmark tooling",
+      "bytes": 3042,
+      "sha256": "621801ee1c990b76d32cb449a08d4d1e2a0850926036a169656c19cd7359eeec"
+    },
+    {
+      "path": "tools/satellite_data_tools.py",
+      "role": "data and benchmark tooling",
+      "bytes": 197714,
+      "sha256": "c668cf35c0511cbd92eabe47b8b92d18b1bc6b1e46055dc52edcaca2e4f7eee5"
+    },
+    {
+      "path": "tools/save_obj_with_texture.py",
+      "role": "data and benchmark tooling",
+      "bytes": 1554,
+      "sha256": "f8b26ea7e0f58255e20a84bff05fffe9c5cb6a7b3ea5156f9cbe1a81375a9b8c"
+    },
+    {
+      "path": "vendor/satellite.js/6.0.2/LICENSE.md",
+      "role": "project documentation and governance",
+      "bytes": 1135,
+      "sha256": "1432ff8b94b91db9f242d908e09f2ecb1a0804a03f76ba844cf052c7bb614d9e"
+    },
+    {
+      "path": "vendor/satellite.js/6.0.2/manifest.json",
+      "role": "vendored dependency evidence",
+      "bytes": 537,
+      "sha256": "f58ffb92f3407436a526ec7381e7112854f5db3055571abc13a8c21bcc20d500"
+    },
+    {
+      "path": "vendor/three/0.184.0/manifest.json",
+      "role": "vendored dependency evidence",
+      "bytes": 1318,
+      "sha256": "d88cc2f979830891fcdbb2593b072e9356f05bf50de40eb5211dba8f58769350"
+    }
+  ],
+  "executables": [
+    {
+      "id": "tracked-browser-unit-regressions",
+      "command": "node tests/trackedObjectCatalog.test.js && node tests/conjunctionPanel.test.js",
+      "artifacts": [
+        "js/trackedObjectCatalog.js",
+        "js/conjunction/conjunctionPanel.js",
+        "tests/trackedObjectCatalog.test.js",
+        "tests/conjunctionPanel.test.js"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "observed": {
+        "testFilesPassed": 2,
+        "testFilesFailed": 0
+      }
+    },
+    {
+      "id": "tracked-real-manifest-invariants",
+      "command": "node tests/trackedObjectCatalogRealManifest.test.js",
+      "artifacts": [
+        "tests/trackedObjectCatalogRealManifest.test.js",
+        "json/satcat.meta.json",
+        "json/gp/GP.meta.json",
+        "json/tracked/TRACKED.manifest.json",
+        "json/tracked/TRACKED.meta.json",
+        "json/tracked/chunks/f928ad3607f7079831056dc487686b2cfbd73e5a448f0bf5e3f49ae23df0c373-current-payload.json",
+        "json/tracked/chunks/3b1c5a259cac2408cd1056c893a885f3e8e41edad8b980311ccfdd41bcba9763-current-debris.json",
+        "json/tracked/chunks/08fc365c814b4e98d4adac965f31567ac04b10c8925666d13397c1c7aa804cfa-current-rocket-body.json",
+        "json/tracked/chunks/22adeac4ee6f5e716f8c989ef3aa3e025cf82ead74af37a95f21a9be5825e1a9-current-mission-related.json",
+        "json/tracked/chunks/cae0186aeb7bd859bc01c0313f74dda8ed57207174fbb08366db0159ca440bfe-current-unknown.json",
+        "json/tracked/chunks/295989798b38b6eeb9b388c6ba614a3281d02bc577b797630fe14297cb44ae07-historical-payload.json",
+        "json/tracked/chunks/c121f1307c45161c7b98c145c9fd16c74de2900a7c42ec5a367bb66be3258298-historical-debris.json",
+        "json/tracked/chunks/fbbfe76441a13e6ca244879987980782cdaeb26c38940a3e4b216631bb6f3f2f-historical-rocket-body.json",
+        "json/tracked/chunks/6b98740b67d902ebb5fa1637f16596b7c99751bc65b9d360c22e01114e1c64f6-historical-mission-related.json",
+        "json/tracked/chunks/ba19c4679dc6806f6a694d5ee59d2d9acda2e40f079f2621f1d6036213326711-historical-unknown.json",
+        "json/tracked/chunks/0ead1a054dd63c47cdc147dc164f3ef1058912a2d8be173baa34f1d5aaace8af-quarantine.json"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "observed": {
+        "records": 70474,
+        "current": 34960,
+        "historical": 35514,
+        "propagatable": 16470,
+        "metadataOnly": 54004
+      }
+    },
+    {
+      "id": "tracked-scale-120k",
+      "command": "node --expose-gc tests/trackedObjectCatalogBenchmark.test.js",
+      "artifacts": [
+        "js/trackedObjectCatalog.js",
+        "tests/trackedObjectCatalogBenchmark.test.js"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "observed": {
+        "records": 120000,
+        "filteredRecords": 24000,
+        "searchMatches": 10,
+        "buildMs": 27.17,
+        "filterMs": 143.58,
+        "searchMs": 48.45,
+        "totalMs": 219.21,
+        "heapDeltaMiB": 27.03
+      }
+    },
+    {
+      "id": "tracked-python-ingest-reconciliation",
+      "command": "node scripts/python.mjs -m unittest tests_python.test_v23_tracked_catalog -v",
+      "artifacts": [
+        "scripts/python.mjs",
+        "tools/satellite_data_tools.py",
+        "tests_python/test_v23_tracked_catalog.py"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "observed": {
+        "cases": 13,
+        "testsPassed": 13,
+        "testsSkipped": 0,
+        "testsFailed": 0
+      }
+    },
+    {
+      "id": "tracked-api-security",
+      "command": "node scripts/python.mjs -m unittest tests_python.test_v23_tracked_api tests_python.test_server_security -v",
+      "artifacts": [
+        "scripts/python.mjs",
+        "server.py",
+        "tests_python/test_v23_tracked_api.py",
+        "tests_python/test_server_security.py"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "observed": {
+        "cases": 25,
+        "testsPassed": 24,
+        "testsSkipped": 1,
+        "testsFailed": 0,
+        "skipReason": "Windows symlink capability unavailable"
+      }
+    },
+    {
+      "id": "six-component-scheduler",
+      "command": "node scripts/python.mjs -m unittest tests_python.test_satellite_data_scheduler tests_python.test_server_data_update_scheduler -v",
+      "artifacts": [
+        "scripts/python.mjs",
+        "server.py",
+        "tools/satellite_data_tools.py",
+        "tests_python/test_satellite_data_scheduler.py",
+        "tests_python/test_server_data_update_scheduler.py"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "observed": {
+        "cases": 22,
+        "testsPassed": 22,
+        "testsSkipped": 0,
+        "testsFailed": 0,
+        "revisionComponents": 6
+      }
+    },
+    {
+      "id": "static-tracked-closure",
+      "command": "node tests/staticArtifact.test.js && npm run build",
+      "artifacts": [
+        "scripts/build-static.mjs",
+        "release/static-artifact.json",
+        "tests/staticArtifact.test.js",
+        "json/gp/GP.json",
+        "json/gp/GP.meta.json",
+        "json/tracked/TRACKED.manifest.json",
+        "json/tracked/TRACKED.meta.json",
+        "json/tracked/chunks/f928ad3607f7079831056dc487686b2cfbd73e5a448f0bf5e3f49ae23df0c373-current-payload.json",
+        "json/tracked/chunks/3b1c5a259cac2408cd1056c893a885f3e8e41edad8b980311ccfdd41bcba9763-current-debris.json",
+        "json/tracked/chunks/08fc365c814b4e98d4adac965f31567ac04b10c8925666d13397c1c7aa804cfa-current-rocket-body.json",
+        "json/tracked/chunks/22adeac4ee6f5e716f8c989ef3aa3e025cf82ead74af37a95f21a9be5825e1a9-current-mission-related.json",
+        "json/tracked/chunks/cae0186aeb7bd859bc01c0313f74dda8ed57207174fbb08366db0159ca440bfe-current-unknown.json",
+        "json/tracked/chunks/295989798b38b6eeb9b388c6ba614a3281d02bc577b797630fe14297cb44ae07-historical-payload.json",
+        "json/tracked/chunks/c121f1307c45161c7b98c145c9fd16c74de2900a7c42ec5a367bb66be3258298-historical-debris.json",
+        "json/tracked/chunks/fbbfe76441a13e6ca244879987980782cdaeb26c38940a3e4b216631bb6f3f2f-historical-rocket-body.json",
+        "json/tracked/chunks/6b98740b67d902ebb5fa1637f16596b7c99751bc65b9d360c22e01114e1c64f6-historical-mission-related.json",
+        "json/tracked/chunks/ba19c4679dc6806f6a694d5ee59d2d9acda2e40f079f2621f1d6036213326711-historical-unknown.json",
+        "json/tracked/chunks/0ead1a054dd63c47cdc147dc164f3ef1058912a2d8be173baa34f1d5aaace8af-quarantine.json"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "observed": {
+        "files": 135,
+        "bytes": 280428730,
+        "trackedFiles": 13,
+        "trackedBytes": 74565443,
+        "indexBytes": 284853,
+        "browserJavaScriptFiles": 51,
+        "browserJavaScriptBytes": 830210
+      }
+    },
+    {
+      "id": "browser-filter-integration",
+      "command": "npm run test:browser -- tests_browser/satelliteFilters.spec.js --project=chromium",
+      "artifacts": [
+        "index.html",
+        "js/trackedObjectCatalog.js",
+        "tests_browser/satelliteFilters.spec.js",
+        "playwright.config.js",
+        "scripts/run-browser-tests.mjs",
+        "scripts/python.mjs"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "observed": {
+        "testsPassed": 8,
+        "testsFailed": 0,
+        "testsSkipped": 0,
+        "project": "chromium"
+      }
+    },
+    {
+      "id": "complete-javascript-suite",
+      "command": "npm run test:unit",
+      "artifacts": [
+        "tests/runAll.js",
+        "tests/animationTimer.test.js",
+        "tests/beamFootprint.test.js",
+        "tests/catalogArtifactClassification.test.js",
+        "tests/catalogLoaderIntegration.test.js",
+        "tests/catalogValidation.test.js",
+        "tests/conjunctionPanel.test.js",
+        "tests/conjunctionScreening.test.js",
+        "tests/conjunctionUx.test.js",
+        "tests/conjunctionVisualization.test.js",
+        "tests/conjunctionWorkerProtocol.test.js",
+        "tests/coverageGrid.test.js",
+        "tests/dayNight.test.js",
+        "tests/decayCacheRefresh.test.js",
+        "tests/decayPredictor.test.js",
+        "tests/displaySatelliteViewer.test.js",
+        "tests/domainFoundations.test.js",
+        "tests/earthStarsMilkyWay.test.js",
+        "tests/encodingUx.test.js",
+        "tests/fullCatalogBenchmark.test.js",
+        "tests/fullCatalogClient.test.js",
+        "tests/fullCatalogRunner.test.js",
+        "tests/fullCatalogScreening.test.js",
+        "tests/gpCatalogLoader.test.js",
+        "tests/launchTimelineCatalog.test.js",
+        "tests/marsFrame.test.js",
+        "tests/menuUx.test.js",
+        "tests/mercatorMotionReuse.test.js",
+        "tests/modelLighting.test.js",
+        "tests/modelResolver.test.js",
+        "tests/modelVisualFraming.test.js",
+        "tests/multiFormatPropagationService.test.js",
+        "tests/orbitLinkGeometry.test.js",
+        "tests/orbitalSourceAdapters.test.js",
+        "tests/propagationService.test.js",
+        "tests/releaseStructure.test.js",
+        "tests/rfLinkBudget.test.js",
+        "tests/satelliteCategoryFilter.test.js",
+        "tests/satelliteDataTools.test.js",
+        "tests/satelliteMotionInterpolator.test.js",
+        "tests/satelliteOrbitOcclusion.test.js",
+        "tests/satelliteSearchUtils.test.js",
+        "tests/sceneFrameRoundTrip.test.js",
+        "tests/selectedSatelliteView.test.js",
+        "tests/serverApiStructure.test.js",
+        "tests/serverConnection.test.js",
+        "tests/shareState.test.js",
+        "tests/shortcutLabels.test.js",
+        "tests/simulationClock.test.js",
+        "tests/solarSystemEphemeris.test.js",
+        "tests/solarSystemOverview.test.js",
+        "tests/startupPerformance.test.js",
+        "tests/startupStructure.test.js",
+        "tests/staticArtifact.test.js",
+        "tests/staticWorkerDeployment.test.js",
+        "tests/timelineFreshness.test.js",
+        "tests/trackedObjectCatalog.test.js",
+        "tests/trackedObjectCatalogBenchmark.test.js",
+        "tests/trackedObjectCatalogRealManifest.test.js",
+        "tests/v21Contracts.test.js"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "observed": {
+        "testFilesPassed": 59,
+        "testFilesFailed": 0
+      }
+    },
+    {
+      "id": "complete-python-suite",
+      "command": "npm run test:python",
+      "artifacts": [
+        "scripts/python.mjs",
+        "tests_python/test_satellite_data_scheduler.py",
+        "tests_python/test_server_data_update_scheduler.py",
+        "tests_python/test_server_security.py",
+        "tests_python/test_v21_api.py",
+        "tests_python/test_v21_catalog_registry.py",
+        "tests_python/test_v21_feature_flags.py",
+        "tests_python/test_v21_job_manager.py",
+        "tests_python/test_v21_job_store.py",
+        "tests_python/test_v21_security.py",
+        "tests_python/test_v23_tracked_api.py",
+        "tests_python/test_v23_tracked_catalog.py"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "observed": {
+        "cases": 111,
+        "testsPassed": 110,
+        "testsSkipped": 1,
+        "testsFailed": 0,
+        "skipReason": "Windows symlink capability unavailable"
+      }
+    },
+    {
+      "id": "browser-playwright-suite",
+      "command": "npm run test:browser",
+      "artifacts": [
+        "scripts/run-browser-tests.mjs",
+        "scripts/python-discovery.mjs",
+        "scripts/python.mjs",
+        "playwright.config.js",
+        "tests_browser/conjunction.spec.js",
+        "tests_browser/satelliteFilters.spec.js",
+        "tests_browser/smoke.spec.js",
+        "tests_browser/staticDeployment.spec.js",
+        "tests_browser/timeSimulation.spec.js",
+        "tests_browser/timelines.spec.js"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "observed": {
+        "declarations": 35,
+        "testsPassed": 22,
+        "testsSkipped": 13,
+        "testsFailed": 0,
+        "durationMinutes": 7.5
+      }
+    },
+    {
+      "id": "release-policy-checks",
+      "command": "npm run check && npm run audit:dependencies",
+      "artifacts": [
+        "package.json",
+        "package-lock.json",
+        "release/version.json",
+        "release/feature-flags.json",
+        "release/static-artifact.json",
+        "release/asset-budgets.json",
+        "scripts/check-js-syntax.mjs",
+        "scripts/check-version.mjs",
+        "scripts/vendor-browser-dependencies.mjs",
+        "scripts/check-validation-manifest.mjs"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "observed": {
+        "syntaxFiles": 136,
+        "auditVulnerabilities": 0,
+        "budgetsPassed": true,
+        "versionPassed": true,
+        "vendorPassed": true,
+        "validationPassed": true
+      }
+    },
+    {
+      "id": "dependency-sbom-generation",
+      "command": "npm run sbom -- --output release/evidence/openbexi-node-sbom-2.3.0-development.cdx.json",
+      "artifacts": [
+        "package.json",
+        "package-lock.json",
+        "scripts/generate-sbom.mjs",
+        "release/evidence/openbexi-node-sbom-2.3.0-development.cdx.json"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "observed": {
+        "format": "CycloneDX 1.5",
+        "runtimeDependencies": 2
+      }
+    }
+  ],
+  "evidence": [
+    {
+      "id": "source.local-tracked-builder",
+      "category": "source",
+      "artifact": "tools/satellite_data_tools.py",
+      "locator": "def build_tracked_catalog(",
+      "expected": {
+        "providerRequests": 0,
+        "inputs": [
+          "SATCAT",
+          "GP"
+        ]
+      }
+    },
+    {
+      "id": "source.no-additional-provider-fetch",
+      "category": "source",
+      "artifact": "tests_python/test_v23_tracked_catalog.py",
+      "locator": "def test_satcat_reconciliation_forces_tracked_reconciliation_without_another_fetch(self):",
+      "expected": {
+        "additionalFetches": 0
+      }
+    },
+    {
+      "id": "source.verified-lineage-before-absence",
+      "category": "source",
+      "artifact": "tests_python/test_v23_tracked_catalog.py",
+      "locator": "def test_reconciliation_requires_verified_satcat_lineage_before_absence(self):",
+      "expected": {
+        "unverifiedAbsenceTransitions": 0,
+        "lastKnownGoodPreserved": true
+      }
+    },
+    {
+      "id": "source.missing-satcat-persistent-failure",
+      "category": "source",
+      "artifact": "tests_python/test_v23_tracked_catalog.py",
+      "locator": "def test_missing_satcat_persists_failure_and_preserves_last_known_good(self):",
+      "expected": {
+        "failurePersisted": true,
+        "lastKnownGoodPreserved": true
+      }
+    },
+    {
+      "id": "data.frozen-tracked-closure",
+      "category": "data",
+      "artifact": "json/tracked/TRACKED.manifest.json",
+      "locator": "sha256:7c1a20d93d1eb5faf7e2b964b13c7b4f0478f2eec95cc701ea1b1e57ef0d730c",
+      "expected": {
+        "records": 70474,
+        "files": 13,
+        "bytes": 74565443
+      }
+    },
+    {
+      "id": "data.small-and-missing-rcs",
+      "category": "data",
+      "artifact": "tests/trackedObjectCatalogRealManifest.test.js",
+      "locator": "small-RCS debris remains included",
+      "expected": {
+        "smallRcsDebris": 7852,
+        "missingRcsDebris": 3123,
+        "sizeInferred": false
+      }
+    },
+    {
+      "id": "data.identity-lifecycle-availability",
+      "category": "data",
+      "artifact": "tests_python/test_v23_tracked_catalog.py",
+      "locator": "def test_catalog_preserves_small_missing_rcs_and_separates_current_history(self):",
+      "expected": {
+        "independentLifecycleAndAvailability": true
+      }
+    },
+    {
+      "id": "api.manifest-chunk-allowlist",
+      "category": "api",
+      "artifact": "tests_python/test_v23_tracked_api.py",
+      "locator": "def test_manifest_and_only_referenced_chunks_are_exposed(self):",
+      "expected": {
+        "manifestReferencesOnly": true
+      }
+    },
+    {
+      "id": "api.six-component-status",
+      "category": "api",
+      "artifact": "server.py",
+      "locator": "components[\"tracked_revision\"] = tracked",
+      "expected": {
+        "revisionComponents": 6
+      }
+    },
+    {
+      "id": "static.manifest-reference-closure",
+      "category": "static",
+      "artifact": "tests/staticArtifact.test.js",
+      "locator": "artifact excludes unreferenced retained tracked chunks",
+      "expected": {
+        "orphanChunksPackaged": false
+      }
+    },
+    {
+      "id": "static.source-lineage-closure",
+      "category": "static",
+      "artifact": "scripts/build-static.mjs",
+      "locator": "export function validateTrackedStaticLineage",
+      "expected": {
+        "gpBytesAndMetadataBound": true,
+        "trackedSourceRevisionsBound": true
+      }
+    },
+    {
+      "id": "browser.independent-filter-dimensions",
+      "category": "browser",
+      "artifact": "tests/trackedObjectCatalog.test.js",
+      "locator": "selecting MEO cannot leak GEO membership through object taxonomy",
+      "expected": {
+        "orbitAndTypeIndependent": true
+      }
+    },
+    {
+      "id": "browser.metadata-only-safety",
+      "category": "browser",
+      "artifact": "tests_browser/satelliteFilters.spec.js",
+      "locator": "tracked catalog keeps orbit and object taxonomy independent and metadata-only objects off the globe",
+      "expected": {
+        "metadataOnlySceneMarkers": 0
+      }
+    },
+    {
+      "id": "browser.authoritative-availability-demotion",
+      "category": "browser",
+      "artifact": "tests_browser/satelliteFilters.spec.js",
+      "locator": "a selected GP model is demoted when current tracked metadata denies orbital elements",
+      "expected": {
+        "staleGpMeshRetained": false,
+        "staleGpScreeningRetained": false
+      }
+    },
+    {
+      "id": "browser.stale-request-generation",
+      "category": "browser",
+      "artifact": "tests_browser/satelliteFilters.spec.js",
+      "locator": "rapid tracked-object filter changes cannot commit a stale chunk request",
+      "expected": {
+        "staleCommits": 0
+      }
+    },
+    {
+      "id": "browser.screening-exclusion-accounting",
+      "category": "browser",
+      "artifact": "tests/conjunctionPanel.test.js",
+      "locator": "unavailableCoverageRequest.catalog_metadata.metadata_only_excluded_count",
+      "expected": {
+        "unavailableExclusionCount": null
+      }
+    },
+    {
+      "id": "browser.screening-unknown-not-zero",
+      "category": "browser",
+      "artifact": "tests/conjunctionPanel.test.js",
+      "locator": "assert.strictEqual(unavailableCoverageRequest.catalog_metadata.metadata_only_excluded_count, null);",
+      "expected": {
+        "unavailableCoverageIsUnknown": true
+      }
+    },
+    {
+      "id": "browser.playwright-python-discovery",
+      "category": "browser",
+      "artifact": "scripts/run-browser-tests.mjs",
+      "locator": "import { resolvePythonCommand } from './python-discovery.mjs';",
+      "expected": {
+        "sharedPythonDiscovery": true
+      }
+    },
+    {
+      "id": "browser.playwright-config-python-bootstrap",
+      "category": "browser",
+      "artifact": "playwright.config.js",
+      "locator": "scripts/python.mjs",
+      "expected": {
+        "directNodeBootstrap": true,
+        "windowsQuotingSafe": true
+      }
+    },
+    {
+      "id": "scale.synthetic-120k",
+      "category": "scale",
+      "artifact": "tests/trackedObjectCatalogBenchmark.test.js",
+      "locator": "const RECORD_COUNT = 120_000;",
+      "expected": {
+        "records": 120000,
+        "totalMs": 219.21,
+        "heapDeltaMiB": 27.03
+      }
+    },
+    {
+      "id": "governance.provider-completeness-boundary",
+      "category": "governance",
+      "artifact": "docs/governance/DATA_SOURCES.md",
+      "locator": "expected_provider_records",
+      "expected": {
+        "expectedProviderRecords": null,
+        "providerCompletenessClaim": false
+      }
+    },
+    {
+      "id": "governance.redistribution-gate-open",
+      "category": "governance",
+      "artifact": "docs/governance/DATA_SOURCES.md",
+      "locator": "### Version 2.3 derived-byte publication gate",
+      "expected": {
+        "redistributionApproved": false
+      }
+    },
+    {
+      "id": "governance.tracked-rollback",
+      "category": "governance",
+      "artifact": "docs/engineering/ROLLBACK_V2_3.md",
+      "locator": "Set `experimental_tracked_object_catalog` to false",
+      "expected": {
+        "featureFlagRollback": true
+      }
+    },
+    {
+      "id": "governance.v23-authorization-boundary",
+      "category": "governance",
+      "artifact": "PROMPT_History.md",
+      "locator": "## Authorization Date: 2026-08-30  Version 2.3.0 Tracked-Object Development",
+      "expected": {
+        "developmentAuthorized": true,
+        "publicationAuthorized": false
+      }
+    },
+    {
+      "id": "release.version-and-feature-flag",
+      "category": "release",
+      "artifact": "release/feature-flags.json",
+      "locator": "\"id\": \"experimental_tracked_object_catalog\"",
+      "expected": {
+        "version": "2.3.0",
+        "publicationState": "development"
+      }
+    },
+    {
+      "id": "release.development-only-decision",
+      "category": "release",
+      "artifact": "docs/engineering/RELEASE_CHECKLIST_V2_3.md",
+      "locator": "Version 2.3.0 is authorized for local development and verification only",
+      "expected": {
+        "candidate": false,
+        "stable": false,
+        "operational": false
+      }
+    }
+  ],
+  "trackedSnapshot": {
+    "manifestPath": "json/tracked/TRACKED.manifest.json",
+    "metadataPath": "json/tracked/TRACKED.meta.json",
+    "catalogRevision": "sha256:7c1a20d93d1eb5faf7e2b964b13c7b4f0478f2eec95cc701ea1b1e57ef0d730c",
+    "counts": {
+      "total": 70474,
+      "current": 34960,
+      "historical": 35514,
+      "propagatable": 16470,
+      "metadata_only": 54004,
+      "current_metadata_only": 18490,
+      "quarantined": 0,
+      "duplicates": 0,
+      "debris_small_rcs_current": 7852,
+      "debris_missing_rcs_current": 3123,
+      "current_object_types": {
+        "PAYLOAD": 19989,
+        "DEBRIS": 12490,
+        "ROCKET_BODY": 2425,
+        "MISSION_RELATED": 0,
+        "UNKNOWN": 56
+      }
+    },
+    "fileCount": 13,
+    "closureBytes": 74565443,
+    "maxChunkBytes": 24215754
+  },
+  "knownGapIds": [
+    "independent-review-pending",
+    "v2.3-redistribution-pending",
+    "provider-completeness-not-claimed",
+    "named-hardware-scale-pending",
+    "rollback-rehearsal-pending"
+  ],
+  "knownGaps": [
+    {
+      "id": "independent-review-pending",
+      "detail": "No named independent reviewer has approved the corpus or scientific boundary."
+    },
+    {
+      "id": "v2.3-redistribution-pending",
+      "detail": "Exact Version 2.3 derived and static bytes remain unapproved for publication."
+    },
+    {
+      "id": "provider-completeness-not-claimed",
+      "detail": "The bundled SATCAT snapshot has exact local accounting but no provider-universe expected total."
+    },
+    {
+      "id": "named-hardware-scale-pending",
+      "detail": "Representative repeated desktop/mobile, transfer, cache, and projected 2x profiles remain open."
+    },
+    {
+      "id": "rollback-rehearsal-pending",
+      "detail": "The documented GP-only and prior-manifest rollback has not been rehearsed on a target deployment."
+    }
+  ]
+}

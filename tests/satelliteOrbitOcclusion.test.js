@@ -184,7 +184,7 @@ function run() {
     1,
     'orbit refresh replaces the existing one-revolution path instead of accumulating duplicate roots'
   );
-  assert(indexHtml.includes('currentSelectedSatellite.propagationInvalid = !isUsableOrbitPosition'), 'selected motion rejects invalid propagated positions');
+  assert(indexHtml.includes('propagatableSelectedSatellite.propagationInvalid = !isUsableOrbitPosition'), 'selected motion rejects invalid propagated positions while metadata-only selections bypass propagation');
   assert(indexHtml.includes('detailedSatelliteModel.visible = false'), 'invalid selected propagation hides the detailed model');
   assert(tleLoader.includes('runningRefreshRealMillis'), 'running Time x cadence-limits in-place orbit resampling');
   assert(tleLoader.includes('orbitLine.userData.material'), 'orbit occlusion refresh reuses one selected-orbit material');

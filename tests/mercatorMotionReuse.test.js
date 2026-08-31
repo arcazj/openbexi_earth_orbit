@@ -44,6 +44,7 @@ const selected = {
   norad_id: '100001',
   satellite_name: 'CACHE TEST',
   satrec: {},
+  mesh: { position: { x: 7000, y: 0, z: 0 }, visible: true },
   isSelected: true,
   element_set: { epoch: '2026-08-23T00:00:00Z' }
 };
@@ -111,6 +112,19 @@ drawSelectedGroundTrack({
 }, ctx, satelliteLib, source, { realTimeMs: 1400 });
 assert.equal(propagationCalls, 12, 'the failed instant is cached instead of retrying every Mercator redraw');
 
+selected.metadata_only = true;
+selected.has_current_elements = false;
+selected.propagation_status = 'NO_CURRENT_ELEMENTS';
+groundTrackOptions.points = [{ latDeg: 1, lonDeg: 2 }];
+drawSelectedGroundTrack({
+  showOrbit: true,
+  timeWarp: 0,
+  simDate: new Date(start + 9 * 60_000),
+  selectedSatelliteNoradId: '100001'
+}, ctx, satelliteLib, source, { realTimeMs: 1500 });
+assert.equal(propagationCalls, 12, 'metadata-only selections never rebuild a stale ground track');
+assert.equal(groundTrackOptions.points.length, 0, 'metadata-only selections clear any cached ground track');
+
 groundTrackOptions.pathLenMin = originalPathLen;
 groundTrackOptions.timeStepMin = originalTimeStep;
 
@@ -121,6 +135,12 @@ assert(sourceText.includes('MAX_MERCATOR_LABELS'), 'Mercator label collision wor
 assert(sourceText.includes('satDrawData.length > 1000'), 'large Mercator catalogs switch to density markers');
 assert(sourceText.includes("dataset.markerMode = densityMode ? 'density' : 'detailed'"), 'Mercator exposes its marker mode for browser diagnostics');
 assert(sourceText.includes('mercatorCtx.rect(Math.round(pt.x), Math.round(pt.y), pointSize, pointSize)'), 'density mode batches compact markers in one canvas path');
+assert(sourceText.includes('visual.color !== color'), 'density markers are grouped by cached canonical tracked-object color');
+assert(sourceText.includes('mercatorVisualCache'), 'Mercator caches object-type classification outside the animation hot loop');
+assert(sourceText.includes('isTrackedRecordPropagatable'), 'Mercator markers and ground tracks enforce current-element eligibility');
+assert(sourceText.includes('dataset.debrisMarkerCount'), 'Mercator exposes a positioned-debris marker count');
+assert(sourceText.includes('drawTrackedMarkerCue'), 'detailed Mercator markers include a type-specific color/shape cue');
+assert(sourceText.includes("rgba(255, 255, 255, 0.98)"), 'selected Mercator markers receive a white non-debris ring');
 assert(!fs.readFileSync('index.html', 'utf8').includes('drawSelectedGroundTrack(simParams, mercatorCtx)'), 'the animation loop does not draw the selected ground track twice');
 
 console.log('Mercator motion reuse tests passed');

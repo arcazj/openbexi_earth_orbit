@@ -1,6 +1,6 @@
 // js/satelliteMenu.js
 // -------------------------------------------------------------------
-// Returns HTML markup for the satellite-control sidebar.
+// Returns HTML markup for the tracked-object control sidebar.
 // -------------------------------------------------------------------
 
 import { APP_VERSION } from './releaseVersion.js';
@@ -74,30 +74,30 @@ export function satelliteMenuLoader() {
 
       <section id="satelliteAccordionSection" class="menu-accordion-section menu-section-satellite">
         <h3 id="satelliteAccordionHeader" role="button" tabindex="0" aria-controls="satelliteSelectionContent" aria-expanded="true" data-collapsible-target="satelliteSelectionContent" class="section-heading menu-accordion-heading menu-accordion-heading-satellite" data-default-expanded="true">
-          <span class="satellite-heading-title">Satellites Selection - Found <span id="satelliteCountDisplay" class="satellite-found-count" aria-live="polite" aria-label="0 satellites match active filters out of 0 total satellites">0 / 0</span></span>
+          <span class="satellite-heading-title">Tracked Objects - Matches <span id="satelliteCountDisplay" class="satellite-found-count" aria-live="polite" aria-label="0 tracked objects match active filters out of 0 total tracked objects">0 / 0</span></span>
           <span class="toggle-icon">v</span>
         </h3>
 
         <div id="satelliteSelectionContent" class="collapsible-content" aria-labelledby="satelliteAccordionHeader">
           <div class="satellite-combobox-block">
             <div class="satellite-combobox">
-              <input id="satelliteSearchInput" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="satelliteSearchResults" aria-describedby="satelliteSearchHelp" aria-label="Search satellite by name, NORAD ID, orbit type, or tag" placeholder="Search satellite or NORAD ID">
-              <button id="satelliteSearchClear" type="button" class="search-clear-button" aria-label="Clear satellite search">Clear</button>
+              <input id="satelliteSearchInput" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="satelliteSearchResults" aria-describedby="satelliteSearchHelp" aria-label="Search tracked object by name, full NORAD ID, orbit class, object type, or tag" placeholder="Search tracked object or NORAD ID">
+              <button id="satelliteSearchClear" type="button" class="search-clear-button" aria-label="Clear tracked-object search">Clear</button>
               <button id="resetFiltersButton" type="button" class="menu-secondary-action reset-filters-inline-button">Reset Filters</button>
               <div id="satelliteSearchHelp" class="sr-only">Use arrow keys to navigate results, Enter to select, and Escape to close results.</div>
-              <ul id="satelliteSearchResults" class="satellite-search-results" role="listbox" aria-label="Satellite search results" hidden></ul>
+              <ul id="satelliteSearchResults" class="satellite-search-results" role="listbox" aria-label="Tracked-object search results" hidden></ul>
             </div>
             <select id="satelliteSelect" class="legacy-satellite-select" aria-hidden="true" tabindex="-1"><option value="None">None</option></select>
-            <div id="satelliteSearchEmpty" class="empty-state" hidden>No satellites match this search.</div>
+            <div id="satelliteSearchEmpty" class="empty-state" hidden>No tracked objects match this search.</div>
           </div>
           <div class="satellite-shortcut-row" aria-label="Satellite shortcuts">
             <button id="selectFirstStarlinkButton" type="button" class="satellite-shortcut-button" aria-label="Starlink shortcut unavailable" disabled>Starlink unavailable</button>
             <button id="selectIssButton" type="button" class="satellite-shortcut-button" aria-label="ISS shortcut unavailable" disabled>ISS unavailable</button>
           </div>
 
-          <div class="satellite-filter-panel filters-panel" aria-label="Satellite filters">
+          <div class="satellite-filter-panel filters-panel" aria-label="Tracked-object filters">
             <div id="filterEmptyState" class="empty-state" hidden>
-              <span>No satellites match these filters.</span>
+              <span>No tracked objects match these filters.</span>
               <button id="resetFiltersEmptyButton" type="button">Reset filters</button>
             </div>
 
@@ -108,12 +108,24 @@ export function satelliteMenuLoader() {
                 <button type="button" class="segmented-option" data-orbit-filter="MEO" aria-pressed="true">MEO</button>
                 <button type="button" class="segmented-option" data-orbit-filter="LEO" aria-pressed="false">LEO</button>
                 <button type="button" class="segmented-option" data-orbit-filter="HEO" aria-label="HRO orbit filter" aria-pressed="false">HRO</button>
-                <button type="button" class="segmented-option" data-orbit-filter="DEBRIS" aria-pressed="false">Debris</button>
                 <button type="button" class="segmented-option" data-orbit-filter="OTHER" aria-pressed="false">Others</button>
               </div>
             </div>
 
+            <div class="filter-block object-type-filter-block">
+              <div id="objectTypeFilter" class="segmented-control object-type-segmented" role="group" aria-label="Tracked object type filter">
+                <button type="button" class="segmented-option is-active" data-object-type-filter="ALL" aria-pressed="true">ALL</button>
+                <button type="button" class="segmented-option" data-object-type-filter="PAYLOAD" aria-pressed="false">Payload</button>
+                <button type="button" class="segmented-option" data-object-type-filter="DEBRIS" aria-pressed="false">Debris</button>
+                <button type="button" class="segmented-option" data-object-type-filter="ROCKET_BODY" aria-pressed="false">Rocket Body</button>
+                <button type="button" class="segmented-option" data-object-type-filter="MISSION_RELATED" aria-pressed="false">Mission</button>
+                <button type="button" class="segmented-option" data-object-type-filter="UNKNOWN" aria-pressed="false">Unknown</button>
+              </div>
+              <label class="tracked-history-toggle"><input type="checkbox" id="includeHistoricalTrackedObjects" aria-label="Include decayed and absent tracked-object history"><span>Include history</span></label>
+            </div>
+
             <div class="filter-block">
+              <span class="filter-label">Catalog tags</span>
               <div id="companyFilter" class="tag-chip-list" role="group" aria-label="Tag filter">
                 <label class="filter-chip">
                   <input type="checkbox" value="ALL COMPANY" checked>
@@ -121,12 +133,75 @@ export function satelliteMenuLoader() {
                 </label>
               </div>
             </div>
+
+            <section id="trackedDebrisFacets" class="tracked-debris-facets" aria-labelledby="trackedDebrisFacetsTitle" hidden>
+              <div class="tracked-facet-header">
+                <strong id="trackedDebrisFacetsTitle">Debris filters</strong>
+                <button id="resetTrackedDebrisFacets" class="tracked-facet-reset" type="button">Reset debris filters</button>
+              </div>
+              <div id="trackedDebrisFacetSummary" class="tracked-facet-summary" role="status" aria-live="polite">0 matches | 0 positioned | 0 position unavailable</div>
+
+              <fieldset class="tracked-facet-position">
+                <legend>Position availability</legend>
+                <div id="trackedPositionFacet" class="tag-chip-list" role="group" aria-label="Position availability filter">
+                  <label class="filter-chip"><input type="checkbox" name="trackedPositionFacet" value="ALL" checked><span>All positions</span></label>
+                  <label class="filter-chip"><input type="checkbox" name="trackedPositionFacet" value="POSITIONED"><span>Positioned</span></label>
+                  <label class="filter-chip"><input type="checkbox" name="trackedPositionFacet" value="METADATA_ONLY"><span>Position unavailable</span></label>
+                </div>
+              </fieldset>
+
+              <details class="tracked-facet-disclosure" data-tracked-facet="rcs">
+                <summary>Radar cross-section (m2)<span data-facet-summary="rcs">All</span></summary>
+                <div id="trackedRcsFacet" class="tracked-facet-options" role="group" aria-label="Radar cross-section filter"></div>
+              </details>
+              <details class="tracked-facet-disclosure" data-tracked-facet="owner">
+                <summary>Owner / country<span data-facet-summary="owner">All</span></summary>
+                <div id="trackedOwnerFacet" class="tracked-facet-options" role="group" aria-label="Owner or country filter"></div>
+              </details>
+              <details class="tracked-facet-disclosure" data-tracked-facet="launchSite">
+                <summary>Launch site<span data-facet-summary="launchSite">All</span></summary>
+                <div id="trackedLaunchSiteFacet" class="tracked-facet-options" role="group" aria-label="Launch site filter"></div>
+              </details>
+              <details class="tracked-facet-disclosure" data-tracked-facet="status">
+                <summary>Operational status code<span data-facet-summary="status">All</span></summary>
+                <div id="trackedStatusFacet" class="tracked-facet-options" role="group" aria-label="Operational status code filter"></div>
+              </details>
+
+              <fieldset class="tracked-launch-year-facet">
+                <legend>Launch year</legend>
+                <label>From<select id="trackedLaunchYearFrom" aria-label="Launch year from"><option value="">Any</option></select></label>
+                <label>To<select id="trackedLaunchYearTo" aria-label="Launch year to"><option value="">Any</option></select></label>
+              </fieldset>
+              <label class="tracked-designator-filter">International designator
+                <input id="trackedDesignatorFacet" type="search" maxlength="64" autocomplete="off" placeholder="Example: 1999-025">
+              </label>
+            </section>
+
+            <div id="trackedCatalogStatus" class="tracked-catalog-status" role="status" aria-live="polite">Current orbital catalog</div>
+            <dl id="trackedCatalogCounts" class="tracked-catalog-counts" aria-label="Tracked catalog counts">
+              <div><dt>Tracked</dt><dd id="trackedCountTotal">0</dd></div>
+              <div><dt>Matches</dt><dd id="trackedCountFiltered">0</dd></div>
+              <div><dt>Current</dt><dd id="trackedCountCurrent">0</dd></div>
+              <div><dt>History</dt><dd id="trackedCountHistorical">0</dd></div>
+              <div><dt>Positioned</dt><dd id="trackedCountPropagatable">0</dd></div>
+              <div><dt>Position unavailable</dt><dd id="trackedCountMetadataOnly">0</dd></div>
+              <div><dt>Visible</dt><dd id="trackedCountRenderReady">0</dd></div>
+              <div><dt>Quarantine</dt><dd id="trackedCountQuarantine">0</dd></div>
+            </dl>
+            <ul id="trackedObjectLegend" class="tracked-object-legend" aria-label="Tracked-object color key" aria-description="Colors identify markers on the globe and map. Shapes are additional cues on the detailed map.">
+              <li><span class="tracked-marker tracked-marker-payload" aria-hidden="true"></span>Payload</li>
+              <li><span class="tracked-marker tracked-marker-debris" aria-hidden="true"></span>Debris</li>
+              <li><span class="tracked-marker tracked-marker-rocket" aria-hidden="true"></span>Rocket body</li>
+              <li><span class="tracked-marker tracked-marker-mission" aria-hidden="true"></span>Mission</li>
+              <li><span class="tracked-marker tracked-marker-unknown" aria-hidden="true"></span>Unknown</li>
+              <li><span class="tracked-marker tracked-marker-selected" aria-hidden="true"></span>Selected</li>
+            </ul>
           </div>
 
-          <div id="selectedSatelliteControls" class="satellite-option-grid" aria-label="Selected satellite options" aria-hidden="true" hidden>
+          <div id="selectedSatelliteControls" class="satellite-option-grid" aria-label="Selected tracked-object options" aria-hidden="true" hidden>
             <label><input type="checkbox" id="showYPRToggle"> Yaw-Pitch-Roll</label>
             <label class="checkbox-row"><input type="checkbox" id="showFootprintCheckbox"><span>Show Footprint</span></label>
-            <label class="checkbox-row"><input type="checkbox" id="showOnlySelectedSatellite" checked><span>Show only selected satellite</span></label>
+            <label class="checkbox-row"><input type="checkbox" id="showOnlySelectedSatellite" checked><span>Show only selected object</span></label>
             <label><input type="checkbox" id="showOrbitFrameToggle"> Orbit Frame (LVLH)</label>
             <label><input type="checkbox" id="showOrbitToggle"> Show Orbit</label>
           </div>
@@ -197,7 +272,7 @@ export function satelliteMenuLoader() {
 
           <div class="conjunction-progress-block">
             <progress id="conjunctionProgress" max="100" value="0" aria-label="Screening progress"></progress>
-            <div id="conjunctionStatus" role="status" aria-live="polite">Select a satellite to enable screening.</div>
+            <div id="conjunctionStatus" role="status" aria-live="polite">Select a positioned tracked object to enable screening.</div>
           </div>
 
           <div id="conjunctionResults" class="conjunction-results" hidden>
@@ -309,7 +384,7 @@ export function satelliteMenuLoader() {
             <input type="checkbox" id="launchTimelineToggle" aria-describedby="launchTimelineHelp">
             <span>Show Launch Timeline</span>
           </label>
-          <div id="launchTimelineHelp" class="menu-helper">Shows launch history for loaded satellites.</div>
+          <div id="launchTimelineHelp" class="menu-helper">Shows launch history for loaded tracked objects.</div>
           <label class="checkbox-row timeline-checkbox-control">
             <input type="checkbox" id="reentryTimelineToggle" aria-describedby="reentryTimelineHelp">
             <span>Show Re-entry Timeline</span>
@@ -324,7 +399,7 @@ export function satelliteMenuLoader() {
           <span class="toggle-icon">v</span>
         </h3>
         <div id="shareContent" class="collapsible-content share-panel collapsed" aria-labelledby="shareAccordionHeader">
-          <div class="menu-helper">Create a safe link for the current view, filters, selected satellite, simulation time, and display settings.</div>
+          <div class="menu-helper">Create a safe link for the current view, filters, selected object, simulation time, and display settings.</div>
           <div id="shareStateSummary" class="share-state-summary">Current app state is ready to share.</div>
           <div class="share-action-row">
             <button id="copyShareLinkButton" type="button" class="menu-secondary-action">Copy Link</button>
@@ -381,7 +456,7 @@ export function satelliteMenuLoader() {
           </div>
           <div class="help-disclaimer" role="note" aria-label="Disclaimer">
             <strong>Disclaimer:</strong>
-            This app is for visualization, educational, and experimental purposes only. The author is not responsible for inaccurate satellite data, TLE propagation, model rendering, orbital position, attitude/orientation, timing, visualization results, or limitations from third-party libraries including satellite.js. Do not use it for navigation, safety, mission planning, collision avoidance, or operational satellite decisions.
+            This app is for visualization, educational, and experimental purposes only. The author is not responsible for inaccurate tracked-object data, orbital propagation, model rendering, orbital position, attitude/orientation, timing, visualization results, or limitations from third-party libraries including satellite.js. Do not use it for navigation, safety, mission planning, collision avoidance, or operational decisions.
           </div>
         </div>
       </section>

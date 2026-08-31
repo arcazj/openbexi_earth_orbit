@@ -16,6 +16,8 @@
     "json/gp/GP.meta.json",
     "json/launches/launches.json",
     "json/launches/launches.meta.json",
+    "json/tracked/TRACKED.manifest.json",
+    "json/tracked/TRACKED.meta.json",
     "json/tle/TLE.json",
     "json/tle/TLE.meta.json",
     "icons/ob_satellite.png",
@@ -55,7 +57,8 @@
       "exclude": [
         "conjunction/fullCatalogScreening.js",
         "domain/catalogLifecycle.js",
-        "domain/index.js"
+        "domain/index.js",
+        "satelliteCategoryFilter.js"
       ]
     },
     {

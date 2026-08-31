@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Satellite Simulation - HTML Controls</title>
+    <title>OpenBEXI Earth Orbit - Tracked Objects</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="openbexi-deployment-mode" content="server-capable">
     <meta name="openbexi-dependency-policy" content="packaged-first-with-cdn-fallback">
@@ -178,15 +178,34 @@
         issShortcutState,
         starlinkShortcutState
     } from './js/satelliteShortcutLabels.js';
-    import { buildSatelliteSearchMatches } from './js/satelliteSearchUtils.js';
+    import { buildSatelliteSearchMatches, satelliteSearchBadges } from './js/satelliteSearchUtils.js';
     import {
-        SATELLITE_CATEGORY,
-        SATELLITE_CATEGORY_OPTIONS,
-        isAllSatelliteCategorySelection,
-        normalizeSatelliteCategorySelection,
-        satelliteMatchesCategorySelection,
-        toggleSatelliteCategorySelection
-    } from './js/satelliteCategoryFilter.js';
+        DEFAULT_TRACKED_FACETS,
+        TRACKED_OBJECT_TYPE,
+        TRACKED_OBJECT_TYPE_OPTIONS,
+        TRACKED_ORBIT_CLASS_OPTIONS,
+        TRACKED_POSITION_FILTER,
+        TRACKED_POSITION_FILTER_OPTIONS,
+        TRACKED_RCS_FILTER,
+        TRACKED_RCS_FILTER_LABELS,
+        TRACKED_RCS_FILTER_OPTIONS,
+        buildTrackedFacetOptions,
+        buildTrackedCatalogCounts,
+        createTrackedObjectCatalogLoader,
+        isHistoricalTrackedRecord,
+        isTrackedCatalogMember,
+        isTrackedRecordPropagatable,
+        mergeTrackedCatalogRecords,
+        normalizeTrackedFacets,
+        normalizeTrackedObjectTypeSelection,
+        normalizeTrackedOrbitSelection,
+        restoreOrbitalRecordsAfterTrackedOverlay,
+        toggleTrackedObjectTypeSelection,
+        toggleTrackedFacetSelection,
+        toggleTrackedOrbitSelection,
+        trackedObjectMatchesFilters,
+        trackedObjectType
+    } from './js/trackedObjectCatalog.js';
     import {
         APP_VERSION,
         checkServerConnectionWithFallback,
@@ -217,7 +236,10 @@
     } from './js/conjunction/fullCatalogClient.js';
     import { createMultiFormatPropagationService } from './js/orbit/multiFormatPropagationService.js';
     import { normalizeNoradId, noradIdFromInternalObjectId } from './js/domain/objectIdentity.js';
-    import { EXPERIMENTAL_CONJUNCTION_SCREENING_ENABLED } from './js/releaseVersion.js';
+    import {
+        EXPERIMENTAL_CONJUNCTION_SCREENING_ENABLED,
+        RELEASE_FEATURE_FLAGS
+    } from './js/releaseVersion.js';
 
     // UI
     const perfLoggingEnabled = (() => {
@@ -310,6 +332,16 @@
     const SATELLITE_SEARCH_LIMIT = 40;
     const EXCLUDED_COMPANY_FILTER_OPTIONS = new Set(['ACTIVE']);
     const serverApiBaseUrl = resolveApiBaseUrl();
+    const TRACKED_CATALOG_FEATURE_ENABLED =
+        RELEASE_FEATURE_FLAGS.experimental_tracked_object_catalog?.enabled === true;
+    const trackedObjectCatalogLoader = TRACKED_CATALOG_FEATURE_ENABLED
+        ? createTrackedObjectCatalogLoader({
+            fetchImpl: (url, options) => {
+                const serverUrl = window.openbexiServerConnection?.resolveDataUrl?.(url);
+                return fetch(serverUrl || url, options);
+            }
+        })
+        : null;
 
     // One clock and one reused Date drive satellites, planets, timelines, and overlays.
     const SIM_DATE = new Date();
@@ -399,9 +431,10 @@
     let solarSystemPlanetHudElement = null;
 
     const ALL_COMPANY_OPTION = "ALL COMPANY";
-    const ORBIT_ALL_OPTION = SATELLITE_CATEGORY.ALL;
-    const ORBIT_FILTER_OPTIONS = [ORBIT_ALL_OPTION, ...SATELLITE_CATEGORY_OPTIONS];
+    const ORBIT_ALL_OPTION = 'ALL';
+    const ORBIT_FILTER_OPTIONS = [ORBIT_ALL_OPTION, ...TRACKED_ORBIT_CLASS_OPTIONS];
     const DEFAULT_ORBIT_FILTER = ["MEO"];
+    const DEFAULT_OBJECT_TYPE_FILTER = [TRACKED_OBJECT_TYPE.ALL];
     const DEFAULT_COMPANY_FILTER = [ALL_COMPANY_OPTION];
     const COMPANY_LABEL_OVERRIDES = {
         [ALL_COMPANY_OPTION]: "All tags",
@@ -436,7 +469,10 @@
 
     const simParams = {
         orbitTypeFilter: [...DEFAULT_ORBIT_FILTER],
+        objectTypeFilter: [...DEFAULT_OBJECT_TYPE_FILTER],
+        includeHistoricalTrackedObjects: false,
         companyFilter: [...DEFAULT_COMPANY_FILTER],
+        trackedFacets: normalizeTrackedFacets(DEFAULT_TRACKED_FACETS),
         selectedSatelliteName: "None",
         selectedSatelliteNoradId: null,
         showOrbit: false,
@@ -469,7 +505,7 @@
     const pendingShareState = parseShareStateFromSearch(window.location.search);
     let pendingShareStateApplied = false;
 
-    let orbitTypeFilterSelect, companyFilterSelect, satelliteCountDisplay, mercatorExitFullscreenButton;
+    let orbitTypeFilterSelect, objectTypeFilterSelect, companyFilterSelect, satelliteCountDisplay, mercatorExitFullscreenButton;
     let view3DToggle, viewMercatorToggle, showOrbitToggle, showOrbitFrameToggle;
     let highDefToggleElement, showECEFAxesToggleElement, showOrbitFrameToggleElement;
     let solarSystemOverviewToggleElement, solarSystemOptionsElement, solarSystemPlanetLabelsToggleElement;
@@ -481,6 +517,14 @@
     let satelliteSearchInput, satelliteSearchResults, satelliteSearchClearButton, satelliteSearchEmpty;
     let selectFirstStarlinkButton, selectIssButton, showOnlySelectedSatelliteCheckbox, selectedSatelliteControls;
     let filterEmptyState, resetFiltersButton, resetFiltersEmptyButton, selectedSatelliteDetailPanel;
+    let includeHistoricalTrackedObjectsCheckbox, trackedCatalogStatusElement;
+    let trackedDebrisFacetsElement, trackedDebrisFacetSummaryElement, resetTrackedDebrisFacetsButton;
+    let trackedPositionFacetElement, trackedRcsFacetElement, trackedOwnerFacetElement;
+    let trackedLaunchSiteFacetElement, trackedStatusFacetElement;
+    let trackedLaunchYearFromElement, trackedLaunchYearToElement, trackedDesignatorFacetElement;
+    let trackedCountTotalElement, trackedCountFilteredElement, trackedCountCurrentElement;
+    let trackedCountHistoricalElement, trackedCountPropagatableElement, trackedCountMetadataOnlyElement;
+    let trackedCountRenderReadyElement, trackedCountQuarantineElement;
     let currentSearchResults = [];
     let activeFilteredSatelliteCount = 0;
     let activeTotalSatelliteCount = 0;
@@ -488,6 +532,14 @@
     let isSatelliteDropdownOpen = false;
     let satelliteSearchPendingClearForNextSelection = false;
     let satelliteSearchClearedForNextSelection = false;
+    let trackedCatalogRecords = [];
+    let combinedTrackedCatalogCache = [];
+    let combinedTrackedCatalogCacheKey = null;
+    let trackedCatalogRequestGeneration = 0;
+    let trackedCatalogLineageBlocked = false;
+    let trackedCatalogSearchTimer = null;
+    let trackedDesignatorFacetTimer = null;
+    let lastTrackedRenderReadyCount = -1;
     let marsTextureLoadingElement, marsTextureLoadingLabelElement, marsTextureProgressFillElement, marsTextureProgressTextElement;
     let marsTextureLoadingHideTimer = null;
     let marsTextureLoadingStartedAt = 0;
@@ -531,8 +583,14 @@
     let catalogRevisionWatcher = null;
     let catalogRefreshInProgress = false;
 
+    function hasActiveSatelliteSceneRecord(satData) {
+        return !!satData?.mesh &&
+            !isHistoricalTrackedRecord(satData) &&
+            isTrackedRecordPropagatable(satData);
+    }
+
     function satelliteScreeningRecord(satData) {
-        if (!satData) return null;
+        if (!hasActiveSatelliteSceneRecord(satData)) return null;
         if (satData.catalogObject) return satData.catalogObject;
         return {
             object_id: satData.object_id,
@@ -638,7 +696,60 @@
         }
     }
 
-    async function loadConjunctionCatalogMetadata() {
+    async function loadTrackedCoverageManifest() {
+        if (trackedCatalogLineageBlocked) return null;
+        const cachedManifest = trackedObjectCatalogLoader?.snapshot?.().manifest;
+        if (cachedManifest) return cachedManifest;
+        if (!trackedObjectCatalogLoader?.readManifest) return null;
+
+        let timeoutId = null;
+        const manifestRequest = trackedObjectCatalogLoader.readManifest().catch(error => {
+            console.debug('[conjunction] Tracked catalog manifest is temporarily unavailable.', error);
+            return null;
+        });
+        try {
+            return await Promise.race([
+                manifestRequest,
+                new Promise(resolve => {
+                    timeoutId = setTimeout(() => resolve(null), 250);
+                })
+            ]);
+        } finally {
+            if (timeoutId !== null) clearTimeout(timeoutId);
+        }
+    }
+
+    function conjunctionTrackedCoverageFields(manifest, propagatablePopulation) {
+        const counts = manifest?.counts ?? {};
+        const trackedCandidate = counts.current ?? counts.current_tracked ?? counts.current_records;
+        const parsedTracked = trackedCandidate === undefined || trackedCandidate === null
+            ? NaN
+            : Number(trackedCandidate);
+        const trackedPopulation = Number.isInteger(parsedTracked) && parsedTracked >= 0
+            ? parsedTracked
+            : null;
+        const metadataOnlyPopulation = trackedPopulation === null
+            ? null
+            : Math.max(0, trackedPopulation - propagatablePopulation);
+        const coverageFraction = trackedPopulation === null
+            ? null
+            : trackedPopulation > 0
+                ? Math.min(1, propagatablePopulation / trackedPopulation)
+                : 1;
+        return {
+            tracked_catalog_revision: manifest?.catalog_revision ?? manifest?.revision ?? null,
+            tracked_population: trackedPopulation,
+            propagatable_population: propagatablePopulation,
+            metadata_only_population: metadataOnlyPopulation,
+            tracked_count: trackedPopulation,
+            propagatable_count: propagatablePopulation,
+            metadata_only_excluded_count: metadataOnlyPopulation,
+            screening_coverage_fraction: coverageFraction
+        };
+    }
+
+    async function loadConjunctionCatalogMetadata(propagatablePopulation = uniqueSatelliteCount(satellites)) {
+        const trackedManifestPromise = loadTrackedCoverageManifest();
         try {
             const activeKind = getActiveCatalogKind() || 'GP';
             const metadataPath = activeKind === 'TLE'
@@ -663,6 +774,7 @@
                 : (Number.isFinite(existingCount) && Number.isFinite(updatedCount)
                     ? Math.max(0, existingCount - updatedCount)
                     : null);
+            const trackedManifest = await trackedManifestPromise;
             return {
                 dataset_id: provenance.dataset_id || metadata.dataset_id || `celestrak-gp:${retrievedAt || 'unknown'}`,
                 dataset_hash: provenance.dataset_hash || metadata.dataset_hash || null,
@@ -677,6 +789,7 @@
                 source_status: String(snapshot?.status || provenance.source_status || metadata.last_status || 'unknown').toUpperCase(),
                 partial_update: snapshot?.status === 'PARTIAL' || provenance.partial_update === true || metadata.mode === 'incremental',
                 quality,
+                ...conjunctionTrackedCoverageFields(trackedManifest, propagatablePopulation),
                 source_urls: Array.isArray(metadata.source_urls) ? [...metadata.source_urls] : []
             };
         } catch (error) {
@@ -686,6 +799,7 @@
             const quality = snapshot?.quality || {};
             const retrievedAt = provenance.retrieved_at || null;
             const retrievedTime = retrievedAt ? Date.parse(retrievedAt) : NaN;
+            const trackedManifest = await trackedManifestPromise;
             return {
                 dataset_id: provenance.dataset_id || 'dataset:loaded-tle-catalog',
                 dataset_hash: provenance.dataset_hash || null,
@@ -700,6 +814,7 @@
                 source_status: String(snapshot?.status || provenance.source_status || 'UNKNOWN').toUpperCase(),
                 partial_update: snapshot?.status === 'PARTIAL' || provenance.partial_update !== false,
                 quality,
+                ...conjunctionTrackedCoverageFields(trackedManifest, propagatablePopulation),
                 source_urls: []
             };
         }
@@ -713,7 +828,7 @@
                 (record?.element_set?.line1 && record?.element_set?.line2) ||
                 (format === 'OMM' && !!record?.element_set?.omm);
         });
-        conjunctionCatalogMetadata = await loadConjunctionCatalogMetadata();
+        conjunctionCatalogMetadata = await loadConjunctionCatalogMetadata(catalog.length);
         conjunctionCatalogMetadata.staleCount = catalog.filter(record =>
             Array.isArray(record.quality_flags) && record.quality_flags.includes('TLE_STALE')
         ).length;
@@ -1080,14 +1195,29 @@
     }
 
     function applyOrbitSelectionToUI(selection) {
-        const normalized = normalizeSatelliteCategorySelection(selection);
+        const normalized = normalizeTrackedOrbitSelection(selection);
         simParams.orbitTypeFilter = normalized;
 
         if (!orbitTypeFilterSelect) return;
-        const isAllSelected = isAllSatelliteCategorySelection(normalized);
+        const isAllSelected = normalized.includes(ORBIT_ALL_OPTION);
         orbitTypeFilterSelect.querySelectorAll('button[data-orbit-filter]').forEach(button => {
             const value = button.dataset.orbitFilter;
             const isActive = value === ORBIT_ALL_OPTION
+                ? isAllSelected
+                : !isAllSelected && normalized.includes(value);
+            button.classList.toggle('is-active', isActive);
+            button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+        });
+    }
+
+    function applyObjectTypeSelectionToUI(selection) {
+        const normalized = normalizeTrackedObjectTypeSelection(selection);
+        simParams.objectTypeFilter = normalized;
+        if (!objectTypeFilterSelect) return;
+        const isAllSelected = normalized.includes(TRACKED_OBJECT_TYPE.ALL);
+        objectTypeFilterSelect.querySelectorAll('button[data-object-type-filter]').forEach(button => {
+            const value = button.dataset.objectTypeFilter;
+            const isActive = value === TRACKED_OBJECT_TYPE.ALL
                 ? isAllSelected
                 : !isAllSelected && normalized.includes(value);
             button.classList.toggle('is-active', isActive);
@@ -1174,20 +1304,414 @@
         return selection.includes(ALL_COMPANY_OPTION) || selection.includes(company);
     }
 
+    const TRACKED_POSITION_LABELS = Object.freeze({
+        [TRACKED_POSITION_FILTER.ALL]: 'All positions',
+        [TRACKED_POSITION_FILTER.POSITIONED]: 'Positioned',
+        [TRACKED_POSITION_FILTER.METADATA_ONLY]: 'Position unavailable'
+    });
+
+    function isAllDebrisFacetContext() {
+        const orbitSelection = normalizeTrackedOrbitSelection(simParams.orbitTypeFilter);
+        const objectSelection = normalizeTrackedObjectTypeSelection(simParams.objectTypeFilter);
+        return orbitSelection.length === 1 && orbitSelection[0] === ORBIT_ALL_OPTION &&
+            objectSelection.length === 1 && objectSelection[0] === TRACKED_OBJECT_TYPE.DEBRIS;
+    }
+
+    function activeTrackedFacets() {
+        return isAllDebrisFacetContext() ? simParams.trackedFacets : null;
+    }
+
+    function activeTrackedCatalogDescriptors(manifest = trackedObjectCatalogLoader?.snapshot?.().manifest) {
+        if (!manifest) return [];
+        return [
+            ...(Array.isArray(manifest.chunks) ? manifest.chunks : []),
+            ...(simParams.includeHistoricalTrackedObjects && Array.isArray(manifest.history_chunks)
+                ? manifest.history_chunks
+                : [])
+        ];
+    }
+
+    function trackedDebrisCoverageIsUsable() {
+        const coverage = trackedObjectCatalogLoader?.coverage?.();
+        if (!coverage?.manifest) return false;
+        const debrisDescriptors = activeTrackedCatalogDescriptors(coverage.manifest)
+            .filter(descriptor => trackedObjectType(descriptor) === TRACKED_OBJECT_TYPE.DEBRIS);
+        if (!debrisDescriptors.length) return false;
+        const loaded = new Set(coverage.loaded_chunk_ids ?? []);
+        return debrisDescriptors.every((descriptor, index) => loaded.has(
+            String(descriptor?.id ?? descriptor?.path ?? `chunk-${index}`)
+        ));
+    }
+
+    function activeContextRequiresTrackedMembership() {
+        return isAllDebrisFacetContext() && !trackedCatalogLineageBlocked && trackedDebrisCoverageIsUsable();
+    }
+
+    function recordParticipatesInActiveCatalogContext(record, requireTrackedCatalogMembership) {
+        return !requireTrackedCatalogMembership || isTrackedCatalogMember(record);
+    }
+
+    function trackedDebrisFacetBaseRecords(records = allTrackedDisplayRecords()) {
+        return records.filter(record => isTrackedCatalogMember(record) && trackedObjectMatchesFilters(record, {
+            orbitSelection: [ORBIT_ALL_OPTION],
+            objectTypeSelection: [TRACKED_OBJECT_TYPE.DEBRIS],
+            tagSelection: simParams.companyFilter,
+            allTagValue: ALL_COMPANY_OPTION,
+            includeHistorical: simParams.includeHistoricalTrackedObjects
+        }));
+    }
+
+    function formatTrackedFacetValue(value, key) {
+        const text = String(value ?? '').trim();
+        if (!text || text === 'UNKNOWN') return key === 'status' ? 'Unknown / not supplied' : 'Not reported';
+        return text.replaceAll('_', ' ');
+    }
+
+    function facetSummaryText(key) {
+        const selected = simParams.trackedFacets[key] || [];
+        if (!selected.length) return 'All';
+        if (selected.length === 1) return formatTrackedFacetValue(selected[0], key);
+        return `${selected.length} selected`;
+    }
+
+    function updateTrackedFacetDisclosureSummary(key) {
+        const target = trackedDebrisFacetsElement?.querySelector(`[data-facet-summary="${key}"]`);
+        if (target) target.textContent = facetSummaryText(key);
+    }
+
+    function createTrackedFacetOption(key, value, count, labelText, checked) {
+        const label = document.createElement('label');
+        label.className = 'tracked-facet-option';
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.value = value;
+        input.checked = checked;
+        input.dataset.trackedFacetKey = key;
+        input.setAttribute('aria-label', `${labelText}, ${count.toLocaleString()} matches`);
+        const text = document.createElement('span');
+        text.textContent = `${labelText} (${count.toLocaleString()})`;
+        label.append(input, text);
+        return label;
+    }
+
+    function renderTrackedFacetOptionList(element, key, entries) {
+        if (!element) return;
+        const selected = simParams.trackedFacets[key] || [];
+        const entryMap = new Map(entries.map(entry => [String(entry.value), entry]));
+        selected.forEach(value => {
+            if (!entryMap.has(value)) entryMap.set(value, { value, count: 0 });
+        });
+        const sortedEntries = [...entryMap.values()]
+            .sort((a, b) => b.count - a.count || String(a.value).localeCompare(String(b.value)));
+        const disclosure = element.closest('details');
+        if (disclosure) disclosure.hidden = sortedEntries.length === 0;
+        const total = sortedEntries.reduce((sum, entry) => sum + entry.count, 0);
+        const fragment = document.createDocumentFragment();
+        fragment.appendChild(createTrackedFacetOption(key, 'ALL', total, 'All', selected.length === 0));
+        sortedEntries.forEach(entry => {
+            fragment.appendChild(createTrackedFacetOption(
+                key,
+                String(entry.value),
+                entry.count,
+                formatTrackedFacetValue(entry.value, key),
+                selected.includes(String(entry.value))
+            ));
+        });
+        element.replaceChildren(fragment);
+        updateTrackedFacetDisclosureSummary(key);
+    }
+
+    function renderTrackedSelectionFacet(element, key, entries, labels, allValue) {
+        if (!element) return;
+        const selected = simParams.trackedFacets[key];
+        const counts = new Map(entries.map(entry => [entry.value, entry.count]));
+        const total = entries.reduce((sum, entry) => sum + entry.count, 0);
+        element.querySelectorAll('input[type="checkbox"]').forEach(input => {
+            const value = input.value;
+            input.checked = selected.includes(value);
+            const count = value === allValue ? total : (counts.get(value) ?? 0);
+            const text = input.nextElementSibling;
+            if (text) text.textContent = `${labels[value] || value} (${count.toLocaleString()})`;
+            input.dataset.trackedFacetKey = key;
+        });
+    }
+
+    function renderTrackedRcsFacet(entries) {
+        if (!trackedRcsFacetElement) return;
+        const selected = simParams.trackedFacets.rcs;
+        const total = entries.reduce((sum, entry) => sum + entry.count, 0);
+        const fragment = document.createDocumentFragment();
+        fragment.appendChild(createTrackedFacetOption(
+            'rcs',
+            TRACKED_RCS_FILTER.ALL,
+            total,
+            TRACKED_RCS_FILTER_LABELS[TRACKED_RCS_FILTER.ALL],
+            selected.includes(TRACKED_RCS_FILTER.ALL)
+        ));
+        entries.forEach(entry => {
+            fragment.appendChild(createTrackedFacetOption(
+                'rcs',
+                entry.value,
+                entry.count,
+                TRACKED_RCS_FILTER_LABELS[entry.value] || entry.value,
+                selected.includes(entry.value)
+            ));
+        });
+        trackedRcsFacetElement.replaceChildren(fragment);
+        const active = selected.includes(TRACKED_RCS_FILTER.ALL) ? 'All' : `${selected.length} selected`;
+        const summary = trackedDebrisFacetsElement?.querySelector('[data-facet-summary="rcs"]');
+        if (summary) summary.textContent = active;
+    }
+
+    function renderTrackedLaunchYearFacet(entries) {
+        const years = Array.from(new Set([
+            ...entries.map(entry => Number(entry.value)).filter(Number.isInteger),
+            simParams.trackedFacets.launchYearFrom,
+            simParams.trackedFacets.launchYearTo
+        ].filter(Number.isInteger))).sort((a, b) => a - b);
+        const renderSelect = (element, selected, descending = false) => {
+            if (!element) return;
+            const values = descending ? [...years].reverse() : years;
+            const fragment = document.createDocumentFragment();
+            const anyOption = document.createElement('option');
+            anyOption.value = '';
+            anyOption.textContent = 'Any';
+            fragment.appendChild(anyOption);
+            values.forEach(year => {
+                const option = document.createElement('option');
+                option.value = String(year);
+                option.textContent = String(year);
+                fragment.appendChild(option);
+            });
+            element.replaceChildren(fragment);
+            element.value = selected === null ? '' : String(selected);
+        };
+        renderSelect(trackedLaunchYearFromElement, simParams.trackedFacets.launchYearFrom);
+        renderSelect(trackedLaunchYearToElement, simParams.trackedFacets.launchYearTo, true);
+    }
+
+    function renderTrackedDebrisFacetPanel(records = allTrackedDisplayRecords()) {
+        if (!trackedDebrisFacetsElement) return;
+        const visible = isAllDebrisFacetContext();
+        trackedDebrisFacetsElement.hidden = !visible;
+        trackedDebrisFacetsElement.setAttribute('aria-hidden', visible ? 'false' : 'true');
+        if (!visible) return;
+
+        simParams.trackedFacets = normalizeTrackedFacets(simParams.trackedFacets);
+        const baseRecords = trackedDebrisFacetBaseRecords(records);
+        const options = buildTrackedFacetOptions(baseRecords, simParams.trackedFacets);
+        renderTrackedSelectionFacet(
+            trackedPositionFacetElement,
+            'position',
+            options.position,
+            TRACKED_POSITION_LABELS,
+            TRACKED_POSITION_FILTER.ALL
+        );
+        renderTrackedRcsFacet(options.rcs);
+        renderTrackedFacetOptionList(trackedOwnerFacetElement, 'owner', options.owner);
+        renderTrackedFacetOptionList(trackedLaunchSiteFacetElement, 'launchSite', options.launchSite);
+        renderTrackedFacetOptionList(trackedStatusFacetElement, 'status', options.status);
+        renderTrackedLaunchYearFacet(options.launchYear);
+        if (trackedDesignatorFacetElement && document.activeElement !== trackedDesignatorFacetElement) {
+            trackedDesignatorFacetElement.value = simParams.trackedFacets.designator;
+        }
+    }
+
+    function resetTrackedDebrisFacets() {
+        simParams.trackedFacets = normalizeTrackedFacets(DEFAULT_TRACKED_FACETS);
+        refreshFilteredSatelliteView();
+    }
+
+    function updateTrackedFacetFromCheckbox(input) {
+        const key = input.dataset.trackedFacetKey;
+        if (!key) return;
+        if (key === 'position') {
+            simParams.trackedFacets = normalizeTrackedFacets({
+                ...simParams.trackedFacets,
+                position: toggleTrackedFacetSelection(
+                    simParams.trackedFacets.position,
+                    input.value,
+                    TRACKED_POSITION_FILTER_OPTIONS,
+                    TRACKED_POSITION_FILTER.ALL
+                )
+            });
+        } else if (key === 'rcs') {
+            simParams.trackedFacets = normalizeTrackedFacets({
+                ...simParams.trackedFacets,
+                rcs: toggleTrackedFacetSelection(
+                    simParams.trackedFacets.rcs,
+                    input.value,
+                    TRACKED_RCS_FILTER_OPTIONS,
+                    TRACKED_RCS_FILTER.ALL
+                )
+            });
+        } else if (['owner', 'launchSite', 'status'].includes(key)) {
+            const next = input.value === 'ALL'
+                ? []
+                : input.checked
+                    ? [...simParams.trackedFacets[key], input.value]
+                    : simParams.trackedFacets[key].filter(value => value !== input.value);
+            simParams.trackedFacets = normalizeTrackedFacets({ ...simParams.trackedFacets, [key]: next });
+        }
+        refreshFilteredSatelliteView();
+    }
+
     function orbitMatchesSelection(satDataOrOrbitType, selection = simParams.orbitTypeFilter) {
-        return satelliteMatchesCategorySelection(satDataOrOrbitType, selection);
+        return trackedObjectMatchesFilters(satDataOrOrbitType, {
+            orbitSelection: selection,
+            objectTypeSelection: [TRACKED_OBJECT_TYPE.ALL],
+            includeHistorical: true
+        });
+    }
+
+    function allTrackedDisplayRecords() {
+        const cacheKey = {
+            orbitalLength: satellites.length,
+            firstOrbital: satellites[0] ?? null,
+            lastOrbital: satellites[satellites.length - 1] ?? null,
+            trackedRecords: trackedCatalogRecords
+        };
+        if (combinedTrackedCatalogCacheKey &&
+            combinedTrackedCatalogCacheKey.orbitalLength === cacheKey.orbitalLength &&
+            combinedTrackedCatalogCacheKey.firstOrbital === cacheKey.firstOrbital &&
+            combinedTrackedCatalogCacheKey.lastOrbital === cacheKey.lastOrbital &&
+            combinedTrackedCatalogCacheKey.trackedRecords === cacheKey.trackedRecords) {
+            return combinedTrackedCatalogCache;
+        }
+        combinedTrackedCatalogCache = mergeTrackedCatalogRecords(satellites, trackedCatalogRecords, {
+            preserveOrbitalReferences: true
+        });
+        combinedTrackedCatalogCacheKey = cacheKey;
+        return combinedTrackedCatalogCache;
+    }
+
+    function selectedObjectTypesNeedTrackedCatalog() {
+        const selection = normalizeTrackedObjectTypeSelection(simParams.objectTypeFilter);
+        return selection.includes(TRACKED_OBJECT_TYPE.ALL) ? [TRACKED_OBJECT_TYPE.ALL] : selection;
+    }
+
+    function setTrackedCatalogStatus(text, state = 'idle') {
+        if (!trackedCatalogStatusElement) return;
+        trackedCatalogStatusElement.textContent = text;
+        trackedCatalogStatusElement.dataset.state = state;
+    }
+
+    async function ensureTrackedCatalogManifestReady() {
+        if (trackedCatalogLineageBlocked || !TRACKED_CATALOG_FEATURE_ENABLED ||
+            !trackedObjectCatalogLoader?.readManifest) return null;
+        const generation = trackedCatalogRequestGeneration;
+        setTrackedCatalogStatus('Loading tracked catalog summary...', 'loading');
+        try {
+            const manifest = await trackedObjectCatalogLoader.readManifest();
+            if (generation !== trackedCatalogRequestGeneration) return manifest;
+            const currentCount = Number(
+                manifest?.counts?.current ?? manifest?.counts?.current_tracked ?? manifest?.counts?.current_records
+            );
+            setTrackedCatalogStatus(
+                Number.isFinite(currentCount)
+                    ? `${currentCount.toLocaleString()} current tracked records available on demand`
+                    : 'Tracked catalog available on demand',
+                'manifest'
+            );
+            updateSatelliteList();
+            return manifest;
+        } catch (error) {
+            if (generation !== trackedCatalogRequestGeneration) return null;
+            setTrackedCatalogStatus('Tracked catalog summary unavailable; using the orbital catalog', 'error');
+            console.warn('[tracked-catalog]', error);
+            return null;
+        }
+    }
+
+    async function ensureTrackedCatalogLoaded(options = {}) {
+        if (trackedCatalogLineageBlocked || !TRACKED_CATALOG_FEATURE_ENABLED || !trackedObjectCatalogLoader) return null;
+        const generation = ++trackedCatalogRequestGeneration;
+        const includeHistorical = options.includeHistorical === true || simParams.includeHistoricalTrackedObjects;
+        setTrackedCatalogStatus(
+            includeHistorical ? 'Loading current and historical tracked objects...' : 'Loading current tracked objects...',
+            'loading'
+        );
+        try {
+            const loadOptions = {
+                includeHistorical,
+                objectTypes: options.loadAll === true
+                    ? [TRACKED_OBJECT_TYPE.ALL]
+                    : selectedObjectTypesNeedTrackedCatalog(),
+                onProgress: ({ processed_chunks, total_chunks, loaded_records }) => {
+                    if (generation !== trackedCatalogRequestGeneration) return;
+                    setTrackedCatalogStatus(
+                        `Loading tracked catalog ${processed_chunks}/${total_chunks} chunks (${loaded_records.toLocaleString()} records)`,
+                        'loading'
+                    );
+                }
+            };
+            const snapshot = options.force === true
+                ? await trackedObjectCatalogLoader.reloadAll(loadOptions)
+                : await trackedObjectCatalogLoader.load(loadOptions);
+            if (generation !== trackedCatalogRequestGeneration || snapshot?.stale_request) return snapshot;
+            trackedCatalogRecords = [...snapshot.records];
+            const manifestCount = Number(snapshot.manifest?.counts?.total);
+            const scopeLabel = includeHistorical ? 'current + history' : 'current';
+            setTrackedCatalogStatus(
+                `${trackedCatalogRecords.length.toLocaleString()} ${scopeLabel} tracked records loaded` +
+                (Number.isFinite(manifestCount) && includeHistorical ? ` of ${manifestCount.toLocaleString()}` : ''),
+                snapshot.state
+            );
+            updateSatelliteList();
+            const trackedRevision = snapshot.manifest?.catalog_revision ?? snapshot.manifest?.revision ?? null;
+            if (conjunctionPanel && trackedRevision &&
+                conjunctionCatalogMetadata?.tracked_catalog_revision !== trackedRevision) {
+                await syncConjunctionCatalog();
+            }
+            return snapshot;
+        } catch (error) {
+            if (generation !== trackedCatalogRequestGeneration) return null;
+            const snapshot = trackedObjectCatalogLoader.snapshot();
+            trackedCatalogRecords = [...snapshot.records];
+            setTrackedCatalogStatus(
+                trackedCatalogRecords.length
+                    ? `Tracked catalog refresh failed; using ${trackedCatalogRecords.length.toLocaleString()} cached records`
+                    : 'Tracked catalog unavailable; using the orbital catalog',
+                trackedCatalogRecords.length ? 'stale' : 'error'
+            );
+            updateSatelliteList();
+            if (options.throwOnFailure === true) throw error;
+            console.warn('[tracked-catalog]', error);
+            return snapshot;
+        }
+    }
+
+    function scheduleTrackedCatalogSearchLoad(query) {
+        if (!TRACKED_CATALOG_FEATURE_ENABLED || !String(query || '').trim()) return;
+        clearTimeout(trackedCatalogSearchTimer);
+        trackedCatalogSearchTimer = setTimeout(() => {
+            void ensureTrackedCatalogLoaded({
+                loadAll: true,
+                includeHistorical: simParams.includeHistoricalTrackedObjects
+            });
+        }, 160);
     }
 
     function getCompaniesForOrbitSelection(orbitSelection) {
         if (!satellites) return [];
+        const requireTrackedCatalogMembership = activeContextRequiresTrackedMembership();
 
         return Array.from(new Set(
-            satellites
-                .filter(s => orbitMatchesSelection(s, orbitSelection) &&
-                    s.company &&
-                    s.company !== "N/A" &&
-                    !EXCLUDED_COMPANY_FILTER_OPTIONS.has(s.company.toString().trim().toUpperCase()))
-                .map(s => s.company)
+            allTrackedDisplayRecords()
+                .filter(s => recordParticipatesInActiveCatalogContext(s, requireTrackedCatalogMembership) &&
+                    orbitMatchesSelection(s, orbitSelection) &&
+                    trackedObjectMatchesFilters(s, {
+                        orbitSelection,
+                        objectTypeSelection: simParams.objectTypeFilter,
+                        includeHistorical: simParams.includeHistoricalTrackedObjects
+                    }))
+                .flatMap(s => [
+                    s.company,
+                    s.operator,
+                    ...(Array.isArray(s.tags) ? s.tags : [])
+                ])
+                .filter(tag => tag && tag !== 'N/A' &&
+                    !EXCLUDED_COMPANY_FILTER_OPTIONS.has(tag.toString().trim().toUpperCase()))
         )).sort();
     }
 
@@ -1227,7 +1751,7 @@
         if (!satelliteCountDisplay) return;
         const label = text?.toString() || '0';
         satelliteCountDisplay.textContent = label;
-        satelliteCountDisplay.setAttribute('aria-label', ariaLabel || `Satellite catalog status: ${label}`);
+        satelliteCountDisplay.setAttribute('aria-label', ariaLabel || `Tracked-object catalog status: ${label}`);
     }
 
     function uniqueSatelliteCount(records) {
@@ -1236,23 +1760,123 @@
             .filter(Boolean)).size;
     }
 
+    function activeTrackedCatalogCoverageIsPartial() {
+        const snapshot = trackedObjectCatalogLoader?.snapshot?.();
+        const manifest = snapshot?.manifest;
+        if (!manifest) return false;
+        const descriptors = activeTrackedCatalogDescriptors(manifest);
+        const selectedTypes = normalizeTrackedObjectTypeSelection(simParams.objectTypeFilter);
+        const relevant = selectedTypes.includes(TRACKED_OBJECT_TYPE.ALL)
+            ? descriptors
+            : descriptors.filter(descriptor => selectedTypes.includes(
+                String(descriptor?.object_type ?? descriptor?.objectType ?? '').trim().toUpperCase()
+            ));
+        const loaded = new Set(snapshot.loaded_chunk_ids ?? []);
+        return relevant.some((descriptor, index) => !loaded.has(
+            String(descriptor?.id ?? descriptor?.path ?? `chunk-${index}`)
+        ));
+    }
+
+    function activeTrackedCatalogDeclaredTotal() {
+        const counts = trackedObjectCatalogLoader?.snapshot?.().manifest?.counts ?? {};
+        const candidate = simParams.includeHistoricalTrackedObjects
+            ? counts.total
+            : (counts.current ?? counts.current_tracked ?? counts.current_records);
+        const parsed = candidate === undefined || candidate === null ? NaN : Number(candidate);
+        return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+    }
+
     function setSatelliteCatalogCount(searchState = null) {
-        const catalogContext = `${activeFilteredSatelliteCount} / ${activeTotalSatelliteCount}`;
+        const partialCoverage = activeTrackedCatalogCoverageIsPartial();
+        const declaredTotal = activeTrackedCatalogDeclaredTotal();
+        const catalogDenominator = declaredTotal ?? activeTotalSatelliteCount;
+        const catalogContext = partialCoverage && declaredTotal !== null
+            ? `${activeFilteredSatelliteCount} loaded / ${catalogDenominator} tracked`
+            : `${activeFilteredSatelliteCount} / ${catalogDenominator}` + (partialCoverage ? ' loaded' : '');
+        const filteredObjectPhrase = `${activeFilteredSatelliteCount} loaded ` +
+            `object${activeFilteredSatelliteCount === 1 ? '' : 's'} ` +
+            `${activeFilteredSatelliteCount === 1 ? 'matches' : 'match'} active filters`;
+        const totalObjectPhrase = declaredTotal !== null
+            ? `${declaredTotal} tracked catalog object${declaredTotal === 1 ? '' : 's'} declared` +
+                (partialCoverage ? '; loaded coverage is incomplete' : '')
+            : partialCoverage
+                ? `${activeTotalSatelliteCount} currently loaded object${activeTotalSatelliteCount === 1 ? '' : 's'}; ` +
+                    'additional tracked catalog records are available or loading'
+                : `${catalogDenominator} loaded object${catalogDenominator === 1 ? '' : 's'}`;
         if (searchState?.query) {
             const searchContext = searchState.isCapped
                 ? `${searchState.visibleCount} of ${searchState.totalCount} search`
                 : `${searchState.totalCount} search`;
             setSatelliteFoundCountLabel(
                 `${searchContext} | ${catalogContext}`,
-                `${searchState.totalCount} satellites match the search query; ` +
-                `${activeFilteredSatelliteCount} match active filters out of ${activeTotalSatelliteCount} total satellites.`
+                `${searchState.totalCount} loaded object${searchState.totalCount === 1 ? '' : 's'} ` +
+                `${searchState.totalCount === 1 ? 'matches' : 'match'} the search query; ` +
+                `${filteredObjectPhrase} out of ${totalObjectPhrase}.`
             );
             return;
         }
         setSatelliteFoundCountLabel(
             catalogContext,
-            `${activeFilteredSatelliteCount} satellites match active filters out of ${activeTotalSatelliteCount} total satellites.`
+            `${filteredObjectPhrase} out of ${totalObjectPhrase}.`
         );
+    }
+
+    function setTrackedCountValue(element, value) {
+        if (element) element.textContent = Math.max(0, Number(value) || 0).toLocaleString();
+    }
+
+    function updateTrackedCatalogCountPanel(allRecords, filteredRecords, renderReadyOverride = null) {
+        const validationQuarantine = Number(getActiveCatalogValidationSnapshot()?.quality?.quarantined_records ??
+            getActiveCatalogValidationSnapshot()?.quarantine?.length ?? 0);
+        const trackedSnapshot = trackedObjectCatalogLoader?.snapshot?.();
+        const trackedQuarantine = Number(trackedSnapshot?.quarantine?.length ?? 0);
+        const manifestQuarantine = Number(
+            trackedSnapshot?.manifest?.quarantine?.count ??
+            trackedSnapshot?.manifest?.counts?.quarantined ??
+            trackedSnapshot?.manifest?.counts?.quarantine ?? 0
+        );
+        const trackedRecords = allRecords.filter(isTrackedCatalogMember);
+        const filteredTrackedRecords = filteredRecords.filter(isTrackedCatalogMember);
+        const counts = buildTrackedCatalogCounts(trackedRecords, filteredTrackedRecords, {
+            quarantineCount: validationQuarantine + trackedQuarantine + manifestQuarantine,
+            renderReadyPredicate: record => record?.mesh && satelliteMarkerCanRender(record)
+        });
+        const displayCounts = Number.isFinite(renderReadyOverride)
+            ? { ...counts, render_ready: renderReadyOverride }
+            : counts;
+        const manifestCounts = trackedSnapshot?.manifest?.counts ?? {};
+        const declaredCurrent = Number(
+            manifestCounts.current ?? manifestCounts.current_tracked ?? manifestCounts.current_records
+        );
+        const declaredHistorical = Number(
+            manifestCounts.history ?? manifestCounts.historical_tracked ?? manifestCounts.history_total
+        );
+        const declaredTotal = Number(manifestCounts.total);
+        const scopeTotal = simParams.includeHistoricalTrackedObjects && Number.isFinite(declaredTotal)
+            ? declaredTotal
+            : (Number.isFinite(declaredCurrent) ? declaredCurrent : displayCounts.total);
+        setTrackedCountValue(trackedCountTotalElement, scopeTotal);
+        setTrackedCountValue(trackedCountFilteredElement, displayCounts.filtered);
+        setTrackedCountValue(
+            trackedCountCurrentElement,
+            Number.isFinite(declaredCurrent) ? declaredCurrent : displayCounts.current_tracked
+        );
+        setTrackedCountValue(
+            trackedCountHistoricalElement,
+            Number.isFinite(declaredHistorical) ? declaredHistorical : displayCounts.historical_tracked
+        );
+        setTrackedCountValue(trackedCountPropagatableElement, displayCounts.propagatable);
+        setTrackedCountValue(trackedCountMetadataOnlyElement, displayCounts.metadata_only);
+        setTrackedCountValue(trackedCountRenderReadyElement, displayCounts.render_ready);
+        setTrackedCountValue(trackedCountQuarantineElement, displayCounts.quarantine);
+        if (trackedDebrisFacetSummaryElement && isAllDebrisFacetContext()) {
+            trackedDebrisFacetSummaryElement.textContent =
+                `${displayCounts.filtered.toLocaleString()} ${displayCounts.filtered === 1 ? 'match' : 'matches'} | ` +
+                `${displayCounts.propagatable.toLocaleString()} positioned | ` +
+                `${displayCounts.metadata_only.toLocaleString()} position unavailable`;
+        }
+        lastTrackedRenderReadyCount = displayCounts.render_ready;
+        return displayCounts;
     }
 
     function setSatelliteLoadingState(text) {
@@ -1431,15 +2055,24 @@
         }
     }
 
-    function buildFilteredSatellitesBySelection() {
+    function buildFilteredSatellitesBySelection(options = {}) {
         const indexByNoradId = new Map();
         const filtered = [];
+        const includeHistorical = options.includeHistorical === true || simParams.includeHistoricalTrackedObjects;
+        const requireTrackedCatalogMembership = activeContextRequiresTrackedMembership();
 
-        satellites.forEach((s) => {
-            const matchesOrbit = orbitMatchesSelection(s);
-            const matchesCompany = companyMatchesSelection(s.company);
+        allTrackedDisplayRecords().forEach((s) => {
+            if (!recordParticipatesInActiveCatalogContext(s, requireTrackedCatalogMembership)) return;
+            const matchesCatalogFilters = trackedObjectMatchesFilters(s, {
+                orbitSelection: simParams.orbitTypeFilter,
+                objectTypeSelection: simParams.objectTypeFilter,
+                tagSelection: simParams.companyFilter,
+                allTagValue: ALL_COMPANY_OPTION,
+                includeHistorical,
+                facets: isTrackedCatalogMember(s) ? activeTrackedFacets() : null
+            });
 
-            if (!matchesOrbit || !matchesCompany) return;
+            if (!matchesCatalogFilters) return;
 
             const noradKey = s.norad_id?.toString();
             if (!noradKey) return;
@@ -1466,17 +2099,23 @@
     }
 
     function updateSelectedSatelliteControlsVisibility(satData = currentSelectedSatellite) {
-        const hasSelection = !!satData;
-        const hasActiveSatellite = !!satData?.mesh && !satData?.isDecayedTimelineRecord;
+        const hasActiveSatellite = !satData?.isDecayedTimelineRecord &&
+            hasActiveSatelliteSceneRecord(satData);
         if (selectedSatelliteControls) {
             selectedSatelliteControls.hidden = !hasActiveSatellite;
             selectedSatelliteControls.setAttribute('aria-hidden', hasActiveSatellite ? 'false' : 'true');
+            selectedSatelliteControls.querySelectorAll('button, input, select').forEach(control => {
+                control.disabled = !hasActiveSatellite;
+            });
         }
         const yprSlidersRow = document.getElementById('yprSlidersRow');
         if (yprSlidersRow) {
             const showSliders = hasActiveSatellite && !!simParams.showYPR;
             yprSlidersRow.hidden = !showSliders;
             yprSlidersRow.style.display = showSliders ? 'grid' : 'none';
+            yprSlidersRow.querySelectorAll('input, button, select').forEach(control => {
+                control.disabled = !hasActiveSatellite;
+            });
         }
         setYPRVisibility(yprFrame, hasActiveSatellite && !!simParams.showYPR);
     }
@@ -1591,9 +2230,13 @@
         const selectedLabelIsNotQuery = !!currentSelectedSatellite &&
             satelliteSearchPendingClearForNextSelection &&
             satelliteSearchInput.value === satelliteSearchLabel(currentSelectedSatellite);
+        const effectiveQuery = selectedLabelIsNotQuery ? '' : satelliteSearchInput.value;
+        const searchableRecords = String(effectiveQuery || '').trim()
+            ? buildFilteredSatellitesBySelection({ includeHistorical: true })
+            : filteredTLEs;
         const searchState = buildSatelliteSearchMatches(
-            filteredTLEs,
-            selectedLabelIsNotQuery ? '' : satelliteSearchInput.value,
+            searchableRecords,
+            effectiveQuery,
             {
             limit: SATELLITE_SEARCH_LIMIT,
             emptyQueryPreviewLimit: 12
@@ -1617,8 +2260,21 @@
             const title = document.createElement('strong');
             title.textContent = satelliteSearchLabel(sat);
             const meta = document.createElement('small');
-            meta.textContent = `NORAD ${sat.norad_id || 'N/A'} | ${sat.orbitType || 'N/A'} | ${sat.company || 'N/A'}`;
+            meta.textContent = `NORAD ${sat.norad_id || 'N/A'} | ${sat.orbit_class || sat.orbitType || 'Unknown orbit'} | ` +
+                `${sat.company || sat.operator || 'Unassigned'}`;
             item.append(title, meta);
+            const badges = satelliteSearchBadges(sat);
+            if (badges.length) {
+                const badgeRow = document.createElement('span');
+                badgeRow.className = 'satellite-search-badges';
+                badges.forEach(label => {
+                    const badge = document.createElement('span');
+                    badge.className = 'satellite-search-badge';
+                    badge.textContent = label;
+                    badgeRow.appendChild(badge);
+                });
+                item.appendChild(badgeRow);
+            }
             item.addEventListener('mousedown', (event) => {
                 event.preventDefault();
                 selectSatelliteFromSearch(index);
@@ -1644,6 +2300,10 @@
     function selectSatelliteFromSearch(index) {
         const sat = currentSearchResults[index];
         if (!sat || !satelliteSelectDropdown) return;
+        if (isHistoricalTrackedRecord(sat)) {
+            simParams.includeHistoricalTrackedObjects = true;
+            if (includeHistoricalTrackedObjectsCheckbox) includeHistoricalTrackedObjectsCheckbox.checked = true;
+        }
         setSatelliteSelectToSatellite(sat);
         markSatelliteSearchReadyForNextSelection(sat);
         closeSatelliteSearchResults();
@@ -1692,7 +2352,11 @@
         if (satelliteSearchEmpty) satelliteSearchEmpty.hidden = true;
         closeSatelliteSearchResults();
         applyOrbitSelectionToUI(DEFAULT_ORBIT_FILTER);
+        applyObjectTypeSelectionToUI(DEFAULT_OBJECT_TYPE_FILTER);
+        simParams.includeHistoricalTrackedObjects = false;
+        if (includeHistoricalTrackedObjectsCheckbox) includeHistoricalTrackedObjectsCheckbox.checked = false;
         applyCompanySelectionToUI(DEFAULT_COMPANY_FILTER);
+        simParams.trackedFacets = normalizeTrackedFacets(DEFAULT_TRACKED_FACETS);
         refreshFilteredSatelliteView();
     }
 
@@ -1788,6 +2452,17 @@
         'manufacturer',
         'launch_date',
         'object_type',
+        'rcs',
+        'rcs_m2',
+        'rcs_size',
+        'rcs_status',
+        'has_current_elements',
+        'metadata_only',
+        'propagation_status',
+        'unavailable_reason',
+        'no_current_elements_reason',
+        'tracked_observation_status',
+        'presence_status',
         'lifecycle_status',
         'lifecyclestatus',
         'operational_status',
@@ -1861,13 +2536,18 @@
             ['Inclination (deg)', satData.inclination_deg ?? satData.inclination ?? elementSet.omm?.INCLINATION],
             ['Eccentricity', satData.eccentricity ?? elementSet.omm?.ECCENTRICITY],
             ['Mean motion (rev/day)', satData.mean_motion ?? satData.mean_motion_rev_per_day ?? elementSet.omm?.MEAN_MOTION],
-            ['Tag / company', satData.company ?? satData.operator ?? meta.operator ?? meta.manufacturer],
+            ['Owner / operator', satData.owner ?? satData.company ?? satData.operator ?? meta.operator ?? meta.manufacturer],
             ['Launch date', satData.launch_date ?? meta.launch_date],
             ['Launch site', decay.launch_site ?? satData.launch_site ?? meta.launch_site],
             ['Lifecycle status', satData.lifecycle_status ?? satData.operational_status ?? meta.lifecycle_status],
             ['Decay status', decay.decay_status ?? satData.decay_status],
             ['Decay date', decay.decay_date ?? satData.decay_date],
             ['Object type', satData.object_type ?? meta.object_type],
+            ['Radar cross section (m2)', satData.rcs_m2 ?? satData.rcs ?? 'Not reported'],
+            ['RCS reporting status', satData.rcs_status ?? satData.rcs_size ?? 'Unknown'],
+            ['Position status', isTrackedRecordPropagatable(satData) ? 'Current orbital elements' : 'No current orbital elements'],
+            ['Position unavailable reason', satData.unavailable_reason ?? satData.no_current_elements_reason],
+            ['Tracking status', satData.observation_status ?? satData.tracked_observation_status ?? satData.presence_status],
             ['Element format', elementSet.format ?? satData.source_format],
             ['Element epoch', elementSet.epoch],
             ['App satellite id', satData.satellite_id ?? satData.satelliteId ?? satData.id ?? meta.satellite_id ?? meta.satelliteId ?? meta.id]
@@ -1989,15 +2669,25 @@
               <p class="selected-satellite-source-detail">${escapeHtml(sourceDetail)}</p>
             </details>`
             : '';
+        const metadataOnly = !isTrackedRecordPropagatable(satData) || isHistoricalTrackedRecord(satData);
+        const availabilitySection = metadataOnly
+            ? `<p class="selected-satellite-availability-note"><strong>Position unavailable.</strong> ${escapeHtml(
+                satData.unavailable_reason ?? satData.no_current_elements_reason ??
+                (isHistoricalTrackedRecord(satData)
+                    ? 'This is a historical tracked record.'
+                    : 'No current orbital elements are available.')
+            )} This object is not rendered on the globe or map.</p>`
+            : '';
         selectedSatelliteDetailPanel.innerHTML = `
           <div class="selected-satellite-detail-header">
-            <span>Selected Satellite</span>
-            <strong>${escapeHtml(satData.satellite_name || satData.name || 'Satellite')}</strong>
+            <span>Selected Tracked Object</span>
+            <strong>${escapeHtml(satData.satellite_name || satData.name || 'Tracked object')}</strong>
           </div>
           <div class="selected-satellite-detail-scroll">
+            ${availabilitySection}
             <details class="selected-satellite-detail-section selected-satellite-data-section" open>
               <summary>
-                <span>Satellite data</span>
+                <span>Catalog data</span>
                 <small>${rows ? 'Collapse details' : 'No extra data'}</small>
               </summary>
               <table class="selected-satellite-detail-table">
@@ -2214,6 +2904,30 @@
         return value == null ? null : String(value);
     }
 
+    function statusTrackedRevision(status) {
+        const value = status?.tracked_revision ?? statusDatasetRevision(status, 'tracked');
+        return value == null ? null : String(value);
+    }
+
+    function trackedStatusIsIncoherent(status) {
+        return status?.tracked_pointer_valid === false ||
+            status?.tracked_source_revision_match === false ||
+            status?.tracked_revision_match === false;
+    }
+
+    function clearTrackedCatalogOverlay(message = 'Tracked catalog unavailable; using the orbital catalog') {
+        trackedCatalogRequestGeneration += 1;
+        trackedCatalogLineageBlocked = true;
+        restoreOrbitalRecordsAfterTrackedOverlay(satellites);
+        trackedObjectCatalogLoader?.clear?.();
+        trackedCatalogRecords = [];
+        combinedTrackedCatalogCache = [];
+        combinedTrackedCatalogCacheKey = null;
+        simParams.trackedFacets = normalizeTrackedFacets(DEFAULT_TRACKED_FACETS);
+        setTrackedCatalogStatus(message, 'lineage-error');
+        updateSatelliteList();
+    }
+
     async function refreshCatalogForRevision({ revision, previous, status, previousStatus }) {
         if (catalogRefreshInProgress) throw new Error('A catalog refresh is already in progress.');
         if (!scene) throw new Error('The orbital scene is not ready for catalog refresh.');
@@ -2224,8 +2938,28 @@
         const previousOrbitalRevision = statusOrbitalRevision(previousStatus);
         const refreshOrbitalCatalog = !currentOrbitalRevision || !previousOrbitalRevision ||
             currentOrbitalRevision !== previousOrbitalRevision;
+        const currentTrackedRevision = statusTrackedRevision(status);
+        const previousTrackedRevision = statusTrackedRevision(previousStatus);
+        const hadTrackedManifest = !!trackedObjectCatalogLoader?.snapshot?.().manifest;
+        const trackedLineageIncoherent = trackedStatusIsIncoherent(status) ||
+            (refreshOrbitalCatalog && (
+                !currentTrackedRevision ||
+                (previousTrackedRevision && currentTrackedRevision === previousTrackedRevision)
+            ));
+        const refreshTrackedCatalog = TRACKED_CATALOG_FEATURE_ENABLED && !trackedLineageIncoherent && (
+            hadTrackedManifest
+                ? (!currentTrackedRevision || !previousTrackedRevision || currentTrackedRevision !== previousTrackedRevision)
+                : !!currentTrackedRevision
+        );
         try {
             console.info(`[catalog] Revision changed from ${previous} to ${revision}; refreshing orbital and timeline data.`);
+            if (hadTrackedManifest && (trackedLineageIncoherent || (refreshOrbitalCatalog && refreshTrackedCatalog))) {
+                clearTrackedCatalogOverlay(
+                    trackedLineageIncoherent
+                        ? 'Tracked catalog lineage does not match the orbital catalog; using GP data only'
+                        : 'Refreshing tracked catalog lineage; using GP data until reconciliation completes'
+                );
+            }
             const orbitalCatalogPromise = !refreshOrbitalCatalog
                 ? Promise.resolve({ kind: 'UNCHANGED', records: null })
                 : staticSource
@@ -2263,6 +2997,24 @@
             }
 
             applyAuxiliaryCatalogs(auxiliaryCatalogs);
+            if (refreshTrackedCatalog) {
+                trackedCatalogLineageBlocked = false;
+                try {
+                    await ensureTrackedCatalogLoaded({
+                        force: true,
+                        loadAll: true,
+                        includeHistorical: simParams.includeHistoricalTrackedObjects,
+                        throwOnFailure: true
+                    });
+                } catch (trackedError) {
+                    if (!refreshOrbitalCatalog && !trackedStatusIsIncoherent(status)) throw trackedError;
+                    clearTrackedCatalogOverlay(
+                        'Tracked catalog could not be reconciled with the refreshed orbital catalog; using GP data only'
+                    );
+                    updateSatelliteList();
+                    console.warn('[tracked-catalog] Incoherent tracked overlay was dropped.', trackedError);
+                }
+            }
             if (orbitalRefreshError) throw orbitalRefreshError;
             if (selectedNorad && refreshOrbitalCatalog) {
                 const restored = buildFilteredSatellitesBySelection()
@@ -2530,7 +3282,7 @@
             }
             await navigator.share({
                 title: 'OpenBEXI Earth Orbit',
-                text: 'OpenBEXI Earth Orbit shared satellite view',
+                text: 'OpenBEXI Earth Orbit shared tracked-object view',
                 url: shareUrl,
                 ...(files.length ? { files } : {})
             });
@@ -2540,12 +3292,18 @@
         }
     }
 
-    function applyPendingShareStateAfterSatelliteLoad() {
+    async function applyPendingShareStateAfterSatelliteLoad() {
         if (!pendingShareState || pendingShareStateApplied) return;
         pendingShareStateApplied = true;
 
         if (pendingShareState.orbitTypeFilter?.length) applyOrbitSelectionToUI(pendingShareState.orbitTypeFilter);
+        if (pendingShareState.objectTypeFilter?.length) applyObjectTypeSelectionToUI(pendingShareState.objectTypeFilter);
+        simParams.includeHistoricalTrackedObjects = !!pendingShareState.includeHistoricalTrackedObjects;
+        if (includeHistoricalTrackedObjectsCheckbox) {
+            includeHistoricalTrackedObjectsCheckbox.checked = simParams.includeHistoricalTrackedObjects;
+        }
         if (pendingShareState.companyFilter?.length) applyCompanySelectionToUI(pendingShareState.companyFilter);
+        simParams.trackedFacets = normalizeTrackedFacets(pendingShareState.trackedFacets);
 
         simParams.view3D = pendingShareState.view3D;
         simParams.viewMercator = pendingShareState.viewMercator;
@@ -2589,9 +3347,22 @@
         if (orbitFrame) setOrbitFrameVisibility(orbitFrame, simParams.showOrbitFrame);
         updateSatelliteList();
 
+        const needsTrackedCatalog = pendingShareState.selectedSatelliteNoradId ||
+            simParams.orbitTypeFilter.includes(ORBIT_ALL_OPTION) ||
+            !simParams.objectTypeFilter.includes(TRACKED_OBJECT_TYPE.ALL) ||
+            simParams.includeHistoricalTrackedObjects;
+        if (needsTrackedCatalog) {
+            await ensureTrackedCatalogLoaded({
+                loadAll: !!pendingShareState.selectedSatelliteNoradId ||
+                    simParams.objectTypeFilter.includes(TRACKED_OBJECT_TYPE.ALL),
+                includeHistorical: simParams.includeHistoricalTrackedObjects
+            });
+        }
+
+        const sharedRecords = allTrackedDisplayRecords();
         const sharedSat = pendingShareState.selectedSatelliteNoradId
-            ? satellites.find(s => s.norad_id?.toString() === pendingShareState.selectedSatelliteNoradId)
-            : satellites.find(s => s.satellite_name === pendingShareState.selectedSatelliteName);
+            ? sharedRecords.find(s => s.norad_id?.toString() === pendingShareState.selectedSatelliteNoradId)
+            : sharedRecords.find(s => s.satellite_name === pendingShareState.selectedSatelliteName);
         if (sharedSat) {
             selectSatelliteViaShortcut(sharedSat);
         } else if (pendingShareState.selectedSatelliteNoradId) {
@@ -3649,8 +4420,30 @@
         copyShareImageButton?.addEventListener('click', copyCurrentShareImage);
 
         orbitTypeFilterSelect = document.getElementById('orbitTypeFilter');
+        objectTypeFilterSelect = document.getElementById('objectTypeFilter');
         companyFilterSelect = document.getElementById('companyFilter');
         satelliteCountDisplay = document.getElementById('satelliteCountDisplay');
+        includeHistoricalTrackedObjectsCheckbox = document.getElementById('includeHistoricalTrackedObjects');
+        trackedCatalogStatusElement = document.getElementById('trackedCatalogStatus');
+        trackedDebrisFacetsElement = document.getElementById('trackedDebrisFacets');
+        trackedDebrisFacetSummaryElement = document.getElementById('trackedDebrisFacetSummary');
+        resetTrackedDebrisFacetsButton = document.getElementById('resetTrackedDebrisFacets');
+        trackedPositionFacetElement = document.getElementById('trackedPositionFacet');
+        trackedRcsFacetElement = document.getElementById('trackedRcsFacet');
+        trackedOwnerFacetElement = document.getElementById('trackedOwnerFacet');
+        trackedLaunchSiteFacetElement = document.getElementById('trackedLaunchSiteFacet');
+        trackedStatusFacetElement = document.getElementById('trackedStatusFacet');
+        trackedLaunchYearFromElement = document.getElementById('trackedLaunchYearFrom');
+        trackedLaunchYearToElement = document.getElementById('trackedLaunchYearTo');
+        trackedDesignatorFacetElement = document.getElementById('trackedDesignatorFacet');
+        trackedCountTotalElement = document.getElementById('trackedCountTotal');
+        trackedCountFilteredElement = document.getElementById('trackedCountFiltered');
+        trackedCountCurrentElement = document.getElementById('trackedCountCurrent');
+        trackedCountHistoricalElement = document.getElementById('trackedCountHistorical');
+        trackedCountPropagatableElement = document.getElementById('trackedCountPropagatable');
+        trackedCountMetadataOnlyElement = document.getElementById('trackedCountMetadataOnly');
+        trackedCountRenderReadyElement = document.getElementById('trackedCountRenderReady');
+        trackedCountQuarantineElement = document.getElementById('trackedCountQuarantine');
 
         view3DToggle = document.getElementById('view3DToggle');
         viewMercatorToggle = document.getElementById('viewMercatorToggle');
@@ -3710,6 +4503,10 @@
         const rollVal = document.getElementById('rollVal');
 
         applyOrbitSelectionToUI(simParams.orbitTypeFilter);
+        applyObjectTypeSelectionToUI(simParams.objectTypeFilter);
+        if (includeHistoricalTrackedObjectsCheckbox) {
+            includeHistoricalTrackedObjectsCheckbox.checked = simParams.includeHistoricalTrackedObjects;
+        }
         applyCompanySelectionToUI(simParams.companyFilter);
         view3DToggle.checked = simParams.view3D;
         viewMercatorToggle.checked = simParams.viewMercator;
@@ -3774,9 +4571,35 @@
 
             const changedValue = button.dataset.orbitFilter;
             applyOrbitSelectionToUI(
-                toggleSatelliteCategorySelection(simParams.orbitTypeFilter, changedValue)
+                toggleTrackedOrbitSelection(simParams.orbitTypeFilter, changedValue)
             );
             refreshFilteredSatelliteView();
+            void ensureTrackedCatalogLoaded({
+                loadAll: simParams.objectTypeFilter.includes(TRACKED_OBJECT_TYPE.ALL)
+            });
+        });
+
+        objectTypeFilterSelect?.addEventListener('click', (event) => {
+            const button = event.target.closest('button[data-object-type-filter]');
+            if (!button) return;
+            applyObjectTypeSelectionToUI(
+                toggleTrackedObjectTypeSelection(simParams.objectTypeFilter, button.dataset.objectTypeFilter)
+            );
+            refreshFilteredSatelliteView();
+            void ensureTrackedCatalogLoaded({
+                loadAll: simParams.objectTypeFilter.includes(TRACKED_OBJECT_TYPE.ALL)
+            });
+        });
+
+        includeHistoricalTrackedObjectsCheckbox?.addEventListener('change', () => {
+            simParams.includeHistoricalTrackedObjects = includeHistoricalTrackedObjectsCheckbox.checked;
+            refreshFilteredSatelliteView();
+            if (simParams.includeHistoricalTrackedObjects) {
+                void ensureTrackedCatalogLoaded({
+                    loadAll: simParams.objectTypeFilter.includes(TRACKED_OBJECT_TYPE.ALL),
+                    includeHistorical: true
+                });
+            }
         });
 
         companyFilterSelect.addEventListener('change', (event) => {
@@ -3794,6 +4617,31 @@
             applyCompanySelectionToUI(selection);
             refreshFilteredSatelliteView();
         });
+
+        trackedDebrisFacetsElement?.addEventListener('change', event => {
+            const checkbox = event.target.closest('input[type="checkbox"][data-tracked-facet-key]');
+            if (checkbox) {
+                updateTrackedFacetFromCheckbox(checkbox);
+                return;
+            }
+            if (event.target === trackedLaunchYearFromElement || event.target === trackedLaunchYearToElement) {
+                simParams.trackedFacets = normalizeTrackedFacets({
+                    ...simParams.trackedFacets,
+                    launchYearFrom: trackedLaunchYearFromElement?.value || null,
+                    launchYearTo: trackedLaunchYearToElement?.value || null
+                });
+                refreshFilteredSatelliteView();
+            }
+        });
+        trackedDesignatorFacetElement?.addEventListener('input', () => {
+            simParams.trackedFacets = normalizeTrackedFacets({
+                ...simParams.trackedFacets,
+                designator: trackedDesignatorFacetElement.value
+            });
+            clearTimeout(trackedDesignatorFacetTimer);
+            trackedDesignatorFacetTimer = setTimeout(refreshFilteredSatelliteView, 160);
+        });
+        resetTrackedDebrisFacetsButton?.addEventListener('click', resetTrackedDebrisFacets);
 
         [resetFiltersButton, resetFiltersEmptyButton].forEach(button => {
             button?.addEventListener('click', resetFiltersToDefaults);
@@ -3890,7 +4738,7 @@
                 return;
             }
 
-            if (currentSelectedSatellite) {
+            if (hasActiveSatelliteSceneRecord(currentSelectedSatellite)) {
                 simParams.showOrbit = true;
                 updateOrbitTrajectory(scene, simParams, currentSelectedSatellite);
             } else {
@@ -3904,6 +4752,7 @@
             satelliteSearchInput.addEventListener('input', () => {
                 clearSatelliteSearchInputForNextSelection();
                 activeSearchResultIndex = -1;
+                scheduleTrackedCatalogSearchLoad(satelliteSearchInput.value);
                 renderSatelliteSearchResults(buildFilteredSatellitesBySelection(), true);
             });
             satelliteSearchInput.addEventListener('focus', () => {
@@ -3972,7 +4821,7 @@
 
         const showYPRToggle = document.getElementById('showYPRToggle');
         const updateYPRControlsVisibility = (visible) => {
-            const showSliders = !!visible && !!currentSelectedSatellite;
+            const showSliders = !!visible && hasActiveSatelliteSceneRecord(currentSelectedSatellite);
             if (yprSlidersRow) {
                 yprSlidersRow.hidden = !showSliders;
                 yprSlidersRow.style.display = showSliders ? 'grid' : 'none';
@@ -4136,6 +4985,8 @@
             const prevTleSat = satellites.find(s => s.norad_id.toString() === detailedSatelliteModel.userData.noradId.toString());
             if (prevTleSat?.mesh) {
                 prevTleSat.mesh.visible = prevTleSat.mesh.userData?.filterVisible === true &&
+                    !isHistoricalTrackedRecord(prevTleSat) &&
+                    isTrackedRecordPropagatable(prevTleSat) &&
                     satelliteMarkerCanRender(prevTleSat);
                 prevTleSat.isSelected = false;
             }
@@ -4156,12 +5007,13 @@
             return;
         }
 
+        const selectableRecords = allTrackedDisplayRecords();
         let tleSatData = selectedNoradId
-            ? satellites.find(s => s.norad_id.toString() === selectedNoradId)
+            ? selectableRecords.find(s => s.norad_id.toString() === selectedNoradId)
             : null;
 
         if (!tleSatData) {
-            tleSatData = satellites.find(s => s.satellite_name === selectedNameInDropdown);
+            tleSatData = selectableRecords.find(s => s.satellite_name === selectedNameInDropdown);
         }
         if (!tleSatData) {
             currentSelectedSatellite = null;
@@ -4178,6 +5030,14 @@
 
         currentSelectedSatellite = tleSatData;
         simParams.selectedSatelliteNoradId = tleSatData.norad_id?.toString() || null;
+        if (!hasActiveSatelliteSceneRecord(tleSatData)) {
+            setShowOnlySelectedSatellite(false);
+            removeAllGeometry(scene);
+            selectSatelliteSprite(tleSatData);
+            markSatelliteSearchReadyForNextSelection(tleSatData);
+            updateSatelliteList();
+            return;
+        }
         setShowOnlySelectedSatellite(true);
         enableHighDefForSelectedSatelliteIfNeeded(tleSatData);
         updateSelectedSatelliteDetails(tleSatData);
@@ -4245,7 +5105,9 @@
             }
             : modelResolution;
         const isCurrentSelection = () =>
-            selectionToken === satelliteModelLoadToken && currentSelectedSatellite === tleSatData;
+            selectionToken === satelliteModelLoadToken &&
+            currentSelectedSatellite === tleSatData &&
+            hasActiveSatelliteSceneRecord(tleSatData);
 
         console.info(
             `[model] ${tleSatData?.satellite_name || noradId}: loading "${resolvedModel.assetId}".`,
@@ -4275,7 +5137,7 @@
             );
             normalizeSelectedModelVisualFit(detailedSatelliteModel);
 
-            if (tleSatData?.satrec) {
+            if (hasActiveSatelliteSceneRecord(tleSatData) && tleSatData?.satrec) {
                 currentSelectedSatellite = tleSatData;
                 simParams.selectedSatelliteNoradId = tleSatData.norad_id?.toString() || null;
                 tleSatData.isSelected = true;
@@ -4302,7 +5164,7 @@
             });
 
             flyCameraToSelectedSatellite(detailedSatelliteModel, 1500, false);
-            if (simParams.showOrbit && currentSelectedSatellite) {
+            if (simParams.showOrbit && hasActiveSatelliteSceneRecord(currentSelectedSatellite)) {
                 updateOrbitTrajectory(scene, simParams, currentSelectedSatellite);
             }
             console.info(`[model] ${tleSatData.satellite_name}: detailed model "${resolvedModel.assetId}" displayed.`);
@@ -4343,6 +5205,7 @@
                 if (tleSat?.mesh) {
                     tleSat.mesh.userData.pointMarkerSuppressed = false;
                     tleSat.mesh.visible = tleSat.mesh.userData?.filterVisible === true &&
+                        hasActiveSatelliteSceneRecord(tleSat) &&
                         satelliteMarkerCanRender(tleSat);
                 }
             }
@@ -4377,17 +5240,27 @@
         },
         snapshot() {
             const state = simulationClock.state();
+            const selectedSceneRecord = hasActiveSatelliteSceneRecord(currentSelectedSatellite)
+                ? currentSelectedSatellite
+                : null;
+            const selectedOrbitGeometry = scene?.getObjectByName?.('selectedOrbitTrajectoryRoot') ?? null;
             return {
                 timeMs: state.timeMs,
                 dateUtc: new Date(state.timeMs).toISOString(),
                 rate: state.rate,
                 boundary: state.boundary,
                 selectedNoradId: currentSelectedSatellite?.norad_id?.toString() || null,
-                selectedMeshUuid: currentSelectedSatellite?.mesh?.uuid || null,
-                selectedMaterialUuid: currentSelectedSatellite?.mesh?.material?.uuid || null,
-                selectedPosition: currentSelectedSatellite?.mesh?.position?.toArray?.() || null,
+                selectedMeshUuid: selectedSceneRecord?.mesh?.uuid || null,
+                selectedMaterialUuid: selectedSceneRecord?.mesh?.material?.uuid || null,
+                selectedPosition: selectedSceneRecord?.mesh?.position?.toArray?.() || null,
                 selectedDetailedModelVisible: detailedSatelliteModel?.visible === true,
+                selectedOrbitGeometryCount: selectedOrbitGeometry ? 1 : 0,
                 orbitTypeFilter: [...simParams.orbitTypeFilter],
+                objectTypeFilter: [...simParams.objectTypeFilter],
+                includeHistoricalTrackedObjects: simParams.includeHistoricalTrackedObjects,
+                trackedFacets: normalizeTrackedFacets(simParams.trackedFacets),
+                trackedCatalogState: trackedObjectCatalogLoader?.snapshot?.().state ?? 'disabled',
+                trackedCatalogLineageBlocked,
                 ...satelliteMarkerDiagnostics(renderableSatellites, EARTH_SCENE_RADIUS),
                 motion: { ...satelliteMotionController.diagnostics() },
                 ephemerisMode: solarSystemOverview?.ephemerisRuntimeMode || null,
@@ -5086,7 +5959,8 @@
     }
 
     function satelliteMarkerCanRender(satelliteRecord) {
-        return satelliteMotionController.isRenderReady(
+        return hasActiveSatelliteSceneRecord(satelliteRecord) &&
+            satelliteMotionController.isRenderReady(
             satelliteRecord,
             simulationClock.state().timeMs
         );
@@ -5102,10 +5976,12 @@
             if (companyFilterSelect) {
                 renderCompanyFilter([], simParams.companyFilter);
             }
+            renderTrackedDebrisFacetPanel([]);
             updateViewShortcutButtonsState();
             return;
         }
 
+        const allRecords = allTrackedDisplayRecords();
         const companiesForOrbit = getCompaniesForOrbitSelection(simParams.orbitTypeFilter);
         const previousCompanySelection = Array.from(simParams.companyFilter);
         const availableCompanySelection = normalizeCompanySelection(
@@ -5114,25 +5990,37 @@
             ))
         );
         renderCompanyFilter(companiesForOrbit, availableCompanySelection);
+        renderTrackedDebrisFacetPanel(allRecords);
 
         const filteredTLEs = buildFilteredSatellitesBySelection();
         activeFilteredSatelliteCount = filteredTLEs.length;
-        activeTotalSatelliteCount = uniqueSatelliteCount(satellites);
+        const scopedCatalogRecords = simParams.includeHistoricalTrackedObjects
+            ? allRecords
+            : allRecords.filter(record => !isHistoricalTrackedRecord(record));
+        activeTotalSatelliteCount = uniqueSatelliteCount(scopedCatalogRecords);
         const selectedNorad = currentSelectedSatellite?.norad_id?.toString() ?? null;
         const selectedRepresentative = selectedNorad
             ? filteredTLEs.find(s => s.norad_id?.toString() === selectedNorad) ?? null
             : null;
         if (currentSelectedSatellite && !selectedRepresentative) {
             clearSelectedSatelliteForFilterExclusion();
-        } else if (selectedRepresentative && selectedRepresentative !== currentSelectedSatellite) {
+        } else if (selectedRepresentative) {
+            const selectedIsSceneEligible = hasActiveSatelliteSceneRecord(selectedRepresentative);
+            if (!selectedIsSceneEligible) {
+                satelliteModelLoadToken += 1;
+                if (currentSelectedSatellite?.mesh) currentSelectedSatellite.isSelected = false;
+                clearDetailedSatelliteView();
+                removeAllGeometry(scene);
+                setShowOnlySelectedSatellite(false);
+            }
             currentSelectedSatellite = selectedRepresentative;
-            selectedRepresentative.isSelected = true;
+            selectedRepresentative.isSelected = selectedIsSceneEligible;
             simParams.selectedSatelliteName = selectedRepresentative.satellite_name;
             simParams.selectedSatelliteNoradId = selectedNorad;
         }
         if (satelliteSearchInput) {
             satelliteSearchInput.disabled = false;
-            satelliteSearchInput.placeholder = 'Search satellite or NORAD ID';
+            satelliteSearchInput.placeholder = 'Search tracked object or NORAD ID';
         }
         if (satelliteSearchClearButton) satelliteSearchClearButton.disabled = false;
 
@@ -5144,7 +6032,9 @@
             if (!s.mesh) return;
 
             const repForNorad = noradToRepresentative.get(s.norad_id?.toString());
-            const isVisibleInFilter = repForNorad === s;
+            const isVisibleInFilter = repForNorad === s &&
+                !isHistoricalTrackedRecord(s) &&
+                isTrackedRecordPropagatable(s);
 
             const isDetailedModelForThisSat =
                 detailedSatelliteModel &&
@@ -5155,6 +6045,7 @@
 
             if (simParams.showOnlySelectedSatellite) {
                 includedInDisplay = !!currentSelectedSatellite &&
+                    hasActiveSatelliteSceneRecord(currentSelectedSatellite) &&
                     currentSelectedSatellite.norad_id?.toString() === s.norad_id?.toString();
             }
 
@@ -5162,8 +6053,11 @@
             s.mesh.userData.pointMarkerSuppressed = !!isDetailedModelForThisSat;
             s.mesh.visible = includedInDisplay && !s.mesh.userData.pointMarkerSuppressed && satelliteMarkerCanRender(s);
         });
-        renderableSatellites = satellites.filter(s => s.mesh?.userData?.filterVisible === true);
+        renderableSatellites = satellites.filter(s =>
+            s.mesh?.userData?.filterVisible === true && hasActiveSatelliteSceneRecord(s)
+        );
 
+        updateTrackedCatalogCountPanel(allRecords, filteredTLEs);
         setSatelliteCatalogCount();
         updateFilterStatus(filteredTLEs);
         updateSelectedSatelliteDetails(currentSelectedSatellite);
@@ -5195,12 +6089,19 @@
 
         currentSelectedSatellite = tleSatData;
 
-        if (tleSatData?.mesh) {
+        const hasActiveOrbit = hasActiveSatelliteSceneRecord(tleSatData);
+        if (hasActiveOrbit) {
             simParams.selectedSatelliteNoradId = tleSatData.norad_id?.toString() || null;
             tleSatData.isSelected = true;
             simParams.selectedSatelliteName = tleSatData.satellite_name;
             setSatelliteSelectToSatellite(tleSatData);
             if (simParams.showOrbit) updateOrbitTrajectory(scene, simParams, tleSatData);
+        } else if (tleSatData) {
+            simParams.selectedSatelliteName = tleSatData.satellite_name || tleSatData.name || 'Tracked object';
+            simParams.selectedSatelliteNoradId = tleSatData.norad_id?.toString() || null;
+            setShowOnlySelectedSatellite(false);
+            if (satelliteSelectDropdown) setSatelliteSelectToSatellite(tleSatData);
+            removeAllGeometry(scene);
         } else {
             simParams.selectedSatelliteName = "None";
             simParams.selectedSatelliteNoradId = null;
@@ -5327,22 +6228,26 @@
             satelliteMotionController.invalidate();
         }
         let selectedPropagation = null;
+        const propagatableSelectedSatellite = isTrackedRecordPropagatable(currentSelectedSatellite) &&
+            !isHistoricalTrackedRecord(currentSelectedSatellite)
+            ? currentSelectedSatellite
+            : null;
         if (!simParams.solarSystemOverview) {
             const motion = satelliteMotionController.update(renderableSatellites, {
-                selectedObject: currentSelectedSatellite,
+                selectedObject: propagatableSelectedSatellite,
                 simTimeMs: clockState.timeMs,
                 rate: clockState.rate,
                 clockGeneration: clockState.generation,
                 realTimeMs: nowPerf
             });
             selectedPropagation = motion.selectedPropagation;
-            if (currentSelectedSatellite) {
-                currentSelectedSatellite.propagationInvalid = !isUsableOrbitPosition(selectedPropagation?.position);
-                if (currentSelectedSatellite.propagationInvalid) selectedPropagation = null;
+            if (propagatableSelectedSatellite) {
+                propagatableSelectedSatellite.propagationInvalid = !isUsableOrbitPosition(selectedPropagation?.position);
+                if (propagatableSelectedSatellite.propagationInvalid) selectedPropagation = null;
             }
         }
 
-        if (!simParams.solarSystemOverview && detailedSatelliteModel && currentSelectedSatellite?.satrec) {
+        if (!simParams.solarSystemOverview && detailedSatelliteModel && propagatableSelectedSatellite?.satrec) {
             if (setDetailedSatelliteModelPositionFromPropagation(selectedPropagation, 'animation-frame')) {
                 detailedSatelliteModel.visible = true;
                 detailedSatelliteModel.userData.hiddenForInvalidPropagation = false;
@@ -5396,7 +6301,7 @@
             }
         }
 
-        updateFootprints(currentSelectedSatellite, gmstNow, {
+        updateFootprints(propagatableSelectedSatellite, gmstNow, {
             showFootprint: !!simParams.showFootprint && !simParams.solarSystemOverview,
             mercatorCtx: null,
             simDate: SIM_DATE,
@@ -5413,9 +6318,13 @@
         const show3D = simParams.view3D || simParams.solarSystemOverview;
         if (renderer) renderer.domElement.style.display = show3D ? 'block' : 'none';
         if (show3D) {
-            syncSatellitePointCloud(renderableSatellites);
-            if (simParams.showOrbit && !simParams.solarSystemOverview) {
-                refreshOrbitTrajectoryIfNeeded(scene, simParams, currentSelectedSatellite, { realTimeMs: nowPerf });
+            const renderedTrackedCount = syncSatellitePointCloud(renderableSatellites);
+            if (renderedTrackedCount !== lastTrackedRenderReadyCount) {
+                setTrackedCountValue(trackedCountRenderReadyElement, renderedTrackedCount);
+                lastTrackedRenderReadyCount = renderedTrackedCount;
+            }
+            if (simParams.showOrbit && !simParams.solarSystemOverview && propagatableSelectedSatellite) {
+                refreshOrbitTrajectoryIfNeeded(scene, simParams, propagatableSelectedSatellite, { realTimeMs: nowPerf });
                 refreshSelectedOrbitOcclusion(camera, { earthRadiusScene: EARTH_SCENE_RADIUS });
             }
             renderer.render(scene, camera);
@@ -5454,14 +6363,14 @@
                         });
                         const mercatorUsesEarthSatellites = simParams.otherSelection !== 'Mars';
                         if (mercatorUsesEarthSatellites && simParams.showFootprint) {
-                            updateFootprints(currentSelectedSatellite, gmstNow, {
+                            updateFootprints(propagatableSelectedSatellite, gmstNow, {
                                 showFootprint: true,
                                 mercatorCtx,
                                 simDate: SIM_DATE,
                                 propagation: selectedPropagation
                             });
                         } else if (mercatorUsesEarthSatellites) {
-                            updateFootprints(currentSelectedSatellite, gmstNow, {
+                            updateFootprints(propagatableSelectedSatellite, gmstNow, {
                                 showFootprint: false,
                                 mercatorCtx,
                                 simDate: SIM_DATE,
@@ -5507,9 +6416,9 @@
             initFootprintRenderer(scene, earthMesh, mercatorCtx);
             setupHTMLControls();
             initializeConjunctionWorkspace();
-            setSatelliteLoadingState('Loading satellites...');
-            setTimelineButtonState('launchTimelineToggle', 'Loading satellite data...', true);
-            setTimelineButtonState('reentryTimelineToggle', 'Loading satellite data...', true);
+            setSatelliteLoadingState('Loading tracked objects...');
+            setTimelineButtonState('launchTimelineToggle', 'Loading tracked-object data...', true);
+            setTimelineButtonState('reentryTimelineToggle', 'Loading tracked-object data...', true);
             updateECEFAxesVisibility(simParams);
             startupPerf.mark('controls-ready');
             startAnimationLoopOnce();
@@ -5542,13 +6451,18 @@
             startupPerf.mark('satellite-data-ready', { count: satellites.length });
             updateSatelliteList();
             await syncConjunctionCatalog();
-            applyPendingShareStateAfterSatelliteLoad();
+            await applyPendingShareStateAfterSatelliteLoad();
             startupPerf.markOnce('first-interactive-ui', { count: satellites.length });
             startupPerf.logSummary();
             scheduleDeferredStartupWork();
+            if (TRACKED_CATALOG_FEATURE_ENABLED) {
+                scheduleDeferredWork(() => {
+                    void ensureTrackedCatalogManifestReady();
+                }, { timeout: 4000 });
+            }
             void checkServerConnectionStatusOnly({ dataSource: 'local files' });
 
-            if (simParams.showOrbit && currentSelectedSatellite) {
+            if (simParams.showOrbit && hasActiveSatelliteSceneRecord(currentSelectedSatellite)) {
                 updateOrbitTrajectory(scene, simParams, currentSelectedSatellite);
             } else {
                 simParams.showOrbit = false;
