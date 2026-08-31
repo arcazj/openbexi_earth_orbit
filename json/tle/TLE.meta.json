@@ -2,39 +2,38 @@
   "schema_version": "2.2.0",
   "dataset_format": "TLE_JSON_COMPATIBILITY",
   "deprecated_compatibility": true,
-  "fetched_at": "2026-08-30T02:13:23.342346Z",
-  "last_success_at": "2026-08-30T02:13:23.342346Z",
-  "last_attempt_at": "2026-08-30T02:15:25.896509Z",
-  "last_status": "failed",
+  "fetched_at": "2026-08-31T08:01:33.474691Z",
+  "last_success_at": "2026-08-31T08:01:33.474691Z",
+  "last_attempt_at": "2026-08-31T08:01:33.474691Z",
+  "last_status": "ok",
   "mode": "reconcile",
   "source_urls": [
     "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle"
   ],
   "celestrak_min_refresh_hours": 2.0,
   "counts": {
-    "existing": 16517,
-    "fetched": 16049,
-    "added": 14,
-    "updated": 16017,
-    "retained": 18,
+    "existing": 16049,
+    "fetched": 16046,
+    "added": 1,
+    "updated": 15796,
+    "retained": 249,
     "rejected": 0,
-    "total": 16049,
-    "pruned": 482,
+    "total": 16046,
+    "pruned": 4,
     "sidecar_added": 0,
     "sidecar_updated": 0,
     "satellite_launch_dates_updated": 0
   },
-  "catalog_revision": "sha256:4642771a06caac6839f89ecfc797e4967e904fd4e0f4e9afef11ee870b50c55e",
-  "dataset_hash": "sha256:4642771a06caac6839f89ecfc797e4967e904fd4e0f4e9afef11ee870b50c55e",
+  "catalog_revision": "sha256:f7d6d622513c5bda326e8e5b8ce2d27f95734a70e843e3e521e5c65c8e30991a",
+  "dataset_hash": "sha256:f7d6d622513c5bda326e8e5b8ce2d27f95734a70e843e3e521e5c65c8e30991a",
   "urls": {
     "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle": {
       "status": 200,
-      "last_attempt_at": "2026-08-30T02:13:23.342346Z"
+      "last_attempt_at": "2026-08-31T08:01:33.474691Z"
     }
   },
-  "last_reconciled_at": "2026-08-30T02:13:23.342346Z",
-  "last_reconciled_catalog_revision": "sha256:4642771a06caac6839f89ecfc797e4967e904fd4e0f4e9afef11ee870b50c55e",
+  "last_reconciled_at": "2026-08-31T08:01:33.474691Z",
+  "last_reconciled_catalog_revision": "sha256:f7d6d622513c5bda326e8e5b8ce2d27f95734a70e843e3e521e5c65c8e30991a",
   "source_status": "COMPLETE",
-  "partial_update": false,
-  "last_error": "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle: HTTP 503 for https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle: "
+  "partial_update": false
 }
