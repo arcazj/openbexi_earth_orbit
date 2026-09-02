@@ -1,7 +1,15 @@
 import crypto from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  readStrictTrackedJson,
+  validateStaticJsonRevisionPair,
+  validateTrackedStaticCatalog,
+  validateTrackedStaticLineage
+} from './build-static.mjs';
+import { resolvePythonCommand } from './python-discovery.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MANIFEST_PATH = 'validation/v2.0.0/manifest.json';
@@ -39,6 +47,33 @@ function requireExactValue(actual, expected, label) {
   if (JSON.stringify(canonicalValidationValue(actual)) !== JSON.stringify(canonicalValidationValue(expected))) {
     fail(`${label} does not match the frozen observation`);
   }
+}
+
+if (process.argv.slice(2).includes('--refresh-v2.3.2-seal')) {
+  const manifestPath = path.join(ROOT, 'validation', 'v2.3.2', 'manifest.json');
+  const sidecarPath = path.join(ROOT, 'validation', 'v2.3.2', 'manifest.sha256');
+  const candidate = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  candidate.generatedAt = new Date().toISOString();
+  for (const artifact of candidate.artifacts ?? []) {
+    if (typeof artifact?.path !== 'string' || !artifact.path || artifact.path.includes('\\') ||
+        path.isAbsolute(artifact.path) || artifact.path.split('/').includes('..')) {
+      fail(`cannot refresh unsafe v2.3.2 artifact path ${artifact?.path ?? '<missing>'}`);
+    }
+    const absolute = path.join(ROOT, ...artifact.path.split('/'));
+    const stat = fs.lstatSync(absolute);
+    const resolved = fs.realpathSync(absolute);
+    const relativeResolved = path.relative(ROOT, resolved);
+    if (!stat.isFile() || stat.isSymbolicLink() || relativeResolved.startsWith(`..${path.sep}`) ||
+        path.isAbsolute(relativeResolved)) {
+      fail(`cannot refresh non-regular or unconfined v2.3.2 artifact ${artifact.path}`);
+    }
+    artifact.sha256 = sha256(fs.readFileSync(absolute));
+  }
+  const bytes = Buffer.from(`${JSON.stringify(candidate, null, 2)}\n`, 'utf8');
+  fs.writeFileSync(manifestPath, bytes);
+  fs.writeFileSync(sidecarPath, `${sha256(bytes)}  manifest.json\n`, 'utf8');
+  console.log(`Refreshed v2.3.2 validation seal: ${candidate.artifacts.length} artifacts, ${bytes.length} bytes, ${sha256(bytes)}`);
+  process.exit(0);
 }
 
 const manifestBytes = read(MANIFEST_PATH);
@@ -645,6 +680,13 @@ const v23SidecarMatch = v23Sidecar.match(/^([a-f0-9]{64})  manifest\.json\n$/);
 if (!v23SidecarMatch || v23SidecarMatch[1] !== sha256(v23ManifestBytes)) {
   fail('v2.3 development manifest does not match its sidecar digest');
 }
+const frozenV231Digest = '35a87cef59a09875c17947f6b182243803cae0373359d7889edf38bf7e50f90f';
+if (sha256(v23ManifestBytes) !== frozenV231Digest ||
+    v23Sidecar !== `${frozenV231Digest}  manifest.json\n`) {
+  fail('historical v2.3.1 manifest or sidecar bytes changed');
+}
+const currentReleaseVersion = JSON.parse(read('release/version.json').toString('utf8')).version;
+if (currentReleaseVersion === '2.3.1') {
 if (v23Manifest.schemaVersion !== 1 ||
     v23Manifest.corpusId !== 'openbexi-earth-orbit-v2.3.1-development-evidence' ||
     v23Manifest.corpusVersion !== '2.3.1-development' ||
@@ -1719,4 +1761,1416 @@ console.log(
   `Validation evidence passed: ${v23Manifest.corpusVersion}, ${v23EvidenceIds.size} evidence records, ` +
   `${v23Manifest.artifacts.length} strict hashes, ${seenTrackedIds.size} tracked identities, ` +
   `review ${v23Manifest.review.status}, redistribution ${v23Manifest.redistribution.status}`
+);
+} else {
+  if (v23Manifest.schemaVersion !== 1 ||
+      v23Manifest.corpusId !== 'openbexi-earth-orbit-v2.3.1-development-evidence' ||
+      v23Manifest.corpusVersion !== '2.3.1-development' ||
+      v23Manifest.releaseVersion !== '2.3.1' ||
+      v23Manifest.publicationState !== 'development' ||
+      v23Manifest.artifacts?.length !== 307 ||
+      v23Manifest.executables?.length !== 13 ||
+      v23Manifest.evidence?.length !== 64) {
+    fail('historical v2.3.1 corpus identity or structure changed');
+  }
+  console.log(
+    `Historical validation evidence pinned: ${v23Manifest.corpusVersion}, ${v23Manifest.evidence.length} evidence records, ` +
+    `${v23Manifest.artifacts.length} recorded hashes`
+  );
+}
+
+const v232ManifestPath = 'validation/v2.3.2/manifest.json';
+const v232DigestPath = 'validation/v2.3.2/manifest.sha256';
+const v232ManifestBytes = read(v232ManifestPath);
+const v232Manifest = JSON.parse(v232ManifestBytes.toString('utf8'));
+const v232Sidecar = read(v232DigestPath).toString('utf8');
+const v232Digest = sha256(v232ManifestBytes);
+if (v232Sidecar !== `${v232Digest}  manifest.json\n`) {
+  fail('v2.3.2 development manifest does not match its exact lowercase sidecar digest');
+}
+if (v232Manifest.schemaVersion !== 1 ||
+    v232Manifest.corpusId !== 'openbexi-earth-orbit-v2.3.2-development-evidence' ||
+    v232Manifest.corpusVersion !== '2.3.2-development' ||
+    v232Manifest.releaseVersion !== '2.3.2' ||
+    v232Manifest.publicationState !== 'development' ||
+    v232Manifest.scientificMaturity !== 'experimental' ||
+    v232Manifest.safetyClass !== 'non-operational' ||
+    !Number.isFinite(Date.parse(v232Manifest.generatedAt))) {
+  fail('v2.3.2 corpus identity, generation time, maturity, or safety class is invalid');
+}
+if (v232ManifestBytes.toString('utf8') !== `${JSON.stringify(v232Manifest, null, 2)}\n`) {
+  fail('v2.3.2 manifest must use canonical pretty JSON with one trailing LF');
+}
+requireExactValue(
+  Object.keys(v232Manifest).sort(),
+  [
+    'artifacts', 'claims', 'conventions', 'corpusId', 'corpusVersion', 'dataPlaneSnapshot',
+    'datasetUse', 'evidence', 'excludedCases', 'executables', 'generatedAt', 'generation',
+    'knownGapIds', 'knownGaps', 'preSealEvidence', 'publicationState', 'redistribution',
+    'releaseVersion', 'review', 'safetyClass', 'schemaVersion', 'scientificMaturity', 'sources',
+    'tolerances', 'trackedSnapshot'
+  ].sort(),
+  'v2.3.2 manifest top-level schema'
+);
+requireExactValue(
+  v232Manifest.generation,
+  {
+    command: 'node scripts/check-validation-manifest.mjs --refresh-v2.3.2-seal',
+    tool: 'scripts/check-validation-manifest.mjs',
+    toolVersion: '2.3.2',
+    verificationCommand: 'npm run check:validation'
+  },
+  'v2.3.2 generation contract'
+);
+requireExactValue(
+  v232Manifest.review,
+  {
+    status: 'pending',
+    reviewer: null,
+    reviewedAt: null,
+    scope: 'Independent scientific, security, data-provenance, and exact-release-byte review remains open.'
+  },
+  'v2.3.2 independent-review state'
+);
+requireExactValue(
+  v232Manifest.redistribution,
+  {
+    status: 'approved',
+    approved: true,
+    owner: 'arcazj',
+    reviewer: 'arcazj (repository/data-release owner)',
+    approvalDate: '2026-09-02',
+    approvedAt: '2026-09-02T08:31:23.110Z',
+    boundaryId: 'v2.3.2-exact-bytes-one-origin-master-source-publication',
+    approvedScope: 'v2.3.2-final-post-recording-git-tracked-repository-bytes-including-checked-in-data-validation-release-evidence-governance-documentation-and-workflows',
+    channel: {
+      id: 'github-origin-master-source',
+      gitRemote: 'origin',
+      branch: 'origin/master',
+      repository: 'arcazj/openbexi_earth_orbit'
+    },
+    approvalEvidence: {
+      basis: 'explicit-user-resume-and-push-after-exact-checksum-warning',
+      instruction: 'RESUME AND PUSH TO GITHUB',
+      warnedManifestSha256: 'c456703d12602e83a73233f693cf684315565436d8c08c645a0b7e5d984d8177',
+      attributedOwner: 'arcazj',
+      attributionBasis: [
+        'git-user-name=arcazj',
+        'github-origin-owner=arcazj'
+      ],
+      pagesBuildTypeBeforePush: 'workflow',
+      pagesBuildTypeVerifiedByAuthenticatedApi: true,
+      pagesDeploymentApproved: false
+    },
+    publicationLimit: 1,
+    exclusions: [
+      'private-runtime-candidates-and-untracked-artifacts',
+      'generated-dist-and-github-pages-deployment',
+      'subsequent-byte-changes-after-final-approved-commit',
+      'future-provider-refreshes',
+      'different-repositories-branches-or-channels',
+      'future-publications'
+    ]
+  },
+  'v2.3.2 exact-byte source-publication approval'
+);
+requireExactValue(
+  v232Manifest.claims,
+  {
+    accuracy: false,
+    operationalUse: false,
+    providerCompleteness: false,
+    physicalDebrisCompleteness: false,
+    rcsPhysicalSizeInference: false,
+    fullTrackedScreeningCoverage: false,
+    candidate: false,
+    stableRelease: false,
+    candidateAt: null,
+    releasedAt: null,
+    acceptanceUse: 'Development regression evidence with one exact-byte origin/master source publication authorized; no Pages deployment, candidate, scientific validation, stable-release, or operational claim.'
+  },
+  'v2.3.2 development and scientific claims'
+);
+requireExactValue(
+  v232Manifest.conventions,
+  {
+    timeScale: 'UTC',
+    propagationFrame: 'TEME',
+    positionUnits: 'km',
+    velocityUnits: 'km/s',
+    rcsUnits: 'm2',
+    identifierEncoding: 'canonical decimal strings'
+  },
+  'v2.3.2 scientific conventions'
+);
+requireExactValue(
+  v232Manifest.datasetUse,
+  { training: false, tuning: false, acceptance: 'development-regression-only' },
+  'v2.3.2 dataset-use boundary'
+);
+requireExactValue(
+  v232Manifest.excludedCases,
+  [
+    {
+      id: 'provider-universe-completeness',
+      reason: 'No authoritative expected provider total is published; expected_provider_records remains null.'
+    },
+    {
+      id: 'metadata-only-propagation',
+      reason: 'Records without validated current GP/OMM elements are excluded from propagation, rendering, and screening.'
+    },
+    {
+      id: 'physical-size-or-mass-from-rcs',
+      reason: 'Radar cross-section is metadata and is not a physical-size, diameter, mass, or weight estimator.'
+    },
+    {
+      id: 'private-candidate-replay',
+      reason: 'Ignored runtime candidate bytes are not redistributed or required by clean-clone validation.'
+    },
+    {
+      id: 'remote-deployment',
+      reason: 'The local exact-artifact attestation records remoteExact false; no remote Pages deployment is claimed.'
+    }
+  ],
+  'v2.3.2 explicitly excluded claims and replay boundaries'
+);
+
+const v232AdditionalArtifactPaths = [
+  '.github/workflows/pages.yml',
+  'docs/adr/0007-v2.3.2-revisioned-runtime-data-candidates.md',
+  'docs/engineering/RELEASE_CHECKLIST_V2_3_2.md',
+  'docs/engineering/ROLLBACK_V2_3_2.md',
+  'js/trackedCoveragePresentation.js',
+  'js/trackedResultsController.js',
+  'js/trackedResultsView.js',
+  'release/PAGES_DEPLOYMENT.md',
+  'release/evidence/openbexi-node-sbom-2.3.2-development.cdx.json',
+  'release/evidence/v2.3.2-data-candidate-recovery.json',
+  'release/evidence/v2.3.2-local-static-attestation.json',
+  'release/evidence/v2.3.2-playwright-aggregate.json',
+  'release/evidence/v2.3.2-release-metrics.json',
+  'release/evidence/v2.3.2-static-rollback.json',
+  'release/pages-deployment.json',
+  'scripts/attest-static-deployment.mjs',
+  'scripts/check-release-tree.mjs',
+  'scripts/rehearse-static-rollback.mjs',
+  'scripts/verify-pages-artifact.mjs',
+  'tests/releaseEngineering.test.js',
+  'tests/trackedCoveragePresentation.test.js',
+  'tests/trackedResultsController.test.js',
+  'tests/trackedResultsView.test.js',
+  'tests_python/test_v232_satellite_data_plane.py',
+  'tools/satellite_data_plane.py',
+  'validation/v2.3.1/manifest.json',
+  'validation/v2.3.1/manifest.sha256'
+];
+const expectedV232ArtifactPaths = new Set([
+  ...v23Manifest.artifacts.map(artifact => artifact.path),
+  ...v232AdditionalArtifactPaths
+]);
+if (expectedV232ArtifactPaths.size !== 334 || !Array.isArray(v232Manifest.artifacts) ||
+    v232Manifest.artifacts.length !== 334) {
+  fail('v2.3.2 must contain exactly the intended 334-artifact release evidence closure');
+}
+const v232ArtifactPaths = new Set();
+const v232ArtifactBytes = new Map();
+for (const artifact of v232Manifest.artifacts) {
+  requireExactValue(
+    Object.keys(artifact ?? {}).sort(),
+    ['path', 'role', 'sha256'],
+    `v2.3.2 artifact schema ${artifact?.path ?? '<missing>'}`
+  );
+  const relative = artifact?.path;
+  if (typeof relative !== 'string' || !relative || relative.includes('\\') ||
+      path.isAbsolute(relative) || relative.split('/').includes('..') ||
+      v232ArtifactPaths.has(relative) || !expectedV232ArtifactPaths.has(relative) ||
+      typeof artifact.role !== 'string' || artifact.role.trim().length < 3 ||
+      !/^[a-f0-9]{64}$/.test(artifact.sha256 ?? '')) {
+    fail(`v2.3.2 has an invalid, duplicate, unexpected, or incomplete artifact ${relative ?? '<missing>'}`);
+  }
+  const absolute = path.join(ROOT, ...relative.split('/'));
+  const stat = fs.lstatSync(absolute);
+  const resolved = fs.realpathSync(absolute);
+  const resolvedRelative = path.relative(ROOT, resolved);
+  if (!stat.isFile() || stat.isSymbolicLink() || resolvedRelative.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(resolvedRelative)) {
+    fail(`v2.3.2 artifact is not a confined regular file: ${relative}`);
+  }
+  const bytes = fs.readFileSync(absolute);
+  const actual = sha256(bytes);
+  if (actual !== artifact.sha256) {
+    fail(`${relative} checksum drifted from v2.3.2 evidence: expected ${artifact.sha256}, found ${actual}`);
+  }
+  v232ArtifactPaths.add(relative);
+  v232ArtifactBytes.set(relative, bytes);
+}
+if ([...expectedV232ArtifactPaths].some(relative => !v232ArtifactPaths.has(relative))) {
+  fail('v2.3.2 artifact closure is missing an intended release file');
+}
+const v232ArtifactRoleDigest = sha256(Buffer.from(JSON.stringify(canonicalValidationValue(
+  v232Manifest.artifacts.map(({ path: relative, role }) => ({ path: relative, role }))
+)), 'utf8'));
+if (v232ArtifactRoleDigest !== 'c7b983cea1eec3ae39e3c5696863bdcb1bcb77a1edc371a60a1a58f4ff8df176') {
+  fail('v2.3.2 artifact ordering, paths, or role assignments changed');
+}
+for (const [relative, expected] of Object.entries({
+  'release/evidence/openbexi-node-sbom-2.3.2-development.cdx.json': {
+    bytes: 3464,
+    sha256: '137fbe695149489ee198725999a97dcc3b8e45ce65f6dc204f8052de5f95aafa'
+  },
+  'release/evidence/v2.3.2-data-candidate-recovery.json': {
+    bytes: 3995,
+    sha256: '4a7140753c0919568eb16e25f3a18237f2754d041af82775c561cfd0829e7634'
+  },
+  'release/evidence/v2.3.2-local-static-attestation.json': {
+    bytes: 537,
+    sha256: 'c61da99d5a47e63a5c7621b528736dba876a161413b21d1cff65afcbe733be9f'
+  },
+  'release/evidence/v2.3.2-playwright-aggregate.json': {
+    bytes: 3385,
+    sha256: '07674df975c579638da6d214557b44b109a67d630d1a1a32ab9d1fff1eeef5ca'
+  },
+  'release/evidence/v2.3.2-release-metrics.json': {
+    bytes: 3892,
+    sha256: 'a2d4194f451fd6496424b04f16c2e7cb3aea756f21cb5d5f356ad3bc374615f0'
+  },
+  'release/evidence/v2.3.2-static-rollback.json': {
+    bytes: 1096,
+    sha256: '788bbc51ef586d5279e36b35bf6c9e1b41bfb8a144cd5b55169b1a9ea4da15d2'
+  }
+})) {
+  const bytes = v232ArtifactBytes.get(relative);
+  if (!bytes || bytes.length !== expected.bytes || sha256(bytes) !== expected.sha256) {
+    fail(`v2.3.2 frozen evidence artifact drifted: ${relative}`);
+  }
+}
+for (const forbidden of [
+  'dist/', 'runtime/', 'playwright-report/', 'test-results/', 'node_modules/', 'artifacts/', '.idea/',
+  'json/ops/', 'json/tle/TLE.json.zip', 'Ob3.html', 'SatOps.html', 'SatOps_gemini2.5pro.html',
+  'beamforming.html', 'test.html', 'validation/v2.3.2/manifest.json', 'validation/v2.3.2/manifest.sha256'
+]) {
+  if ([...v232ArtifactPaths].some(relative => relative === forbidden || relative.startsWith(forbidden))) {
+    fail(`v2.3.2 artifact closure contains excluded path ${forbidden}`);
+  }
+}
+
+function discoveredFiles(directory, pattern) {
+  return fs.readdirSync(path.join(ROOT, directory), { withFileTypes: true })
+    .filter(entry => entry.isFile() && pattern.test(entry.name))
+    .map(entry => `${directory}/${entry.name}`)
+    .sort();
+}
+
+const v232JavascriptTests = discoveredFiles('tests', /\.test\.js$/);
+const v232PythonTests = discoveredFiles('tests_python', /^test_.*\.py$/);
+const v232BrowserTests = discoveredFiles('tests_browser', /\.spec\.js$/);
+if (v232JavascriptTests.length !== 63 || v232PythonTests.length !== 13 || v232BrowserTests.length !== 6 ||
+    [...v232JavascriptTests, ...v232PythonTests, ...v232BrowserTests, 'tests/runAll.js']
+      .some(relative => !v232ArtifactPaths.has(relative))) {
+  fail('v2.3.2 artifact closure does not bind the exact discovered JavaScript, Python, and browser suites');
+}
+
+const trackedManifestPath232 = 'json/tracked/TRACKED.manifest.json';
+const trackedMetadataPath232 = 'json/tracked/TRACKED.meta.json';
+let trackedManifest232;
+let trackedMetadata232;
+try {
+  trackedManifest232 = readStrictTrackedJson(path.join(ROOT, trackedManifestPath232), 'v2.3.2 tracked manifest');
+  trackedMetadata232 = readStrictTrackedJson(path.join(ROOT, trackedMetadataPath232), 'v2.3.2 tracked metadata');
+} catch (error) {
+  fail(`v2.3.2 tracked control bytes are not strict producer-compatible JSON: ${error.message}`);
+}
+const gpMetadata232 = JSON.parse(v232ArtifactBytes.get('json/gp/GP.meta.json').toString('utf8'));
+const satcatMetadata232 = JSON.parse(v232ArtifactBytes.get('json/satcat.meta.json').toString('utf8'));
+try {
+  for (const [dataRelative, metadataRelative, label] of [
+    ['json/gp/GP.json', 'json/gp/GP.meta.json', 'GP'],
+    ['json/tle/TLE.json', 'json/tle/TLE.meta.json', 'TLE'],
+    ['json/launches/launches.json', 'json/launches/launches.meta.json', 'Launch'],
+    ['json/decayed/decayed.json', 'json/decayed/decayed.meta.json', 'Decay']
+  ]) {
+    validateStaticJsonRevisionPair(
+      path.join(ROOT, ...dataRelative.split('/')),
+      JSON.parse(v232ArtifactBytes.get(metadataRelative).toString('utf8')),
+      label
+    );
+  }
+  validateTrackedStaticLineage({
+    trackedManifest: trackedManifest232,
+    trackedMetadata: trackedMetadata232,
+    gpMetadata: gpMetadata232,
+    gpCatalogPath: path.join(ROOT, 'json/gp/GP.json')
+  });
+} catch (error) {
+  fail(`v2.3.2 core or tracked producer-canonical lineage is invalid: ${error.message}`);
+}
+const staticallyReferencedTrackedPaths = new Set();
+let staticTrackedObservation;
+try {
+  staticTrackedObservation = validateTrackedStaticCatalog(
+    trackedManifest232,
+    relative => staticallyReferencedTrackedPaths.add(relative),
+    ROOT
+  );
+} catch (error) {
+  fail(`v2.3.2 tracked descriptor, parser, record, or aggregate contract is invalid: ${error.message}`);
+}
+const trackedDescriptors232 = [
+  ...(trackedManifest232.chunks ?? []),
+  ...(trackedManifest232.history_chunks ?? []),
+  trackedManifest232.quarantine
+];
+const trackedClosurePaths232 = new Set([
+  trackedManifestPath232,
+  trackedMetadataPath232,
+  ...trackedDescriptors232.map(descriptor => descriptor.path)
+]);
+const hashedTrackedChunkPaths232 = new Set(
+  [...v232ArtifactPaths].filter(relative => relative.startsWith('json/tracked/chunks/'))
+);
+if (trackedDescriptors232.length !== 11 || trackedClosurePaths232.size !== 13 ||
+    hashedTrackedChunkPaths232.size !== 11 ||
+    [...hashedTrackedChunkPaths232].some(relative => !trackedClosurePaths232.has(relative)) ||
+    [...staticallyReferencedTrackedPaths].some(relative => !v232ArtifactPaths.has(relative))) {
+  fail('v2.3.2 hashes must include exactly the manifest-referenced tracked closure and no retained candidate chunks');
+}
+const trackedClosureBytes232 = [...trackedClosurePaths232]
+  .reduce((sum, relative) => sum + v232ArtifactBytes.get(relative).length, 0);
+const maxTrackedChunkBytes232 = Math.max(
+  ...trackedDescriptors232.map(descriptor => v232ArtifactBytes.get(descriptor.path).length)
+);
+if (staticTrackedObservation.currentCount !== 34960 || staticTrackedObservation.historyCount !== 35514 ||
+    trackedClosureBytes232 !== 74565511 || maxTrackedChunkBytes232 !== 24215754 ||
+    trackedManifest232.catalog_revision !== 'sha256:7c1a20d93d1eb5faf7e2b964b13c7b4f0478f2eec95cc701ea1b1e57ef0d730c' ||
+    trackedMetadata232.catalog_revision !== trackedManifest232.catalog_revision ||
+    trackedManifest232.provenance?.gp_revision !== 'sha256:b5314199094c140abc58d4cec4b3cdee15711958224d7547926823c10640add0' ||
+    trackedManifest232.provenance?.satcat_revision !== 'sha256:fb9c778a881e720d15fb359ca34a0477f2f2b533600d46c22094e589081cb545') {
+  fail('v2.3.2 checked-in tracked closure, counts, bytes, or source revisions drifted');
+}
+requireExactValue(
+  v232Manifest.trackedSnapshot,
+  {
+    manifestPath: trackedManifestPath232,
+    metadataPath: trackedMetadataPath232,
+    catalogRevision: 'sha256:7c1a20d93d1eb5faf7e2b964b13c7b4f0478f2eec95cc701ea1b1e57ef0d730c',
+    counts: {
+      total: 70474,
+      current: 34960,
+      historical: 35514,
+      history_total: 35514,
+      absent: 0,
+      propagatable: 16470,
+      metadata_only: 54004,
+      current_propagatable: 16470,
+      current_metadata_only: 18490,
+      quarantined: 0,
+      duplicates: 0,
+      debris_small_rcs_current: 7852,
+      debris_missing_rcs_current: 3123,
+      object_types: { PAYLOAD: 27584, DEBRIS: 35838, ROCKET_BODY: 6887, MISSION_RELATED: 0, UNKNOWN: 165 },
+      current_object_types: { PAYLOAD: 19989, DEBRIS: 12490, ROCKET_BODY: 2425, MISSION_RELATED: 0, UNKNOWN: 56 },
+      propagatable_object_types: { PAYLOAD: 16468, DEBRIS: 0, ROCKET_BODY: 2, MISSION_RELATED: 0, UNKNOWN: 0 },
+      current_debris_rcs_bands: {
+        LT_0_01: 2230, FROM_0_01_TO_0_1: 5622, FROM_0_1_TO_1: 1272, GTE_1: 243, UNKNOWN: 3123
+      },
+      all_debris_rcs_bands: {
+        LT_0_01: 5091, FROM_0_01_TO_0_1: 12808, FROM_0_1_TO_1: 4225, GTE_1: 1259, UNKNOWN: 12455
+      }
+    },
+    fileCount: 13,
+    closureBytes: 74565511,
+    maxChunkBytes: 24215754
+  },
+  'v2.3.2 tracked snapshot observation'
+);
+
+const dataPlaneCorePaths232 = [
+  'json/gp/GP.json', 'json/gp/GP.meta.json',
+  'json/tle/TLE.json', 'json/tle/TLE.meta.json',
+  'json/satcat.csv', 'json/satcat.meta.json',
+  'json/launches/launches.json', 'json/launches/launches.meta.json',
+  'json/decayed/decayed.json', 'json/decayed/decayed.meta.json',
+  trackedManifestPath232, trackedMetadataPath232
+];
+const dataPlanePaths232 = [...new Set([
+  ...dataPlaneCorePaths232,
+  ...trackedDescriptors232.map(descriptor => descriptor.path),
+  'json/tle/satellite_launch_dates.json'
+])].sort();
+const dataPlaneInventory232 = dataPlanePaths232.map(relative => {
+  const bytes = v232ArtifactBytes.get(relative);
+  if (!bytes) fail(`v2.3.2 data-plane closure contains unhashed artifact ${relative}`);
+  return { path: relative, bytes: bytes.length, sha256: `sha256:${sha256(bytes)}` };
+});
+const dataPlaneBytes232 = dataPlaneInventory232.reduce((sum, artifact) => sum + artifact.bytes, 0);
+const dataPlaneRevision232 = `sha256:${sha256(Buffer.from(JSON.stringify(canonicalValidationValue(dataPlaneInventory232))))}`;
+if (dataPlaneInventory232.length !== 24 || dataPlaneBytes232 !== 127385726 ||
+    dataPlaneRevision232 !== 'sha256:011cefcf5f7291b1089259e0834c85503f64bf21a2ede878d3c234597178ea93') {
+  fail('v2.3.2 checked-in data-plane closure does not match the frozen last-known-good root');
+}
+const python232 = resolvePythonCommand();
+if (!python232) fail('Python 3 is required to validate the frozen v2.3.2 data-plane root');
+const dataPlaneValidation232 = spawnSync(
+  python232.command,
+  [
+    ...python232.prefix,
+    '-c',
+    [
+      'import json, sys',
+      'from tools.satellite_data_plane import validate_data_root',
+      'print(json.dumps(validate_data_root(sys.argv[1]), sort_keys=True))'
+    ].join('; '),
+    ROOT
+  ],
+  { cwd: ROOT, encoding: 'utf8', windowsHide: true }
+);
+if (dataPlaneValidation232.status !== 0) {
+  fail(`v2.3.2 production data-plane validation failed: ${(dataPlaneValidation232.stderr || '').trim()}`);
+}
+let productionDataPlane232;
+try {
+  productionDataPlane232 = JSON.parse(dataPlaneValidation232.stdout.trim());
+} catch {
+  fail('v2.3.2 production data-plane validation did not return JSON');
+}
+requireExactValue(
+  productionDataPlane232,
+  {
+    valid: true,
+    artifacts: dataPlaneInventory232,
+    artifact_count: 24,
+    total_bytes: 127385726,
+    candidate_revision: dataPlaneRevision232
+  },
+  'v2.3.2 production data-plane strict validation'
+);
+requireExactValue(
+  v232Manifest.dataPlaneSnapshot,
+  {
+    selectedRoot: 'checked-in-release-root',
+    pointerRequired: false,
+    candidateRevision: dataPlaneRevision232,
+    artifactCount: 24,
+    totalBytes: 127385726
+  },
+  'v2.3.2 data-plane snapshot observation'
+);
+
+if (!Array.isArray(v232Manifest.sources) || v232Manifest.sources.length !== 2) {
+  fail('v2.3.2 must record exactly the checked-in SATCAT and active GP source boundaries');
+}
+const expectedV232Sources = [
+  {
+    id: 'celestrak-satcat-bundled', provider: 'CelesTrak', artifact: 'json/satcat.csv',
+    metadataArtifact: 'json/satcat.meta.json',
+    revision: 'sha256:fb9c778a881e720d15fb359ca34a0477f2f2b533600d46c22094e589081cb545',
+    scope: 'configured-bundled-satcat-snapshot', url: 'https://celestrak.org/pub/satcat.csv',
+    license: {
+      spdx: 'NOASSERTION', sourceBytesApproval: 'v2.2.1-exact-bytes-approved',
+      derivedProductRedistributionStatus: 'v2.3.2-derived-bytes-approved-one-publication-github-origin-master-source'
+    }
+  },
+  {
+    id: 'celestrak-active-gp-bundled', provider: 'CelesTrak', artifact: 'json/gp/GP.json',
+    metadataArtifact: 'json/gp/GP.meta.json',
+    revision: 'sha256:b5314199094c140abc58d4cec4b3cdee15711958224d7547926823c10640add0',
+    scope: 'configured-active-gp-snapshot',
+    url: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=json',
+    license: {
+      spdx: 'NOASSERTION', sourceBytesApproval: 'v2.2.1-exact-bytes-approved',
+      derivedProductRedistributionStatus: 'v2.3.2-derived-bytes-approved-one-publication-github-origin-master-source'
+    }
+  }
+];
+requireExactValue(v232Manifest.sources, expectedV232Sources, 'v2.3.2 checked-in source boundaries');
+if (satcatMetadata232.catalog_revision !== expectedV232Sources[0].revision ||
+    gpMetadata232.catalog_revision !== expectedV232Sources[1].revision ||
+    trackedManifest232.counts?.expected_provider_records !== null ||
+    trackedManifest232.provider_completeness_claim !== false ||
+    trackedManifest232.coverage?.provider_completeness_claim !== false) {
+  fail('v2.3.2 source revisions or provider-completeness boundaries drifted');
+}
+
+const requiredV232ExecutableIds = [
+  'tracked-browser-unit-regressions',
+  'tracked-real-manifest-invariants',
+  'tracked-scale-120k',
+  'tracked-python-ingest-reconciliation',
+  'tracked-api-security',
+  'six-component-scheduler',
+  'revisioned-data-plane',
+  'static-tracked-closure',
+  'browser-filter-integration',
+  'complete-javascript-suite',
+  'complete-python-suite',
+  'browser-playwright-suite',
+  'release-engineering',
+  'static-rollback-rehearsal',
+  'local-static-attestation',
+  'release-policy-checks',
+  'dependency-sbom-generation'
+];
+if (!Array.isArray(v232Manifest.executables) ||
+    v232Manifest.executables.length !== requiredV232ExecutableIds.length) {
+  fail('v2.3.2 must declare exactly 17 current executable observations');
+}
+const v232Executables = new Map();
+for (const executable of v232Manifest.executables) {
+  requireExactValue(
+    Object.keys(executable ?? {}).sort(),
+    ['artifacts', 'command', 'exitCode', 'id', 'observed', 'status'],
+    `v2.3.2 executable schema ${executable?.id ?? '<missing>'}`
+  );
+  if (typeof executable?.id !== 'string' || v232Executables.has(executable.id) ||
+      !requiredV232ExecutableIds.includes(executable.id) ||
+      typeof executable.command !== 'string' || executable.command.length < 5 ||
+      !Array.isArray(executable.artifacts) || executable.artifacts.length === 0 ||
+      new Set(executable.artifacts).size !== executable.artifacts.length ||
+      executable.artifacts.some(relative => !v232ArtifactPaths.has(relative)) ||
+      executable.status !== 'passed' || executable.exitCode !== 0) {
+    fail(`v2.3.2 executable declaration is invalid: ${executable?.id ?? '<missing>'}`);
+  }
+  requireNonEmptyObject(executable.observed, `${executable.id}.observed`);
+  v232Executables.set(executable.id, executable);
+}
+if (requiredV232ExecutableIds.some(id => !v232Executables.has(id))) {
+  fail('v2.3.2 executable declaration set is incomplete');
+}
+const v232ExecutableDeclarationDigest = sha256(Buffer.from(
+  JSON.stringify(canonicalValidationValue(v232Manifest.executables)),
+  'utf8'
+));
+if (v232ExecutableDeclarationDigest !== '7b890718a8b71cf651ac33167ead8452b190efc2604c34e08ec037d8f847747f') {
+  fail('v2.3.2 executable commands, artifact bindings, or observations changed');
+}
+for (const [executableId, expectedInputs] of [
+  ['complete-javascript-suite', ['tests/runAll.js', ...v232JavascriptTests]],
+  ['complete-python-suite', ['scripts/python.mjs', ...v232PythonTests]],
+  ['browser-playwright-suite', ['scripts/run-browser-tests.mjs', 'scripts/python-discovery.mjs', 'scripts/python.mjs', 'playwright.config.js', ...v232BrowserTests]]
+]) {
+  const actualInputs = new Set(v232Executables.get(executableId).artifacts);
+  if (expectedInputs.some(relative => !actualInputs.has(relative))) {
+    fail(`v2.3.2 executable ${executableId} does not bind every discovered suite input`);
+  }
+}
+requireExactValue(
+  v232Executables.get('complete-javascript-suite').observed,
+  { testFilesPassed: 63, testFilesFailed: 0 },
+  'v2.3.2 JavaScript aggregate'
+);
+requireExactValue(
+  v232Executables.get('complete-python-suite').observed,
+  {
+    cases: 152,
+    testsPassed: 151,
+    testsSkipped: 1,
+    testsFailed: 0,
+    errors: 0,
+    durationSeconds: 83.452,
+    skipReason: 'Windows directory-symlink capability unavailable'
+  },
+  'v2.3.2 Python aggregate'
+);
+requireExactValue(
+  v232Executables.get('browser-playwright-suite').observed,
+  {
+    declarations: 49,
+    testsPassed: 29,
+    testsSkipped: 20,
+    testsFailed: 0,
+    testsUnexpected: 0,
+    testsFlaky: 0,
+    reportErrors: 0,
+    attemptsMinimum: 1,
+    attemptsMaximum: 1,
+    everyDeclarationExactlyOneAttempt: true,
+    skipWithoutReason: 0,
+    ok: true,
+    files: 6,
+    projects: ['chromium', 'mobile-chromium'],
+    startedAt: '2026-09-02T06:05:05.616Z',
+    durationMs: 595996.319,
+    durationSeconds: 595.996319,
+    durationMinutes: 9.933271983333334,
+    durationClock: '00:09:55.996319',
+    reportBytes: 677198,
+    reportSha256: '893b507b3c29b511f190655643539e66b20c84dcb715723790ac1cdfe6394170'
+  },
+  'v2.3.2 Playwright aggregate'
+);
+requireExactValue(
+  v232Executables.get('tracked-scale-120k').observed,
+  {
+    records: 120000,
+    filteredRecords: 24000,
+    searchMatches: 10,
+    buildMs: 57.56,
+    filterMs: 245.79,
+    searchMs: 53.86,
+    facetsMs: 288.86,
+    resultsMs: 330.68,
+    totalMs: 976.75,
+    heapDeltaMiB: 95.89
+  },
+  'v2.3.2 120k benchmark'
+);
+requireExactValue(
+  v232Executables.get('static-tracked-closure').observed,
+  {
+    files: 138,
+    bytes: 280577774,
+    assetManifestBytes: 23702,
+    assetManifestSha256: '61d59ceead6d6bf97f28c3c5c595e6a105d8a51e3f0211349fbae0b1a9329a37',
+    trackedFiles: 13,
+    trackedBytes: 74565511,
+    maxTrackedChunkBytes: 24215754,
+    indexBytes: 314194,
+    browserJavaScriptFiles: 54,
+    browserJavaScriptBytes: 904188,
+    browserJavaScriptCeilingBytes: 915000
+  },
+  'v2.3.2 static and source-byte observation'
+);
+requireExactValue(
+  v232Executables.get('tracked-real-manifest-invariants').observed,
+  {
+    records: 70474, current: 34960, historyTotal: 35514, historical: 35514, absent: 0,
+    propagatable: 16470, metadataOnly: 54004, currentPropagatable: 16470,
+    currentMetadataOnly: 18490, currentDebris: 12490, historicalDebris: 23348,
+    positionedDebris: 0, uniqueIdentities: 70474
+  },
+  'v2.3.2 real tracked-manifest observation'
+);
+requireExactValue(
+  v232Executables.get('revisioned-data-plane').observed,
+  {
+    cases: 16,
+    testsPassed: 16,
+    testsSkipped: 0,
+    testsFailed: 0,
+    lkgArtifacts: 24,
+    lkgBytes: 127385726,
+    lkgRevision: 'sha256:011cefcf5f7291b1089259e0834c85503f64bf21a2ede878d3c234597178ea93'
+  },
+  'v2.3.2 revisioned data-plane observation'
+);
+requireExactValue(
+  v232Executables.get('tracked-python-ingest-reconciliation').observed,
+  { cases: 25, testsPassed: 25, testsSkipped: 0, testsFailed: 0, configuredGroups: 4 },
+  'v2.3.2 tracked builder observation'
+);
+requireExactValue(
+  v232Executables.get('tracked-api-security').observed,
+  {
+    cases: 34, testsPassed: 33, testsSkipped: 1, testsFailed: 0,
+    skipReason: 'Windows directory-symlink capability unavailable'
+  },
+  'v2.3.2 tracked API and security observation'
+);
+requireExactValue(
+  v232Executables.get('six-component-scheduler').observed,
+  { cases: 24, testsPassed: 24, testsSkipped: 0, testsFailed: 0, revisionComponents: 6 },
+  'v2.3.2 scheduler observation'
+);
+requireExactValue(
+  v232Executables.get('browser-filter-integration').observed,
+  { declarations: 15, testsPassed: 14, testsSkipped: 1, testsFailed: 0, project: 'chromium' },
+  'v2.3.2 focused browser-filter observation'
+);
+requireExactValue(
+  v232Executables.get('release-policy-checks').observed,
+  {
+    syntaxFiles: 147,
+    auditVulnerabilities: 0,
+    budgetsPassed: true,
+    versionPassed: true,
+    vendorPassed: true,
+    validationPassed: true
+  },
+  'v2.3.2 release-policy observation'
+);
+
+const requiredV232EvidenceIds = [
+  'source.local-tracked-builder',
+  'source.strict-json-parser',
+  'source.core-canonical-revisions',
+  'source.tracked-coverage-revision',
+  'source.tracked-catalog-revision',
+  'source.configured-four-gp-groups',
+  'source.provider-503-last-known-good',
+  'source.provider-completeness-not-claimed',
+  'source.exact-head-candidate-recovery',
+  'source.dirty-candidate-quarantine',
+  'source.private-runtime-boundary',
+  'source.no-network-candidate-import',
+  'data.frozen-tracked-closure',
+  'data.last-known-good-root-closure',
+  'data.strict-count-partitions',
+  'data.content-addressed-descriptors',
+  'data.canonical-control-numbers',
+  'data.standard-json-constants',
+  'data.strict-utf8',
+  'data.duplicate-json-keys',
+  'data.unicode-scalars',
+  'data.canonical-norad-identity',
+  'data.global-identity-uniqueness',
+  'data.record-scope-contract',
+  'data.record-availability-contract',
+  'data.aggregate-count-recomputation',
+  'data.provider-accounting-invariant',
+  'data.complete-snapshot-lineage',
+  'data.gp-availability-by-type',
+  'data.no-physical-size-inference',
+  'runtime.revisioned-candidate-root',
+  'runtime.explicit-validate-promote',
+  'runtime.atomic-promotion',
+  'runtime.semantic-idempotent-promotion',
+  'runtime.persistent-os-lock',
+  'runtime.cooperative-cancellation',
+  'runtime.post-promotion-drift',
+  'runtime.retention-current-previous',
+  'runtime.external-pointer-coordinator',
+  'runtime.v21-a-b-a-activation',
+  'runtime.scheduler-registration-retry',
+  'runtime.release-bytes-preserved',
+  'api.manifest-chunk-allowlist',
+  'api.strict-control-fail-closed',
+  'api.strict-chunk-fail-closed',
+  'api.record-contract-fail-closed',
+  'api.source-lineage-fail-closed',
+  'api.get-head-fail-closed',
+  'api.default-serve-pointer-coherence',
+  'api.health-data-root',
+  'static.strict-json-control',
+  'static.canonical-core-revision-pairs',
+  'static.tracked-canonical-revisions',
+  'static.record-contract',
+  'static.manifest-reference-closure',
+  'static.unreferenced-chunk-exclusion',
+  'static.commit-source-snapshot',
+  'static.release-tree-binding',
+  'static.offline-provider-closure',
+  'static.exact-artifact-metrics',
+  'static.rollback-rehearsal',
+  'static.local-attestation',
+  'browser.strict-manifest-parser',
+  'browser.strict-chunk-parser',
+  'browser.malformed-chunk-fail-closed',
+  'browser.coverage-presentation',
+  'browser.virtualized-results',
+  'browser.result-sort-window',
+  'browser.keyboard-focus',
+  'browser.narrow-layout',
+  'browser.independent-filter-dimensions',
+  'browser.debris-facets-non-all',
+  'browser.globe-499-500',
+  'browser.globe-icon',
+  'browser.mercator-density',
+  'browser.metadata-only-safety',
+  'browser.playwright-aggregate',
+  'scale.synthetic-120k',
+  'governance.experimental-non-operational',
+  'governance.provider-completeness-boundary',
+  'governance.redistribution-approved',
+  'governance.independent-review-pending',
+  'governance.named-profiles-pending',
+  'governance.remote-deployment-pending',
+  'release.version-and-feature-flags',
+  'release.exact-commit-binding',
+  'release.fresh-build-job',
+  'release.archive-verification',
+  'release.workflow-action-pins',
+  'release.dependency-sbom',
+  'release.release-metrics',
+  'release.local-rollback',
+  'release.local-attestation',
+  'release.candidate-recovery'
+];
+if (!Array.isArray(v232Manifest.evidence) ||
+    v232Manifest.evidence.length !== requiredV232EvidenceIds.length) {
+  fail(`v2.3.2 must declare exactly ${requiredV232EvidenceIds.length} evidence records`);
+}
+const v232Evidence = new Map();
+const v232EvidenceCategories = new Set();
+for (const evidence of v232Manifest.evidence) {
+  requireExactValue(
+    Object.keys(evidence ?? {}).sort(),
+    ['artifact', 'category', 'expected', 'id', 'locator'],
+    `v2.3.2 evidence schema ${evidence?.id ?? '<missing>'}`
+  );
+  if (typeof evidence?.id !== 'string' || v232Evidence.has(evidence.id) ||
+      !requiredV232EvidenceIds.includes(evidence.id) ||
+      !['source', 'data', 'runtime', 'api', 'static', 'browser', 'scale', 'governance', 'release']
+        .includes(evidence.category) ||
+      !v232ArtifactPaths.has(evidence.artifact) ||
+      typeof evidence.locator !== 'string' || evidence.locator.length < 3) {
+    fail(`v2.3.2 evidence declaration is invalid: ${evidence?.id ?? '<missing>'}`);
+  }
+  requireNonEmptyObject(evidence.expected, `${evidence.id}.expected`);
+  const evidenceText = v232ArtifactBytes.get(evidence.artifact).toString('utf8');
+  if (!evidenceText.includes(evidence.locator)) {
+    fail(`v2.3.2 evidence locator no longer matches ${evidence.artifact}: ${evidence.id}`);
+  }
+  v232Evidence.set(evidence.id, evidence);
+  v232EvidenceCategories.add(evidence.category);
+}
+if (requiredV232EvidenceIds.some(id => !v232Evidence.has(id)) ||
+    ['source', 'data', 'runtime', 'api', 'static', 'browser', 'scale', 'governance', 'release']
+      .some(category => !v232EvidenceCategories.has(category))) {
+  fail('v2.3.2 evidence IDs or categories are incomplete');
+}
+const v232EvidenceDeclarationDigest = sha256(Buffer.from(
+  JSON.stringify(canonicalValidationValue(v232Manifest.evidence)),
+  'utf8'
+));
+if (v232EvidenceDeclarationDigest !== 'a90536b44ef7e5564d4e8095e453f94ee3b0a84c9afacde60806962f31914249') {
+  fail('v2.3.2 evidence mappings, locators, or expected results changed');
+}
+requireExactValue(
+  v232Evidence.get('governance.redistribution-approved').expected,
+  {
+    sourcePublicationApproved: true,
+    owner: 'arcazj',
+    reviewer: 'arcazj (repository/data-release owner)',
+    approvalDate: '2026-09-02',
+    approvedAt: '2026-09-02T08:31:23.110Z',
+    channelId: 'github-origin-master-source',
+    branch: 'origin/master',
+    repository: 'arcazj/openbexi_earth_orbit',
+    publicationLimit: 1,
+    warnedManifestSha256: 'c456703d12602e83a73233f693cf684315565436d8c08c645a0b7e5d984d8177',
+    pagesBuildTypeBeforePush: 'workflow',
+    pagesDeploymentApproved: false,
+    futureBytesApproved: false,
+    differentChannelsApproved: false
+  },
+  'v2.3.2 source-publication approval evidence'
+);
+
+function parsedV232Evidence(relative) {
+  return JSON.parse(v232ArtifactBytes.get(relative).toString('utf8'));
+}
+const releaseMetrics232 = parsedV232Evidence('release/evidence/v2.3.2-release-metrics.json');
+const playwrightEvidence232 = parsedV232Evidence('release/evidence/v2.3.2-playwright-aggregate.json');
+const rollbackEvidence232 = parsedV232Evidence('release/evidence/v2.3.2-static-rollback.json');
+const localAttestation232 = parsedV232Evidence('release/evidence/v2.3.2-local-static-attestation.json');
+const candidateRecovery232 = parsedV232Evidence('release/evidence/v2.3.2-data-candidate-recovery.json');
+const sbom232 = parsedV232Evidence('release/evidence/openbexi-node-sbom-2.3.2-development.cdx.json');
+
+requireExactValue(
+  releaseMetrics232.verification,
+  {
+    javascriptUnit: { files: 63, passed: 63, failed: 0 },
+    python: {
+      discovered: 152, passed: 151, skipped: 1, failed: 0, errors: 0, durationSeconds: 83.452,
+      skipReason: 'Windows directory-symlink capability unavailable'
+    },
+    javascriptSyntax: { files: 147, passed: 147 },
+    dependencyAudit: {
+      vulnerabilities: 0,
+      dependencies: { production: 3, development: 6, optional: 1, total: 8 }
+    },
+    releaseEngineering: { passed: true },
+    playwrightEvidence: {
+      path: 'release/evidence/v2.3.2-playwright-aggregate.json',
+      bytes: 3385,
+      sha256: '07674df975c579638da6d214557b44b109a67d630d1a1a32ab9d1fff1eeef5ca',
+      reportSha256: '893b507b3c29b511f190655643539e66b20c84dcb715723790ac1cdfe6394170'
+    }
+  },
+  'v2.3.2 frozen verification metrics'
+);
+requireExactValue(
+  releaseMetrics232.sourceBudgets,
+  {
+    indexHtml: { bytes: 314194, ceilingBytes: 315000, headroomBytes: 806 },
+    firstPartyBrowserJavaScript: { files: 54, bytes: 904188, ceilingBytes: 915000, headroomBytes: 10812 }
+  },
+  'v2.3.2 frozen source budgets'
+);
+requireExactValue(
+  releaseMetrics232.trackedCatalogBenchmark120k,
+  {
+    recordCount: 120000,
+    filteredCount: 24000,
+    searchMatchCount: 10,
+    observed: {
+      buildMs: 57.56, filterMs: 245.79, searchMs: 53.86, facetMs: 288.86,
+      resultsMs: 330.68, totalMs: 976.75, heapDeltaMiB: 95.89
+    },
+    ceilings: {
+      buildMs: 2500, filterMs: 3000, searchMs: 3000, facetMs: 6000,
+      resultsMs: 3000, totalMs: 16000, heapDeltaMiB: 384
+    },
+    passed: true
+  },
+  'v2.3.2 frozen scale metrics'
+);
+requireExactValue(
+  releaseMetrics232.staticArtifact,
+  {
+    payloadFileCount: 138,
+    payloadTotalBytes: 280577774,
+    selfManifestExcludedFromPayloadInventory: true,
+    assetManifest: {
+      path: 'dist/asset-manifest.json', bytes: 23702,
+      sha256: '61d59ceead6d6bf97f28c3c5c595e6a105d8a51e3f0211349fbae0b1a9329a37'
+    },
+    deterministicConsecutiveBuilds: 2
+  },
+  'v2.3.2 frozen static-artifact metrics'
+);
+requireExactValue(
+  releaseMetrics232.checkedInDataClosure,
+  {
+    candidateRevision: dataPlaneRevision232,
+    artifacts: 24,
+    totalBytes: 127385726,
+    tracked: {
+      catalogRevision: trackedManifest232.catalog_revision,
+      closureFiles: 13,
+      closureBytes: 74565511,
+      largestChunkBytes: 24215754,
+      total: 70474,
+      current: 34960,
+      history: 35514,
+      propagatable: 16470,
+      metadataOnly: 54004,
+      currentDebris: 12490,
+      positionedCurrentDebris: 0,
+      quarantine: 0
+    }
+  },
+  'v2.3.2 frozen checked-in data closure'
+);
+if (releaseMetrics232.publicationState !== 'development' ||
+    releaseMetrics232.scientificMaturity !== 'Experimental' ||
+    releaseMetrics232.safetyClass !== 'non-operational' ||
+    releaseMetrics232.environment?.representativeHardwareProfile !== false) {
+  fail('v2.3.2 metrics must remain local development evidence, not named-hardware or operational evidence');
+}
+requireExactValue(
+  releaseMetrics232.pending,
+  [
+    'named-browser-performance-profiles',
+    'v2.3.2-validation-seal',
+    'remote-pages-deployment-and-attestation',
+    'github-environment-protection-settings',
+    'independent-scientific-and-security-review'
+  ],
+  'v2.3.2 pre-seal metric pending-state snapshot'
+);
+requireExactValue(
+  v232Manifest.preSealEvidence,
+  {
+    artifact: 'release/evidence/v2.3.2-release-metrics.json',
+    recordedAt: '2026-09-02T08:51:32.487Z',
+    validationSealStateAtRecording: 'pending',
+    interpretation: 'Timestamped measurements recorded before this manifest and sidecar were generated; the pending field is historical, not the current seal result.'
+  },
+  'v2.3.2 pre-seal evidence interpretation'
+);
+
+requireExactValue(
+  playwrightEvidence232.source_report,
+  {
+    path: 'playwright-report/index.html',
+    bytes: 677198,
+    sha256: 'sha256:893b507b3c29b511f190655643539e66b20c84dcb715723790ac1cdfe6394170',
+    embedded_archive_bytes: 114278,
+    embedded_report_json_bytes: 26674
+  },
+  'v2.3.2 Playwright source-report identity'
+);
+requireExactValue(
+  playwrightEvidence232.timing,
+  {
+    started_at: '2026-09-02T06:05:05.616Z',
+    started_at_epoch_ms: 1788329105616,
+    duration_ms: 595996.319,
+    duration_seconds: 595.996319,
+    duration_minutes: 9.933271983333334,
+    duration_clock: '00:09:55.996319'
+  },
+  'v2.3.2 Playwright timing'
+);
+requireExactValue(
+  playwrightEvidence232.summary,
+  {
+    total: 49,
+    expected: 29,
+    skipped: 20,
+    unexpected: 0,
+    flaky: 0,
+    errors: 0,
+    ok: true,
+    project_count: 2,
+    file_count: 6,
+    attempts: {
+      total: 49,
+      minimum_per_declaration: 1,
+      maximum_per_declaration: 1,
+      every_declaration_exactly_one: true
+    },
+    skip_without_reason: 0
+  },
+  'v2.3.2 Playwright result summary'
+);
+requireExactValue(
+  playwrightEvidence232.projects,
+  [
+    {
+      name: 'chromium', total: 27, passed: 25, skipped: 2,
+      files: [
+        { name: 'conjunction.spec.js', total: 5, passed: 4, skipped: 1 },
+        { name: 'satelliteFilters.spec.js', total: 15, passed: 14, skipped: 1 },
+        { name: 'smoke.spec.js', total: 2, passed: 2, skipped: 0 },
+        { name: 'staticDeployment.spec.js', total: 2, passed: 2, skipped: 0 },
+        { name: 'timelines.spec.js', total: 2, passed: 2, skipped: 0 },
+        { name: 'timeSimulation.spec.js', total: 1, passed: 1, skipped: 0 }
+      ]
+    },
+    {
+      name: 'mobile-chromium', total: 22, passed: 4, skipped: 18,
+      files: [
+        { name: 'conjunction.spec.js', total: 5, passed: 1, skipped: 4 },
+        { name: 'satelliteFilters.spec.js', total: 15, passed: 2, skipped: 13 },
+        { name: 'timelines.spec.js', total: 2, passed: 1, skipped: 1 }
+      ]
+    }
+  ],
+  'v2.3.2 Playwright project partitions'
+);
+requireExactValue(
+  playwrightEvidence232.files,
+  [
+    { name: 'conjunction.spec.js', total: 10, passed: 5, skipped: 5 },
+    { name: 'satelliteFilters.spec.js', total: 30, passed: 16, skipped: 14 },
+    { name: 'smoke.spec.js', total: 2, passed: 2, skipped: 0 },
+    { name: 'staticDeployment.spec.js', total: 2, passed: 2, skipped: 0 },
+    { name: 'timelines.spec.js', total: 4, passed: 3, skipped: 1 },
+    { name: 'timeSimulation.spec.js', total: 1, passed: 1, skipped: 0 }
+  ],
+  'v2.3.2 Playwright file partitions'
+);
+if (sha256(v232ArtifactBytes.get('release/evidence/v2.3.2-playwright-aggregate.json')) !==
+      releaseMetrics232.verification.playwrightEvidence.sha256 ||
+    v232ArtifactBytes.get('release/evidence/v2.3.2-playwright-aggregate.json').length !==
+      releaseMetrics232.verification.playwrightEvidence.bytes) {
+  fail('v2.3.2 release metrics do not bind the frozen Playwright aggregate bytes');
+}
+
+requireExactValue(
+  rollbackEvidence232,
+  {
+    schemaVersion: 1,
+    kind: 'openbexi-static-rollback-rehearsal',
+    baselineManifestSha256: '61d59ceead6d6bf97f28c3c5c595e6a105d8a51e3f0211349fbae0b1a9329a37',
+    baselineTrackedRevision: trackedManifest232.catalog_revision,
+    corruptCandidate: {
+      chunk: 'json/tracked/chunks/f928ad3607f7079831056dc487686b2cfbd73e5a448f0bf5e3f49ae23df0c373-current-payload.json',
+      liveStatus: 200,
+      readyStatus: 503,
+      trackedStatus: 503
+    },
+    gpOnly: {
+      readyStatus: 200,
+      trackedStatus: 404,
+      featureEnabled: false,
+      manifestSha256: 'a5370b20a449f4f05a111d98afa515835274164df7436efe594f0cbca946806b'
+    },
+    restoredTracked: {
+      readyStatus: 200,
+      trackedRevision: trackedManifest232.catalog_revision,
+      pointerCacheControl: 'no-cache',
+      chunkCacheControl: 'public, max-age=31536000, immutable',
+      conditionalChunkStatus: 304,
+      staleFeatureEtagInvalidated: true
+    },
+    disposable: true,
+    passed: true,
+    rehearsedAt: '2026-09-02T08:51:17.732Z'
+  },
+  'v2.3.2 local disposable rollback evidence'
+);
+requireExactValue(
+  localAttestation232,
+  {
+    schemaVersion: 1,
+    kind: 'openbexi-static-deployment-attestation',
+    sourceCommit: 'worktree-uncommitted-v2.3.2-development',
+    artifact: {
+      version: '2.3.2',
+      manifestSha256: '61d59ceead6d6bf97f28c3c5c595e6a105d8a51e3f0211349fbae0b1a9329a37',
+      fileCount: 138,
+      totalBytes: 280577774
+    },
+    verification: {
+      localExact: true,
+      remoteExact: false,
+      local: { fileCount: 138, totalBytes: 280577774 },
+      remote: null
+    },
+    verifiedAt: '2026-09-02T08:51:24.294Z'
+  },
+  'v2.3.2 local static attestation'
+);
+for (const [metricsRecord, relative, bytes, digest] of [
+  [releaseMetrics232.rollbackEvidence, 'release/evidence/v2.3.2-static-rollback.json', 1096,
+    '788bbc51ef586d5279e36b35bf6c9e1b41bfb8a144cd5b55169b1a9ea4da15d2'],
+  [releaseMetrics232.localAttestationEvidence, 'release/evidence/v2.3.2-local-static-attestation.json', 537,
+    'c61da99d5a47e63a5c7621b528736dba876a161413b21d1cff65afcbe733be9f']
+]) {
+  if (metricsRecord?.path !== relative || metricsRecord?.bytes !== bytes || metricsRecord?.sha256 !== digest ||
+      v232ArtifactBytes.get(relative).length !== bytes || sha256(v232ArtifactBytes.get(relative)) !== digest) {
+    fail(`v2.3.2 release metrics do not bind ${relative}`);
+  }
+}
+
+if (candidateRecovery232.schema_version !== '1.0.0' || candidateRecovery232.release_version !== '2.3.2' ||
+    candidateRecovery232.publication_state !== 'development' ||
+    candidateRecovery232.selected_release_data?.kind !== 'checked-in-v2.3.1-last-known-good' ||
+    candidateRecovery232.selected_release_data?.source_commit !== 'ef98cfe' ||
+    candidateRecovery232.selected_release_data?.tracked_revision !== trackedManifest232.catalog_revision ||
+    candidateRecovery232.selected_release_data?.total !== 70474 ||
+    candidateRecovery232.selected_release_data?.propagatable !== 16470 ||
+    candidateRecovery232.selected_release_data?.metadata_only !== 54004 ||
+    candidateRecovery232.selected_release_data?.current_debris !== 12490 ||
+    candidateRecovery232.selected_release_data?.positioned_debris !== 0 ||
+    !Array.isArray(candidateRecovery232.private_candidates) || candidateRecovery232.private_candidates.length !== 2) {
+  fail('v2.3.2 candidate-recovery evidence does not bind the selected last-known-good release data');
+}
+const [exactHeadCandidate232, dirtyCandidate232] = candidateRecovery232.private_candidates;
+if (exactHeadCandidate232.evidence_id !== 'exact-head-partial-refresh' ||
+    exactHeadCandidate232.source_commit !== '95b4303b06667435456568f565a6bec298a632f8' ||
+    exactHeadCandidate232.source_commit_referenced_closure_complete !== false ||
+    exactHeadCandidate232.candidate_id !== '20260902T014734Z-9faea7cdb724' ||
+    exactHeadCandidate232.candidate_state !== 'validated' || exactHeadCandidate232.network_used !== false ||
+    exactHeadCandidate232.pinned !== true || exactHeadCandidate232.promoted !== false ||
+    exactHeadCandidate232.selected_by_pointer !== false ||
+    exactHeadCandidate232.raw_revision !== 'sha256:4fa944e1283feb2a8dd5a09e51c5d8c8fc332f4f96d0e119347afa994e1193f2' ||
+    exactHeadCandidate232.artifact_count !== 24 || exactHeadCandidate232.total_bytes !== 131613453 ||
+    exactHeadCandidate232.source_copy_mismatch_count !== 0 ||
+    exactHeadCandidate232.tracked_revision !== 'sha256:8fd7f619f16e714a9d170a8eb538a183e240051830430b09b1201bbf0d36e4a4' ||
+    exactHeadCandidate232.tracked_counts?.total !== 70475 ||
+    exactHeadCandidate232.tracked_counts?.propagatable !== 19111 ||
+    exactHeadCandidate232.tracked_counts?.positioned_debris !== 2640 ||
+    exactHeadCandidate232.decision !== 'retained-private-and-unpromoted') {
+  fail('v2.3.2 exact-HEAD private-candidate observation drifted');
+}
+if (dirtyCandidate232.evidence_id !== 'later-dirty-working-tree-import' ||
+    dirtyCandidate232.byte_relationship_to_source_commit !== 'different' ||
+    dirtyCandidate232.candidate_id !== '20260902T011924Z-8c8d999bf6df' ||
+    dirtyCandidate232.candidate_state !== 'quarantined' || dirtyCandidate232.network_used !== false ||
+    dirtyCandidate232.pinned !== true || dirtyCandidate232.promoted !== false ||
+    dirtyCandidate232.selected_by_pointer !== false ||
+    dirtyCandidate232.raw_revision !== 'sha256:e27ff6b5c34bdaa715f3924ea5cafa67fec6fd83ea0ddd7ff63340b80e08683c' ||
+    dirtyCandidate232.artifact_count !== 24 || dirtyCandidate232.total_bytes !== 131692789 ||
+    dirtyCandidate232.source_copy_mismatch_count !== 0 ||
+    dirtyCandidate232.tracked_revision !== 'sha256:de60852484cc6ccee624380286080b993543ad6c412016710673ccd1b75f4cb7' ||
+    dirtyCandidate232.malformed_artifact?.path !== 'json/tle/TLE.meta.json' ||
+    dirtyCandidate232.malformed_artifact?.bytes !== 1328 ||
+    dirtyCandidate232.malformed_artifact?.sha256 !== 'sha256:198d5b32afdb9ea35b3c7ee64218528fedcb9c87182f1f89bcb7c21d47891ca1' ||
+    dirtyCandidate232.decision !== 'quarantined-and-unpromoted') {
+  fail('v2.3.2 dirty private-candidate quarantine observation drifted');
+}
+if (candidateRecovery232.pointer_observation?.present !== false ||
+    candidateRecovery232.pointer_observation?.selected_candidate_id !== null ||
+    candidateRecovery232.portability_boundary?.private_candidate_bytes_tracked !== false ||
+    candidateRecovery232.portability_boundary?.private_candidate_bytes_in_static_artifact !== false ||
+    candidateRecovery232.portability_boundary?.clean_clone_validation_requires_private_runtime_state !== false ||
+    !candidateRecovery232.portability_boundary?.excluded_paths?.includes('runtime/data-plane/**')) {
+  fail('v2.3.2 compact candidate evidence must remain private, unselected, and non-replayable');
+}
+
+if (sbom232.bomFormat !== 'CycloneDX' || sbom232.specVersion !== '1.5' ||
+    !/^urn:uuid:[0-9a-f-]{36}$/i.test(String(sbom232.serialNumber ?? '')) ||
+    sbom232.metadata?.component?.name !== 'openbexi_earth_orbit' ||
+    sbom232.metadata?.component?.version !== '2.3.2' ||
+    !Array.isArray(sbom232.components) || sbom232.components.length !== 2) {
+  fail('v2.3.2 dependency SBOM identity or component closure is invalid');
+}
+
+const budgetPolicy232 = JSON.parse(v232ArtifactBytes.get('release/asset-budgets.json').toString('utf8'));
+if (v232ArtifactBytes.get('index.html').length !== 314194 ||
+    budgetPolicy232.files?.['index.html'] !== 315000 ||
+    budgetPolicy232.groups?.browserJavaScript?.maxBytes !== 915000) {
+  fail('v2.3.2 source-budget policy or index measurement drifted');
+}
+function filesUnder232(directory) {
+  const files = [];
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const absolute = path.join(directory, entry.name);
+    if (entry.isDirectory()) files.push(...filesUnder232(absolute));
+    else if (entry.isFile()) files.push(absolute);
+  }
+  return files;
+}
+const browserJavaScriptPolicy232 = budgetPolicy232.groups.browserJavaScript;
+const browserJavaScriptExcluded232 = new Set(browserJavaScriptPolicy232.exclude);
+const browserJavaScriptFiles232 = browserJavaScriptPolicy232.roots
+  .flatMap(root => filesUnder232(path.join(ROOT, root)))
+  .map(absolute => path.relative(ROOT, absolute).replaceAll('\\', '/'))
+  .filter(relative => browserJavaScriptPolicy232.extensions.includes(path.extname(relative)))
+  .filter(relative => !browserJavaScriptExcluded232.has(relative));
+const browserJavaScriptBytes232 = browserJavaScriptFiles232
+  .reduce((sum, relative) => sum + fs.statSync(path.join(ROOT, ...relative.split('/'))).size, 0);
+if (browserJavaScriptFiles232.length !== 54 || browserJavaScriptBytes232 !== 904188 ||
+    browserJavaScriptFiles232.some(relative => !v232ArtifactPaths.has(relative))) {
+  fail('v2.3.2 first-party browser JavaScript measurement or hashed closure drifted');
+}
+
+const canonicalSatelliteIcon232 = v232ArtifactBytes.get('icons/ob_satellite.png');
+if (canonicalSatelliteIcon232.length !== 25316 ||
+    sha256(canonicalSatelliteIcon232) !== '34fbdde639c3fc698146302e6881af560d15e1aaa4ea397324aa160a5c6ee08f' ||
+    canonicalSatelliteIcon232.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a' ||
+    canonicalSatelliteIcon232.readUInt32BE(8) !== 13 ||
+    canonicalSatelliteIcon232.subarray(12, 16).toString('ascii') !== 'IHDR' ||
+    canonicalSatelliteIcon232.readUInt32BE(16) !== 512 || canonicalSatelliteIcon232.readUInt32BE(20) !== 512 ||
+    canonicalSatelliteIcon232[24] !== 8 || canonicalSatelliteIcon232[25] !== 6) {
+  fail('v2.3.2 detailed Globe icon is not the frozen 512x512 RGBA asset');
+}
+requireExactValue(
+  v232Evidence.get('browser.globe-499-500').expected,
+  {
+    detailedMaximumDrawn: 499,
+    densityMinimumDrawn: 500,
+    detailedAsset: 'icons/ob_satellite.png',
+    detailedPointSize: 16,
+    detailedSizeAttenuation: false,
+    densityPointSize: 0.025,
+    densitySizeAttenuation: true,
+    densityLoadFailureFallbackDrawn: 499
+  },
+  'v2.3.2 Globe detail/density boundary'
+);
+requireExactValue(
+  v232Evidence.get('browser.globe-icon').expected,
+  {
+    asset: 'icons/ob_satellite.png',
+    bytes: 25316,
+    sha256: '34fbdde639c3fc698146302e6881af560d15e1aaa4ea397324aa160a5c6ee08f',
+    width: 512,
+    height: 512,
+    directAlphaIou: 0.9939361512395221,
+    flippedAlphaIou: 0.4270518657192699,
+    circleIou: 0.47253916070392576,
+    selectionMaskIou: 1
+  },
+  'v2.3.2 Globe icon artwork observation'
+);
+
+const releaseVersion232 = JSON.parse(v232ArtifactBytes.get('release/version.json').toString('utf8'));
+if (releaseVersion232.version !== '2.3.2' || releaseVersion232.channel !== 'development' ||
+    releaseVersion232.publicationState !== 'development' || releaseVersion232.maturity !== 'experimental' ||
+    releaseVersion232.safetyClass !== 'non-operational' || releaseVersion232.candidateAt !== null ||
+    releaseVersion232.releasedAt !== null) {
+  fail('v2.3.2 release identity must remain development, experimental, non-operational, and unpromoted');
+}
+const featureFlags232 = JSON.parse(v232ArtifactBytes.get('release/feature-flags.json').toString('utf8'));
+if (featureFlags232.releaseVersion !== '2.3.2' || !Array.isArray(featureFlags232.flags) ||
+    featureFlags232.flags.length !== 3 || featureFlags232.flags.some(flag =>
+      flag.scientificMaturity !== 'Experimental' || flag.safetyClass !== 'non-operational')) {
+  fail('v2.3.2 feature flags do not preserve experimental non-operational boundaries');
+}
+const pagesPolicy232 = parsedV232Evidence('release/pages-deployment.json');
+requireExactValue(
+  pagesPolicy232,
+  {
+    schemaVersion: 1,
+    kind: 'openbexi-github-pages-deployment-policy',
+    sourceBranch: 'master',
+    environment: 'github-pages',
+    artifactDirectory: 'dist',
+    assetManifest: 'dist/asset-manifest.json',
+    siteUrl: 'https://arcazj.github.io/openbexi_earth_orbit/',
+    controls: {
+      manualCommitConfirmation: true,
+      exactResolvedCommitBinding: true,
+      requireEnvironmentProtection: true,
+      cleanCommitTree: true,
+      commitSnapshotBuild: true,
+      freshBuildJobAfterValidation: true,
+      artifactExactVerification: true,
+      uploadedPagesArchiveVerification: true,
+      uploadedPagesArchiveAttestation: true,
+      postDeployExactVerification: true,
+      disposableRollbackRehearsal: true,
+      directArchivedArtifactRollback: false
+    },
+    rollbackStrategy: 'reviewed-master-revert'
+  },
+  'v2.3.2 Pages deployment policy'
+);
+requireExactValue(v232Executables.get('release-engineering').observed, { passed: true },
+  'v2.3.2 release-engineering observation');
+requireExactValue(
+  v232Executables.get('static-rollback-rehearsal').observed,
+  {
+    passed: true,
+    disposable: true,
+    evidenceBytes: 1096,
+    evidenceSha256: '788bbc51ef586d5279e36b35bf6c9e1b41bfb8a144cd5b55169b1a9ea4da15d2',
+    rehearsedAt: '2026-09-02T08:51:17.732Z'
+  },
+  'v2.3.2 rollback executable observation'
+);
+requireExactValue(
+  v232Executables.get('local-static-attestation').observed,
+  {
+    localExact: true,
+    remoteExact: false,
+    evidenceBytes: 537,
+    evidenceSha256: 'c61da99d5a47e63a5c7621b528736dba876a161413b21d1cff65afcbe733be9f',
+    verifiedAt: '2026-09-02T08:51:24.294Z'
+  },
+  'v2.3.2 local-attestation executable observation'
+);
+requireExactValue(
+  v232Executables.get('dependency-sbom-generation').observed,
+  { format: 'CycloneDX 1.5', components: 2, version: '2.3.2' },
+  'v2.3.2 SBOM executable observation'
+);
+
+const requiredV232GapIds = [
+  'independent-review-pending',
+  'provider-completeness-not-claimed',
+  'named-hardware-scale-pending',
+  'remote-pages-deployment-attestation-pending',
+  'github-environment-protection-settings-pending',
+  'clean-commit-binding-pending'
+];
+requireExactValue(v232Manifest.knownGapIds, requiredV232GapIds, 'v2.3.2 known-gap IDs');
+requireExactValue(
+  v232Manifest.knownGaps,
+  [
+    'Independent scientific and security review is pending.',
+    'Provider-universe and physical-debris completeness are not claimed.',
+    'Repeated named-hardware desktop and mobile performance profiles remain pending.',
+    'Remote GitHub Pages deployment and exact-byte attestation remain pending.',
+    'GitHub environment protection and reviewer settings remain pending external configuration.',
+    'The local static attestation is worktree-bound; clean committed-tree binding remains pending.'
+  ],
+  'v2.3.2 known-gap statements'
+);
+requireExactValue(
+  v232Manifest.tolerances,
+  {
+    contentHashes: 'exact SHA-256',
+    catalogCounts: 0,
+    identityDuplicates: 0,
+    globeDetailedMaximumDrawn: 499,
+    globeDensityMinimumDrawn: 500,
+    mercatorDensityAboveDrawn: 1000,
+    benchmarkUse: 'Observed values are regression evidence; enforced ceilings are defined in executable tests and release budgets.',
+    scientificAccuracy: 'Not evaluated by this tracked-metadata corpus.'
+  },
+  'v2.3.2 tolerances and rendering thresholds'
+);
+
+console.log(
+  `Validation evidence passed: ${v232Manifest.corpusVersion}, ${v232Manifest.evidence.length} evidence records, ` +
+  `${v232Manifest.executables.length} executable declarations, ${v232Manifest.artifacts.length} strict hashes, ` +
+  `${staticTrackedObservation.currentCount + staticTrackedObservation.historyCount} tracked identities, ` +
+  `review ${v232Manifest.review.status}, redistribution ${v232Manifest.redistribution.status}`
 );

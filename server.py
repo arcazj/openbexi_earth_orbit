@@ -167,9 +167,15 @@ try:
         DEFAULT_SERVER_UPDATE_INTERVAL_HOURS,
         maybe_update_satellite_data,
     )
+    from tools.satellite_data_plane import (
+        DataPlaneCancelled,
+        SatelliteDataPlane,
+    )
 except Exception as exc:  # pragma: no cover - exposed through /api/data-update-status
     DEFAULT_SERVER_UPDATE_INTERVAL_HOURS = 24.0
     maybe_update_satellite_data = None
+    SatelliteDataPlane = None
+    DataPlaneCancelled = RuntimeError
     DATA_TOOL_IMPORT_ERROR = str(exc)
 else:
     DATA_TOOL_IMPORT_ERROR = None
@@ -178,7 +184,35 @@ else:
 DATA_UPDATE_STATUS_LOCK = threading.Lock()
 TRACKED_CHUNK_VALIDATION_LOCK = threading.Lock()
 TRACKED_CHUNK_VALIDATION_CACHE_MAX_ITEMS = 128
-TRACKED_CHUNK_VALIDATION_CACHE: dict[tuple[object, ...], bool] = {}
+TRACKED_CHUNK_VALIDATION_CACHE: dict[tuple[object, ...], dict[str, object] | None] = {}
+TRACKED_CHUNK_BASENAME_PATTERN = re.compile(r"^([a-f0-9]{64})-[a-z0-9-]+\.json$")
+TRACKED_REVISION_PATTERN = re.compile(r"^sha256:[a-f0-9]{64}$")
+TRACKED_NORAD_ID_PATTERN = re.compile(r"^[1-9][0-9]{0,8}$")
+TRACKED_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+MAX_SAFE_JSON_INTEGER = (1 << 53) - 1
+PRODUCER_UTC_TIMESTAMP_PATTERN = re.compile(
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$"
+)
+TRACKED_OBJECT_TYPES = frozenset(
+    {"PAYLOAD", "DEBRIS", "ROCKET_BODY", "MISSION_RELATED", "UNKNOWN"}
+)
+TRACKED_LIFECYCLE_STATUSES = frozenset(
+    {"ACTIVE", "INACTIVE", "UNKNOWN", "DECAYED", "ABSENT", "RETIRED"}
+)
+TRACKED_OBSERVATION_STATUSES = frozenset(
+    {"NEW", "OBSERVED", "CHANGED", "ABSENT", "REAPPEARED"}
+)
+TRACKED_MEMBERSHIP_STATUSES = frozenset({"PRESENT", "ABSENT"})
+TRACKED_HISTORICAL_LIFECYCLE_STATUSES = frozenset({"DECAYED", "ABSENT", "RETIRED"})
+TRACKED_ROW_ACCOUNTING_KEYS = (
+    "received",
+    "accepted",
+    "quarantined",
+    "duplicates",
+    "issues",
+    "expected",
+    "expected_provider_records",
+)
 CATALOG_REVISION_CACHE_LOCK = threading.Lock()
 CATALOG_REVISION_CACHE_MAX_ITEMS = 16
 CATALOG_REVISION_CACHE: dict[tuple[object, ...], str] = {}
@@ -300,10 +334,10 @@ def _set_data_update_status(**updates: object) -> None:
         DATA_UPDATE_STATUS.update(updates)
 
 
-def _data_update_status_snapshot() -> dict[str, object]:
+def _data_update_status_snapshot(root: Path | None = None) -> dict[str, object]:
     with DATA_UPDATE_STATUS_LOCK:
         snapshot = dict(DATA_UPDATE_STATUS)
-    health = _catalog_data_health(ROOT)
+    health = _catalog_data_health(root or ROOT)
     live_error = _bounded_public_error(snapshot.get("last_error"))
     metadata_errors = [
         item.get("last_error")
@@ -324,7 +358,13 @@ def _data_update_status_snapshot() -> dict[str, object]:
 
 def _load_metadata(path: Path) -> dict[str, object]:
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload = _strict_json_loads(
+            path.read_bytes(),
+            canonical_nonnegative_integers=(
+                path.parent.name.lower() == "tracked"
+                and path.name.lower() in {"tracked.manifest.json", "tracked.meta.json"}
+            ),
+        )
     except (OSError, ValueError, TypeError):
         return {}
     return payload if isinstance(payload, dict) else {}
@@ -357,6 +397,173 @@ def _parse_iso_timestamp(value: str) -> float | None:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=dt.timezone.utc)
     return parsed.timestamp()
+
+
+def _producer_utc_timestamp_is_valid(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and PRODUCER_UTC_TIMESTAMP_PATTERN.fullmatch(value) is not None
+        and _parse_iso_timestamp(value) is not None
+    )
+
+
+def _is_nonnegative_safe_json_integer(value: object) -> bool:
+    return (
+        isinstance(value, int)
+        and not isinstance(value, bool)
+        and 0 <= value <= MAX_SAFE_JSON_INTEGER
+    )
+
+
+def _reject_nonstandard_json_constant(value: str) -> None:
+    raise ValueError(f"Non-standard JSON constant is not allowed: {value}")
+
+
+def _reject_duplicate_json_object_keys(
+    pairs: list[tuple[str, object]],
+) -> dict[str, object]:
+    value: dict[str, object] = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError(f"Duplicate JSON object key is not allowed: {key}")
+        value[key] = item
+    return value
+
+
+def _parse_safe_json_integer(value: str) -> int:
+    if re.fullmatch(r"(?:0|[1-9][0-9]*|-[1-9][0-9]*)", value) is None:
+        raise ValueError(f"JSON integer is not canonical: {value}")
+    parsed = int(value)
+    if abs(parsed) > MAX_SAFE_JSON_INTEGER:
+        raise ValueError(f"JSON integer exceeds the safe range: {value}")
+    return parsed
+
+
+def _parse_finite_json_float(value: str) -> float:
+    parsed = float(value)
+    if not math.isfinite(parsed):
+        raise ValueError(f"JSON number is not finite: {value}")
+    return parsed
+
+
+def _parse_canonical_nonnegative_json_integer(value: str) -> int:
+    if re.fullmatch(r"(?:0|[1-9][0-9]*)", value) is None:
+        raise ValueError(f"Tracked JSON integer is not canonical: {value}")
+    parsed = int(value)
+    if parsed > MAX_SAFE_JSON_INTEGER:
+        raise ValueError(f"Tracked JSON integer exceeds the safe range: {value}")
+    return parsed
+
+
+def _reject_tracked_json_float(value: str) -> None:
+    raise ValueError(f"Tracked JSON numbers must use canonical integer syntax: {value}")
+
+
+def _normalize_json_unicode_scalars(value: object) -> object:
+    if isinstance(value, str):
+        try:
+            return value.encode("utf-16-le", errors="surrogatepass").decode(
+                "utf-16-le", errors="strict"
+            )
+        except UnicodeDecodeError as exc:
+            raise ValueError("JSON strings must contain only Unicode scalar values") from exc
+    if isinstance(value, list):
+        return [_normalize_json_unicode_scalars(item) for item in value]
+    if isinstance(value, dict):
+        normalized: dict[str, object] = {}
+        for key, item in value.items():
+            normalized_key = _normalize_json_unicode_scalars(key)
+            if not isinstance(normalized_key, str):
+                raise ValueError("JSON object keys must be strings")
+            if normalized_key in normalized:
+                raise ValueError(
+                    f"Duplicate JSON object key after Unicode normalization: {normalized_key}"
+                )
+            normalized[normalized_key] = _normalize_json_unicode_scalars(item)
+        return normalized
+    return value
+
+
+def _strict_json_loads(
+    source: str | bytes | bytearray,
+    *,
+    canonical_nonnegative_integers: bool = False,
+) -> object:
+    if isinstance(source, (bytes, bytearray)):
+        source = bytes(source).decode("utf-8", errors="strict")
+    options: dict[str, object] = {
+        "parse_constant": _reject_nonstandard_json_constant,
+        "parse_int": _parse_safe_json_integer,
+        "parse_float": _parse_finite_json_float,
+        "object_pairs_hook": _reject_duplicate_json_object_keys,
+    }
+    if canonical_nonnegative_integers:
+        options.update({
+            "parse_int": _parse_canonical_nonnegative_json_integer,
+            "parse_float": _reject_tracked_json_float,
+        })
+    return _normalize_json_unicode_scalars(json.loads(source, **options))
+
+
+def _tracked_record_is_historical(record: dict[str, object]) -> bool:
+    return (
+        record.get("lifecycle_status") in TRACKED_HISTORICAL_LIFECYCLE_STATUSES
+        or record.get("catalog_membership_status") == "ABSENT"
+        or record.get("observation_status") == "ABSENT"
+        or record.get("decay_date") is not None
+    )
+
+
+def _tracked_record_contract_is_valid(record: object) -> bool:
+    if not isinstance(record, dict):
+        return False
+    norad_id = record.get("norad_id")
+    lifecycle = record.get("lifecycle_status")
+    observation = record.get("observation_status")
+    membership = record.get("catalog_membership_status")
+    decay_date = record.get("decay_date")
+    has_current_elements = record.get("has_current_elements")
+    metadata_only = record.get("metadata_only")
+    if (
+        not isinstance(norad_id, str)
+        or TRACKED_NORAD_ID_PATTERN.fullmatch(norad_id) is None
+        or not isinstance(lifecycle, str)
+        or lifecycle not in TRACKED_LIFECYCLE_STATUSES
+        or not isinstance(observation, str)
+        or observation not in TRACKED_OBSERVATION_STATUSES
+        or not isinstance(membership, str)
+        or membership not in TRACKED_MEMBERSHIP_STATUSES
+        or not isinstance(has_current_elements, bool)
+        or not isinstance(metadata_only, bool)
+        or metadata_only is has_current_elements
+    ):
+        return False
+    if decay_date is not None:
+        if not isinstance(decay_date, str) or TRACKED_DATE_PATTERN.fullmatch(decay_date) is None:
+            return False
+        try:
+            if dt.date.fromisoformat(decay_date).isoformat() != decay_date:
+                return False
+        except ValueError:
+            return False
+    return not _tracked_record_is_historical(record) or (
+        has_current_elements is False and metadata_only is True
+    )
+
+
+def _json_values_match_exact(left: object, right: object) -> bool:
+    if type(left) is not type(right):
+        return False
+    if isinstance(left, dict):
+        return left.keys() == right.keys() and all(
+            _json_values_match_exact(left[key], right[key]) for key in left
+        )
+    if isinstance(left, list):
+        return len(left) == len(right) and all(
+            _json_values_match_exact(left_item, right_item)
+            for left_item, right_item in zip(left, right)
+        )
+    return left == right
 
 
 def _newest_timestamp(values: list[object]) -> str | None:
@@ -487,12 +694,15 @@ def _catalog_artifact_available(path: Path) -> bool:
 
 
 def _tracked_manifest_pointer_is_valid(manifest: dict[str, object]) -> bool:
+    quarantine = manifest.get("quarantine")
     return bool(
         _metadata_revision(manifest)
         and isinstance(manifest.get("counts"), dict)
         and isinstance(manifest.get("chunks"), list)
         and isinstance(manifest.get("history_chunks"), list)
-        and isinstance(manifest.get("quarantine"), dict)
+        and isinstance(quarantine, dict)
+        and isinstance(quarantine.get("path"), str)
+        and quarantine.get("path")
     )
 
 
@@ -509,7 +719,7 @@ def _tracked_authoritative_counts(
     historical = counts.get("historical")
     absent = counts.get("absent")
     values = (current, historical, absent, history_total, total)
-    if any(isinstance(value, bool) or not isinstance(value, int) or value < 0 for value in values):
+    if any(not _is_nonnegative_safe_json_integer(value) for value in values):
         return None
     if historical > history_total or absent > history_total or total != current + history_total:
         return None
@@ -531,7 +741,7 @@ def _tracked_availability_counts(payload: dict[str, object]) -> tuple[int, int, 
             "current_metadata_only",
         )
     )
-    if any(isinstance(value, bool) or not isinstance(value, int) or value < 0 for value in values):
+    if any(not _is_nonnegative_safe_json_integer(value) for value in values):
         return None
     propagatable, metadata_only, current_propagatable, current_metadata_only = values
     if total != propagatable + metadata_only or current != current_propagatable + current_metadata_only:
@@ -539,32 +749,101 @@ def _tracked_availability_counts(payload: dict[str, object]) -> tuple[int, int, 
     return values
 
 
+def _tracked_row_accounting_counts(
+    payload: dict[str, object],
+) -> tuple[int, int, int, int, int, int | None, int | None] | None:
+    counts = payload.get("counts")
+    if not isinstance(counts, dict) or any(key not in counts for key in TRACKED_ROW_ACCOUNTING_KEYS):
+        return None
+    row_values = tuple(counts.get(key) for key in TRACKED_ROW_ACCOUNTING_KEYS[:5])
+    if any(
+        not _is_nonnegative_safe_json_integer(value)
+        for value in row_values
+    ):
+        return None
+    optional_values = tuple(counts.get(key) for key in TRACKED_ROW_ACCOUNTING_KEYS[5:])
+    if any(
+        value is not None
+        and not _is_nonnegative_safe_json_integer(value)
+        for value in optional_values
+    ):
+        return None
+    return (*row_values, *optional_values)
+
+
 def _tracked_metadata_pointer_error(
     manifest: dict[str, object],
     tracked_meta: dict[str, object],
 ) -> str | None:
-    manifest_revision = _metadata_revision(manifest)
+    manifest_revision = _recomputed_tracked_catalog_revision(manifest)
     metadata_revision = tracked_meta.get("catalog_revision")
     metadata_hash = tracked_meta.get("dataset_hash")
     if (
-        not isinstance(metadata_revision, str)
-        or not metadata_revision
+        manifest.get("catalog_revision") != manifest_revision
+        or not isinstance(metadata_revision, str)
         or metadata_hash != metadata_revision
         or metadata_revision != manifest_revision
     ):
         return "Tracked manifest and metadata revisions are inconsistent."
+    coverage_revision = manifest.get("coverage_revision")
+    if (
+        not isinstance(coverage_revision, str)
+        or not TRACKED_REVISION_PATTERN.fullmatch(coverage_revision)
+        or tracked_meta.get("coverage_revision") != coverage_revision
+        or not _json_values_match_exact(tracked_meta.get("coverage"), manifest.get("coverage"))
+    ):
+        return "Tracked manifest and metadata coverage revisions are inconsistent."
+    coverage = manifest.get("coverage")
+    complete_snapshot = (
+        coverage.get("complete_source_snapshot") if isinstance(coverage, dict) else None
+    )
+    if complete_snapshot is True:
+        last_reconciled_at = tracked_meta.get("last_reconciled_at")
+        if (
+            tracked_meta.get("source_status") != "VERIFIED_SNAPSHOT"
+            or tracked_meta.get("last_reconciled_catalog_revision") != manifest_revision
+            or not _producer_utc_timestamp_is_valid(last_reconciled_at)
+        ):
+            return "Tracked complete-snapshot claim is not backed by reconciled metadata."
+    elif complete_snapshot is False:
+        if tracked_meta.get("source_status") != "PARTIAL":
+            return "Tracked partial snapshot is not identified as PARTIAL in metadata."
+    else:
+        return "Tracked complete-snapshot evidence is invalid."
     manifest_counts = _tracked_authoritative_counts(manifest)
     metadata_counts = _tracked_authoritative_counts(tracked_meta)
     manifest_availability = _tracked_availability_counts(manifest)
     metadata_availability = _tracked_availability_counts(tracked_meta)
+    manifest_row_accounting = _tracked_row_accounting_counts(manifest)
+    metadata_row_accounting = _tracked_row_accounting_counts(tracked_meta)
     if (
         manifest_counts is None
         or metadata_counts is None
         or metadata_counts != manifest_counts
         or manifest_availability is None
         or metadata_availability != manifest_availability
+        or manifest_row_accounting is None
+        or metadata_row_accounting != manifest_row_accounting
     ):
         return "Tracked manifest and metadata counts are inconsistent."
+    raw_manifest_counts = manifest.get("counts")
+    raw_metadata_counts = tracked_meta.get("counts")
+    if not isinstance(raw_manifest_counts, dict) or not isinstance(raw_metadata_counts, dict):
+        return "Tracked manifest and metadata object-type counts are inconsistent."
+    for key in ("object_types", "current_object_types"):
+        manifest_map = raw_manifest_counts.get(key)
+        metadata_map = raw_metadata_counts.get(key)
+        if (
+            not isinstance(manifest_map, dict)
+            or not isinstance(metadata_map, dict)
+            or set(manifest_map) != set(TRACKED_OBJECT_TYPES)
+            or not _json_values_match_exact(manifest_map, metadata_map)
+            or any(
+                not _is_nonnegative_safe_json_integer(value)
+                for value in manifest_map.values()
+            )
+        ):
+            return "Tracked manifest and metadata object-type counts are inconsistent."
     return None
 
 
@@ -847,6 +1126,8 @@ def _file_sha256_revision(path: Path) -> str | None:
 
 def _load_json_object_snapshot(
     path: Path,
+    *,
+    canonical_nonnegative_integers: bool = False,
 ) -> tuple[dict[str, object], bytes, tuple[int, int, int, int]] | None:
     try:
         before = _path_stat_identity(path)
@@ -854,7 +1135,10 @@ def _load_json_object_snapshot(
         after = _path_stat_identity(path)
         if before != after:
             return None
-        payload = json.loads(body)
+        payload = _strict_json_loads(
+            body,
+            canonical_nonnegative_integers=canonical_nonnegative_integers,
+        )
     except (OSError, UnicodeDecodeError, ValueError, TypeError):
         return None
     if not isinstance(payload, dict):
@@ -886,7 +1170,10 @@ def _load_tracked_manifest_snapshot(
         after = _path_stat_identity(path)
         if before != after:
             return None
-        payload = json.loads(body)
+        payload = _strict_json_loads(
+            body,
+            canonical_nonnegative_integers=True,
+        )
     except (OSError, ValueError, TypeError):
         return None
     if not isinstance(payload, dict):
@@ -912,50 +1199,221 @@ def _tracked_manifest_descriptors(manifest: dict[str, object]) -> list[dict[str,
     return descriptors
 
 
-def _validate_tracked_chunk_payload(body: bytes, descriptor: dict[str, object]) -> bool:
-    expected_hash = str(descriptor.get("sha256") or "").lower().removeprefix("sha256:")
+def _recomputed_tracked_coverage_revision(manifest: dict[str, object]) -> str | None:
+    counts = manifest.get("counts")
+    coverage = manifest.get("coverage")
+    quarantine = manifest.get("quarantine")
+    if not isinstance(counts, dict) or not isinstance(coverage, dict) or not isinstance(quarantine, dict):
+        return None
+    row_accounting: dict[str, int] = {}
+    for key in ("received", "accepted", "quarantined", "duplicates", "issues"):
+        value = counts.get(key)
+        if not _is_nonnegative_safe_json_integer(value):
+            return None
+        row_accounting[key] = value
+    quarantine_count = quarantine.get("count")
+    if (
+        not _is_nonnegative_safe_json_integer(quarantine_count)
+        or row_accounting["issues"]
+        != row_accounting["quarantined"] + row_accounting["duplicates"]
+        or row_accounting["issues"] != quarantine_count
+    ):
+        return None
+    if "expected" not in counts or "expected_provider_records" not in counts:
+        return None
+    expected = counts.get("expected")
+    if expected is not None and not _is_nonnegative_safe_json_integer(expected):
+        return None
+    expected_provider_records = counts.get("expected_provider_records")
+    if expected_provider_records is not None:
+        return None
+    if (
+        "expected" not in coverage
+        or "expected_provider_records" not in coverage
+        or any(
+            not _is_nonnegative_safe_json_integer(coverage.get(key))
+            or coverage.get(key) != row_accounting[key]
+            for key in ("received", "accepted", "quarantined", "duplicates")
+        )
+        or (
+            expected is not None
+            and not _is_nonnegative_safe_json_integer(coverage.get("expected"))
+        )
+        or coverage.get("expected") != expected
+        or coverage.get("expected_provider_records") != expected_provider_records
+        or coverage.get("provider_completeness_claim") is not False
+        or not isinstance(coverage.get("complete_source_snapshot"), bool)
+        or coverage.get("invariant")
+        != "received == accepted + quarantined + duplicates"
+    ):
+        return None
+    provider_invariant = (
+        row_accounting["received"]
+        == row_accounting["accepted"]
+        + row_accounting["quarantined"]
+        + row_accounting["duplicates"]
+    )
+    expected_matches_received = (
+        expected == row_accounting["received"] if expected is not None else None
+    )
+    invariants = manifest.get("invariants")
+    if (
+        coverage.get("invariant_holds") is not provider_invariant
+        or coverage.get("expected_matches_received") != expected_matches_received
+        or (
+            coverage.get("complete_source_snapshot") is True
+            and expected_matches_received is not True
+        )
+        or not isinstance(invariants, dict)
+        or invariants.get("provider_coverage_holds") is not provider_invariant
+    ):
+        return None
+    quarantine_sha256 = quarantine.get("sha256")
+    if not isinstance(quarantine_sha256, str) or not TRACKED_REVISION_PATTERN.fullmatch(quarantine_sha256):
+        return None
+    try:
+        material = json.dumps(
+            {
+                "row_accounting": row_accounting,
+                "expected": expected,
+                "quarantine_sha256": quarantine_sha256,
+            },
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    except (TypeError, ValueError):
+        return None
+    return "sha256:" + hashlib.sha256(material).hexdigest()
+
+
+def _recomputed_tracked_catalog_revision(manifest: dict[str, object]) -> str | None:
+    chunks = manifest.get("chunks")
+    history_chunks = manifest.get("history_chunks")
+    coverage_revision = manifest.get("coverage_revision")
+    computed_coverage_revision = _recomputed_tracked_coverage_revision(manifest)
+    if (
+        not isinstance(chunks, list)
+        or not isinstance(history_chunks, list)
+        or not TRACKED_REVISION_PATTERN.fullmatch(str(coverage_revision or ""))
+        or coverage_revision != computed_coverage_revision
+        or not all(isinstance(item, dict) for item in [*chunks, *history_chunks])
+    ):
+        return None
+    descriptor_material = []
+    for descriptor in [*chunks, *history_chunks]:
+        raw_path = descriptor.get("path")
+        digest = descriptor.get("sha256")
+        if (
+            not isinstance(raw_path, str)
+            or not raw_path
+            or not isinstance(digest, str)
+            or not TRACKED_REVISION_PATTERN.fullmatch(digest)
+        ):
+            return None
+        descriptor_material.append({"path": raw_path, "sha256": digest})
+    try:
+        material = json.dumps(
+            {
+                "chunks": descriptor_material,
+                "coverage_revision": coverage_revision,
+            },
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    except (TypeError, ValueError):
+        return None
+    return "sha256:" + hashlib.sha256(material).hexdigest()
+
+
+def _validate_tracked_chunk_payload(
+    body: bytes,
+    descriptor: dict[str, object],
+) -> dict[str, object] | None:
+    expected_revision = descriptor.get("sha256")
+    expected_hash = (
+        expected_revision.removeprefix("sha256:")
+        if isinstance(expected_revision, str)
+        else ""
+    )
     expected_bytes = descriptor.get("bytes")
     expected_count = descriptor.get("count")
     if (
-        not re.fullmatch(r"[a-f0-9]{64}", expected_hash)
-        or isinstance(expected_bytes, bool)
-        or not isinstance(expected_bytes, int)
-        or expected_bytes < 0
+        not TRACKED_REVISION_PATTERN.fullmatch(str(expected_revision or ""))
+        or not _is_nonnegative_safe_json_integer(expected_bytes)
         or len(body) != expected_bytes
         or hashlib.sha256(body).hexdigest() != expected_hash
-        or isinstance(expected_count, bool)
-        or not isinstance(expected_count, int)
-        or expected_count < 0
+        or not _is_nonnegative_safe_json_integer(expected_count)
     ):
-        return False
+        return None
     try:
-        payload = json.loads(body)
+        payload = _strict_json_loads(body)
     except (UnicodeDecodeError, ValueError, TypeError):
-        return False
-    records = payload.get("records") if isinstance(payload, dict) else payload
-    if not isinstance(records, list) or len(records) != expected_count:
-        return False
+        return None
+    records = payload.get("records") if isinstance(payload, dict) else None
+    if (
+        not isinstance(payload, dict)
+        or not re.match(r"^2\.3(?:\.|$)", str(payload.get("schema_version") or ""))
+        or not isinstance(records, list)
+        or len(records) != expected_count
+    ):
+        return None
     descriptor_scope = descriptor.get("scope")
     descriptor_type = descriptor.get("object_type")
     if descriptor_scope is None:
-        return True
+        return {"norad_ids": frozenset(), "counts": {}, "object_types": {}}
     if (
         not isinstance(payload, dict)
         or descriptor_scope not in {"CURRENT", "HISTORICAL"}
         or payload.get("scope") != descriptor_scope
         or payload.get("object_type") != descriptor_type
     ):
-        return False
+        return None
+    norad_ids: set[str] = set()
+    counts = {
+        "current": 0,
+        "historical": 0,
+        "absent": 0,
+        "history_total": 0,
+        "total": 0,
+        "propagatable": 0,
+        "metadata_only": 0,
+        "current_propagatable": 0,
+        "current_metadata_only": 0,
+    }
     for record in records:
-        if not isinstance(record, dict) or record.get("object_type") != descriptor_type:
-            return False
-        is_current = (
-            record.get("catalog_membership_status") == "PRESENT"
-            and not record.get("decay_date")
-        )
+        if (
+            not _tracked_record_contract_is_valid(record)
+            or record.get("object_type") != descriptor_type
+        ):
+            return None
+        norad_id = record["norad_id"]
+        if norad_id in norad_ids:
+            return None
+        norad_ids.add(norad_id)
+        is_current = not _tracked_record_is_historical(record)
         if (descriptor_scope == "CURRENT") != is_current:
-            return False
-    return True
+            return None
+        counts["total"] += 1
+        counts["historical"] += int(record.get("decay_date") is not None)
+        counts["absent"] += int(record.get("catalog_membership_status") == "ABSENT")
+        counts["propagatable"] += int(record["has_current_elements"])
+        counts["metadata_only"] += int(record["metadata_only"])
+        if is_current:
+            counts["current"] += 1
+            counts["current_propagatable"] += int(record["has_current_elements"])
+            counts["current_metadata_only"] += int(record["metadata_only"])
+        else:
+            counts["history_total"] += 1
+    return {
+        "norad_ids": frozenset(norad_ids),
+        "counts": counts,
+        "object_types": {
+            "all": {descriptor_type: len(records)},
+            "current": {descriptor_type: len(records) if descriptor_scope == "CURRENT" else 0},
+        },
+    }
 
 
 def _verified_tracked_chunk(
@@ -967,7 +1425,8 @@ def _verified_tracked_chunk(
 ) -> dict[str, object] | None:
     root = root or ROOT
     safe_name = Path(file_name).name
-    if safe_name != file_name or not safe_name.endswith(".json"):
+    name_match = TRACKED_CHUNK_BASENAME_PATTERN.fullmatch(safe_name)
+    if safe_name != file_name or name_match is None:
         return None
     snapshot = manifest_snapshot or _load_tracked_manifest_snapshot(root)
     if snapshot is None:
@@ -982,6 +1441,8 @@ def _verified_tracked_chunk(
     if len(matches) != 1:
         return None
     descriptor = matches[0]
+    if descriptor.get("sha256") != f"sha256:{name_match.group(1)}":
+        return None
     resolved_root = root.resolve()
     candidate = (root / relative).resolve()
     chunk_root = (root / "json" / "tracked" / "chunks").resolve()
@@ -1008,23 +1469,24 @@ def _verified_tracked_chunk(
     )
     body: bytes | None = None
     with TRACKED_CHUNK_VALIDATION_LOCK:
-        validated = TRACKED_CHUNK_VALIDATION_CACHE.get(cache_key)
-        if validated is None:
+        if cache_key in TRACKED_CHUNK_VALIDATION_CACHE:
+            validation = TRACKED_CHUNK_VALIDATION_CACHE[cache_key]
+        else:
             try:
                 body = candidate.read_bytes()
                 stable = _path_stat_identity(candidate) == file_identity
             except OSError:
                 stable = False
                 body = None
-            validated = bool(
-                stable
-                and body is not None
-                and _validate_tracked_chunk_payload(body, descriptor)
+            validation = (
+                _validate_tracked_chunk_payload(body, descriptor)
+                if stable and body is not None
+                else None
             )
             if len(TRACKED_CHUNK_VALIDATION_CACHE) >= TRACKED_CHUNK_VALIDATION_CACHE_MAX_ITEMS:
                 TRACKED_CHUNK_VALIDATION_CACHE.pop(next(iter(TRACKED_CHUNK_VALIDATION_CACHE)))
-            TRACKED_CHUNK_VALIDATION_CACHE[cache_key] = validated
-    if not validated:
+            TRACKED_CHUNK_VALIDATION_CACHE[cache_key] = validation
+    if validation is None:
         return None
     if include_body and body is None:
         try:
@@ -1042,6 +1504,7 @@ def _verified_tracked_chunk(
         "bytes": descriptor.get("bytes"),
         "sha256": descriptor.get("sha256"),
         "count": descriptor.get("count"),
+        "validation": validation,
     }
 
 
@@ -1075,24 +1538,112 @@ def _validate_tracked_manifest_pointer(
     history_chunks = manifest.get("history_chunks")
     if not all(isinstance(item, dict) for item in chunks + history_chunks):
         return False, "Tracked manifest contains an invalid chunk descriptor."
+    descriptor_ids = [item.get("id") for item in [*chunks, *history_chunks]]
+    if (
+        any(not isinstance(value, str) or not value.strip() for value in descriptor_ids)
+        or len(descriptor_ids) != len(set(descriptor_ids))
+    ):
+        return False, "Tracked manifest chunk descriptor ids must be nonempty and unique."
+    for collection, expected_scope in (
+        (chunks, "CURRENT"),
+        (history_chunks, "HISTORICAL"),
+    ):
+        if any(
+            item.get("scope") != expected_scope
+            or item.get("object_type") not in TRACKED_OBJECT_TYPES
+            for item in collection
+        ):
+            return False, "Tracked manifest chunk descriptor taxonomy is invalid."
     descriptors = _tracked_manifest_descriptors(manifest)
     paths = [descriptor.get("path") for descriptor in descriptors]
-    if any(not isinstance(path, str) or not path for path in paths) or len(paths) != len(set(paths)):
+    quarantine = manifest.get("quarantine")
+    if (
+        not isinstance(quarantine, dict)
+        or not isinstance(quarantine.get("path"), str)
+        or not quarantine["path"].endswith("-quarantine.json")
+        or any(not isinstance(path, str) or not path for path in paths)
+        or len(paths) != len(set(paths))
+    ):
         return False, "Tracked manifest chunk paths are invalid or duplicated."
+    observed_counts = {
+        "current": 0,
+        "historical": 0,
+        "absent": 0,
+        "history_total": 0,
+        "total": 0,
+        "propagatable": 0,
+        "metadata_only": 0,
+        "current_propagatable": 0,
+        "current_metadata_only": 0,
+    }
+    observed_object_types = {object_type: 0 for object_type in TRACKED_OBJECT_TYPES}
+    observed_current_object_types = {object_type: 0 for object_type in TRACKED_OBJECT_TYPES}
+    catalog_ids: set[str] = set()
     for descriptor in descriptors:
         path = str(descriptor["path"])
         prefix = "json/tracked/chunks/"
-        if not path.startswith(prefix) or "/" in path[len(prefix):]:
-            return False, "Tracked manifest contains an invalid chunk path."
-        if _verified_tracked_chunk(
-            path[len(prefix):],
+        file_name = path[len(prefix):] if path.startswith(prefix) else ""
+        name_match = TRACKED_CHUNK_BASENAME_PATTERN.fullmatch(file_name)
+        if (
+            name_match is None
+            or descriptor.get("sha256") != f"sha256:{name_match.group(1)}"
+        ):
+            return False, "Tracked manifest contains an invalid content-addressed chunk path."
+        verified = _verified_tracked_chunk(
+            file_name,
             root,
             manifest_snapshot=snapshot,
-        ) is None:
+        )
+        if verified is None:
             return False, f"Tracked manifest chunk validation failed: {Path(path).name}."
+        validation = verified.get("validation")
+        if not isinstance(validation, dict):
+            return False, f"Tracked manifest chunk validation failed: {Path(path).name}."
+        norad_ids = validation.get("norad_ids")
+        if not isinstance(norad_ids, frozenset) or catalog_ids.intersection(norad_ids):
+            return False, "Tracked manifest contains duplicate NORAD identities."
+        catalog_ids.update(norad_ids)
+        chunk_counts = validation.get("counts")
+        if isinstance(chunk_counts, dict):
+            for key in observed_counts:
+                observed_counts[key] += int(chunk_counts.get(key, 0))
+        object_type_counts = validation.get("object_types")
+        if isinstance(object_type_counts, dict):
+            for key, target in (
+                ("all", observed_object_types),
+                ("current", observed_current_object_types),
+            ):
+                values = object_type_counts.get(key)
+                if isinstance(values, dict):
+                    for object_type, value in values.items():
+                        if object_type in target:
+                            target[object_type] += int(value)
+    recomputed_coverage_revision = _recomputed_tracked_coverage_revision(manifest)
+    if manifest.get("coverage_revision") != recomputed_coverage_revision:
+        return False, "Tracked manifest coverage_revision does not match its evidence."
+    recomputed_revision = _recomputed_tracked_catalog_revision(manifest)
+    if manifest.get("catalog_revision") != recomputed_revision:
+        return False, "Tracked manifest catalog_revision does not match its descriptor closure."
     authoritative_counts = _tracked_authoritative_counts(manifest)
     if authoritative_counts is None or _tracked_availability_counts(manifest) is None:
         return False, "Tracked manifest authoritative counts are invalid."
+    counts = manifest.get("counts")
+    object_type_maps_are_valid = all(
+        isinstance(counts.get(key), dict)
+        and set(counts[key]) == set(TRACKED_OBJECT_TYPES)
+        and all(_is_nonnegative_safe_json_integer(value) for value in counts[key].values())
+        and _json_values_match_exact(counts[key], observed)
+        for key, observed in (
+            ("object_types", observed_object_types),
+            ("current_object_types", observed_current_object_types),
+        )
+    ) if isinstance(counts, dict) else False
+    if (
+        not isinstance(counts, dict)
+        or any(counts.get(key) != value for key, value in observed_counts.items())
+        or not object_type_maps_are_valid
+    ):
+        return False, "Tracked manifest record-derived counts are inconsistent."
     current_expected, _, _, history_expected, _ = authoritative_counts
     for expected, described, label in (
         (current_expected, chunks, "current"),
@@ -1100,11 +1651,9 @@ def _validate_tracked_manifest_pointer(
     ):
         described_counts = [item.get("count") for item in described]
         if (
-            isinstance(expected, bool)
-            or not isinstance(expected, int)
-            or expected < 0
+            not _is_nonnegative_safe_json_integer(expected)
             or any(
-                isinstance(count, bool) or not isinstance(count, int) or count < 0
+                not _is_nonnegative_safe_json_integer(count)
                 for count in described_counts
             )
             or sum(described_counts) != expected
@@ -1156,7 +1705,10 @@ def _load_coherent_tracked_catalog_snapshot(root: Path) -> dict[str, object] | N
     tracked_meta_path = root / "json" / "tracked" / "TRACKED.meta.json"
     gp_path = root / "json" / "gp" / "GP.json"
     gp_meta_path = root / "json" / "gp" / "GP.meta.json"
-    tracked_meta_snapshot = _load_json_object_snapshot(tracked_meta_path)
+    tracked_meta_snapshot = _load_json_object_snapshot(
+        tracked_meta_path,
+        canonical_nonnegative_integers=True,
+    )
     gp_meta_snapshot = _load_json_object_snapshot(gp_meta_path)
     if tracked_meta_snapshot is None or gp_meta_snapshot is None:
         return None
@@ -1229,6 +1781,7 @@ def _load_coherent_tracked_catalog_snapshot(root: Path) -> dict[str, object] | N
     except OSError:
         return None
     return {
+        "root": root,
         "manifest": manifest,
         "manifest_snapshot": manifest_snapshot,
         "manifest_body": manifest_body,
@@ -1541,6 +2094,94 @@ def _display_satellite_model_manifest() -> dict[str, object]:
     return {"schemaVersion": 1, "basePath": "obj/", "models": models}
 
 
+REPOSITORY_DATA_POINTER_IDENTITY = ("repository-release",)
+
+
+def _data_pointer_identity(pointer: object) -> tuple[str, ...] | None:
+    if pointer is None:
+        return REPOSITORY_DATA_POINTER_IDENTITY
+    if not isinstance(pointer, dict):
+        return None
+    candidate_id = pointer.get("candidate_id")
+    candidate_revision = pointer.get("candidate_revision")
+    if (
+        not isinstance(candidate_id, str)
+        or not candidate_id.strip()
+        or not isinstance(candidate_revision, str)
+        or re.fullmatch(r"sha256:[a-f0-9]{64}", candidate_revision) is None
+    ):
+        return None
+    return ("candidate", candidate_id, candidate_revision)
+
+
+def _data_pointer_identity_from_value(value: object) -> tuple[str, ...] | None:
+    if value == REPOSITORY_DATA_POINTER_IDENTITY:
+        return REPOSITORY_DATA_POINTER_IDENTITY
+    if not isinstance(value, tuple) or len(value) != 3 or value[0] != "candidate":
+        return None
+    return _data_pointer_identity({"candidate_id": value[1], "candidate_revision": value[2]})
+
+
+def _selected_data_plane_root(data_plane) -> tuple[Path, tuple[str, ...]]:
+    pointer = data_plane.pointer()
+    identity = _data_pointer_identity(pointer)
+    if identity is None:
+        raise RuntimeError("The selected satellite data pointer is invalid.")
+    root = data_plane.repository_root if pointer is None else data_plane.candidate_root(identity[1])
+    return Path(root).resolve(), identity
+
+
+class DataSelectionCoordinator:
+    def __init__(
+        self,
+        *,
+        data_plane,
+        registered_root: Path | str,
+        registered_pointer_identity: tuple[str, ...],
+        on_selected=None,
+    ) -> None:
+        identity = _data_pointer_identity_from_value(registered_pointer_identity)
+        if identity is None:
+            raise ValueError("The registered satellite data pointer identity is invalid.")
+        self.data_plane = data_plane
+        self.on_selected = on_selected
+        self._registered_root = Path(registered_root).resolve()
+        self._registered_pointer_identity = identity
+        self._lock = threading.RLock()
+        self.last_error: str | None = None
+
+    @property
+    def registered_pointer_identity(self) -> tuple[str, ...]:
+        with self._lock:
+            return self._registered_pointer_identity
+
+    def current_root(self) -> Path:
+        with self._lock:
+            return self._registered_root
+
+    def synchronize(self) -> tuple[Path, tuple[str, ...]]:
+        with self._lock:
+            selected_root, selected_identity = _selected_data_plane_root(self.data_plane)
+            if selected_identity == self._registered_pointer_identity:
+                self.last_error = None
+                return self._registered_root, self._registered_pointer_identity
+            if self.on_selected is not None:
+                self.on_selected(selected_root)
+            self._registered_root = selected_root
+            self._registered_pointer_identity = selected_identity
+            self.last_error = None
+            return selected_root, selected_identity
+
+    def resolve(self) -> Path:
+        try:
+            root, _identity = self.synchronize()
+            return root
+        except Exception as exc:
+            with self._lock:
+                self.last_error = str(exc)
+                return self._registered_root
+
+
 class DataUpdateScheduler:
     def __init__(
         self,
@@ -1555,6 +2196,8 @@ class DataUpdateScheduler:
         initial_delay_seconds: float = 1.0,
         failure_backoff_base_seconds: float = 300.0,
         failure_backoff_cap_seconds: float = 21_600.0,
+        data_plane=None,
+        registered_pointer_identity: tuple[str, ...] | None = None,
         jitter=None,
         clock=None,
     ):
@@ -1582,12 +2225,24 @@ class DataUpdateScheduler:
             self.failure_backoff_base_seconds,
             float(failure_backoff_cap_seconds),
         )
+        if data_plane is not None:
+            self.data_plane = data_plane
+        elif SatelliteDataPlane is not None:
+            self.data_plane = SatelliteDataPlane(
+                repository_root=ROOT,
+                state_root=ROOT / "runtime" / "data-plane",
+            )
+        else:
+            self.data_plane = None
         self.jitter = jitter or random.uniform
         self.clock = clock or time.time
         self.consecutive_failures = 0
         self.last_result: dict[str, object] | None = None
+        self.registration_pending = False
+        self.registered_pointer_identity = _data_pointer_identity_from_value(registered_pointer_identity)
         self.stop_event = threading.Event()
-        self.thread = threading.Thread(target=self._run, name="openbexi-data-update", daemon=True)
+        self.publication_lock = threading.Lock()
+        self.thread = threading.Thread(target=self._run, name="openbexi-data-update", daemon=False)
 
     def start(self) -> None:
         if self.stop_event.is_set() or self.thread.ident is not None or self.thread.is_alive():
@@ -1622,7 +2277,8 @@ class DataUpdateScheduler:
         self.thread.start()
 
     def stop(self, timeout_seconds: float = 120.0) -> None:
-        self.stop_event.set()
+        with self.publication_lock:
+            self.stop_event.set()
         _set_data_update_status(
             stop_requested=True,
             state="stopping",
@@ -1680,7 +2336,7 @@ class DataUpdateScheduler:
             )
 
     def run_once(self) -> str:
-        if maybe_update_satellite_data is None:
+        if self.data_plane is None:
             self.consecutive_failures += 1
             _set_data_update_status(
                 state="unavailable",
@@ -1700,8 +2356,10 @@ class DataUpdateScheduler:
             last_errors=[],
         )
         try:
-            result = maybe_update_satellite_data(
-                root=ROOT,
+            result = self.data_plane.stage_update(
+                promote=True,
+                cancel_requested=self.stop_event.is_set,
+                publication_guard=self.publication_lock,
                 interval_hours=self.interval_hours,
                 gp_interval_hours=self.intervals_hours["gp"],
                 tle_interval_hours=self.intervals_hours["tle"],
@@ -1711,6 +2369,15 @@ class DataUpdateScheduler:
             )
             if not isinstance(result, dict):
                 raise TypeError("Satellite data update returned a non-object result.")
+        except DataPlaneCancelled:
+            _set_data_update_status(
+                state="cancelled",
+                last_cycle_state="cancelled",
+                last_error=None,
+                last_errors=[],
+                last_finished_at=self._timestamp(),
+            )
+            return "cancelled"
         except Exception as exc:
             self.consecutive_failures += 1
             _set_data_update_status(
@@ -1732,19 +2399,40 @@ class DataUpdateScheduler:
             else "succeeded"
         )
         registration_error = None
-        gp_result = result.get("gp")
-        tle_result = result.get("tle")
-        catalog_changed = (
-            isinstance(gp_result, dict) and gp_result.get("changed") is True
-        ) or (
-            isinstance(tle_result, dict) and tle_result.get("changed") is True
-        )
-        if self.on_updated is not None and catalog_changed:
+        candidate_promoted = result.get("promoted") is True
+        selected_pointer_identity = None
+        if self.on_updated is not None and self.registered_pointer_identity is not None:
             try:
-                self.on_updated()
+                selected_pointer_identity = _data_pointer_identity(self.data_plane.pointer())
+                if selected_pointer_identity is None:
+                    raise RuntimeError("The selected satellite data pointer is invalid.")
+            except Exception as exc:
+                registration_error = str(exc)
+                self.registration_pending = True
+            else:
+                if selected_pointer_identity != self.registered_pointer_identity:
+                    self.registration_pending = True
+        if self.on_updated is not None and candidate_promoted:
+            self.registration_pending = True
+        if self.on_updated is not None and self.registration_pending:
+            try:
+                callback_pointer_identity = self.on_updated()
             except Exception as exc:
                 registration_error = str(exc)
                 state = "degraded"
+            else:
+                callback_pointer_identity = _data_pointer_identity_from_value(callback_pointer_identity)
+                registered_pointer_identity = callback_pointer_identity or selected_pointer_identity
+                if self.registered_pointer_identity is not None and registered_pointer_identity is None:
+                    registration_error = registration_error or "Runtime data-pointer registration was not confirmed."
+                    state = "degraded"
+                else:
+                    if registered_pointer_identity is not None:
+                        self.registered_pointer_identity = registered_pointer_identity
+                    self.registration_pending = False
+                    registration_error = None
+        elif registration_error is not None:
+            state = "degraded"
         if state == "degraded":
             self.consecutive_failures += 1
         else:
@@ -2410,11 +3098,13 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
         serve_static: bool = True,
         cors_origins: tuple[str, ...] = (),
         v21_router: V21HttpRouter | None = None,
+        data_root_resolver=None,
         **kwargs,
     ):
         self.serve_static = serve_static
         self.cors_origins = tuple(origin.rstrip("/") for origin in cors_origins if origin)
         self.v21_router = v21_router
+        self.data_root_resolver = data_root_resolver
         self._response_status = HTTPStatus.OK
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
@@ -2460,6 +3150,8 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
             return
         if self._handle_tracked_static_chunk(head_only=False):
             return
+        if self._handle_mutable_data_static(head_only=False):
+            return
         if not static_request_is_exposed(self.path):
             self.send_error(HTTPStatus.NOT_FOUND, "Static resource is not exposed")
             return
@@ -2474,6 +3166,8 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
         if self._handle_tracked_static_catalog(head_only=True):
             return
         if self._handle_tracked_static_chunk(head_only=True):
+            return
+        if self._handle_mutable_data_static(head_only=True):
             return
         if not static_request_is_exposed(self.path):
             self.send_error(HTTPStatus.NOT_FOUND, "Static resource is not exposed")
@@ -2522,6 +3216,13 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
     def _send_json_file(self, path: Path, *, head_only: bool = False) -> None:
         self._send_bytes(_safe_json_file(path), head_only=head_only)
 
+    def _data_root(self) -> Path:
+        root = self.data_root_resolver() if self.data_root_resolver is not None else ROOT
+        resolved = Path(root).resolve()
+        if resolved != ROOT and ROOT not in resolved.parents:
+            raise OSError("Active data root is outside the repository runtime boundary.")
+        return resolved
+
     def _send_tracked_catalog_unavailable(self, *, head_only: bool) -> None:
         body = _json_bytes(
             {
@@ -2543,8 +3244,13 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
             head_only=head_only,
         )
 
-    def _tracked_catalog_request_snapshot(self, *, head_only: bool) -> dict[str, object] | None:
-        snapshot = _load_coherent_tracked_catalog_snapshot(ROOT)
+    def _tracked_catalog_request_snapshot(
+        self,
+        *,
+        head_only: bool,
+        root: Path | None = None,
+    ) -> dict[str, object] | None:
+        snapshot = _load_coherent_tracked_catalog_snapshot(root or self._data_root())
         if snapshot is not None:
             return snapshot
         self._send_tracked_catalog_unavailable(head_only=head_only)
@@ -2552,17 +3258,18 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
 
     def _handle_tracked_static_catalog(self, *, head_only: bool) -> bool:
         path = (_normalized_request_path(self.path) or "").rstrip("/").lower()
+        data_root = self._data_root()
         tracked_files = {
-            "/json/tracked/tracked.manifest.json": _tracked_manifest_path(),
-            "/json/tracked/tracked.meta.json": ROOT / "json" / "tracked" / "TRACKED.meta.json",
+            "/json/tracked/tracked.manifest.json": _tracked_manifest_path(data_root),
+            "/json/tracked/tracked.meta.json": data_root / "json" / "tracked" / "TRACKED.meta.json",
         }
         file_path = tracked_files.get(path)
         if file_path is None:
             return False
-        snapshot = self._tracked_catalog_request_snapshot(head_only=head_only)
+        snapshot = self._tracked_catalog_request_snapshot(head_only=head_only, root=data_root)
         if snapshot is None:
             return True
-        body_key = "manifest_body" if file_path == _tracked_manifest_path() else "metadata_body"
+        body_key = "manifest_body" if file_path == _tracked_manifest_path(data_root) else "metadata_body"
         self._send_bytes(snapshot[body_key], head_only=head_only)
         return True
 
@@ -2605,6 +3312,7 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
             return True
         verified = _verified_tracked_chunk(
             file_name,
+            snapshot["root"],
             include_body=not head_only,
             manifest_snapshot=snapshot["manifest_snapshot"],
         )
@@ -2614,6 +3322,27 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
         self._send_verified_tracked_chunk(verified, head_only=head_only)
         return True
 
+    def _handle_mutable_data_static(self, *, head_only: bool) -> bool:
+        path = (_normalized_request_path(self.path) or "").rstrip("/").lower()
+        relative = {
+            "/json/gp/gp.json": Path("json/gp/GP.json"),
+            "/json/gp/gp.meta.json": Path("json/gp/GP.meta.json"),
+            "/json/tle/tle.json": Path("json/tle/TLE.json"),
+            "/json/tle/tle.meta.json": Path("json/tle/TLE.meta.json"),
+            "/json/satcat.csv": Path("json/satcat.csv"),
+            "/json/satcat.meta.json": Path("json/satcat.meta.json"),
+            "/json/launches/launches.json": Path("json/launches/launches.json"),
+            "/json/launches/launches.meta.json": Path("json/launches/launches.meta.json"),
+            "/json/decayed/decayed.json": Path("json/decayed/decayed.json"),
+            "/json/decayed/decayed.meta.json": Path("json/decayed/decayed.meta.json"),
+        }.get(path)
+        if relative is None:
+            return False
+        body = _safe_json_file(self._data_root() / relative)
+        content_type = "text/csv; charset=utf-8" if relative.suffix.lower() == ".csv" else "application/json; charset=utf-8"
+        self._send_bytes(body, content_type=content_type, head_only=head_only)
+        return True
+
     def _handle_api(self, *, head_only: bool) -> bool:
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
@@ -2621,6 +3350,7 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
 
         if path.startswith("/api/v1"):
             if self.v21_router is not None:
+                self._data_root()
                 return self.v21_router.handle(
                     self,
                     method=self.command,
@@ -2676,10 +3406,10 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
                 )
                 return True
             if path == "/api/gp":
-                self._send_json_file(ROOT / "json" / "gp" / "GP.json", head_only=head_only)
+                self._send_json_file(self._data_root() / "json" / "gp" / "GP.json", head_only=head_only)
                 return True
             if path == "/api/gp-metadata":
-                self._send_json_file(ROOT / "json" / "gp" / "GP.meta.json", head_only=head_only)
+                self._send_json_file(self._data_root() / "json" / "gp" / "GP.meta.json", head_only=head_only)
                 return True
             if path in {"/api/tracked-objects", "/api/tracked-objects/manifest"}:
                 snapshot = self._tracked_catalog_request_snapshot(head_only=head_only)
@@ -2696,6 +3426,7 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
                 file_name = unquote(match.group(1)) if match else ""
                 verified = _verified_tracked_chunk(
                     file_name,
+                    snapshot["root"],
                     include_body=not head_only,
                     manifest_snapshot=snapshot["manifest_snapshot"],
                 )
@@ -2705,13 +3436,13 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
                 self._send_verified_tracked_chunk(verified, head_only=head_only)
                 return True
             if path == "/api/tle":
-                self._send_json_file(ROOT / "json" / "tle" / "TLE.json", head_only=head_only)
+                self._send_json_file(self._data_root() / "json" / "tle" / "TLE.json", head_only=head_only)
                 return True
             if path == "/api/satellites":
-                self._send_json_file(_preferred_catalog_path(), head_only=head_only)
+                self._send_json_file(_preferred_catalog_path(self._data_root()), head_only=head_only)
                 return True
             if path == "/api/launches":
-                self._send_json_file(ROOT / "json" / "launches" / "launches.json", head_only=head_only)
+                self._send_json_file(self._data_root() / "json" / "launches" / "launches.json", head_only=head_only)
                 return True
             if path == "/api/satellite-metadata":
                 self._send_json(
@@ -2733,10 +3464,10 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
                 self._send_json(_display_satellite_model_manifest(), head_only=head_only)
                 return True
             if path == "/api/decayed":
-                self._send_json_file(ROOT / "json" / "decayed" / "decayed.json", head_only=head_only)
+                self._send_json_file(self._data_root() / "json" / "decayed" / "decayed.json", head_only=head_only)
                 return True
             if path == "/api/data-update-status":
-                self._send_json(_data_update_status_snapshot(), head_only=head_only)
+                self._send_json(_data_update_status_snapshot(self._data_root()), head_only=head_only)
                 return True
             if path == "/openapi.json":
                 self._send_json(_openapi_document(host), head_only=head_only)
@@ -2781,6 +3512,7 @@ def make_handler(
     serve_static: bool,
     cors_origins: tuple[str, ...] = (),
     v21_router: V21HttpRouter | None = None,
+    data_root_resolver=None,
 ):
     def handler(*args, **kwargs):
         return OpenBexiHandler(
@@ -2788,6 +3520,7 @@ def make_handler(
             serve_static=serve_static,
             cors_origins=cors_origins,
             v21_router=v21_router,
+            data_root_resolver=data_root_resolver,
             **kwargs,
         )
 
@@ -2893,15 +3626,27 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     cors_origins = tuple(origin.rstrip("/") for origin in args.cors_origin if origin)
+    runtime_root = (ROOT / args.runtime_dir).resolve()
+    if ROOT != runtime_root and ROOT not in runtime_root.parents:
+        raise RuntimeError("--runtime-dir must resolve inside the project root")
+    if runtime_root == ROOT / "json" or ROOT / "json" in runtime_root.parents:
+        raise RuntimeError("--runtime-dir must not resolve inside the published json closure")
+    runtime_root.mkdir(parents=True, exist_ok=True)
+    data_plane = (
+        SatelliteDataPlane(repository_root=ROOT, state_root=runtime_root / "data-plane")
+        if SatelliteDataPlane is not None
+        else None
+    )
+    if data_plane:
+        v21_registered_data_root, v21_registered_pointer_identity = _selected_data_plane_root(data_plane)
+    else:
+        v21_registered_data_root = ROOT
+        v21_registered_pointer_identity = None
     v21_service = None
     v21_store = None
     v21_router = None
     if not args.no_v21_service:
         try:
-            runtime_root = (ROOT / args.runtime_dir).resolve()
-            if ROOT != runtime_root and ROOT not in runtime_root.parents:
-                raise RuntimeError("--runtime-dir must resolve inside the project root")
-            runtime_root.mkdir(parents=True, exist_ok=True)
             feature_flag = load_server_feature_flag(
                 ROOT,
                 "experimental_full_catalog_screening",
@@ -2913,7 +3658,7 @@ def main() -> None:
                 store=v21_store,
             )
             v21_service = V21ApiService(
-                root=ROOT,
+                root=v21_registered_data_root,
                 runtime_root=runtime_root,
                 store=v21_store,
                 feature_flag=feature_flag,
@@ -2931,16 +3676,44 @@ def main() -> None:
             v21_service = None
             v21_store = None
             print(f"API v1 screening service unavailable: {exc}")
+    register_v21_data_root = None
+    if v21_service:
+        def register_v21_data_root(selected_data_root: Path) -> None:
+            previous_data_root = v21_service.root
+            v21_service.root = selected_data_root
+            try:
+                v21_service.bootstrap_bundled_catalog()
+            except Exception:
+                v21_service.root = previous_data_root
+                raise
+
+    data_selection = (
+        DataSelectionCoordinator(
+            data_plane=data_plane,
+            registered_root=v21_registered_data_root,
+            registered_pointer_identity=v21_registered_pointer_identity,
+            on_selected=register_v21_data_root,
+        )
+        if data_plane and v21_registered_pointer_identity is not None
+        else None
+    )
     server = ThreadingHTTPServer(
         (args.host, args.port),
         make_handler(
             serve_static=not args.no_static,
             cors_origins=cors_origins,
             v21_router=v21_router,
+            data_root_resolver=data_selection.resolve if data_selection else None,
         ),
     )
     scheduler = None
     if args.update_data_on_schedule and not args.no_data_update:
+        on_data_promoted = None
+        if v21_service and data_selection:
+            def on_data_promoted() -> tuple[str, ...]:
+                _selected_data_root, selected_pointer_identity = data_selection.synchronize()
+                return selected_pointer_identity
+
         scheduler = DataUpdateScheduler(
             interval_hours=args.data_update_interval_hours,
             gp_interval_hours=args.gp_update_interval_hours,
@@ -2948,7 +3721,11 @@ def main() -> None:
             satcat_interval_hours=args.satcat_update_interval_hours,
             tracked_interval_hours=args.tracked_update_interval_hours,
             reconciliation_interval_hours=args.reconciliation_interval_hours,
-            on_updated=v21_service.bootstrap_bundled_catalog if v21_service else None,
+            data_plane=data_plane,
+            on_updated=on_data_promoted,
+            registered_pointer_identity=(
+                data_selection.registered_pointer_identity if data_selection else None
+            ),
         )
         scheduler.start()
     else:

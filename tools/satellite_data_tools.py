@@ -157,6 +157,24 @@ TRACKED_CHUNK_FILES = {
     "MISSION_RELATED": "mission-related",
     "UNKNOWN": "unknown",
 }
+TRACKED_CHUNK_BASENAME_PATTERN = re.compile(
+    r"^([a-f0-9]{64})-[a-z0-9-]+\.json$"
+)
+TRACKED_NORAD_ID_PATTERN = re.compile(r"^[1-9][0-9]{0,8}$")
+TRACKED_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+TRACKED_LIFECYCLE_STATUSES = frozenset(
+    {"ACTIVE", "INACTIVE", "UNKNOWN", "DECAYED", "ABSENT", "RETIRED"}
+)
+TRACKED_OBSERVATION_STATUSES = frozenset(
+    {"NEW", "OBSERVED", "CHANGED", "ABSENT", "REAPPEARED"}
+)
+TRACKED_MEMBERSHIP_STATUSES = frozenset({"PRESENT", "ABSENT"})
+TRACKED_HISTORICAL_LIFECYCLE_STATUSES = frozenset({"DECAYED", "ABSENT", "RETIRED"})
+SHA256_REVISION_PATTERN = re.compile(r"^sha256:[a-f0-9]{64}$")
+MAX_SAFE_JSON_INTEGER = (1 << 53) - 1
+PRODUCER_UTC_TIMESTAMP_PATTERN = re.compile(
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$"
+)
 
 PLACEHOLDER_COMPANY_TAGS = {
     "",
@@ -200,6 +218,10 @@ DECAYED_COLUMNS = (
 
 class SatelliteDataError(RuntimeError):
     """Raised when a data update cannot complete safely."""
+
+
+class SatelliteDataCancelled(SatelliteDataError):
+    """Raised when a scheduled update is cancelled at a publication boundary."""
 
 
 @dataclass
@@ -264,6 +286,158 @@ def parse_iso_datetime(value: object) -> dt.datetime | None:
     return parsed.astimezone(dt.timezone.utc)
 
 
+def producer_utc_timestamp_is_valid(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and PRODUCER_UTC_TIMESTAMP_PATTERN.fullmatch(value) is not None
+        and parse_iso_datetime(value) is not None
+    )
+
+
+def is_nonnegative_safe_json_integer(value: object) -> bool:
+    return (
+        isinstance(value, int)
+        and not isinstance(value, bool)
+        and 0 <= value <= MAX_SAFE_JSON_INTEGER
+    )
+
+
+def tracked_record_is_historical(record: dict[str, object]) -> bool:
+    return (
+        record.get("lifecycle_status") in TRACKED_HISTORICAL_LIFECYCLE_STATUSES
+        or record.get("catalog_membership_status") == "ABSENT"
+        or record.get("observation_status") == "ABSENT"
+        or record.get("decay_date") is not None
+    )
+
+
+def tracked_record_contract_is_valid(record: object) -> bool:
+    if not isinstance(record, dict):
+        return False
+    norad_id = record.get("norad_id")
+    lifecycle = record.get("lifecycle_status")
+    observation = record.get("observation_status")
+    membership = record.get("catalog_membership_status")
+    decay_date = record.get("decay_date")
+    has_current_elements = record.get("has_current_elements")
+    metadata_only = record.get("metadata_only")
+    if (
+        not isinstance(norad_id, str)
+        or TRACKED_NORAD_ID_PATTERN.fullmatch(norad_id) is None
+        or not isinstance(lifecycle, str)
+        or lifecycle not in TRACKED_LIFECYCLE_STATUSES
+        or not isinstance(observation, str)
+        or observation not in TRACKED_OBSERVATION_STATUSES
+        or not isinstance(membership, str)
+        or membership not in TRACKED_MEMBERSHIP_STATUSES
+        or not isinstance(has_current_elements, bool)
+        or not isinstance(metadata_only, bool)
+        or metadata_only is has_current_elements
+    ):
+        return False
+    if decay_date is not None:
+        if not isinstance(decay_date, str) or TRACKED_DATE_PATTERN.fullmatch(decay_date) is None:
+            return False
+        try:
+            if dt.date.fromisoformat(decay_date).isoformat() != decay_date:
+                return False
+        except ValueError:
+            return False
+    return not tracked_record_is_historical(record) or (
+        has_current_elements is False and metadata_only is True
+    )
+
+
+def _reject_nonstandard_json_constant(value: str) -> None:
+    raise ValueError(f"Non-standard JSON constant is not allowed: {value}")
+
+
+def _reject_duplicate_json_object_keys(
+    pairs: list[tuple[str, object]],
+) -> dict[str, object]:
+    value: dict[str, object] = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError(f"Duplicate JSON object key is not allowed: {key}")
+        value[key] = item
+    return value
+
+
+def _parse_safe_json_integer(value: str) -> int:
+    if re.fullmatch(r"(?:0|[1-9][0-9]*|-[1-9][0-9]*)", value) is None:
+        raise ValueError(f"JSON integer is not canonical: {value}")
+    parsed = int(value)
+    if abs(parsed) > MAX_SAFE_JSON_INTEGER:
+        raise ValueError(f"JSON integer exceeds the safe range: {value}")
+    return parsed
+
+
+def _parse_finite_json_float(value: str) -> float:
+    parsed = float(value)
+    if not math.isfinite(parsed):
+        raise ValueError(f"JSON number is not finite: {value}")
+    return parsed
+
+
+def _parse_canonical_nonnegative_json_integer(value: str) -> int:
+    if re.fullmatch(r"(?:0|[1-9][0-9]*)", value) is None:
+        raise ValueError(f"Tracked JSON integer is not canonical: {value}")
+    parsed = int(value)
+    if parsed > MAX_SAFE_JSON_INTEGER:
+        raise ValueError(f"Tracked JSON integer exceeds the safe range: {value}")
+    return parsed
+
+
+def _reject_tracked_json_float(value: str) -> None:
+    raise ValueError(f"Tracked JSON numbers must use canonical integer syntax: {value}")
+
+
+def _normalize_json_unicode_scalars(value: object) -> object:
+    if isinstance(value, str):
+        try:
+            return value.encode("utf-16-le", errors="surrogatepass").decode(
+                "utf-16-le", errors="strict"
+            )
+        except UnicodeDecodeError as exc:
+            raise ValueError("JSON strings must contain only Unicode scalar values") from exc
+    if isinstance(value, list):
+        return [_normalize_json_unicode_scalars(item) for item in value]
+    if isinstance(value, dict):
+        normalized: dict[str, object] = {}
+        for key, item in value.items():
+            normalized_key = _normalize_json_unicode_scalars(key)
+            if not isinstance(normalized_key, str):
+                raise ValueError("JSON object keys must be strings")
+            if normalized_key in normalized:
+                raise ValueError(
+                    f"Duplicate JSON object key after Unicode normalization: {normalized_key}"
+                )
+            normalized[normalized_key] = _normalize_json_unicode_scalars(item)
+        return normalized
+    return value
+
+
+def strict_json_loads(
+    source: str | bytes | bytearray,
+    *,
+    canonical_nonnegative_integers: bool = False,
+) -> object:
+    if isinstance(source, (bytes, bytearray)):
+        source = bytes(source).decode("utf-8", errors="strict")
+    options: dict[str, object] = {
+        "parse_constant": _reject_nonstandard_json_constant,
+        "parse_int": _parse_safe_json_integer,
+        "parse_float": _parse_finite_json_float,
+        "object_pairs_hook": _reject_duplicate_json_object_keys,
+    }
+    if canonical_nonnegative_integers:
+        options.update({
+            "parse_int": _parse_canonical_nonnegative_json_integer,
+            "parse_float": _reject_tracked_json_float,
+        })
+    return _normalize_json_unicode_scalars(json.loads(source, **options))
+
+
 def repo_path(root: Path | str, relative: Path) -> Path:
     return Path(root).resolve() / relative
 
@@ -287,13 +461,21 @@ def default_repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
-def load_json(path: Path, default: object) -> object:
+def load_json(
+    path: Path,
+    default: object,
+    *,
+    canonical_nonnegative_integers: bool = False,
+) -> object:
     try:
         with path.open("r", encoding="utf-8") as handle:
-            return json.load(handle)
+            return strict_json_loads(
+                handle.read(),
+                canonical_nonnegative_integers=canonical_nonnegative_integers,
+            )
     except FileNotFoundError:
         return default
-    except json.JSONDecodeError as exc:
+    except (json.JSONDecodeError, ValueError) as exc:
         raise SatelliteDataError(f"Invalid JSON in {path}: {exc}") from exc
 
 
@@ -1067,6 +1249,143 @@ def catalog_revision_for_payload(payload: object) -> str:
         separators=(",", ":"),
     ).encode("utf-8")
     return "sha256:" + hashlib.sha256(material).hexdigest()
+
+
+def tracked_descriptor_content_address_is_valid(descriptor: object) -> bool:
+    if not isinstance(descriptor, dict):
+        return False
+    raw_path = descriptor.get("path")
+    if not isinstance(raw_path, str):
+        return False
+    match = TRACKED_CHUNK_BASENAME_PATTERN.fullmatch(Path(raw_path).name)
+    return bool(
+        match
+        and re.fullmatch(r"json/tracked/chunks/[^/\\]+\.json", raw_path)
+        and descriptor.get("sha256") == f"sha256:{match.group(1)}"
+    )
+
+
+def tracked_coverage_revision_for_manifest(manifest: object) -> str:
+    if not isinstance(manifest, dict):
+        raise SatelliteDataError("Tracked manifest must be a JSON object.")
+    counts = manifest.get("counts")
+    coverage = manifest.get("coverage")
+    quarantine = manifest.get("quarantine")
+    if not isinstance(counts, dict) or not isinstance(coverage, dict) or not isinstance(quarantine, dict):
+        raise SatelliteDataError("Tracked manifest coverage inputs are invalid.")
+    row_accounting: dict[str, int] = {}
+    for key in ("received", "accepted", "quarantined", "duplicates", "issues"):
+        value = counts.get(key)
+        if not is_nonnegative_safe_json_integer(value):
+            raise SatelliteDataError(f"Tracked manifest row accounting is invalid: {key}.")
+        row_accounting[key] = value
+    quarantine_count = quarantine.get("count")
+    if (
+        not is_nonnegative_safe_json_integer(quarantine_count)
+        or row_accounting["issues"]
+        != row_accounting["quarantined"] + row_accounting["duplicates"]
+        or row_accounting["issues"] != quarantine_count
+    ):
+        raise SatelliteDataError(
+            "Tracked manifest issue accounting does not match quarantine evidence."
+        )
+    if "expected" not in counts or "expected_provider_records" not in counts:
+        raise SatelliteDataError("Tracked manifest expected coverage evidence is missing.")
+    expected = counts.get("expected")
+    if expected is not None and not is_nonnegative_safe_json_integer(expected):
+        raise SatelliteDataError("Tracked manifest expected coverage count is invalid.")
+    expected_provider_records = counts.get("expected_provider_records")
+    if expected_provider_records is not None:
+        raise SatelliteDataError(
+            "Tracked manifest expected provider-record count must be null."
+        )
+    if (
+        "expected" not in coverage
+        or "expected_provider_records" not in coverage
+        or any(
+            not is_nonnegative_safe_json_integer(coverage.get(key))
+            or coverage.get(key) != row_accounting[key]
+            for key in ("received", "accepted", "quarantined", "duplicates")
+        )
+        or (
+            expected is not None
+            and not is_nonnegative_safe_json_integer(coverage.get("expected"))
+        )
+        or coverage.get("expected") != expected
+        or coverage.get("expected_provider_records") != expected_provider_records
+        or coverage.get("provider_completeness_claim") is not False
+        or not isinstance(coverage.get("complete_source_snapshot"), bool)
+        or coverage.get("invariant")
+        != "received == accepted + quarantined + duplicates"
+    ):
+        raise SatelliteDataError("Tracked manifest coverage and count evidence are inconsistent.")
+    provider_invariant = (
+        row_accounting["received"]
+        == row_accounting["accepted"]
+        + row_accounting["quarantined"]
+        + row_accounting["duplicates"]
+    )
+    expected_matches_received = (
+        expected == row_accounting["received"] if expected is not None else None
+    )
+    invariants = manifest.get("invariants")
+    if (
+        coverage.get("invariant_holds") is not provider_invariant
+        or coverage.get("expected_matches_received") != expected_matches_received
+        or (
+            coverage.get("complete_source_snapshot") is True
+            and expected_matches_received is not True
+        )
+        or not isinstance(invariants, dict)
+        or invariants.get("provider_coverage_holds") is not provider_invariant
+    ):
+        raise SatelliteDataError("Tracked manifest coverage invariants are inconsistent.")
+    quarantine_sha256 = quarantine.get("sha256")
+    if not isinstance(quarantine_sha256, str) or not SHA256_REVISION_PATTERN.fullmatch(quarantine_sha256):
+        raise SatelliteDataError("Tracked manifest quarantine digest is invalid.")
+    return catalog_revision_for_payload(
+        {
+            "row_accounting": row_accounting,
+            "expected": expected,
+            "quarantine_sha256": quarantine_sha256,
+        }
+    )
+
+
+def tracked_catalog_revision_for_manifest(manifest: object) -> str:
+    if not isinstance(manifest, dict):
+        raise SatelliteDataError("Tracked manifest must be a JSON object.")
+    chunks = manifest.get("chunks")
+    history_chunks = manifest.get("history_chunks")
+    coverage_revision = manifest.get("coverage_revision")
+    computed_coverage_revision = tracked_coverage_revision_for_manifest(manifest)
+    if (
+        not isinstance(chunks, list)
+        or not isinstance(history_chunks, list)
+        or not SHA256_REVISION_PATTERN.fullmatch(str(coverage_revision or ""))
+        or coverage_revision != computed_coverage_revision
+    ):
+        raise SatelliteDataError("Tracked manifest revision inputs are invalid.")
+    descriptor_material: list[dict[str, str]] = []
+    for descriptor in [*chunks, *history_chunks]:
+        if not isinstance(descriptor, dict):
+            raise SatelliteDataError("Tracked manifest contains an invalid chunk descriptor.")
+        raw_path = descriptor.get("path")
+        digest = descriptor.get("sha256")
+        if (
+            not isinstance(raw_path, str)
+            or not raw_path
+            or not isinstance(digest, str)
+            or not SHA256_REVISION_PATTERN.fullmatch(digest)
+        ):
+            raise SatelliteDataError("Tracked manifest descriptor revision inputs are invalid.")
+        descriptor_material.append({"path": raw_path, "sha256": digest})
+    return catalog_revision_for_payload(
+        {
+            "chunks": descriptor_material,
+            "coverage_revision": coverage_revision,
+        }
+    )
 
 
 def catalog_revision_for_text(text: str) -> str:
@@ -2229,7 +2548,7 @@ def build_satellites_from_omm_responses(
 
     for company, response in responses:
         try:
-            payload = json.loads(response.text)
+            payload = strict_json_loads(response.text)
         except json.JSONDecodeError as exc:
             raise SatelliteDataError(f"Invalid OMM JSON from {response.url}: {exc}") from exc
         if not isinstance(payload, list):
@@ -3494,7 +3813,11 @@ def _tracked_record(
 
 def _load_tracked_records(root: Path) -> dict[str, dict[str, object]]:
     records: dict[str, dict[str, object]] = {}
-    manifest = load_json(repo_path(root, TRACKED_MANIFEST_RELATIVE_PATH), {})
+    manifest = load_json(
+        repo_path(root, TRACKED_MANIFEST_RELATIVE_PATH),
+        {},
+        canonical_nonnegative_integers=True,
+    )
     if not isinstance(manifest, dict):
         return records
     for path in _tracked_manifest_chunk_paths(root, manifest):
@@ -3546,28 +3869,91 @@ def _tracked_manifest_chunk_paths(root: Path, manifest: dict[str, object]) -> li
 
 
 def _tracked_manifest_is_complete(root: Path, manifest_path: Path) -> bool:
-    manifest = load_json(manifest_path, {})
+    try:
+        manifest = load_json(
+            manifest_path,
+            {},
+            canonical_nonnegative_integers=True,
+        )
+    except SatelliteDataError:
+        return False
     if not isinstance(manifest, dict):
         return False
-    descriptors: list[dict[str, object]] = []
-    for name in ("chunks", "history_chunks"):
-        value = manifest.get(name)
-        if isinstance(value, list):
-            descriptors.extend(item for item in value if isinstance(item, dict))
-    if isinstance(manifest.get("quarantine"), dict):
-        descriptors.append(manifest["quarantine"])
+    chunks = manifest.get("chunks")
+    history_chunks = manifest.get("history_chunks")
+    quarantine = manifest.get("quarantine")
+    if (
+        not isinstance(chunks, list)
+        or not isinstance(history_chunks, list)
+        or not isinstance(quarantine, dict)
+        or not all(isinstance(item, dict) for item in [*chunks, *history_chunks])
+    ):
+        return False
+    collection_descriptors = [*chunks, *history_chunks]
+    descriptor_ids = [descriptor.get("id") for descriptor in collection_descriptors]
+    if (
+        any(not isinstance(value, str) or not value.strip() for value in descriptor_ids)
+        or len(descriptor_ids) != len(set(descriptor_ids))
+        or any(
+            descriptor.get("scope") != expected_scope
+            or descriptor.get("object_type") not in TRACKED_OBJECT_TYPES
+            for descriptors, expected_scope in (
+                (chunks, "CURRENT"),
+                (history_chunks, "HISTORICAL"),
+            )
+            for descriptor in descriptors
+        )
+    ):
+        return False
+    descriptors: list[dict[str, object]] = [*collection_descriptors, quarantine]
+    if (
+        not isinstance(quarantine.get("path"), str)
+        or not str(quarantine.get("path")).endswith("-quarantine.json")
+        or any(not tracked_descriptor_content_address_is_valid(item) for item in descriptors)
+        or len({item.get("path") for item in descriptors}) != len(descriptors)
+        or any(
+            not is_nonnegative_safe_json_integer(item.get(key))
+            for item in descriptors
+            for key in ("count", "bytes")
+        )
+    ):
+        return False
+    try:
+        if manifest.get("catalog_revision") != tracked_catalog_revision_for_manifest(manifest):
+            return False
+    except SatelliteDataError:
+        return False
     paths = _tracked_manifest_chunk_paths(root, manifest)
     if len(paths) != len(descriptors):
         return False
+    observed_counts = {
+        "current": 0,
+        "historical": 0,
+        "absent": 0,
+        "history_total": 0,
+        "total": 0,
+        "propagatable": 0,
+        "metadata_only": 0,
+        "current_propagatable": 0,
+        "current_metadata_only": 0,
+    }
+    observed_object_types = {object_type: 0 for object_type in TRACKED_OBJECT_TYPES}
+    observed_current_object_types = {object_type: 0 for object_type in TRACKED_OBJECT_TYPES}
+    catalog_ids: set[str] = set()
     for descriptor, path in zip(descriptors, paths):
         try:
             body = path.read_bytes()
             digest = "sha256:" + hashlib.sha256(body).hexdigest()
             if digest != descriptor.get("sha256") or len(body) != descriptor.get("bytes"):
                 return False
-            payload = json.loads(body)
+            payload = strict_json_loads(body)
             records = payload.get("records") if isinstance(payload, dict) else None
-            if not isinstance(records, list) or len(records) != descriptor.get("count"):
+            if (
+                not isinstance(payload, dict)
+                or not re.match(r"^2\.3(?:\.|$)", str(payload.get("schema_version") or ""))
+                or not isinstance(records, list)
+                or len(records) != descriptor.get("count")
+            ):
                 return False
             descriptor_scope = descriptor.get("scope")
             descriptor_type = descriptor.get("object_type")
@@ -3575,15 +3961,61 @@ def _tracked_manifest_is_complete(root: Path, manifest_path: Path) -> bool:
                 if payload.get("scope") != descriptor_scope or payload.get("object_type") != descriptor_type:
                     return False
                 for record in records:
-                    if not isinstance(record, dict) or record.get("object_type") != descriptor_type:
+                    if (
+                        not tracked_record_contract_is_valid(record)
+                        or record.get("object_type") != descriptor_type
+                    ):
                         return False
-                    is_current = (
-                        record.get("catalog_membership_status") == "PRESENT"
-                        and not record.get("decay_date")
-                    )
+                    norad_id = record["norad_id"]
+                    if norad_id in catalog_ids:
+                        return False
+                    catalog_ids.add(norad_id)
+                    is_historical = tracked_record_is_historical(record)
+                    is_current = not is_historical
                     if (descriptor_scope == "CURRENT") != is_current:
                         return False
+                    observed_counts["total"] += 1
+                    observed_counts["historical"] += int(record.get("decay_date") is not None)
+                    observed_counts["absent"] += int(
+                        record.get("catalog_membership_status") == "ABSENT"
+                    )
+                    observed_counts["propagatable"] += int(record["has_current_elements"])
+                    observed_counts["metadata_only"] += int(record["metadata_only"])
+                    observed_object_types[descriptor_type] += 1
+                    if is_current:
+                        observed_counts["current"] += 1
+                        observed_counts["current_propagatable"] += int(
+                            record["has_current_elements"]
+                        )
+                        observed_counts["current_metadata_only"] += int(record["metadata_only"])
+                        observed_current_object_types[descriptor_type] += 1
+                    else:
+                        observed_counts["history_total"] += 1
         except (OSError, ValueError, TypeError):
+            return False
+    counts = manifest.get("counts")
+    if not isinstance(counts, dict):
+        return False
+    if any(
+        not is_nonnegative_safe_json_integer(counts.get(key))
+        or counts.get(key) != value
+        for key, value in observed_counts.items()
+    ):
+        return False
+    for key, observed in (
+        ("object_types", observed_object_types),
+        ("current_object_types", observed_current_object_types),
+    ):
+        declared = counts.get(key)
+        if (
+            not isinstance(declared, dict)
+            or set(declared) != set(observed)
+            or any(
+                not is_nonnegative_safe_json_integer(declared.get(object_type))
+                or declared.get(object_type) != value
+                for object_type, value in observed.items()
+            )
+        ):
             return False
     return True
 
@@ -3609,7 +4041,11 @@ def _prune_unreferenced_tracked_chunks(root: Path, manifest_path: Path) -> None:
     )
     retained: set[Path] = set()
     for candidate_manifest in manifest_paths:
-        payload = load_json(candidate_manifest, {})
+        payload = load_json(
+            candidate_manifest,
+            {},
+            canonical_nonnegative_integers=True,
+        )
         if isinstance(payload, dict):
             retained.update(_tracked_manifest_chunk_paths(root, payload))
     for candidate in chunk_root.glob("*.json"):
@@ -3677,7 +4113,11 @@ def build_tracked_catalog(
     gp_path = repo_path(root_path, GP_RELATIVE_PATH)
     manifest_path = repo_path(root_path, TRACKED_MANIFEST_RELATIVE_PATH)
     meta_path = repo_path(root_path, TRACKED_META_RELATIVE_PATH)
-    previous_meta = load_json(meta_path, {})
+    previous_meta = load_json(
+        meta_path,
+        {},
+        canonical_nonnegative_integers=True,
+    )
     previous_meta = previous_meta if isinstance(previous_meta, dict) else {}
     if satcat_text is None:
         if not satcat_path.exists():
@@ -3719,7 +4159,11 @@ def build_tracked_catalog(
     )
     previous_manifest_error: str | None = None
     try:
-        previous_manifest = load_json(manifest_path, {})
+        previous_manifest = load_json(
+            manifest_path,
+            {},
+            canonical_nonnegative_integers=True,
+        )
     except SatelliteDataError as exc:
         previous_manifest = {}
         previous_manifest_error = _bounded_metadata_error(exc)
@@ -4024,10 +4468,10 @@ def build_tracked_catalog(
         record = output[norad_id]
         object_type = str(record.get("object_type") or "UNKNOWN")
         selected_type = object_type if object_type in chunks else "UNKNOWN"
-        if record.get("catalog_membership_status") == "PRESENT" and not record.get("decay_date"):
-            chunks[selected_type].append(record)
-        else:
+        if tracked_record_is_historical(record):
             history_chunks[selected_type].append(record)
+        else:
+            chunks[selected_type].append(record)
 
     output_records = list(output.values())
     counts: dict[str, object] = {
@@ -4035,48 +4479,40 @@ def build_tracked_catalog(
         "expected_provider_records": None,
         **coverage_counts,
         "total": len(output_records),
-        "current": sum(
-            record.get("catalog_membership_status") == "PRESENT" and not record.get("decay_date")
-            for record in output_records
-        ),
-        "historical": sum(bool(record.get("decay_date")) for record in output_records),
+        "current": sum(not tracked_record_is_historical(record) for record in output_records),
+        "historical": sum(record.get("decay_date") is not None for record in output_records),
         "history_total": sum(len(records) for records in history_chunks.values()),
         "absent": sum(record.get("catalog_membership_status") == "ABSENT" for record in output_records),
         "propagatable": sum(record.get("has_current_elements") is True for record in output_records),
         "metadata_only": sum(record.get("metadata_only") is True for record in output_records),
         "current_propagatable": sum(
-            record.get("catalog_membership_status") == "PRESENT"
-            and not record.get("decay_date")
+            not tracked_record_is_historical(record)
             and record.get("has_current_elements") is True
             for record in output_records
         ),
         "gp_only": len(set(gp_records) - set(satcat_records)),
         "gp_quarantined": len(gp_quarantine),
         "small_rcs_current": sum(
-            record.get("catalog_membership_status") == "PRESENT"
-            and not record.get("decay_date")
+            not tracked_record_is_historical(record)
             and isinstance(record.get("rcs_m2"), (int, float))
             and float(record["rcs_m2"]) < 0.1
             for record in output_records
         ),
         "missing_rcs_current": sum(
-            record.get("catalog_membership_status") == "PRESENT"
-            and not record.get("decay_date")
+            not tracked_record_is_historical(record)
             and record.get("rcs_status") == "MISSING"
             for record in output_records
         ),
         "debris_small_rcs_current": sum(
             record.get("object_type") == "DEBRIS"
-            and record.get("catalog_membership_status") == "PRESENT"
-            and not record.get("decay_date")
+            and not tracked_record_is_historical(record)
             and isinstance(record.get("rcs_m2"), (int, float))
             and float(record["rcs_m2"]) < 0.1
             for record in output_records
         ),
         "debris_missing_rcs_current": sum(
             record.get("object_type") == "DEBRIS"
-            and record.get("catalog_membership_status") == "PRESENT"
-            and not record.get("decay_date")
+            and not tracked_record_is_historical(record)
             and record.get("rcs_status") == "MISSING"
             for record in output_records
         ),
@@ -4088,8 +4524,7 @@ def build_tracked_catalog(
     counts["current_object_types"] = {
         object_type: sum(
             record.get("object_type") == object_type
-            and record.get("catalog_membership_status") == "PRESENT"
-            and not record.get("decay_date")
+            and not tracked_record_is_historical(record)
             for record in output_records
         )
         for object_type in TRACKED_OBJECT_TYPES
@@ -4649,6 +5084,115 @@ def metadata_reconciliation_is_older_than(
     return not is_recent_enough(parse_iso_datetime(meta.get("last_reconciled_at")), hours, now=now)
 
 
+def _configured_data_update_intervals(
+    *,
+    interval_hours: float = DEFAULT_SERVER_UPDATE_INTERVAL_HOURS,
+    gp_interval_hours: float | None = None,
+    tle_interval_hours: float | None = None,
+    satcat_interval_hours: float | None = None,
+    tracked_interval_hours: float | None = None,
+    launches_interval_hours: float | None = None,
+    decayed_interval_hours: float | None = None,
+    reconciliation_interval_hours: float | None = None,
+) -> dict[str, float]:
+    def configured_interval(value: float | None, fallback: float) -> float:
+        resolved = fallback if value is None else float(value)
+        if not math.isfinite(resolved) or resolved <= 0:
+            raise SatelliteDataError("Scheduled data intervals must be finite positive hours.")
+        return resolved
+
+    base_interval = configured_interval(interval_hours, DEFAULT_SERVER_UPDATE_INTERVAL_HOURS)
+    return {
+        "gp": configured_interval(gp_interval_hours, base_interval),
+        "tle": configured_interval(tle_interval_hours, base_interval),
+        "satcat": configured_interval(satcat_interval_hours, base_interval),
+        "tracked": configured_interval(tracked_interval_hours, satcat_interval_hours or base_interval),
+        "launches": configured_interval(launches_interval_hours, satcat_interval_hours or base_interval),
+        "decayed": configured_interval(decayed_interval_hours, satcat_interval_hours or base_interval),
+        "reconciliation": configured_interval(reconciliation_interval_hours, base_interval),
+    }
+
+
+def scheduled_data_update_plan(
+    *,
+    root: Path | str,
+    interval_hours: float = DEFAULT_SERVER_UPDATE_INTERVAL_HOURS,
+    gp_interval_hours: float | None = None,
+    tle_interval_hours: float | None = None,
+    satcat_interval_hours: float | None = None,
+    tracked_interval_hours: float | None = None,
+    launches_interval_hours: float | None = None,
+    decayed_interval_hours: float | None = None,
+    reconciliation_interval_hours: float | None = None,
+    force: bool = False,
+    now: dt.datetime | None = None,
+) -> dict[str, object]:
+    """Return the deterministic freshness plan without fetching or writing data."""
+
+    now = now or utc_now()
+    root_path = Path(root).resolve()
+    intervals = _configured_data_update_intervals(
+        interval_hours=interval_hours,
+        gp_interval_hours=gp_interval_hours,
+        tle_interval_hours=tle_interval_hours,
+        satcat_interval_hours=satcat_interval_hours,
+        tracked_interval_hours=tracked_interval_hours,
+        launches_interval_hours=launches_interval_hours,
+        decayed_interval_hours=decayed_interval_hours,
+        reconciliation_interval_hours=reconciliation_interval_hours,
+    )
+    due = {
+        "gp": force or metadata_is_older_than(
+            root_path, GP_META_RELATIVE_PATH, GP_RELATIVE_PATH, intervals["gp"], now=now
+        ),
+        "tle": force or metadata_is_older_than(
+            root_path, TLE_META_RELATIVE_PATH, TLE_RELATIVE_PATH, intervals["tle"], now=now
+        ),
+        "satcat": force or metadata_is_older_than(
+            root_path, SATCAT_META_RELATIVE_PATH, SATCAT_RELATIVE_PATH, intervals["satcat"], now=now
+        ),
+        "tracked": force or metadata_is_older_than(
+            root_path,
+            TRACKED_META_RELATIVE_PATH,
+            TRACKED_MANIFEST_RELATIVE_PATH,
+            intervals["tracked"],
+            now=now,
+        ),
+        "launches": force or metadata_is_older_than(
+            root_path, LAUNCHES_META_RELATIVE_PATH, LAUNCHES_RELATIVE_PATH, intervals["launches"], now=now
+        ),
+        "decayed": force or metadata_is_older_than(
+            root_path, DECAYED_META_RELATIVE_PATH, DECAYED_RELATIVE_PATH, intervals["decayed"], now=now
+        ),
+    }
+    reconciliation_due = {
+        "gp": force or metadata_reconciliation_is_older_than(
+            root_path, GP_META_RELATIVE_PATH, intervals["reconciliation"], now=now
+        ),
+        "tle": force or metadata_reconciliation_is_older_than(
+            root_path, TLE_META_RELATIVE_PATH, intervals["reconciliation"], now=now
+        ),
+        "satcat": force or metadata_reconciliation_is_older_than(
+            root_path, SATCAT_META_RELATIVE_PATH, intervals["reconciliation"], now=now
+        ),
+        "tracked": force or metadata_reconciliation_is_older_than(
+            root_path, TRACKED_META_RELATIVE_PATH, intervals["reconciliation"], now=now
+        ),
+        "launches": force or metadata_reconciliation_is_older_than(
+            root_path, LAUNCHES_META_RELATIVE_PATH, intervals["reconciliation"], now=now
+        ),
+        "decayed": force or metadata_reconciliation_is_older_than(
+            root_path, DECAYED_META_RELATIVE_PATH, intervals["reconciliation"], now=now
+        ),
+    }
+    return {
+        "intervals_hours": intervals,
+        "due": due,
+        "reconciliation": reconciliation_due,
+        "any_due": any(due.values()) or any(reconciliation_due.values()),
+    }
+
+
 def maybe_update_satellite_data(
     *,
     root: Path | str,
@@ -4664,26 +5208,27 @@ def maybe_update_satellite_data(
     dry_run: bool = False,
     fetcher: Callable[..., FetchResponse] | None = None,
     now: dt.datetime | None = None,
+    cancel_requested: Callable[[], bool] | None = None,
 ) -> dict[str, object]:
     now = now or utc_now()
     root_path = Path(root).resolve()
 
-    def configured_interval(value: float | None, fallback: float) -> float:
-        resolved = fallback if value is None else float(value)
-        if not math.isfinite(resolved) or resolved <= 0:
-            raise SatelliteDataError("Scheduled data intervals must be finite positive hours.")
-        return resolved
+    def check_cancelled() -> None:
+        if cancel_requested is not None and cancel_requested():
+            raise SatelliteDataCancelled("Scheduled satellite data update was cancelled.")
 
-    base_interval = configured_interval(interval_hours, DEFAULT_SERVER_UPDATE_INTERVAL_HOURS)
-    intervals = {
-        "gp": configured_interval(gp_interval_hours, base_interval),
-        "tle": configured_interval(tle_interval_hours, base_interval),
-        "satcat": configured_interval(satcat_interval_hours, base_interval),
-        "tracked": configured_interval(tracked_interval_hours, satcat_interval_hours or base_interval),
-        "launches": configured_interval(launches_interval_hours, satcat_interval_hours or base_interval),
-        "decayed": configured_interval(decayed_interval_hours, satcat_interval_hours or base_interval),
-        "reconciliation": configured_interval(reconciliation_interval_hours, base_interval),
-    }
+    check_cancelled()
+
+    intervals = _configured_data_update_intervals(
+        interval_hours=interval_hours,
+        gp_interval_hours=gp_interval_hours,
+        tle_interval_hours=tle_interval_hours,
+        satcat_interval_hours=satcat_interval_hours,
+        tracked_interval_hours=tracked_interval_hours,
+        launches_interval_hours=launches_interval_hours,
+        decayed_interval_hours=decayed_interval_hours,
+        reconciliation_interval_hours=reconciliation_interval_hours,
+    )
     results: dict[str, object] = {
         "started_at": isoformat_utc(now),
         "skipped": False,
@@ -4700,63 +5245,39 @@ def maybe_update_satellite_data(
     }
     lock_context = contextlib.nullcontext(True) if dry_run else update_lock(root_path)
     with lock_context as acquired:
+        check_cancelled()
         results["lock_acquired"] = acquired
         if not acquired:
             results["skipped"] = True
             results["message"] = "Another satellite data update is already running."
             return results
 
-        due = {
-            "gp": force or metadata_is_older_than(
-                root_path, GP_META_RELATIVE_PATH, GP_RELATIVE_PATH, intervals["gp"], now=now
-            ),
-            "tle": force or metadata_is_older_than(
-                root_path, TLE_META_RELATIVE_PATH, TLE_RELATIVE_PATH, intervals["tle"], now=now
-            ),
-            "satcat": force or metadata_is_older_than(
-                root_path, SATCAT_META_RELATIVE_PATH, SATCAT_RELATIVE_PATH, intervals["satcat"], now=now
-            ),
-            "tracked": force or metadata_is_older_than(
-                root_path,
-                TRACKED_META_RELATIVE_PATH,
-                TRACKED_MANIFEST_RELATIVE_PATH,
-                intervals["tracked"],
-                now=now,
-            ),
-            "launches": force or metadata_is_older_than(
-                root_path, LAUNCHES_META_RELATIVE_PATH, LAUNCHES_RELATIVE_PATH, intervals["launches"], now=now
-            ),
-            "decayed": force or metadata_is_older_than(
-                root_path, DECAYED_META_RELATIVE_PATH, DECAYED_RELATIVE_PATH, intervals["decayed"], now=now
-            ),
-        }
-        reconciliation_due = {
-            "gp": force or metadata_reconciliation_is_older_than(
-                root_path, GP_META_RELATIVE_PATH, intervals["reconciliation"], now=now
-            ),
-            "tle": force or metadata_reconciliation_is_older_than(
-                root_path, TLE_META_RELATIVE_PATH, intervals["reconciliation"], now=now
-            ),
-            "satcat": force or metadata_reconciliation_is_older_than(
-                root_path, SATCAT_META_RELATIVE_PATH, intervals["reconciliation"], now=now
-            ),
-            "tracked": force or metadata_reconciliation_is_older_than(
-                root_path, TRACKED_META_RELATIVE_PATH, intervals["reconciliation"], now=now
-            ),
-            "launches": force or metadata_reconciliation_is_older_than(
-                root_path, LAUNCHES_META_RELATIVE_PATH, intervals["reconciliation"], now=now
-            ),
-            "decayed": force or metadata_reconciliation_is_older_than(
-                root_path, DECAYED_META_RELATIVE_PATH, intervals["reconciliation"], now=now
-            ),
-        }
+        plan = scheduled_data_update_plan(
+            root=root_path,
+            interval_hours=interval_hours,
+            gp_interval_hours=gp_interval_hours,
+            tle_interval_hours=tle_interval_hours,
+            satcat_interval_hours=satcat_interval_hours,
+            tracked_interval_hours=tracked_interval_hours,
+            launches_interval_hours=launches_interval_hours,
+            decayed_interval_hours=decayed_interval_hours,
+            reconciliation_interval_hours=reconciliation_interval_hours,
+            force=force,
+            now=now,
+        )
+        due = dict(plan["due"])
+        reconciliation_due = dict(plan["reconciliation"])
         results["due"] = {**due, "reconciliation": reconciliation_due}
         executed_names: set[str] = set()
 
         def record_result(name: str, operation: Callable[[], UpdateResult]) -> UpdateResult | None:
+            check_cancelled()
             executed_names.add(name)
             try:
                 result = operation()
+                check_cancelled()
+            except SatelliteDataCancelled:
+                raise
             except Exception as exc:
                 results[name] = {
                     "changed": False,
@@ -4935,6 +5456,7 @@ def maybe_update_satellite_data(
             isinstance(item, dict) and bool(item.get("errors"))
             for item in nested_results
         )
+        check_cancelled()
     results["finished_at"] = isoformat_utc(now)
     return results
 
@@ -5044,6 +5566,45 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Override the complete active-catalog reconciliation interval.",
     )
+
+    stage_parser = subparsers.add_parser(
+        "stage-update",
+        help="Refresh and validate a revisioned private candidate without changing checked-in data.",
+    )
+    stage_parser.add_argument("--force", action="store_true", help="Ignore freshness checks inside the candidate.")
+    stage_parser.add_argument("--dry-run", action="store_true", help="Compute changes inside the candidate without writing data artifacts.")
+    stage_parser.add_argument("--promote", action="store_true", help="Atomically promote the candidate after validation.")
+    stage_parser.add_argument("--data-plane-dir", default="runtime/data-plane", help="Private data-plane state directory relative to --root.")
+    stage_parser.add_argument("--interval-hours", type=float, default=DEFAULT_SERVER_UPDATE_INTERVAL_HOURS)
+    stage_parser.add_argument("--gp-interval-hours", type=float, default=None)
+    stage_parser.add_argument("--tle-interval-hours", type=float, default=None)
+    stage_parser.add_argument("--satcat-interval-hours", type=float, default=None)
+    stage_parser.add_argument("--tracked-interval-hours", type=float, default=None)
+    stage_parser.add_argument("--reconciliation-interval-hours", type=float, default=None)
+
+    import_parser = subparsers.add_parser(
+        "import-candidate",
+        help="Byte-snapshot the current local data closure without network access or promotion.",
+    )
+    import_parser.add_argument(
+        "--data-plane-dir",
+        default="runtime/data-plane",
+        help="Private data-plane state directory relative to --root.",
+    )
+
+    validate_parser = subparsers.add_parser(
+        "validate-candidate",
+        help="Revalidate and record one private candidate inventory.",
+    )
+    validate_parser.add_argument("candidate_id", help="Revisioned candidate id returned by stage-update.")
+    validate_parser.add_argument("--data-plane-dir", default="runtime/data-plane", help="Private data-plane state directory relative to --root.")
+
+    promote_parser = subparsers.add_parser(
+        "promote-candidate",
+        help="Revalidate a candidate and atomically switch the private current-data pointer.",
+    )
+    promote_parser.add_argument("candidate_id", help="Revisioned candidate id returned by stage-update.")
+    promote_parser.add_argument("--data-plane-dir", default="runtime/data-plane", help="Private data-plane state directory relative to --root.")
     return parser
 
 
@@ -5124,6 +5685,32 @@ def main(argv: list[str] | None = None) -> int:
             )
             _print_result(result)
             return 0
+        if args.command in {"stage-update", "import-candidate", "validate-candidate", "promote-candidate"}:
+            from tools.satellite_data_plane import SatelliteDataPlane
+
+            raw_state_root = Path(args.data_plane_dir)
+            state_root = raw_state_root.resolve() if raw_state_root.is_absolute() else (root / raw_state_root).resolve()
+            plane = SatelliteDataPlane(repository_root=root, state_root=state_root)
+            if args.command == "stage-update":
+                result = plane.stage_update(
+                    promote=args.promote,
+                    interval_hours=args.interval_hours,
+                    gp_interval_hours=args.gp_interval_hours,
+                    tle_interval_hours=args.tle_interval_hours,
+                    satcat_interval_hours=args.satcat_interval_hours,
+                    tracked_interval_hours=args.tracked_interval_hours,
+                    reconciliation_interval_hours=args.reconciliation_interval_hours,
+                    force=args.force,
+                    dry_run=args.dry_run,
+                )
+            elif args.command == "import-candidate":
+                result = plane.import_candidate()
+            elif args.command == "validate-candidate":
+                result = plane.validate_candidate(args.candidate_id)
+            else:
+                result = plane.promote_candidate(args.candidate_id)
+            _print_result(result)
+            return 1 if result.get("degraded") else 0
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1

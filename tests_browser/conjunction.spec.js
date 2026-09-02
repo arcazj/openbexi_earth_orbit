@@ -1,9 +1,43 @@
 import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import crypto from 'node:crypto';
 import path from 'node:path';
 
 const ENFORCE_TIMING_BUDGETS = process.env.OPENBEXI_ENFORCE_TIMING_BUDGETS === '1';
 const LIGHTWEIGHT_DETAILED_MODEL_FIXTURE = path.resolve('obj/starlink_v2.glb');
+
+function emptyTrackedManifestFixture() {
+  const quarantineBody = JSON.stringify({ schema_version: '2.3.2', records: [] });
+  const quarantineDigest = crypto.createHash('sha256').update(quarantineBody, 'utf8').digest('hex');
+  const objectTypes = { PAYLOAD: 0, DEBRIS: 0, ROCKET_BODY: 0, MISSION_RELATED: 0, UNKNOWN: 0 };
+  return {
+    schema_version: '2.3.2',
+    catalog_revision: `sha256:${'0'.repeat(64)}`,
+    generated_at: '2026-08-23T00:00:00Z',
+    default_membership: 'CURRENT',
+    counts: {
+      total: 0,
+      current: 0,
+      historical: 0,
+      absent: 0,
+      history_total: 0,
+      propagatable: 0,
+      metadata_only: 0,
+      current_propagatable: 0,
+      current_metadata_only: 0,
+      object_types: objectTypes,
+      current_object_types: { ...objectTypes }
+    },
+    chunks: [],
+    history_chunks: [],
+    quarantine: {
+      path: `json/tracked/chunks/${quarantineDigest}-quarantine.json`,
+      count: 0,
+      bytes: Buffer.byteLength(quarantineBody, 'utf8'),
+      sha256: `sha256:${quarantineDigest}`
+    }
+  };
+}
 
 const MOBILE_CONJUNCTION_CATALOG = Object.freeze([
   {
@@ -47,7 +81,12 @@ function expectNoBrowserErrors(browserErrors) {
 }
 
 async function bootWithLocalDependencies(page, options = {}) {
-  const { catalogFixture = null, emptyCatalog = false, waitForInteractive = true } = options;
+  const {
+    catalogFixture = null,
+    emptyCatalog = false,
+    waitForInteractive = true,
+    initialOrbitSelection = null
+  } = options;
   await page.route('**/node_modules/**', route => route.abort('blockedbyclient'));
   if (catalogFixture || emptyCatalog) {
     const fixtureBody = JSON.stringify(catalogFixture || []);
@@ -65,7 +104,21 @@ async function bootWithLocalDependencies(page, options = {}) {
       }));
     }
   }
-  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
+  const trackedManifestBody = JSON.stringify(emptyTrackedManifestFixture());
+  for (const manifestUrl of [
+    '**/json/tracked/TRACKED.manifest.json',
+    '**/api/tracked-objects/manifest'
+  ]) {
+    await page.route(manifestUrl, route => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: trackedManifestBody
+    }));
+  }
+  const startupUrl = Array.isArray(initialOrbitSelection) && initialOrbitSelection.length
+    ? `/index.html?share=1&view3D=1&dayNight=1&orbit=${encodeURIComponent(initialOrbitSelection.join(','))}`
+    : '/index.html';
+  await page.goto(startupUrl, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => {
     const sources = window.openbexiDependencySources;
     return sources?.three === 'local' && sources?.satellite === 'local';
@@ -79,14 +132,11 @@ async function bootWithLocalDependencies(page, options = {}) {
   }
 }
 
-async function includeLeoAndEnableIssShortcut(page) {
+async function expectIssShortcutForInitialLeoSelection(page) {
   const meoFilter = page.locator('#orbitTypeFilter [data-orbit-filter="MEO"]');
   const leoFilter = page.locator('#orbitTypeFilter [data-orbit-filter="LEO"]');
   const issShortcut = page.locator('#selectIssButton');
   await expect(meoFilter).toHaveAttribute('aria-pressed', 'true');
-  await expect(leoFilter).toHaveAttribute('aria-pressed', 'false');
-  await expect(issShortcut).toBeDisabled();
-  await leoFilter.click();
   await expect(leoFilter).toHaveAttribute('aria-pressed', 'true');
   await expect(issShortcut).toBeEnabled({ timeout: 30_000 });
   return issShortcut;
@@ -444,19 +494,30 @@ test('full-catalog browser job uses authenticated API and exposes partial covera
   const menuGeometry = await page.evaluate(() => {
     const controls = document.querySelector('#controlsContainer')?.getBoundingClientRect();
     const toggle = document.querySelector('#menuToggleBtn')?.getBoundingClientRect();
-    return controls && toggle ? {
+    const header = document.querySelector('#menuHeaderRow')?.getBoundingClientRect();
+    return controls && toggle && header ? {
       controlsWidth: controls.width,
+      controlsLeft: controls.left,
       controlsRight: controls.right,
       toggleLeft: toggle.left,
-      overlap: !(
-        toggle.right <= controls.left || toggle.left >= controls.right ||
-        toggle.bottom <= controls.top || toggle.top >= controls.bottom
+      toggleRight: toggle.right,
+      toggleTop: toggle.top,
+      toggleBottom: toggle.bottom,
+      controlsTop: controls.top,
+      controlsBottom: controls.bottom,
+      headerLeft: header.left,
+      headerOverlap: !(
+        toggle.right <= header.left || toggle.left >= header.right ||
+        toggle.bottom <= header.top || toggle.top >= header.bottom
       )
     } : null;
   });
   expect(menuGeometry?.controlsWidth).toBeGreaterThanOrEqual(370);
-  expect(menuGeometry?.toggleLeft).toBeGreaterThanOrEqual((menuGeometry?.controlsRight || 0) + 8);
-  expect(menuGeometry?.overlap).toBe(false);
+  expect(menuGeometry?.toggleLeft).toBeGreaterThanOrEqual((menuGeometry?.controlsLeft || 0) + 8);
+  expect(menuGeometry?.toggleRight).toBeLessThanOrEqual((menuGeometry?.headerLeft || 0) - 4);
+  expect(menuGeometry?.toggleTop).toBeGreaterThanOrEqual(menuGeometry?.controlsTop || 0);
+  expect(menuGeometry?.toggleBottom).toBeLessThanOrEqual(menuGeometry?.controlsBottom || 0);
+  expect(menuGeometry?.headerOverlap).toBe(false);
   const accessibility = await new AxeBuilder({ page })
     .include('#fullCatalogWorkspace')
     .withTags(['wcag2a', 'wcag2aa', 'wcag22aa'])
@@ -480,14 +541,14 @@ test('selected satellite screening runs in a Worker and renders a conjunction ev
     if (request.url().includes('satellite.js')) satelliteRuntimeRequests.push(request.url());
     if (request.url().includes('/three/0.184.0/')) threeRuntimeRequests.push(request.url());
   });
-  await bootWithLocalDependencies(page);
+  await bootWithLocalDependencies(page, { initialOrbitSelection: ['MEO', 'LEO'] });
   const dependencySources = await page.evaluate(() => window.openbexiDependencySources);
   expect(dependencySources.satelliteUrl).toContain('/vendor/satellite.js/6.0.2/satellite.min.js');
   expect(dependencySources.threeCoreUrl).toContain('/vendor/three/0.184.0/build/three.module.js');
   expect(dependencySources.threeAddonsUrl).toContain('/vendor/three/0.184.0/examples/jsm/');
   const beforeScreening = await collectBrowserEvidence(page);
 
-  const issShortcut = await includeLeoAndEnableIssShortcut(page);
+  const issShortcut = await expectIssShortcutForInitialLeoSelection(page);
   await issShortcut.click();
 
   const conjunctionHeader = page.locator('#conjunctionAccordionHeader');
@@ -635,8 +696,11 @@ test('mobile conjunction workflow screens, renders, and fits without horizontal 
     contentType: 'model/gltf-binary',
     path: LIGHTWEIGHT_DETAILED_MODEL_FIXTURE
   }));
-  await bootWithLocalDependencies(page, { catalogFixture: MOBILE_CONJUNCTION_CATALOG });
-  const issShortcut = await includeLeoAndEnableIssShortcut(page);
+  await bootWithLocalDependencies(page, {
+    catalogFixture: MOBILE_CONJUNCTION_CATALOG,
+    initialOrbitSelection: ['MEO', 'LEO']
+  });
+  const issShortcut = await expectIssShortcutForInitialLeoSelection(page);
   await issShortcut.click();
   await expect(page.locator('#conjunctionAccordionHeader')).toBeVisible();
   await page.locator('#conjunctionAccordionHeader').click();
@@ -698,8 +762,11 @@ test('conjunction workspace reflows at named CSS widths', async ({ page }, testI
   test.setTimeout(120_000);
   const browserErrors = monitorBrowserErrors(page);
   await page.setViewportSize({ width: 768, height: 1024 });
-  await bootWithLocalDependencies(page, { catalogFixture: MOBILE_CONJUNCTION_CATALOG });
-  const issShortcut = await includeLeoAndEnableIssShortcut(page);
+  await bootWithLocalDependencies(page, {
+    catalogFixture: MOBILE_CONJUNCTION_CATALOG,
+    initialOrbitSelection: ['MEO', 'LEO']
+  });
+  const issShortcut = await expectIssShortcutForInitialLeoSelection(page);
   await issShortcut.click();
   await page.locator('#conjunctionAccordionHeader').click();
   await setScreeningInputs(page, {

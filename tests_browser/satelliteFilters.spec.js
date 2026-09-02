@@ -1,9 +1,18 @@
 import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import crypto from 'node:crypto';
 import path from 'node:path';
 
 const EPOCH = '2026-08-23T00:00:00Z';
 const LIGHTWEIGHT_DETAILED_MODEL_FIXTURE = path.resolve('obj/starlink_v2.glb');
+const TRACKED_OBJECT_TYPES = Object.freeze([
+  'PAYLOAD', 'DEBRIS', 'ROCKET_BODY', 'MISSION_RELATED', 'UNKNOWN'
+]);
+
+function boxesIntersect(left, right) {
+  return left.x < right.x + right.width && left.x + left.width > right.x &&
+    left.y < right.y + right.height && left.y + left.height > right.y;
+}
 
 function ommRecord({
   noradId,
@@ -134,6 +143,71 @@ function staticMetadata(revision, count = 0) {
   };
 }
 
+function trackedObjectTypeCounts(records) {
+  const counts = Object.fromEntries(TRACKED_OBJECT_TYPES.map(type => [type, 0]));
+  for (const record of records) counts[record.object_type] += 1;
+  return counts;
+}
+
+function canonicalizeTrackedFixture(state) {
+  const aliases = {};
+  const recordsFor = descriptor => {
+    const currentFilename = String(descriptor.path || '').split('/').pop();
+    const logicalFilename = `${descriptor.id}.json`;
+    const payload = state.trackedChunks[logicalFilename] ?? state.trackedChunks[currentFilename];
+    if (!payload || !Array.isArray(payload.records)) {
+      throw new Error(`Missing tracked fixture payload for ${descriptor.id}`);
+    }
+    return { logicalFilename, payload };
+  };
+  const address = descriptor => {
+    const { logicalFilename, payload } = recordsFor(descriptor);
+    const body = JSON.stringify(payload);
+    const digest = crypto.createHash('sha256').update(body, 'utf8').digest('hex');
+    const suffix = descriptor.id.toLowerCase().replace(/[^a-z0-9-]+/g, '-');
+    const filename = `${digest}-${suffix}.json`;
+    aliases[filename] = logicalFilename;
+    Object.assign(descriptor, {
+      path: `json/tracked/chunks/${filename}`,
+      count: payload.records.length,
+      bytes: Buffer.byteLength(body, 'utf8'),
+      sha256: `sha256:${digest}`
+    });
+    return payload.records;
+  };
+
+  const currentRecords = state.trackedManifest.chunks.flatMap(address);
+  const historyRecords = state.trackedManifest.history_chunks.flatMap(address);
+  const allRecords = [...currentRecords, ...historyRecords];
+  const propagatable = allRecords.filter(record => record.has_current_elements === true).length;
+  const currentPropagatable = currentRecords.filter(record => record.has_current_elements === true).length;
+  const quarantinePayload = { schema_version: '2.3.0', records: [] };
+  const quarantineBody = JSON.stringify(quarantinePayload);
+  const quarantineDigest = crypto.createHash('sha256').update(quarantineBody, 'utf8').digest('hex');
+
+  state.trackedManifest.counts = {
+    total: allRecords.length,
+    current: currentRecords.length,
+    historical: allRecords.filter(record => record.decay_date !== null).length,
+    absent: allRecords.filter(record => record.catalog_membership_status === 'ABSENT').length,
+    history_total: historyRecords.length,
+    propagatable,
+    metadata_only: allRecords.length - propagatable,
+    current_propagatable: currentPropagatable,
+    current_metadata_only: currentRecords.length - currentPropagatable,
+    object_types: trackedObjectTypeCounts(allRecords),
+    current_object_types: trackedObjectTypeCounts(currentRecords),
+    quarantined: 0
+  };
+  state.trackedManifest.quarantine = {
+    path: `json/tracked/chunks/${quarantineDigest}-quarantine.json`,
+    count: 0,
+    bytes: Buffer.byteLength(quarantineBody, 'utf8'),
+    sha256: `sha256:${quarantineDigest}`
+  };
+  state.trackedChunkAliases = aliases;
+}
+
 function emptyTrackedFixture(revision = 'sha256:filter-tracked-empty') {
   return {
     trackedManifest: {
@@ -160,6 +234,9 @@ function trackedMetadataRecord(record, overrides = {}) {
     object_type: record.object_type,
     orbit_class: record.orbit_class,
     lifecycle_status: 'ACTIVE',
+    observation_status: 'OBSERVED',
+    catalog_membership_status: 'PRESENT',
+    decay_date: null,
     company: record.company,
     owner: record.company,
     rcs_m2: 1,
@@ -199,7 +276,7 @@ function populatedTrackedFixture() {
       ops_status_code: '+'
     }),
     trackedMetadataRecord({
-      norad_id: 'A4321',
+      norad_id: '620004',
       satellite_name: 'TINY TRACKED FRAGMENT',
       international_designator: '2026-099A',
       object_type: 'DEBRIS',
@@ -477,6 +554,7 @@ async function routeTrackedCatalog(page, state) {
   const serveManifest = async route => {
     state.trackedManifestRequests += 1;
     if (state.trackedManifestGate) await state.trackedManifestGate;
+    canonicalizeTrackedFixture(state);
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -487,19 +565,20 @@ async function routeTrackedCatalog(page, state) {
   await page.route('**/api/tracked-objects/manifest', serveManifest);
   await page.route(/\/(?:json\/tracked\/chunks|api\/tracked-objects\/chunks)\/[^/?#]+\.json(?:[?#].*)?$/, async route => {
     const filename = decodeURIComponent(new URL(route.request().url()).pathname.split('/').pop());
-    state.trackedChunkRequests.push(filename);
-    const gate = state.trackedChunkGates?.[filename];
+    const logicalFilename = state.trackedChunkAliases?.[filename] ?? filename;
+    state.trackedChunkRequests.push(logicalFilename);
+    const gate = state.trackedChunkGates?.[logicalFilename];
     if (gate) await gate;
-    const failureStatus = Number(state.trackedChunkFailures?.[filename]);
+    const failureStatus = Number(state.trackedChunkFailures?.[logicalFilename]);
     if (Number.isInteger(failureStatus) && failureStatus >= 400) {
       await route.fulfill({
         status: failureStatus,
         contentType: 'application/json',
-        body: JSON.stringify({ error: `Fixture rejected ${filename}` })
+        body: JSON.stringify({ error: `Fixture rejected ${logicalFilename}` })
       });
       return;
     }
-    const payload = state.trackedChunks[filename];
+    const payload = state.trackedChunks[logicalFilename];
     if (!payload) {
       await route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
       return;
@@ -1083,6 +1162,8 @@ test('category unions, dependent tags, counts, selection, and GP revisions stay 
   const detailPanel = page.locator('#selectedSatelliteDetailPanel');
   const canonicalDetails = detailPanel.locator('.selected-satellite-data-section');
   const ommDetails = detailPanel.locator('.selected-satellite-omm-section');
+  await expect(detailPanel).toBeHidden();
+  await page.locator('#menuToggleBtn').click();
   await expect(detailPanel).toBeVisible();
   await expect(detailPanel.locator('.selected-satellite-detail-header strong')).toHaveText('ISS (ZARYA)');
   await expect(detailPanel.getByText('ISS (ZARYA)', { exact: true })).toHaveCount(1);
@@ -1103,11 +1184,12 @@ test('category unions, dependent tags, counts, selection, and GP revisions stay 
   await expect(ommDetails).toContainText('RA_OF_ASC_NODE');
   await expect(ommDetails).toContainText('BSTAR');
 
+  await page.locator('#menuToggleBtn').click();
   await setCheckbox(page, '#showOrbitToggle', true);
   await clickCategory(page, 'LEO');
   expect(await page.evaluate(() => window.openbexiSimulation.snapshot().selectedNoradId)).toBe('110003');
   await expect(page.locator('#showOrbitToggle')).toBeChecked();
-  await expect(detailPanel).toBeVisible();
+  await expect(detailPanel).toBeHidden();
   await clickCategory(page, 'GEO');
   await clickCategory(page, 'LEO');
   expect(await pressedCategories(page)).toEqual(['GEO']);
@@ -1212,8 +1294,8 @@ test('server lineage incoherence drops a stale tracked overlay and coherent reco
   await expect(page.locator('#trackedCountPropagatable')).toHaveText('0');
   await expect(page.locator('#trackedCountMetadataOnly')).toHaveText('0');
   await expect(page.locator('#satelliteSearchInput')).toHaveValue('');
-  await page.locator('#satelliteSearchInput').fill('A4321');
-  await expect(page.locator('#satelliteSearchResults [data-norad-id="A4321"]')).toHaveCount(0);
+  await page.locator('#satelliteSearchInput').fill('620004');
+  await expect(page.locator('#satelliteSearchResults [data-norad-id="620004"]')).toHaveCount(0);
   await page.locator('#satelliteSearchClear').click();
   await clickObjectType(page, 'ALL');
   await expectCatalogCount(page, 9, 9);
@@ -1338,6 +1420,15 @@ test('tracked catalog keeps orbit and object taxonomy independent and metadata-o
   await expect(page.locator('#trackedDebrisFacetSummary')).toHaveText(
     '3 matches | 1 positioned | 2 position unavailable'
   );
+  await expect(page.locator('#trackedCoverageHud')).toBeVisible();
+  await expect(page.locator('#trackedCoverageHud')).toHaveAttribute('data-state', 'partial');
+  await expect(page.locator('#trackedCoverageMatched')).toHaveText('3');
+  await expect(page.locator('#trackedCoveragePositioned')).toHaveText('1');
+  await expect(page.locator('#trackedCoverageUnavailable')).toHaveText('2');
+  await expect(page.locator('#trackedCoverageHud')).toHaveAttribute(
+    'aria-label',
+    /3 tracked objects match active filters; 1 positioned; 2 position unavailable/
+  );
   await expect(page.locator('#trackedCountFiltered')).toHaveText('3');
   await expect(page.locator('#trackedCountPropagatable')).toHaveText('1');
   await expect(page.locator('#trackedCountMetadataOnly')).toHaveText('2');
@@ -1355,6 +1446,22 @@ test('tracked catalog keeps orbit and object taxonomy independent and metadata-o
     };
   });
   expect(globeDebrisDiagnostics).toEqual({ debrisDrawnCount: 1, debrisTypeCount: 1 });
+  await page.evaluate(epoch => window.openbexiSimulation.setTime(epoch), EPOCH);
+  await expect.poll(() => page.evaluate(() => window.openbexiSimulation.markerClientPosition('110005')))
+    .not.toBeNull();
+  const globeTarget = await page.evaluate(() => window.openbexiSimulation.markerClientPosition('110005'));
+  expect(globeTarget).not.toBeNull();
+  await page.mouse.click(globeTarget.x, globeTarget.y);
+  await expect.poll(() => page.evaluate(() => window.openbexiSimulation.snapshot().selectedNoradId))
+    .toBe('110005');
+  await page.evaluate(() => {
+    const select = document.querySelector('#satelliteSelect');
+    select.value = 'None';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await expect.poll(() => page.evaluate(() => window.openbexiSimulation.snapshot().selectedNoradId))
+    .toBeNull();
+  await page.evaluate(() => window.openbexiSimulation.setTime('2026-08-23T00:24:00.000Z'));
   await setCheckbox(page, '#viewMercatorToggle', true);
   await expect.poll(() => page.locator('#mercatorCanvas').getAttribute('data-debris-marker-count')).toBe('1');
   await expect(page.locator('#mercatorCanvas')).toHaveAttribute('data-marker-mode', 'detailed');
@@ -1369,7 +1476,38 @@ test('tracked catalog keeps orbit and object taxonomy independent and metadata-o
     return count;
   });
   expect(redMercatorPixels).toBeGreaterThan(0);
-  await selectSatellite(page, '110005');
+  await page.locator('#openTrackedResults').click();
+  await expect(page.locator('#trackedResultsDrawer')).toBeVisible();
+  await expect(page.locator('#trackedResultsCount')).toHaveText('3 results');
+  await page.locator('#trackedResultsTabs [data-result-mode="UNAVAILABLE"]').click();
+  await expect(page.locator('#trackedResultsCount')).toHaveText('2 results');
+  await expect(page.locator('#trackedResultsRows')).toContainText('TINY TRACKED FRAGMENT');
+  const resultAccessibility = await new AxeBuilder({ page })
+    .include('#trackedResultsDrawer')
+    .analyze();
+  expect(resultAccessibility.violations.filter(violation =>
+    ['serious', 'critical'].includes(violation.impact)
+  )).toEqual([]);
+  await page.locator('#trackedResultsViewport').press('ArrowDown');
+  await page.locator('#trackedResultsViewport').press('Enter');
+  await expect(page.locator('#trackedResultsDrawer')).toBeHidden();
+  expect((await page.evaluate(() => window.openbexiSimulation.snapshot())).selectedNoradId).toBe('620004');
+  await expect(page.locator('#selectedSatelliteDetailPanel')).toContainText('Position unavailable.');
+
+  const mercatorTarget = await page.locator('#mercatorCanvas').evaluate(async canvas => {
+    const { getMercatorMarkerDiagnostics } = await import('/js/mercatorMapLoader.js');
+    const target = getMercatorMarkerDiagnostics().find(item => item.noradId === '110005');
+    if (!target) return null;
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: rect.left + target.x * rect.width / canvas.width,
+      y: rect.top + target.y * rect.height / canvas.height
+    };
+  });
+  expect(mercatorTarget).not.toBeNull();
+  await page.mouse.click(mercatorTarget.x, mercatorTarget.y);
+  await expect.poll(() => page.evaluate(() => window.openbexiSimulation.snapshot().selectedNoradId))
+    .toBe('110005');
   await expect(page.locator('#mercatorCanvas')).toHaveAttribute('data-selected-marker-norad-id', '110005');
   await expect(page.locator('#mercatorCanvas')).toHaveAttribute('data-selected-marker-rendered', 'true');
   await setCheckbox(page, '#showOnlySelectedSatellite', false);
@@ -1419,8 +1557,12 @@ test('tracked catalog keeps orbit and object taxonomy independent and metadata-o
   expect(await pressedObjectTypes(page)).toEqual(['ALL']);
   await expect(page.locator('#trackedDebrisFacets')).toBeHidden();
   await clickCategory(page, 'ALL');
+  await clickCategory(page, 'LEO');
   await clickObjectType(page, 'DEBRIS');
   await expect(page.locator('#trackedDebrisFacets')).toBeVisible();
+  await expectCatalogCount(page, 2, 12);
+  expect(await visibleNoradIds(page)).toEqual(['110005']);
+  await clickCategory(page, 'ALL');
   await expectCatalogCount(page, 3, 12);
   await expect(page.locator('#trackedPositionFacet input[value="ALL"]')).toBeChecked();
   await openDetails(page, '[data-tracked-facet="owner"]');
@@ -1434,8 +1576,8 @@ test('tracked catalog keeps orbit and object taxonomy independent and metadata-o
   )).toEqual([]);
 
   const search = page.locator('#satelliteSearchInput');
-  await search.fill('A4321');
-  const tinyDebris = page.locator('#satelliteSearchResults [data-norad-id="A4321"]');
+  await search.fill('620004');
+  const tinyDebris = page.locator('#satelliteSearchResults [data-norad-id="620004"]');
   await expect(tinyDebris).toBeVisible();
   await expect(tinyDebris.locator('.satellite-search-badges')).toContainText('Debris');
   await expect(tinyDebris.locator('.satellite-search-badges')).toContainText('Metadata only');
@@ -1444,12 +1586,12 @@ test('tracked catalog keeps orbit and object taxonomy independent and metadata-o
   await expect(page.locator('#satelliteSearchResults [data-norad-id="620001"]')).toBeVisible();
   await page.locator('#satelliteSearchClear').click();
 
-  await selectSatellite(page, 'A4321');
+  await selectSatellite(page, '620004');
   const metadataSnapshot = await page.evaluate(() => window.openbexiSimulation.snapshot());
-  expect(metadataSnapshot.selectedNoradId).toBe('A4321');
+  expect(metadataSnapshot.selectedNoradId).toBe('620004');
   expect(metadataSnapshot.selectedMeshUuid).toBeNull();
   expect(metadataSnapshot.selectedPosition).toBeNull();
-  expect(await page.evaluate(() => window.openbexiSimulation.markerState('A4321'))).toBeNull();
+  expect(await page.evaluate(() => window.openbexiSimulation.markerState('620004'))).toBeNull();
   await expect(page.locator('#selectedSatelliteControls')).toBeHidden();
   for (const selector of [
     '#showYPRToggle',
@@ -1502,7 +1644,112 @@ test('tracked catalog keeps orbit and object taxonomy independent and metadata-o
   expect(unexpectedConsoleErrors(browserErrors.consoleErrors)).toEqual([]);
 });
 
-test('GP-only debris renders without entering SATCAT counts or facet populations', async ({ page }, testInfo) => {
+test('tracked coverage and virtualized results remain usable on a narrow viewport', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-chromium', 'The narrow catalog workflow runs once on mobile Chromium.');
+  test.setTimeout(120_000);
+  const browserErrors = monitorBrowserErrors(page);
+  const state = fixtureState(populatedTrackedFixture());
+
+  await bootFilterFixture(page, state, '/index.html', { checkForDataUpdates: false });
+  await clickCategory(page, 'ALL');
+  await clickObjectType(page, 'DEBRIS');
+  await page.waitForFunction(() => window.openbexiSimulation.snapshot().trackedCatalogState === 'ready');
+  await expect(page.locator('#trackedCoverageHud')).toBeVisible();
+  await expect(page.locator('#trackedCoverageMatched')).toHaveText('3');
+  const [mobileHudBox, mobileControlsBox, mobileMenuToggleBox, mobileTimeWarpBox] = await Promise.all([
+    page.locator('#trackedCoverageHud').boundingBox(),
+    page.locator('#controlsContainer').boundingBox(),
+    page.locator('#menuToggleBtn').boundingBox(),
+    page.locator('#timeWarpBox').boundingBox()
+  ]);
+  expect(mobileHudBox).not.toBeNull();
+  expect(mobileControlsBox).not.toBeNull();
+  expect(mobileMenuToggleBox).not.toBeNull();
+  expect(mobileTimeWarpBox).not.toBeNull();
+  expect(boxesIntersect(mobileHudBox, mobileControlsBox)).toBe(false);
+  expect(boxesIntersect(mobileHudBox, mobileMenuToggleBox)).toBe(false);
+  expect(
+    boxesIntersect(mobileHudBox, mobileTimeWarpBox),
+    `mobile HUD/time controls overlap: ${JSON.stringify({ mobileHudBox, mobileTimeWarpBox })}`
+  ).toBe(false);
+  await page.locator('#openTrackedResults').click();
+  const drawer = page.locator('#trackedResultsDrawer');
+  await expect(drawer).toBeVisible();
+  const [drawerBox, viewport] = await Promise.all([
+    drawer.boundingBox(),
+    page.evaluate(() => ({ width: innerWidth, height: innerHeight }))
+  ]);
+  expect(drawerBox).not.toBeNull();
+  expect(drawerBox.x).toBeGreaterThanOrEqual(0);
+  expect(drawerBox.y).toBeGreaterThanOrEqual(0);
+  expect(drawerBox.x + drawerBox.width).toBeLessThanOrEqual(viewport.width + 1);
+  expect(drawerBox.y + drawerBox.height).toBeLessThanOrEqual(viewport.height + 1);
+  await page.locator('#trackedResultsTabs [data-result-mode="UNAVAILABLE"]').click();
+  await expect(page.locator('#trackedResultsCount')).toHaveText('2 results');
+  await page.locator('#trackedResultsViewport').press('Escape');
+  await expect(drawer).toBeHidden();
+
+  await page.setViewportSize({ width: 768, height: 900 });
+  const [tabletHudBox, tabletControlsBox, tabletMenuToggleBox, tabletTimeWarpBox] = await Promise.all([
+    page.locator('#trackedCoverageHud').boundingBox(),
+    page.locator('#controlsContainer').boundingBox(),
+    page.locator('#menuToggleBtn').boundingBox(),
+    page.locator('#timeWarpBox').boundingBox()
+  ]);
+  expect(tabletHudBox).not.toBeNull();
+  expect(tabletControlsBox).not.toBeNull();
+  expect(tabletMenuToggleBox).not.toBeNull();
+  expect(tabletTimeWarpBox).not.toBeNull();
+  expect(boxesIntersect(tabletHudBox, tabletControlsBox)).toBe(false);
+  expect(boxesIntersect(tabletHudBox, tabletMenuToggleBox)).toBe(false);
+  expect(boxesIntersect(tabletHudBox, tabletTimeWarpBox)).toBe(false);
+  await page.locator('#openTrackedResults').click();
+  const tabletDrawerBox = await drawer.boundingBox();
+  expect(tabletDrawerBox).not.toBeNull();
+  expect(tabletDrawerBox.x).toBeLessThanOrEqual(9);
+  expect(tabletDrawerBox.width).toBeGreaterThanOrEqual(750);
+  expect(tabletDrawerBox.x + tabletDrawerBox.width).toBeLessThanOrEqual(769);
+  await page.locator('#trackedResultsViewport').press('Escape');
+  await expect(drawer).toBeHidden();
+
+  await page.setViewportSize({ width: 1024, height: 900 });
+  await page.locator('#openTrackedResults').click();
+  await page.locator('#trackedResultsTabs [data-result-mode="POSITIONED"]').click();
+  await page.locator('#trackedResultsRows .tracked-results-row').first().click();
+  const [menuToggleBox, timeWarpBox] = await Promise.all([
+    page.locator('#menuToggleBtn').boundingBox(),
+    page.locator('#timeWarpBox').boundingBox()
+  ]);
+  expect(menuToggleBox).not.toBeNull();
+  expect(timeWarpBox).not.toBeNull();
+  expect(
+    menuToggleBox.x + menuToggleBox.width <= timeWarpBox.x ||
+    timeWarpBox.x + timeWarpBox.width <= menuToggleBox.x ||
+    menuToggleBox.y + menuToggleBox.height <= timeWarpBox.y ||
+    timeWarpBox.y + timeWarpBox.height <= menuToggleBox.y
+  ).toBe(true);
+  await page.locator('#menuToggleBtn').click();
+  const detailPanel = page.locator('#selectedSatelliteDetailPanel');
+  await expect(detailPanel).toBeVisible();
+  const [desktopHudBox, detailBox, hiddenMenuToggleBox, desktopTimeWarpBox] = await Promise.all([
+    page.locator('#trackedCoverageHud').boundingBox(),
+    detailPanel.boundingBox(),
+    page.locator('#menuToggleBtn').boundingBox(),
+    page.locator('#timeWarpBox').boundingBox()
+  ]);
+  expect(desktopHudBox).not.toBeNull();
+  expect(detailBox).not.toBeNull();
+  expect(hiddenMenuToggleBox).not.toBeNull();
+  expect(desktopTimeWarpBox).not.toBeNull();
+  expect(boxesIntersect(desktopHudBox, detailBox)).toBe(false);
+  expect(boxesIntersect(desktopHudBox, hiddenMenuToggleBox)).toBe(false);
+  expect(boxesIntersect(desktopHudBox, desktopTimeWarpBox)).toBe(false);
+
+  expect(browserErrors.pageErrors).toEqual([]);
+  expect(unexpectedConsoleErrors(browserErrors.consoleErrors)).toEqual([]);
+});
+
+test('GP-only debris remains orbital data without entering SATCAT-scoped debris results', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'chromium', 'The GP/SATCAT accounting boundary runs once on desktop Chromium.');
   test.setTimeout(120_000);
   const browserErrors = monitorBrowserErrors(page);
@@ -1519,10 +1766,11 @@ test('GP-only debris renders without entering SATCAT counts or facet populations
   state.gpMetadata = gpMetadata('sha256:gp-only-debris', state.gpCatalog.length);
 
   await bootFilterFixture(page, state, '/index.html', { checkForDataUpdates: false });
+  await clickCategory(page, 'LEO');
+  expect(await visibleNoradIds(page)).toContain('110010');
   await clickObjectType(page, 'DEBRIS');
   await page.waitForFunction(() => window.openbexiSimulation.snapshot().trackedCatalogState === 'ready');
-  await clickCategory(page, 'LEO');
-  expect(await visibleNoradIds(page)).toEqual(['110005', '110010']);
+  expect(await visibleNoradIds(page)).toEqual(['110005']);
   await clickCategory(page, 'ALL');
   await expectCatalogCount(page, 3, 12);
   expect(await visibleNoradIds(page)).toEqual(['110005']);
@@ -1840,28 +2088,25 @@ test('rapid tracked-object filter changes cannot commit a stale chunk request', 
   test.setTimeout(120_000);
   const browserErrors = monitorBrowserErrors(page);
   const state = fixtureState(populatedTrackedFixture());
-  let releaseManifest;
   let releaseDebris;
-  state.trackedManifestGate = new Promise(resolve => { releaseManifest = resolve; });
   state.trackedChunkGates['current-debris.json'] = new Promise(resolve => { releaseDebris = resolve; });
 
   await bootFilterFixture(page, state, '/index.html', { checkForDataUpdates: false });
-  await expect(page.locator('#trackedCatalogStatus')).toHaveAttribute('data-state', 'loading');
-  await expect.poll(() => state.trackedManifestRequests).toBeGreaterThan(0);
+  await expect(page.locator('#trackedCatalogStatus')).toHaveAttribute('data-state', 'manifest');
   await clickObjectType(page, 'DEBRIS');
-  await clickCategory(page, 'ALL');
-  expect(await pressedCategories(page)).toEqual(['ALL']);
+  expect(await pressedCategories(page)).toEqual(['MEO']);
   expect(await pressedObjectTypes(page)).toEqual(['DEBRIS']);
 
-  releaseManifest();
-  await expect.poll(() => state.trackedChunkRequests).toEqual(['current-debris.json']);
+  await expect.poll(() => state.trackedChunkRequests.includes('current-debris.json')).toBe(true);
 
-  await clickObjectType(page, 'ALL');
   await clickObjectType(page, 'PAYLOAD');
+  await clickObjectType(page, 'DEBRIS');
   expect(await pressedObjectTypes(page)).toEqual(['PAYLOAD']);
   await page.waitForFunction(() => window.openbexiSimulation.snapshot().trackedCatalogState === 'ready');
   await expect.poll(() => state.trackedChunkRequests.filter(name => name === 'current-payload.json').length)
     .toBeGreaterThan(0);
+  await clickCategory(page, 'ALL');
+  expect(await pressedCategories(page)).toEqual(['ALL']);
 
   releaseDebris();
   await page.waitForTimeout(250);
@@ -2104,8 +2349,8 @@ test('Mercator overlay and fullscreen stay above operational panels with accessi
   await expect(page.locator('.timeline-hud:visible')).toBeVisible();
   await setCheckbox(page, '#view3DToggle', true);
   await setCheckbox(page, '#viewMercatorToggle', true);
-  const mobileLayout = await page.evaluate(() => window.innerWidth <= 768);
-  if (mobileLayout) {
+  const menuConstrainedLayout = await page.evaluate(() => matchMedia('(max-width: 1280px)').matches);
+  if (menuConstrainedLayout) {
     await page.locator('#menuToggleBtn').click();
     await expect(page.locator('#controlsContainer')).toHaveClass(/menu-hidden/);
   }
@@ -2206,7 +2451,7 @@ test('Mercator overlay and fullscreen stay above operational panels with accessi
   await assertMercatorLayer('fullscreen');
   const exitButton = page.getByRole('button', { name: 'Exit full-screen Mercator map' });
   await expect(exitButton).toBeVisible();
-  if (mobileLayout) {
+  if (menuConstrainedLayout) {
     await page.locator('#menuToggleBtn').click();
     await expect(page.locator('#controlsContainer')).not.toHaveClass(/menu-hidden/);
   }

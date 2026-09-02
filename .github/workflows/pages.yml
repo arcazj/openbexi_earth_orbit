@@ -1,0 +1,355 @@
+name: Deploy verified GitHub Pages artifact
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Full master commit SHA to deploy
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-production
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate requested commit
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      source_oid: ${{ steps.confirm.outputs.oid }}
+    permissions:
+      contents: read
+      pages: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.commit_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Confirm requested commit
+        id: confirm
+        shell: bash
+        env:
+          REQUESTED_SHA: ${{ inputs.commit_sha }}
+        run: |
+          test "$GITHUB_REF" = "refs/heads/master"
+          [[ "$REQUESTED_SHA" =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]]
+          RESOLVED_OID="$(git rev-parse --verify "$REQUESTED_SHA^{commit}")"
+          test "$REQUESTED_SHA" = "$RESOLVED_OID"
+          test "$GITHUB_SHA" = "$RESOLVED_OID"
+          test "$(git rev-parse HEAD)" = "$RESOLVED_OID"
+          echo "oid=$RESOLVED_OID" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Verify clean commit bytes
+        run: >-
+          npm run check:release-tree --
+          --tree "${{ steps.confirm.outputs.oid }}"
+          --require-clean
+          --output artifacts/pages/tree-verification.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Static checks
+        run: |
+          npm run check:syntax
+          npm run check:python
+          npm run check:version
+          npm run check:vendor
+          npm run check:artifact -- --release-tree "${{ steps.confirm.outputs.oid }}"
+          npm run check:validation
+          npm run check:budgets
+
+      - name: JavaScript unit and contract tests
+        run: npm run test:unit
+
+      - name: Python server integration tests
+        run: npm run test:python
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser smoke test
+        run: npm run test:browser
+
+      - name: Dependency audit
+        run: npm run audit:dependencies
+
+      - name: Generate release SBOM
+        run: npm run sbom -- --output artifacts/pages/openbexi-node-sbom.cdx.json
+
+      - name: Re-verify source bytes
+        run: npm run check:release-tree -- --tree "${{ steps.confirm.outputs.oid }}" --require-clean
+
+      - name: Configure Pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+        with:
+          enablement: false
+
+      - name: Upload validation evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pages-validation-evidence-${{ steps.confirm.outputs.oid }}
+          path: artifacts/pages/
+          if-no-files-found: error
+          retention-days: 90
+
+  build:
+    name: Build exact deployment artifact
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      source_oid: ${{ needs.validate.outputs.source_oid }}
+      pages_artifact_id: ${{ steps.upload-pages.outputs.artifact_id }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.validate.outputs.source_oid }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Build immutable commit snapshot
+        run: node scripts/build-static.mjs --release-tree "${{ needs.validate.outputs.source_oid }}"
+
+      - name: Rehearse disposable rollback
+        run: node scripts/rehearse-static-rollback.mjs --artifact-root dist --output artifacts/pages/rollback-rehearsal.json
+
+      - name: Verify exact artifact
+        run: >-
+          node scripts/attest-static-deployment.mjs
+          --artifact-root dist
+          --commit "${{ needs.validate.outputs.source_oid }}"
+          --output artifacts/pages/pre-deploy-attestation.json
+
+      - name: Preserve asset manifest
+        run: cp dist/asset-manifest.json artifacts/pages/asset-manifest.json
+
+      - name: Upload release evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pages-release-evidence-${{ needs.validate.outputs.source_oid }}
+          path: artifacts/pages/
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Upload verified Pages artifact
+        id: upload-pages
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          name: github-pages
+          path: dist
+          include-hidden-files: true
+          retention-days: 1
+
+  verify-pages-artifact:
+    name: Verify uploaded Pages archive
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.build.outputs.source_oid }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Download exact release evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: pages-release-evidence-${{ needs.build.outputs.source_oid }}
+          path: artifacts/pages
+
+      - name: Download exact Pages artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.build.outputs.pages_artifact_id }}
+          path: artifacts/pages-upload
+
+      - name: Verify uploaded archive bytes and closure
+        run: >-
+          node scripts/verify-pages-artifact.mjs
+          --archive artifacts/pages-upload/artifact.tar
+          --manifest artifacts/pages/asset-manifest.json
+          --extract-root artifacts/pages-extracted
+          --artifact-id "${{ needs.build.outputs.pages_artifact_id }}"
+          --commit "${{ needs.build.outputs.source_oid }}"
+          --output artifacts/pages-verification/pages-artifact-verification.json
+
+      - name: Upload Pages artifact verification
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pages-artifact-verification-${{ needs.build.outputs.source_oid }}
+          path: artifacts/pages-verification/pages-artifact-verification.json
+          if-no-files-found: error
+          retention-days: 90
+
+  attest-artifact:
+    name: Sign verified artifact manifest
+    needs:
+      - build
+      - verify-pages-artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - name: Download release evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: pages-release-evidence-${{ needs.build.outputs.source_oid }}
+          path: artifacts/pages
+
+      - name: Download Pages verification evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: pages-artifact-verification-${{ needs.build.outputs.source_oid }}
+          path: artifacts/pages-verification
+
+      - name: Download exact Pages artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.build.outputs.pages_artifact_id }}
+          path: artifacts/pages-upload
+
+      - name: Attest verified asset manifest
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: artifacts/pages/asset-manifest.json
+
+      - name: Attest uploaded Pages archive digest
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: artifacts/pages-upload/artifact.tar
+
+      - name: Attest Pages archive verification
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: artifacts/pages-verification/pages-artifact-verification.json
+
+  deploy:
+    name: Deploy protected environment
+    needs:
+      - build
+      - verify-pages-artifact
+      - attest-artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy Pages artifact
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+        with:
+          artifact_name: github-pages
+
+  verify-deployment:
+    name: Verify deployed bytes
+    needs:
+      - build
+      - deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.build.outputs.source_oid }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Download release evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: pages-release-evidence-${{ needs.build.outputs.source_oid }}
+          path: artifacts/pages
+
+      - name: Verify deployed artifact bytes
+        env:
+          DEPLOYED_PAGE_URL: ${{ needs.deploy.outputs.page_url }}
+        run: >-
+          node scripts/attest-static-deployment.mjs
+          --manifest artifacts/pages/asset-manifest.json
+          --base-url "$DEPLOYED_PAGE_URL"
+          --commit "${{ needs.build.outputs.source_oid }}"
+          --output artifacts/pages/post-deploy-attestation.json
+
+      - name: Upload post-deploy evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pages-post-deploy-attestation-${{ needs.build.outputs.source_oid }}
+          path: artifacts/pages/post-deploy-attestation.json
+          if-no-files-found: error
+          retention-days: 90
+
+  attest-deployment:
+    name: Sign deployment evidence
+    needs:
+      - build
+      - verify-deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - name: Download post-deploy evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: pages-post-deploy-attestation-${{ needs.build.outputs.source_oid }}
+          path: artifacts/pages
+
+      - name: Attest deployment evidence
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: artifacts/pages/post-deploy-attestation.json

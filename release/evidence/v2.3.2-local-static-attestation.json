@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "kind": "openbexi-static-deployment-attestation",
+  "sourceCommit": "worktree-uncommitted-v2.3.2-development",
+  "artifact": {
+    "version": "2.3.2",
+    "manifestSha256": "61d59ceead6d6bf97f28c3c5c595e6a105d8a51e3f0211349fbae0b1a9329a37",
+    "fileCount": 138,
+    "totalBytes": 280577774
+  },
+  "verification": {
+    "localExact": true,
+    "remoteExact": false,
+    "local": {
+      "fileCount": 138,
+      "totalBytes": 280577774
+    },
+    "remote": null
+  },
+  "verifiedAt": "2026-09-02T08:51:24.294Z"
+}

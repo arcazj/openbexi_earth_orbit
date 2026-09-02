@@ -104,22 +104,30 @@ function run() {
   assert.strictEqual(state.trackedFacets.launchYearFrom, null, 'share state rejects out-of-range launch years');
   assert.strictEqual(state.trackedFacets.launchYearTo, null, 'share state rejects future launch years beyond policy');
   assert.strictEqual(state.trackedFacets.designator, '', 'share state rejects secret-like facet text');
-  const dormantFacetUrl = new URL(buildShareUrl('http://example.test/index.html', {
+  const orbitScopedFacetUrl = new URL(buildShareUrl('http://example.test/index.html', {
     orbitTypeFilter: ['LEO'],
     objectTypeFilter: ['DEBRIS'],
     trackedFacets: { position: ['POSITIONED'], owner: ['US'] }
   }));
-  assert.strictEqual(dormantFacetUrl.searchParams.has('position'), false,
-    'debris facets are omitted when the active orbit scope is not ALL');
-  assert.strictEqual(dormantFacetUrl.searchParams.has('owner'), false,
-    'dormant facets cannot misdescribe a share link');
+  assert.strictEqual(orbitScopedFacetUrl.searchParams.get('position'), 'POSITIONED',
+    'debris facets remain active within an explicit orbit scope');
+  assert.strictEqual(orbitScopedFacetUrl.searchParams.get('owner'), 'US',
+    'orbit-scoped debris facets remain shareable');
   assert.deepStrictEqual(
     parseShareStateFromSearch('?share=1&orbit=LEO&objects=DEBRIS&position=POSITIONED&owner=US').trackedFacets,
+    {
+      position: ['POSITIONED'], rcs: [], owner: ['US'], launchSite: [], status: [],
+      launchYearFrom: null, launchYearTo: null, designator: ''
+    },
+    'orbit-scoped debris facet parameters restore without hidden state'
+  );
+  assert.deepStrictEqual(
+    parseShareStateFromSearch('?share=1&orbit=LEO&objects=PAYLOAD&position=POSITIONED&owner=US').trackedFacets,
     {
       position: [], rcs: [], owner: [], launchSite: [], status: [],
       launchYearFrom: null, launchYearTo: null, designator: ''
     },
-    'inactive-context facet parameters are dropped instead of becoming hidden future state'
+    'facet parameters remain dormant outside the debris-only object context'
   );
   assert.deepStrictEqual(
     parseShareStateFromSearch('?share=1&debris=only').orbitTypeFilter,

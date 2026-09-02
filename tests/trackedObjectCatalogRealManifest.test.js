@@ -37,6 +37,7 @@ async function fileResponse(url) {
     return {
       ok: true,
       status: 200,
+      arrayBuffer: async () => new TextEncoder().encode(body).buffer,
       text: async () => body,
       json: async () => JSON.parse(body)
     };

@@ -25,6 +25,7 @@ function runPython(candidate, script, tempRoot) {
 
 function run() {
   const tool = read('tools/satellite_data_tools.py');
+  const dataPlane = read('tools/satellite_data_plane.py');
   const server = read('server.py');
   const promptHistory = read('PROMPT_History.md');
   const readme = read('README.md');
@@ -49,6 +50,13 @@ function run() {
   assert(tool.includes('return None'), 'Space-Track fallback remains disabled by default');
   assert(tool.includes('fetcher:'), 'tool exposes injectable fetchers for no-network tests');
   assert(tool.includes('atomic_write_json'), 'tool writes generated JSON atomically');
+  assert(tool.includes('import-candidate'), 'tool exposes a no-network local closure import command');
+  assert(tool.includes('validate-candidate'), 'tool exposes explicit candidate validation');
+  assert(tool.includes('promote-candidate'), 'tool exposes explicit atomic candidate promotion');
+  assert(dataPlane.includes('def import_candidate('), 'data plane can preserve an unvalidated local closure');
+  assert(dataPlane.includes('def stage_update('), 'data plane stages scheduled refreshes outside the release closure');
+  assert(dataPlane.includes('atomic_write_json(self.pointer_path'), 'data plane activates candidates through an atomic pointer');
+  assert(server.includes('cancel_requested=self.stop_event.is_set'), 'server shutdown cooperatively blocks late publication');
   assert(tool.includes('If-None-Match'), 'tool sends conditional ETag request headers');
   assert(tool.includes('If-Modified-Since'), 'tool sends conditional Last-Modified request headers');
   assert(tool.includes('merge_launch_date_sidecar_from_satcat'), 'incremental TLE updates can fill launch-date sidecars from SATCAT');
@@ -200,6 +208,10 @@ incremental_args = s.build_parser().parse_args(["export-tle"])
 explicit_n2yo_args = s.build_parser().parse_args(["export-tle", "--all", "--refresh-launch-dates"])
 gp_args = s.build_parser().parse_args(["export-gp", "--all", "--dry-run"])
 launch_args = s.build_parser().parse_args(["build-launches", "--dry-run"])
+stage_args = s.build_parser().parse_args(["stage-update", "--promote"])
+import_args = s.build_parser().parse_args(["import-candidate"])
+validate_args = s.build_parser().parse_args(["validate-candidate", "20260901T120000Z-012345abcdef"])
+promote_args = s.build_parser().parse_args(["promote-candidate", "20260901T120000Z-012345abcdef"])
 for direct_command in ("export-gp", "export-tle", "refresh-satcat"):
     direct_args = s.build_parser().parse_args([direct_command, "--allow-large-catalog-shrink"])
     assert direct_args.allow_large_catalog_shrink is True
@@ -223,6 +235,10 @@ assert incremental_args.refresh_launch_dates is False
 assert explicit_n2yo_args.refresh_launch_dates is True
 assert gp_args.command == "export-gp" and gp_args.all is True and gp_args.dry_run is True
 assert launch_args.command == "build-launches" and launch_args.dry_run is True
+assert stage_args.command == "stage-update" and stage_args.promote is True
+assert import_args.command == "import-candidate"
+assert validate_args.command == "validate-candidate"
+assert promote_args.command == "promote-candidate"
 
 def omm(norad_id, epoch="2026-08-20T12:00:00Z", **overrides):
     record = {

@@ -66,6 +66,16 @@ export const TRACKED_RCS_FILTER_LABELS = Object.freeze({
 });
 
 const TRACKED_FACET_ARRAY_KEYS = Object.freeze(['owner', 'launchSite', 'status']);
+const TRACKED_CHUNK_BASENAME_PATTERN = /^([a-f0-9]{64})-[a-z0-9-]+\.json$/;
+const TRACKED_NORAD_ID_PATTERN = /^[1-9][0-9]{0,8}$/;
+const TRACKED_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+const TRACKED_LIFECYCLE_STATUSES = new Set([
+    'ACTIVE', 'INACTIVE', 'UNKNOWN', 'DECAYED', 'ABSENT', 'RETIRED'
+]);
+const TRACKED_OBSERVATION_STATUSES = new Set([
+    'NEW', 'OBSERVED', 'CHANGED', 'ABSENT', 'REAPPEARED'
+]);
+const TRACKED_MEMBERSHIP_STATUSES = new Set(['PRESENT', 'ABSENT']);
 
 export const DEFAULT_TRACKED_FACETS = Object.freeze({
     position: Object.freeze([TRACKED_POSITION_FILTER.ALL]),
@@ -639,33 +649,196 @@ export function buildTrackedCatalogCounts(allRecords = [], filteredRecords = all
     });
 }
 
-async function sha256Hex(text) {
+function decodeStrictJsonBytes(bytes, label) {
+    const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    const hasBom =
+        (view.length >= 3 && view[0] === 0xef && view[1] === 0xbb && view[2] === 0xbf) ||
+        (view.length >= 2 && view[0] === 0xff && view[1] === 0xfe) ||
+        (view.length >= 2 && view[0] === 0xfe && view[1] === 0xff) ||
+        (view.length >= 4 && view[0] === 0x00 && view[1] === 0x00 && view[2] === 0xfe && view[3] === 0xff);
+    if (hasBom) throw new Error(`${label} must use BOM-free UTF-8 JSON.`);
+    try {
+        return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(view);
+    } catch {
+        throw new Error(`${label} must use valid UTF-8 JSON.`);
+    }
+}
+
+function validateJsonLexemes(source, label, { canonicalNonnegativeIntegers = false } = {}) {
+    let index = 0;
+    const fail = message => { throw new Error(`${label} ${message}`); };
+    const skipWhitespace = () => {
+        while (index < source.length && /\s/.test(source[index])) index += 1;
+    };
+    const parseString = () => {
+        if (source[index] !== '"') fail('did not return valid JSON.');
+        const start = index;
+        index += 1;
+        while (index < source.length) {
+            if (source[index] === '\\') {
+                index += 2;
+            } else if (source[index] === '"') {
+                index += 1;
+                try {
+                    return JSON.parse(source.slice(start, index));
+                } catch {
+                    fail('did not return valid JSON.');
+                }
+            } else {
+                index += 1;
+            }
+        }
+        fail('did not return valid JSON.');
+    };
+    const parseValue = () => {
+        skipWhitespace();
+        const token = source[index];
+        if (token === '{') {
+            index += 1;
+            const keys = new Set();
+            skipWhitespace();
+            if (source[index] === '}') {
+                index += 1;
+                return;
+            }
+            while (index < source.length) {
+                skipWhitespace();
+                const key = parseString();
+                if (keys.has(key)) fail(`contains a duplicate JSON object key: ${key}.`);
+                keys.add(key);
+                skipWhitespace();
+                if (source[index] !== ':') fail('did not return valid JSON.');
+                index += 1;
+                parseValue();
+                skipWhitespace();
+                if (source[index] === '}') {
+                    index += 1;
+                    return;
+                }
+                if (source[index] !== ',') fail('did not return valid JSON.');
+                index += 1;
+            }
+            fail('did not return valid JSON.');
+        }
+        if (token === '[') {
+            index += 1;
+            skipWhitespace();
+            if (source[index] === ']') {
+                index += 1;
+                return;
+            }
+            while (index < source.length) {
+                parseValue();
+                skipWhitespace();
+                if (source[index] === ']') {
+                    index += 1;
+                    return;
+                }
+                if (source[index] !== ',') fail('did not return valid JSON.');
+                index += 1;
+            }
+            fail('did not return valid JSON.');
+        }
+        if (token === '"') {
+            parseString();
+            return;
+        }
+        for (const literal of ['true', 'false', 'null']) {
+            if (source.startsWith(literal, index)) {
+                index += literal.length;
+                return;
+            }
+        }
+        const match = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/.exec(source.slice(index));
+        if (!match) fail('did not return valid JSON.');
+        const numberToken = match[0];
+        const numberValue = Number(numberToken);
+        const integerToken = /^-?(?:0|[1-9]\d*)$/.test(numberToken);
+        if (!Number.isFinite(numberValue) || numberToken === '-0' ||
+            (integerToken && !Number.isSafeInteger(numberValue))) {
+            fail('contains a non-finite or unsafe JSON number.');
+        }
+        if (canonicalNonnegativeIntegers &&
+            (!/^(?:0|[1-9]\d*)$/.test(numberToken) || !Number.isSafeInteger(numberValue))) {
+            fail('numeric values must use canonical nonnegative safe-integer JSON tokens.');
+        }
+        index += numberToken.length;
+    };
+    parseValue();
+    skipWhitespace();
+    if (index !== source.length) fail('did not return valid JSON.');
+}
+
+function parseStrictJsonBytes(bytes, label, options = {}) {
+    const source = decodeStrictJsonBytes(bytes, label);
+    validateJsonLexemes(source, label, options);
+    try {
+        const payload = JSON.parse(source);
+        assertJsonUnicodeScalars(payload, label);
+        return payload;
+    } catch {
+        throw new Error(`${label} did not return valid JSON.`);
+    }
+}
+
+function stringHasOnlyUnicodeScalars(value) {
+    for (let index = 0; index < value.length; index += 1) {
+        const code = value.charCodeAt(index);
+        if (code >= 0xd800 && code <= 0xdbff) {
+            const next = value.charCodeAt(index + 1);
+            if (!(next >= 0xdc00 && next <= 0xdfff)) return false;
+            index += 1;
+        } else if (code >= 0xdc00 && code <= 0xdfff) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function assertJsonUnicodeScalars(value, label) {
+    if (typeof value === 'string') {
+        if (!stringHasOnlyUnicodeScalars(value)) {
+            throw new Error(`${label} contains an invalid Unicode scalar string.`);
+        }
+        return;
+    }
+    if (Array.isArray(value)) {
+        value.forEach(item => assertJsonUnicodeScalars(item, label));
+        return;
+    }
+    if (value && typeof value === 'object') {
+        for (const [key, item] of Object.entries(value)) {
+            if (!stringHasOnlyUnicodeScalars(key)) {
+                throw new Error(`${label} contains an invalid Unicode scalar object key.`);
+            }
+            assertJsonUnicodeScalars(item, label);
+        }
+    }
+}
+
+async function sha256Hex(bytes) {
     const cryptoImpl = globalThis.crypto;
     if (!cryptoImpl?.subtle?.digest) throw new Error('SHA-256 verification is unavailable.');
-    const digest = await cryptoImpl.subtle.digest('SHA-256', new TextEncoder().encode(text));
+    const digest = await cryptoImpl.subtle.digest('SHA-256', bytes);
     return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
-async function responseJson(response, label, expectedHash = null) {
+async function responseJson(response, label, expectedHash = null, options = {}) {
     if (!response || response.ok === false) {
         throw new Error(`${label} request failed${response?.status ? ` (${response.status})` : ''}.`);
     }
+    if (typeof response.arrayBuffer !== 'function') {
+        throw new Error(`${label} cannot be byte-validated.`);
+    }
+    const bytes = new Uint8Array(await response.arrayBuffer());
     if (expectedHash) {
-        if (typeof response.text !== 'function') throw new Error(`${label} cannot be integrity checked.`);
-        const text = await response.text();
-        const actual = await sha256Hex(text);
+        const actual = await sha256Hex(bytes);
         const expected = String(expectedHash).trim().toLowerCase().replace(/^sha256:/, '');
         if (!/^[a-f0-9]{64}$/.test(expected) || actual !== expected) {
             throw new Error(`${label} failed SHA-256 integrity validation.`);
         }
-        try {
-            return JSON.parse(text);
-        } catch {
-            throw new Error(`${label} did not return valid JSON.`);
-        }
     }
-    if (typeof response.json !== 'function') throw new Error(`${label} did not return JSON.`);
-    return response.json();
+    return parseStrictJsonBytes(bytes, label, options);
 }
 
 function resolveChunkUrl(path, manifestUrl) {
@@ -682,73 +855,210 @@ function resolveChunkUrl(path, manifestUrl) {
 }
 
 function declaredChunkObjectType(value, label) {
-    const token = normalizedToken(value);
-    const normalized = normalizeTrackedObjectType(value);
-    if (!token || (normalized === TRACKED_OBJECT_TYPE.UNKNOWN && !['UNK', 'UNKNOWN', 'N_A'].includes(token))) {
+    if (typeof value !== 'string' || !TRACKED_OBJECT_TYPE_OPTIONS.includes(value)) {
         throw new Error(`${label} has an invalid object_type.`);
     }
-    return normalized;
+    return value;
 }
 
 function declaredChunkScope(value, label) {
-    const token = normalizedToken(value);
-    if (['CURRENT', 'ACTIVE'].includes(token)) return 'current';
-    if (['HISTORY', 'HISTORICAL', 'DECAYED_ABSENT'].includes(token)) return 'history';
+    if (value === 'CURRENT') return 'current';
+    if (value === 'HISTORICAL') return 'history';
     throw new Error(`${label} has an invalid scope.`);
 }
 
+function isValidTrackedDate(value) {
+    if (value === null) return true;
+    if (typeof value !== 'string') return false;
+    const match = TRACKED_DATE_PATTERN.exec(value);
+    if (!match) return false;
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+    const daysInMonth = [0, 31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    return year >= 1 && month >= 1 && month <= 12 && day >= 1 && day <= daysInMonth[month];
+}
+
+function validatePublishedTrackedRecord(record, label) {
+    if (!record || typeof record !== 'object' || Array.isArray(record) ||
+        typeof record.norad_id !== 'string' || !TRACKED_NORAD_ID_PATTERN.test(record.norad_id) ||
+        typeof record.lifecycle_status !== 'string' ||
+        !TRACKED_LIFECYCLE_STATUSES.has(record.lifecycle_status) ||
+        typeof record.observation_status !== 'string' ||
+        !TRACKED_OBSERVATION_STATUSES.has(record.observation_status) ||
+        typeof record.catalog_membership_status !== 'string' ||
+        !TRACKED_MEMBERSHIP_STATUSES.has(record.catalog_membership_status) ||
+        !isValidTrackedDate(record.decay_date) ||
+        typeof record.has_current_elements !== 'boolean' ||
+        typeof record.metadata_only !== 'boolean' ||
+        record.metadata_only === record.has_current_elements) {
+        throw new Error(`${label} violates the published tracked-record contract.`);
+    }
+    if (isHistoricalTrackedRecord(record) &&
+        (record.has_current_elements !== false || record.metadata_only !== true)) {
+        throw new Error(`${label} historical availability is inconsistent.`);
+    }
+    return record;
+}
+
 function validateManifest(payload) {
-    if (!payload || typeof payload !== 'object' || !Array.isArray(payload.chunks)) {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload) ||
+        !Array.isArray(payload.chunks) || !Array.isArray(payload.history_chunks) ||
+        !payload.quarantine || typeof payload.quarantine !== 'object' || Array.isArray(payload.quarantine)) {
         throw new Error('Tracked catalog manifest must contain a chunks array.');
     }
-    if (!/^2\.3(?:\.|$)/.test(String(payload.schema_version ?? ''))) {
+    if (typeof payload.schema_version !== 'string' || !/^2\.3(?:\.|$)/.test(payload.schema_version)) {
         throw new Error('Tracked catalog manifest schema_version must be 2.3.x.');
     }
-    const historyChunks = Array.isArray(payload.history_chunks) ? payload.history_chunks : [];
+    const historyChunks = payload.history_chunks;
     const ids = new Set();
     const paths = new Set();
     let declaredCurrent = 0;
     let declaredHistory = 0;
     const validateChunk = (chunk, index, scope) => {
-        if (!chunk || typeof chunk !== 'object') throw new Error(`Tracked catalog chunk ${index} is invalid.`);
-        const id = chunkIdentity(chunk, index);
-        const path = String(chunk.path ?? '').trim();
-        resolveChunkUrl(path, TRACKED_CATALOG_MANIFEST_URL);
-        declaredChunkObjectType(chunk.object_type ?? chunk.objectType, `Tracked catalog chunk ${id}`);
-        if (chunk.scope !== undefined && declaredChunkScope(chunk.scope, `Tracked catalog chunk ${id}`) !== scope) {
+        if (!chunk || typeof chunk !== 'object' || Array.isArray(chunk) ||
+            typeof chunk.id !== 'string' || !chunk.id.trim()) {
+            throw new Error(`Tracked catalog chunk ${index} is invalid.`);
+        }
+        const id = chunk.id;
+        const chunkPath = chunk.path;
+        if (typeof chunkPath !== 'string') throw new Error(`Tracked catalog chunk ${id} has an invalid path.`);
+        const pathMatch = /^json\/tracked\/chunks\/([a-f0-9]{64})-[a-z0-9-]+\.json$/.exec(chunkPath);
+        resolveChunkUrl(chunkPath, TRACKED_CATALOG_MANIFEST_URL);
+        declaredChunkObjectType(chunk.object_type, `Tracked catalog chunk ${id}`);
+        if (declaredChunkScope(chunk.scope, `Tracked catalog chunk ${id}`) !== scope) {
             throw new Error(`Tracked catalog chunk ${id} scope does not match its manifest collection.`);
         }
         if (ids.has(id)) throw new Error(`Tracked catalog chunk id is duplicated: ${id}`);
-        if (paths.has(path)) throw new Error(`Tracked catalog chunk path is duplicated: ${path}`);
+        if (paths.has(chunkPath)) throw new Error(`Tracked catalog chunk path is duplicated: ${chunkPath}`);
         ids.add(id);
-        paths.add(path);
-        const count = Number(chunk.count);
-        if (!Number.isInteger(count) || count < 0) throw new Error(`Tracked catalog chunk ${id} has an invalid count.`);
-        if (chunk.sha256 && !/^(?:sha256:)?[a-f0-9]{64}$/i.test(String(chunk.sha256))) {
-            throw new Error(`Tracked catalog chunk ${id} has an invalid SHA-256 digest.`);
+        paths.add(chunkPath);
+        const count = chunk.count;
+        if (!Number.isSafeInteger(count) || count < 0 ||
+            !Number.isSafeInteger(chunk.bytes) || chunk.bytes < 0 || !pathMatch ||
+            chunk.sha256 !== `sha256:${pathMatch?.[1] ?? ''}`) {
+            throw new Error(`Tracked catalog chunk ${id} has invalid count, bytes, path, or SHA-256 evidence.`);
         }
         if (scope === 'history') declaredHistory += count;
         else declaredCurrent += count;
     };
     payload.chunks.forEach((chunk, index) => validateChunk(chunk, index, 'current'));
     historyChunks.forEach((chunk, index) => validateChunk(chunk, index, 'history'));
-    const currentCount = Number(
-        payload.counts?.current ?? payload.counts?.current_tracked ?? payload.counts?.current_records
-    );
-    const historyCount = Number(
-        payload.counts?.history ?? payload.counts?.historical_tracked ?? payload.counts?.history_total
-    );
-    const manifestTotal = Number(payload.counts?.total ?? payload.total_count);
-    if (Number.isFinite(currentCount) && currentCount !== declaredCurrent) {
+    const quarantine = payload.quarantine;
+    const quarantinePath = typeof quarantine.path === 'string' ? quarantine.path : '';
+    const quarantineMatch = /^json\/tracked\/chunks\/([a-f0-9]{64})-quarantine\.json$/.exec(quarantinePath);
+    if (!quarantineMatch || paths.has(quarantinePath) ||
+        quarantine.sha256 !== `sha256:${quarantineMatch?.[1] ?? ''}` ||
+        !Number.isSafeInteger(quarantine.count) || quarantine.count < 0 ||
+        !Number.isSafeInteger(quarantine.bytes) || quarantine.bytes < 0) {
+        throw new Error('Tracked catalog quarantine descriptor is invalid.');
+    }
+    paths.add(quarantinePath);
+    const counts = payload.counts;
+    const countKeys = [
+        'current', 'historical', 'absent', 'history_total', 'total', 'propagatable',
+        'metadata_only', 'current_propagatable', 'current_metadata_only'
+    ];
+    if (!counts || typeof counts !== 'object' || Array.isArray(counts) ||
+        countKeys.some(key => !Number.isSafeInteger(counts[key]) || counts[key] < 0)) {
+        throw new Error('Tracked catalog manifest counts are invalid.');
+    }
+    const currentCount = counts.current;
+    const historyCount = counts.history_total;
+    const manifestTotal = counts.total;
+    if (currentCount !== declaredCurrent) {
         throw new Error('Tracked catalog manifest current count does not equal its current chunks.');
     }
-    if (Number.isFinite(historyCount) && historyCount !== declaredHistory) {
+    if (historyCount !== declaredHistory) {
         throw new Error('Tracked catalog manifest history count does not equal its history chunks.');
     }
-    if (Number.isFinite(manifestTotal) && manifestTotal !== declaredCurrent + declaredHistory) {
+    if (manifestTotal !== declaredCurrent + declaredHistory) {
         throw new Error('Tracked catalog manifest total does not equal the sum of chunk counts.');
     }
+    if (counts.historical > counts.history_total || counts.absent > counts.history_total ||
+        counts.total !== counts.propagatable + counts.metadata_only ||
+        counts.current !== counts.current_propagatable + counts.current_metadata_only) {
+        throw new Error('Tracked catalog manifest availability counts are inconsistent.');
+    }
+    const expectedAllTypes = Object.fromEntries(TRACKED_OBJECT_TYPE_OPTIONS.map(type => [type, 0]));
+    const expectedCurrentTypes = Object.fromEntries(TRACKED_OBJECT_TYPE_OPTIONS.map(type => [type, 0]));
+    for (const chunk of payload.chunks) {
+        expectedAllTypes[chunk.object_type] += chunk.count;
+        expectedCurrentTypes[chunk.object_type] += chunk.count;
+    }
+    for (const chunk of historyChunks) expectedAllTypes[chunk.object_type] += chunk.count;
+    for (const [key, expected] of [
+        ['object_types', expectedAllTypes],
+        ['current_object_types', expectedCurrentTypes]
+    ]) {
+        const actual = counts[key];
+        if (!actual || typeof actual !== 'object' || Array.isArray(actual) ||
+            Object.keys(actual).length !== TRACKED_OBJECT_TYPE_OPTIONS.length ||
+            TRACKED_OBJECT_TYPE_OPTIONS.some(type => actual[type] !== expected[type])) {
+            throw new Error(`Tracked catalog manifest ${key} does not match its chunk descriptors.`);
+        }
+    }
     return payload;
+}
+
+function trackedRecordCountEvidence(records) {
+    const counts = {
+        current: 0,
+        historical: 0,
+        absent: 0,
+        history_total: 0,
+        total: 0,
+        propagatable: 0,
+        metadata_only: 0,
+        current_propagatable: 0,
+        current_metadata_only: 0
+    };
+    const objectTypes = Object.fromEntries(TRACKED_OBJECT_TYPE_OPTIONS.map(type => [type, 0]));
+    const currentObjectTypes = Object.fromEntries(TRACKED_OBJECT_TYPE_OPTIONS.map(type => [type, 0]));
+    for (const record of records) {
+        const historical = isHistoricalTrackedRecord(record);
+        counts.total += 1;
+        counts.historical += Number(record.decay_date !== null);
+        counts.absent += Number(record.catalog_membership_status === 'ABSENT');
+        counts.propagatable += Number(record.has_current_elements);
+        counts.metadata_only += Number(record.metadata_only);
+        objectTypes[record.object_type] += 1;
+        if (historical) {
+            counts.history_total += 1;
+        } else {
+            counts.current += 1;
+            counts.current_propagatable += Number(record.has_current_elements);
+            counts.current_metadata_only += Number(record.metadata_only);
+            currentObjectTypes[record.object_type] += 1;
+        }
+    }
+    return { counts, objectTypes, currentObjectTypes };
+}
+
+function validateLoadedCatalogEvidence(nextManifest, targetRecords, targetChunkIds) {
+    const currentIds = nextManifest.chunks.map(chunkIdentity);
+    if (!currentIds.every(id => targetChunkIds.has(id))) return;
+    const records = [...targetRecords.values()];
+    const currentRecords = records.filter(record => !isHistoricalTrackedRecord(record));
+    const currentEvidence = trackedRecordCountEvidence(currentRecords);
+    const declared = nextManifest.counts;
+    if (currentEvidence.counts.current !== declared.current ||
+        currentEvidence.counts.current_propagatable !== declared.current_propagatable ||
+        currentEvidence.counts.current_metadata_only !== declared.current_metadata_only ||
+        TRACKED_OBJECT_TYPE_OPTIONS.some(type =>
+            currentEvidence.currentObjectTypes[type] !== declared.current_object_types[type])) {
+        throw new Error('Tracked catalog current records do not match manifest count evidence.');
+    }
+    const allIds = [...currentIds, ...nextManifest.history_chunks.map(chunkIdentity)];
+    if (!allIds.every(id => targetChunkIds.has(id))) return;
+    const evidence = trackedRecordCountEvidence(records);
+    if (Object.entries(evidence.counts).some(([key, value]) => declared[key] !== value) ||
+        TRACKED_OBJECT_TYPE_OPTIONS.some(type =>
+            evidence.objectTypes[type] !== declared.object_types[type] ||
+            evidence.currentObjectTypes[type] !== declared.current_object_types[type])) {
+        throw new Error('Tracked catalog records do not match manifest count evidence.');
+    }
 }
 
 function chunkIdentity(chunk, index) {
@@ -794,7 +1104,12 @@ export function createTrackedObjectCatalogLoader(options = {}) {
 
     const loadManifest = async ({ signal, force = false } = {}) => {
         if (manifest && !force) return manifest;
-        const payload = await responseJson(await fetchImpl(manifestUrl, { signal, cache: force ? 'no-store' : 'default' }), 'Tracked catalog manifest');
+        const payload = await responseJson(
+            await fetchImpl(manifestUrl, { signal, cache: force ? 'no-store' : 'default' }),
+            'Tracked catalog manifest',
+            null,
+            { canonicalNonnegativeIntegers: true }
+        );
         return validateManifest(payload);
     };
 
@@ -838,15 +1153,15 @@ export function createTrackedObjectCatalogLoader(options = {}) {
                             `Tracked catalog chunk ${id}`,
                             chunk.sha256
                         );
-                        const records = Array.isArray(payload) ? payload : payload?.records;
+                        const records = payload?.records;
                         if (!Array.isArray(records)) throw new Error(`Tracked catalog chunk ${id} must contain records.`);
-                        if (records.length !== Number(chunk.count)) {
+                        if (records.length !== chunk.count) {
                             throw new Error(`Tracked catalog chunk ${id} count does not match its manifest declaration.`);
                         }
-                        if (Array.isArray(payload)) {
+                        if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
                             throw new Error(`Tracked catalog chunk ${id} must declare its schema and object_type.`);
                         }
-                        if (!/^2\.3(?:\.|$)/.test(String(payload.schema_version ?? ''))) {
+                        if (typeof payload.schema_version !== 'string' || !/^2\.3(?:\.|$)/.test(payload.schema_version)) {
                             throw new Error(`Tracked catalog chunk ${id} schema_version must be 2.3.x.`);
                         }
                         const expectedScope = historyChunkIds.has(id) ? 'history' : 'current';
@@ -865,26 +1180,21 @@ export function createTrackedObjectCatalogLoader(options = {}) {
                             throw new Error(`Tracked catalog chunk ${id} payload scope does not match its manifest collection.`);
                         }
                         const entries = records.map((record, recordIndex) => {
-                            try {
-                                const declaredRecordType = declaredChunkObjectType(
-                                    record?.object_type ?? record?.objectType,
-                                    `Tracked catalog chunk ${id} record ${recordIndex}`
-                                );
-                                const normalized = normalizeTrackedRecord(record);
-                                if (declaredRecordType !== descriptorType || normalized.object_type !== descriptorType) {
-                                    throw new Error(`Tracked catalog chunk ${id} record ${recordIndex} object_type does not match its descriptor.`);
-                                }
-                                if (isHistoricalTrackedRecord(normalized) !== (expectedScope === 'history')) {
-                                    throw new Error(`Tracked catalog chunk ${id} record ${recordIndex} lifecycle does not match its ${expectedScope} scope.`);
-                                }
-                                return { normalized, recordIndex };
-                            } catch (recordError) {
-                                return { recordError, recordIndex };
+                            const recordLabel = `Tracked catalog chunk ${id} record ${recordIndex}`;
+                            validatePublishedTrackedRecord(record, recordLabel);
+                            const declaredRecordType = declaredChunkObjectType(record.object_type, recordLabel);
+                            if (declaredRecordType !== descriptorType) {
+                                throw new Error(`${recordLabel} object_type does not match its descriptor.`);
                             }
+                            if (isHistoricalTrackedRecord(record) !== (expectedScope === 'history')) {
+                                throw new Error(`${recordLabel} lifecycle does not match its ${expectedScope} scope.`);
+                            }
+                            const normalized = normalizeTrackedRecord(record);
+                            if (normalized.norad_id !== record.norad_id || normalized.object_type !== descriptorType) {
+                                throw new Error(`${recordLabel} changes identity or type during normalization.`);
+                            }
+                            return { normalized, recordIndex };
                         });
-                        const contractError = entries.find(entry => entry.recordError &&
-                            /does not match its (?:descriptor|current scope|history scope)/.test(entry.recordError.message));
-                        if (contractError) throw contractError.recordError;
                         return { id, entries, scope: expectedScope };
                     }));
 
@@ -894,20 +1204,11 @@ export function createTrackedObjectCatalogLoader(options = {}) {
 
                     for (const payload of payloads) {
                         for (const entry of payload.entries) {
-                            if (!entry.recordError) {
-                                const normalized = entry.normalized;
-                                const existing = targetRecords.get(normalized.norad_id);
-                                if (payload.scope === 'history' && existing && !isHistoricalTrackedRecord(existing)) {
-                                    continue;
-                                }
-                                targetRecords.set(normalized.norad_id, normalized);
-                            } else {
-                                targetQuarantine.push(Object.freeze({
-                                    chunk_id: payload.id,
-                                    record_index: entry.recordIndex,
-                                    reason: entry.recordError?.message || String(entry.recordError)
-                                }));
+                            const normalized = entry.normalized;
+                            if (targetRecords.has(normalized.norad_id)) {
+                                throw new Error(`Tracked catalog contains duplicate NORAD id ${normalized.norad_id}.`);
                             }
+                            targetRecords.set(normalized.norad_id, normalized);
                         }
                         targetChunkIds.add(payload.id);
                         processed += 1;
@@ -922,6 +1223,7 @@ export function createTrackedObjectCatalogLoader(options = {}) {
                 if (generation !== requestGeneration) {
                     return Object.freeze({ ...snapshot(), stale_request: true, request_generation: generation });
                 }
+                validateLoadedCatalogEvidence(nextManifest, targetRecords, targetChunkIds);
                 manifest = nextManifest;
                 recordsByNorad = targetRecords;
                 loadedChunkIds = targetChunkIds;

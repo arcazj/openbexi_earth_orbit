@@ -6,13 +6,18 @@ import {
   buildTrackedCatalogCounts,
   trackedObjectMatchesFilters
 } from '../js/trackedObjectCatalog.js';
+import {
+  prepareTrackedResults,
+  trackedResultWindow
+} from '../js/trackedResultsView.js';
 
 const RECORD_COUNT = 120_000;
 const MAX_BUILD_MS = 2_500;
 const MAX_FILTER_MS = 3_000;
 const MAX_SEARCH_MS = 3_000;
 const MAX_FACET_MS = 6_000;
-const MAX_TOTAL_MS = 13_000;
+const MAX_RESULTS_MS = 3_000;
+const MAX_TOTAL_MS = 16_000;
 const MAX_HEAP_DELTA_BYTES = 384 * 1024 * 1024;
 const ORBITS = ['LEO', 'MEO', 'GEO', 'HEO', 'OTHER'];
 const OBJECT_TYPES = ['PAYLOAD', 'DEBRIS', 'ROCKET_BODY', 'UNKNOWN'];
@@ -74,6 +79,20 @@ const facetOptions = buildTrackedFacetOptions(records, {
   designator: ''
 });
 const facetMs = performance.now() - facetStartedAt;
+
+const resultsStartedAt = performance.now();
+const preparedResults = prepareTrackedResults(records, {
+  mode: 'UNAVAILABLE',
+  sortKey: 'owner',
+  direction: 'asc'
+});
+const firstResultWindow = trackedResultWindow(preparedResults, {
+  viewportHeight: 440,
+  rowHeight: 44,
+  scrollTop: 44 * 60_000,
+  overscan: 5
+});
+const resultsMs = performance.now() - resultsStartedAt;
 const totalMs = performance.now() - startedAt;
 const heapDeltaBytes = Math.max(0, heapUsed() - initialHeap);
 const counts = buildTrackedCatalogCounts(records, filtered);
@@ -86,6 +105,7 @@ const diagnostics = {
   filterMs: Number(filterMs.toFixed(2)),
   searchMs: Number(searchMs.toFixed(2)),
   facetMs: Number(facetMs.toFixed(2)),
+  resultsMs: Number(resultsMs.toFixed(2)),
   totalMs: Number(totalMs.toFixed(2)),
   heapDeltaMiB: Number((heapDeltaBytes / 1024 / 1024).toFixed(2)),
   bounds: {
@@ -93,6 +113,7 @@ const diagnostics = {
     maxFilterMs: MAX_FILTER_MS,
     maxSearchMs: MAX_SEARCH_MS,
     maxFacetMs: MAX_FACET_MS,
+    maxResultsMs: MAX_RESULTS_MS,
     maxTotalMs: MAX_TOTAL_MS,
     maxHeapDeltaMiB: MAX_HEAP_DELTA_BYTES / 1024 / 1024
   }
@@ -105,6 +126,9 @@ assert.equal(counts.historical_tracked, RECORD_COUNT / 10);
 assert(filtered.length > 0, 'scale fixture exercises a non-empty filter intersection');
 assert.equal(search.totalCount, 10, 'scale search deterministically finds every sentinel record');
 assert.equal(search.visibleCount, 10);
+assert.equal(preparedResults.length, RECORD_COUNT, 'every metadata-only scale record is available in the results view');
+assert(firstResultWindow.rows.length > 0 && firstResultWindow.rows.length <= 20,
+  'results virtualization materializes only a bounded viewport window');
 for (const key of ['owner', 'launchSite', 'status']) {
   assert.equal(facetOptions[key].reduce((sum, entry) => sum + entry.count, 0), RECORD_COUNT,
     `120k ${key} facet remains exhaustive`);
@@ -113,7 +137,8 @@ assert(buildMs <= MAX_BUILD_MS, `120k fixture build exceeded ${MAX_BUILD_MS} ms`
 assert(filterMs <= MAX_FILTER_MS, `120k filter exceeded ${MAX_FILTER_MS} ms`);
 assert(searchMs <= MAX_SEARCH_MS, `120k search exceeded ${MAX_SEARCH_MS} ms`);
 assert(facetMs <= MAX_FACET_MS, `120k facet build exceeded its documented ${MAX_FACET_MS} ms bound`);
-assert(totalMs <= MAX_TOTAL_MS, `120k filter/search/facet benchmark exceeded ${MAX_TOTAL_MS} ms`);
+assert(resultsMs <= MAX_RESULTS_MS, `120k results sort/window exceeded ${MAX_RESULTS_MS} ms`);
+assert(totalMs <= MAX_TOTAL_MS, `120k filter/search/facet/results benchmark exceeded ${MAX_TOTAL_MS} ms`);
 assert(heapDeltaBytes <= MAX_HEAP_DELTA_BYTES, '120k filter/search benchmark exceeded its heap-growth bound');
 
 console.log('tracked object catalog 120k benchmark tests passed');

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import {
   TRACKED_OBJECT_VISUALS,
   TRACKED_OBJECT_TYPE,
@@ -401,30 +402,107 @@ assert.deepEqual(counts, {
 });
 
 function response(payload, ok = true, status = 200) {
-  return { ok, status, json: async () => structuredClone(payload) };
+  const body = new TextEncoder().encode(JSON.stringify(payload));
+  return { ok, status, arrayBuffer: async () => body.slice().buffer };
 }
+
+function responseBytes(body, ok = true, status = 200) {
+  const bytes = body instanceof Uint8Array ? new Uint8Array(body) : new TextEncoder().encode(body);
+  return { ok, status, arrayBuffer: async () => bytes.buffer.slice(0) };
+}
+
+function addressedChunk(id, scope, objectType, records) {
+  const payload = { schema_version: '2.3.0', scope, object_type: objectType, records };
+  const body = JSON.stringify(payload);
+  const digest = crypto.createHash('sha256').update(body).digest('hex');
+  const suffix = `${scope.toLowerCase()}-${objectType.toLowerCase().replaceAll('_', '-')}`;
+  return {
+    descriptor: {
+      id,
+      path: `json/tracked/chunks/${digest}-${suffix}.json`,
+      object_type: objectType,
+      scope,
+      count: records.length,
+      bytes: Buffer.byteLength(body),
+      sha256: `sha256:${digest}`
+    },
+    payload,
+    body
+  };
+}
+
+const publishedPayload = {
+  ...payload,
+  object_type: 'PAYLOAD',
+  observation_status: 'OBSERVED',
+  catalog_membership_status: 'PRESENT',
+  decay_date: null,
+  metadata_only: false
+};
+const publishedSmallDebris = {
+  ...smallDebris,
+  norad_id: '100001',
+  object_type: 'DEBRIS',
+  observation_status: 'OBSERVED',
+  catalog_membership_status: 'PRESENT',
+  decay_date: null,
+  metadata_only: true
+};
+const publishedMissingRcsDebris = {
+  ...missingRcsDebris,
+  object_type: 'DEBRIS',
+  observation_status: 'OBSERVED',
+  catalog_membership_status: 'PRESENT',
+  decay_date: null,
+  metadata_only: true
+};
+const publishedDecayed = {
+  ...decayed,
+  object_type: 'DEBRIS',
+  observation_status: 'OBSERVED',
+  catalog_membership_status: 'PRESENT',
+  metadata_only: true
+};
+const payloadChunk = addressedChunk('payload-0', 'CURRENT', 'PAYLOAD', [publishedPayload]);
+const debrisChunk = addressedChunk(
+  'debris-0',
+  'CURRENT',
+  'DEBRIS',
+  [publishedSmallDebris, publishedMissingRcsDebris]
+);
+const historyChunk = addressedChunk('history-debris-0', 'HISTORICAL', 'DEBRIS', [publishedDecayed]);
+const quarantinePayload = { schema_version: '2.3.0', records: [] };
+const quarantineBody = JSON.stringify(quarantinePayload);
+const quarantineDigest = crypto.createHash('sha256').update(quarantineBody).digest('hex');
 
 const manifest = {
   schema_version: '2.3.0',
-  counts: { total: 4, current: 3, history: 1 },
-  chunks: [
-    { id: 'payload-0', path: 'chunks/payload-0.json', object_type: 'PAYLOAD', count: 1 },
-    { id: 'debris-0', path: 'chunks/debris-0.json', object_type: 'DEBRIS', count: 2 }
-  ],
-  history_chunks: [
-    { id: 'history-debris-0', path: 'chunks/history-debris-0.json', object_type: 'DEBRIS', count: 1 }
-  ]
+  counts: {
+    total: 4,
+    current: 3,
+    historical: 1,
+    absent: 0,
+    history_total: 1,
+    propagatable: 1,
+    metadata_only: 3,
+    current_propagatable: 1,
+    current_metadata_only: 2,
+    object_types: { PAYLOAD: 1, DEBRIS: 3, ROCKET_BODY: 0, MISSION_RELATED: 0, UNKNOWN: 0 },
+    current_object_types: { PAYLOAD: 1, DEBRIS: 2, ROCKET_BODY: 0, MISSION_RELATED: 0, UNKNOWN: 0 }
+  },
+  chunks: [payloadChunk.descriptor, debrisChunk.descriptor],
+  history_chunks: [historyChunk.descriptor],
+  quarantine: {
+    path: `json/tracked/chunks/${quarantineDigest}-quarantine.json`,
+    count: 0,
+    bytes: Buffer.byteLength(quarantineBody),
+    sha256: `sha256:${quarantineDigest}`
+  }
 };
 const chunkPayloads = {
-  'json/tracked/chunks/payload-0.json': {
-    schema_version: '2.3.0', scope: 'CURRENT', object_type: 'PAYLOAD', records: [payload]
-  },
-  'json/tracked/chunks/debris-0.json': {
-    schema_version: '2.3.0', scope: 'CURRENT', object_type: 'DEBRIS', records: [smallDebris, missingRcsDebris]
-  },
-  'json/tracked/chunks/history-debris-0.json': {
-    schema_version: '2.3.0', scope: 'HISTORICAL', object_type: 'DEBRIS', records: [decayed]
-  }
+  [payloadChunk.descriptor.path]: payloadChunk.payload,
+  [debrisChunk.descriptor.path]: debrisChunk.payload,
+  [historyChunk.descriptor.path]: historyChunk.payload
 };
 const requestedUrls = [];
 const loader = createTrackedObjectCatalogLoader({
@@ -443,15 +521,15 @@ assert.equal(snapshot.records.length, 2);
 const debrisCoverage = loader.coverage();
 assert.equal('records' in debrisCoverage, false, 'coverage checks do not clone or expose the loaded record array');
 assert.deepEqual(debrisCoverage.loaded_chunk_ids, ['debris-0']);
-assert(requestedUrls.includes('json/tracked/chunks/debris-0.json'));
-assert(!requestedUrls.includes('json/tracked/chunks/payload-0.json'), 'a debris request does not fetch the payload chunk');
+assert(requestedUrls.includes(debrisChunk.descriptor.path));
+assert(!requestedUrls.includes(payloadChunk.descriptor.path), 'a debris request does not fetch the payload chunk');
 snapshot = await loader.loadAll();
 assert.equal(snapshot.state, 'ready');
 assert.equal(snapshot.records.length, 3);
-assert(!requestedUrls.includes('json/tracked/chunks/history-debris-0.json'), 'normal ALL does not fetch decayed history');
+assert(!requestedUrls.includes(historyChunk.descriptor.path), 'normal ALL does not fetch decayed history');
 snapshot = await loader.loadAll({ includeHistorical: true });
 assert.equal(snapshot.records.length, 4, 'history chunks load only after explicit opt-in');
-assert(requestedUrls.includes('json/tracked/chunks/history-debris-0.json'));
+assert(requestedUrls.includes(historyChunk.descriptor.path));
 assert(snapshot.records.every(isTrackedCatalogMember), 'every validated chunk record carries tracked-catalog membership');
 const clearedSnapshot = loader.clear();
 assert.equal(clearedSnapshot.state, 'idle');
@@ -479,7 +557,7 @@ const raceLoader = createTrackedObjectCatalogLoader({
   fetchImpl: async url => {
     raceRequestedUrls.push(url);
     if (url.endsWith('TRACKED.manifest.json')) return response(manifest);
-    if (url.includes('debris-0')) await debrisGate;
+    if (url === debrisChunk.descriptor.path) await debrisGate;
     return response(chunkPayloads[url]);
   }
 });
@@ -491,7 +569,7 @@ const debrisSnapshot = await staleDebrisRequest;
 assert.equal(payloadSnapshot.records.length, 1);
 assert.equal(payloadSnapshot.records[0].object_type, 'PAYLOAD');
 assert.equal(debrisSnapshot.stale_request, true, 'an older async filter load is marked stale');
-assert(!raceRequestedUrls.some(url => url.includes('debris-0')), 'a superseded request stops before fetching its chunk');
+  assert(!raceRequestedUrls.includes(debrisChunk.descriptor.path), 'a superseded request stops before fetching its chunk');
 assert.deepEqual(
   raceLoader.snapshot().records.map(record => record.object_type),
   ['PAYLOAD'],
@@ -512,17 +590,18 @@ await assert.rejects(
 
 await assert.rejects(
   () => createTrackedObjectCatalogLoader({
-    fetchImpl: async url => response(url.endsWith('TRACKED.manifest.json') ? {
-      schema_version: '2.3.0',
-      counts: { total: 1, current: 1, history: 0 },
-      chunks: [{ id: 'wrong-type', path: 'chunks/wrong-type.json', object_type: 'DEBRIS', count: 1 }],
-      history_chunks: []
-    } : {
-      schema_version: '2.3.0',
-      scope: 'CURRENT',
-      object_type: 'DEBRIS',
-      records: [{ ...payload, object_type: 'PAYLOAD' }]
-    })
+    fetchImpl: async url => {
+      const wrongTypeChunk = addressedChunk(
+        'debris-0',
+        'CURRENT',
+        'DEBRIS',
+        [{ ...publishedSmallDebris, object_type: 'PAYLOAD' }, publishedMissingRcsDebris]
+      );
+      if (url.endsWith('TRACKED.manifest.json')) {
+        return response({ ...manifest, chunks: [payloadChunk.descriptor, wrongTypeChunk.descriptor] });
+      }
+      return response(url === wrongTypeChunk.descriptor.path ? wrongTypeChunk.payload : chunkPayloads[url]);
+    }
   }).loadAll(),
   /record 0 object_type does not match its descriptor/,
   'a descriptor/content object-type mismatch rejects the whole chunk'
@@ -543,20 +622,143 @@ await assert.rejects(
 
 await assert.rejects(
   () => createTrackedObjectCatalogLoader({
-    fetchImpl: async url => response(url.endsWith('TRACKED.manifest.json') ? {
-      schema_version: '2.3.0',
-      counts: { total: 1, current: 1, history: 0 },
-      chunks: [{ id: 'wrong-scope', path: 'chunks/wrong-scope.json', object_type: 'DEBRIS', count: 1 }],
-      history_chunks: []
-    } : {
-      schema_version: '2.3.0',
-      object_type: 'DEBRIS',
-      scope: 'CURRENT',
-      records: [decayed]
-    })
+    fetchImpl: async url => {
+      const wrongScopeChunk = addressedChunk(
+        'debris-0',
+        'CURRENT',
+        'DEBRIS',
+        [publishedDecayed, publishedMissingRcsDebris]
+      );
+      if (url.endsWith('TRACKED.manifest.json')) {
+        return response({ ...manifest, chunks: [payloadChunk.descriptor, wrongScopeChunk.descriptor] });
+      }
+      return response(url === wrongScopeChunk.descriptor.path ? wrongScopeChunk.payload : chunkPayloads[url]);
+    }
   }).loadAll(),
   /lifecycle does not match its current scope/,
   'a history record in a current chunk rejects the whole chunk'
 );
+
+for (const [label, mutate] of [
+  ['boolean id', record => { record.norad_id = true; }],
+  ['object id', record => { record.norad_id = { value: '100001' }; }],
+  ['leading-zero id', record => { record.norad_id = '0100001'; }],
+  ['non-string lifecycle', record => { record.lifecycle_status = []; }],
+  ['non-string decay date', record => { record.decay_date = []; }],
+  ['historical current elements', record => {
+    record.lifecycle_status = 'DECAYED';
+    record.decay_date = '2026-01-01';
+    record.has_current_elements = true;
+    record.metadata_only = false;
+  }]
+]) {
+  const record = structuredClone(publishedSmallDebris);
+  mutate(record);
+  const invalidChunk = addressedChunk('debris-0', 'CURRENT', 'DEBRIS', [record, publishedMissingRcsDebris]);
+  const invalidManifest = { ...manifest, chunks: [payloadChunk.descriptor, invalidChunk.descriptor] };
+  await assert.rejects(
+    () => createTrackedObjectCatalogLoader({
+      fetchImpl: async url => response(
+        url.endsWith('TRACKED.manifest.json')
+          ? invalidManifest
+          : url === invalidChunk.descriptor.path
+            ? invalidChunk.payload
+            : chunkPayloads[url]
+      )
+    }).loadAll(),
+    /published tracked-record contract|historical availability|lifecycle does not match/,
+    `published chunks fail atomically for ${label}`
+  );
+}
+
+{
+  const duplicateChunk = addressedChunk(
+    'debris-0',
+    'CURRENT',
+    'DEBRIS',
+    [{ ...publishedSmallDebris, norad_id: publishedPayload.norad_id }, publishedMissingRcsDebris]
+  );
+  await assert.rejects(
+    () => createTrackedObjectCatalogLoader({
+      fetchImpl: async url => response(
+        url.endsWith('TRACKED.manifest.json')
+          ? { ...manifest, chunks: [payloadChunk.descriptor, duplicateChunk.descriptor] }
+          : url === duplicateChunk.descriptor.path
+            ? duplicateChunk.payload
+            : chunkPayloads[url]
+      )
+    }).loadAll(),
+    /duplicate NORAD id/,
+    'duplicate NORAD identities across chunks fail the catalog load'
+  );
+}
+
+for (const [label, raw] of [
+  ['negative zero', '{"unexpected":-0}'],
+  ['fraction', '{"unexpected":1.0}'],
+  ['duplicate key', '{"unexpected":0,"unexpected":1}'],
+  ['non-standard constant', '{"unexpected":NaN}'],
+  ['lone surrogate', '{"unexpected":"\\ud800"}']
+]) {
+  await assert.rejects(
+    () => createTrackedObjectCatalogLoader({ fetchImpl: async () => responseBytes(raw) }).readManifest(),
+    /valid JSON|canonical|duplicate|Unicode|non-finite|unsafe/i,
+    `tracked manifest byte parsing rejects ${label}`
+  );
+}
+
+{
+  const appendRawMember = (source, member) => Buffer.concat([
+    Buffer.from(source).subarray(0, Buffer.from(source).length - 1),
+    Buffer.from(','),
+    Buffer.from(member),
+    Buffer.from('}')
+  ]);
+  const validBody = Buffer.from(debrisChunk.body);
+  const rawChunkCases = [
+    ['NaN', appendRawMember(validBody, '"unexpected":NaN')],
+    ['Infinity', appendRawMember(validBody, '"unexpected":Infinity')],
+    ['numeric overflow', appendRawMember(validBody, '"unexpected":1e400')],
+    ['duplicate key', appendRawMember(validBody, '"records":[]')],
+    ['invalid UTF-8', appendRawMember(validBody, Buffer.from('"unexpected":"\x80"', 'latin1'))],
+    ['UTF-8 BOM', Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), validBody])],
+    ['UTF-16', Buffer.from(`\ufeff${debrisChunk.body}`, 'utf16le')],
+    ['lone surrogate', appendRawMember(validBody, '"unexpected":"\\ud800"')]
+  ];
+  for (const [label, body] of rawChunkCases) {
+    const digest = crypto.createHash('sha256').update(body).digest('hex');
+    const descriptor = {
+      ...debrisChunk.descriptor,
+      path: `json/tracked/chunks/${digest}-current-debris.json`,
+      bytes: body.length,
+      sha256: `sha256:${digest}`
+    };
+    await assert.rejects(
+      () => createTrackedObjectCatalogLoader({
+        fetchImpl: async url => {
+          if (url.endsWith('TRACKED.manifest.json')) {
+            return response({ ...manifest, chunks: [payloadChunk.descriptor, descriptor] });
+          }
+          if (url === descriptor.path) return responseBytes(body);
+          return response(chunkPayloads[url]);
+        }
+      }).load({ objectTypes: ['DEBRIS'] }),
+      /valid JSON|UTF|BOM|duplicate|non-finite|unsafe|Unicode/i,
+      `tracked chunk byte parsing rejects ${label}`
+    );
+  }
+}
+
+for (const quarantine of [
+  [],
+  { ...manifest.quarantine, path: '' },
+  { ...manifest.quarantine, path: manifest.quarantine.path.replace('-quarantine.json', '-other.json') }
+]) {
+  await assert.rejects(
+    () => createTrackedObjectCatalogLoader({ fetchImpl: async () => response({ ...manifest, quarantine }) }).readManifest(),
+    /manifest must contain|quarantine descriptor/,
+    'tracked manifests require the exact quarantine descriptor shape and content-addressed path'
+  );
+}
 
 console.log('tracked object catalog tests passed');

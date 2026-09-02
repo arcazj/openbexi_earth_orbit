@@ -14,6 +14,8 @@ Rollback or disable the affected feature when there is data corruption, schema i
 4. Invalidate only caches whose content changed.
 5. Record incident time, scope, decision owner, restored version, and follow-up issue.
 
+Direct artifact repointing is valid only for a deployment channel with a tested retained-artifact mechanism. The Version 2.3.2 GitHub Pages workflow has none; follow `ROLLBACK_V2_3_2.md` and deploy a reviewed revert merged to current `master` under a new exact commit SHA.
+
 ## Data Rollback
 
 1. Quarantine the suspect dataset and metadata without overwriting it.

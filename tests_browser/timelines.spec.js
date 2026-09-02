@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import crypto from 'node:crypto';
 
 const GP_METADATA = Object.freeze({
   catalog_revision: 'sha256:gp-one',
@@ -11,22 +12,38 @@ const GP_METADATA = Object.freeze({
   counts: { rejected: 0 }
 });
 
-const EMPTY_TRACKED_MANIFEST = Object.freeze({
-  schema_version: '2.3.0',
-  catalog_revision: 'sha256:timeline-tracked-empty',
-  generated_at: '2026-08-23T00:00:00Z',
-  default_membership: 'CURRENT',
-  counts: {
-    total: 0,
-    current: 0,
-    historical: 0,
-    history_total: 0,
-    quarantined: 0
-  },
-  chunks: [],
-  history_chunks: [],
-  quarantine: { count: 0 }
-});
+function emptyTrackedManifestFixture() {
+  const quarantineBody = JSON.stringify({ schema_version: '2.3.2', records: [] });
+  const quarantineDigest = crypto.createHash('sha256').update(quarantineBody, 'utf8').digest('hex');
+  const objectTypes = { PAYLOAD: 0, DEBRIS: 0, ROCKET_BODY: 0, MISSION_RELATED: 0, UNKNOWN: 0 };
+  return {
+    schema_version: '2.3.2',
+    catalog_revision: `sha256:${'0'.repeat(64)}`,
+    generated_at: '2026-08-23T00:00:00Z',
+    default_membership: 'CURRENT',
+    counts: {
+      total: 0,
+      current: 0,
+      historical: 0,
+      absent: 0,
+      history_total: 0,
+      propagatable: 0,
+      metadata_only: 0,
+      current_propagatable: 0,
+      current_metadata_only: 0,
+      object_types: objectTypes,
+      current_object_types: { ...objectTypes }
+    },
+    chunks: [],
+    history_chunks: [],
+    quarantine: {
+      path: `json/tracked/chunks/${quarantineDigest}-quarantine.json`,
+      count: 0,
+      bytes: Buffer.byteLength(quarantineBody, 'utf8'),
+      sha256: `sha256:${quarantineDigest}`
+    }
+  };
+}
 
 const OMM_CATALOG = Object.freeze([{
   satellite_name: 'OMM ACTIVE 100001',
@@ -182,7 +199,14 @@ async function routeEmptyTrackedCatalog(page) {
     '**/json/tracked/TRACKED.manifest.json',
     '**/api/tracked-objects',
     '**/api/tracked-objects/manifest'
-  ], EMPTY_TRACKED_MANIFEST);
+  ], emptyTrackedManifestFixture());
+}
+
+async function waitForStaticRevisionBaseline(page) {
+  await expect.poll(() => page.evaluate(async () => {
+    const result = await window.openbexiServerConnection?.checkForDataUpdates?.();
+    return result?.revision ?? null;
+  })).not.toBeNull();
 }
 
 function createTimelineFixtureState() {
@@ -244,6 +268,7 @@ async function bootTimelineFixture(page, state) {
   await page.waitForFunction(() => (
     typeof window.openbexiServerConnection?.checkForDataUpdates === 'function'
   ));
+  await waitForStaticRevisionBaseline(page);
 }
 
 async function timelineHasPaint(canvas) {
@@ -297,7 +322,8 @@ test('OMM selection and static catalog revisions refresh both timelines without 
   await expect(ommOption).toBeVisible();
   await ommOption.click();
   const selectedDetails = page.locator('#selectedSatelliteDetailPanel');
-  if (testInfo.project.name === 'mobile-chromium') {
+  const menuConstrainedLayout = await page.evaluate(() => matchMedia('(max-width: 1280px)').matches);
+  if (menuConstrainedLayout) {
     await expect(selectedDetails).toBeHidden();
     await expect(searchInput).toHaveValue('OMM ACTIVE 100001');
   } else {
@@ -367,6 +393,7 @@ test('OMM selection and static catalog revisions refresh both timelines without 
   const refreshResult = await page.evaluate(() => (
     window.openbexiServerConnection.checkForDataUpdates()
   ));
+  expect(refreshResult.error).toBeUndefined();
   expect(refreshResult.changed).toBe(true);
   expect(await page.evaluate(() => window.__openbexiTimelineDocumentToken)).toBe(documentToken);
 
@@ -454,6 +481,7 @@ test('unavailable GP falls back to TLE and auxiliary-only revisions avoid anothe
     window.openbexiStartupPerformance?.summary().some(entry => entry.name === 'first-interactive-ui')
   ));
   await expect.poll(() => decayMetadataRequests).toBeGreaterThan(0);
+  await waitForStaticRevisionBaseline(page);
   await page.locator('#orbitTypeFilter [data-orbit-filter="ALL"]').click();
   await page.locator('#satelliteSearchInput').fill('44714');
   const tleOption = page.locator('#satelliteSearchResults [data-norad-id="44714"]');
@@ -483,6 +511,7 @@ test('unavailable GP falls back to TLE and auxiliary-only revisions avoid anothe
   const refreshResult = await page.evaluate(() => (
     window.openbexiServerConnection.checkForDataUpdates()
   ));
+  expect(refreshResult.error).toBeUndefined();
   expect(refreshResult.changed).toBe(true);
   expect(gpRequests).toBe(requestsBeforeAuxiliaryRefresh);
   await expect(reentryStatus).toContainText('REVISION DECAY 100404');

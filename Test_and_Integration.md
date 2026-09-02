@@ -2,7 +2,48 @@
 
 ## Purpose
 
-This file preserves the historical regression and manual-test record through Version 1.7.6 and records current Version 2.3.1 integration expectations. Authoritative promotion gates remain the separate release checklists, the scripts selected by `npm run check` and `npm test`, and retained evidence under `release/evidence/` and `validation/`. Historical statements below are not current dependency, version, or publication requirements.
+This file preserves the historical regression and manual-test record through Version 2.3.1 and records current Version 2.3.2 integration expectations. Authoritative promotion gates remain the separate release checklists, the scripts selected by `npm run check` and `npm test`, and retained evidence under `release/evidence/` and `validation/`. Historical statements below are not current dependency, version, or publication requirements.
+
+## Version 2.3.2 Workflow and Publication-Hardening Verification
+
+Version 2.3.2 remains Experimental, non-operational, and in development publication state. The exact Version 2.3.1 owner approval and aggregate results are retained below as historical evidence only. They do not approve or verify the changed Version 2.3.2 source, data, artifact, or deployment bytes. Automated provider tests must continue to use fixed fixtures, local frozen inputs, injected clocks/jitter, or mocked fetches; CI must not depend on live CelesTrak availability.
+
+Required Version 2.3.2 coverage:
+
+- Verify the coverage HUD reconciles the active filtered set into matched, positioned, and position-unavailable counts; exposes scope, snapshot state, and an available generation timestamp; stays truthful while loading/degraded; and remains usable on a narrow viewport.
+- Verify the virtualized results drawer preserves the complete logical result count while rendering only a bounded row window, supports deterministic sorting and availability tabs, implements Arrow/Home/End/Enter/Escape keyboard behavior, restores focus on close, and selects metadata-only records only into the details path.
+- Verify the 120,000-record deterministic guard measures result ordering plus bounded-window preparation as `resultsMs <= 3,000 ms` and the complete build/filter/search/facet/results path as `totalMs <= 16,000 ms`; record observed values only from the final frozen-tree run.
+- Verify Globe and Mercator hit tests map one visible positioned marker to its canonical record within a bounded pointer tolerance, ignore misses, and use the ordinary selection path. Dense and detailed marker modes, selected-marker suppression, globe occlusion, simulation time, and filter membership must remain coherent.
+- Verify debris facets activate when `DEBRIS` is the sole object type under every nonempty orbit selection, retain independent orbit/history/tag semantics, round-trip through share state, and never add or infer mass/weight.
+- Verify scheduled maintenance seeds a private candidate, changes only that root, validates required revision pairs plus the full tracked closure/current GP-SATCAT lineage, and atomically promotes one pointer only after success. Rejected, degraded, drifted, cancelled, interrupted, or pointer-write-failed candidates must preserve both the prior pointer and checked-in release bytes.
+- Verify concurrent data-plane writers use one persistent regular lock file plus a nonblocking OS advisory lock on supported Windows and POSIX paths. A live holder must reject takeover; contenders and cleanup must never unlink or reclaim the file based on owner text or age, and the same file identity must remain reusable after an orderly release.
+- Preserve the Version 2.3.2 no-network import regression recorded in `release/evidence/v2.3.2-data-candidate-recovery.json`. Exact-commit candidate `20260902T014734Z-9faea7cdb724` must remain `VALIDATED` and deliberately unpromoted with raw revision `sha256:4fa944e1283feb2a8dd5a09e51c5d8c8fc332f4f96d0e119347afa994e1193f2`, 24 artifacts/131,613,453 bytes, zero source-copy mismatches, tracked revision `sha256:8fd7f619f16e714a9d170a8eb538a183e240051830430b09b1201bbf0d36e4a4`, and counts 70,475 total/19,111 propagatable/12,488 current debris/2,640 positioned GP debris. It must not be relabeled quarantined.
+- Preserve the distinct dirty-runtime regression: candidate `20260902T011924Z-8c8d999bf6df` remains `QUARANTINED` and unpromoted for malformed `json/tle/TLE.meta.json`, with 24 artifacts/131,692,789 bytes, zero copy mismatches recorded at import, raw revision `sha256:e27ff6b5c34bdaa715f3924ea5cafa67fec6fd83ea0ddd7ff63340b80e08683c`, tracked revision `sha256:de60852484cc6ccee624380286080b993543ad6c412016710673ccd1b75f4cb7`, and counts 70,532 total/19,106 propagatable/51,426 metadata-only/12,488 current debris/2,640 positioned GP debris. Verify the pointer is absent and the checked-in strict `ef98cfe` fallback remains 70,474 total/16,470 propagatable/54,004 metadata-only/12,490 current debris/zero positioned.
+- Verify API and server-static data routes resolve from one registered coherent root, use the checked-in closure when no valid pointer exists, and retain bounded fail-closed tracked-catalog behavior. Under default `serve`, mutable data and `/api/v1` requests must recheck the verified pointer, bootstrap or transactionally activate V21 before committing a changed root, retain the prior root after failure, and retry on the next qualifying request. Exercise A to B to A activation of an existing revision. Verify request-time coordinator errors do not appear in public scheduler status.
+- Verify a transient scheduler-path post-promotion V21 registration callback failure marks the scheduler cycle degraded in `/api/data-update-status`, retains the successful pointer promotion, keeps registration pending, retries on the following scheduler pass even when staging is skipped, and clears the pending state and error only after callback success. Verify graceful scheduler stop requests cooperative cancellation before pointer publication and joins the non-daemon worker.
+- Verify release-tree checks compare clean worktree/index bytes with a named Git commit, the Pages workflow accepts only a manually confirmed `master` commit, and deployment packaging contains only the exact verified `dist/` artifact.
+- Verify the disposable rollback rehearsal rejects a corrupt tracked candidate, keeps a GP-only fallback ready, and restores the prior tracked revision and HTTP cache behavior. Verify post-deploy attestation compares every remote byte and size with `dist/asset-manifest.json`.
+- Run accessibility checks on the new HUD/results controls and keyboard journeys. This tranche does not claim complete nonvisual alternatives for every canvas or historical timeline.
+
+### Required Version 2.3.2 commands
+
+```text
+npm ci
+npm run check:version
+npm run check:release-tree -- --tree HEAD --require-clean
+npm run test:unit
+npm run test:python
+npm run test:browser
+npm run test:release
+npm run check
+npm run audit:dependencies
+npm run sbom -- --output release/evidence/openbexi-node-sbom-2.3.2-development.cdx.json
+npm run rehearse:rollback
+```
+
+Authoritative Version 2.3.2 local verification passed 63 of 63 JavaScript unit test files. Python discovered 152 cases and completed in 83.452 seconds with 151 passes, one intentional Windows directory-symlink capability skip, and zero failures. Syntax validation covered 147 JavaScript files, dependency audit reported zero vulnerabilities, and release-engineering checks passed. The clean `playwright-report/index.html` is 677,198 bytes with SHA-256 `893b507b3c29b511f190655643539e66b20c84dcb715723790ac1cdfe6394170`; its aggregate is retained in `release/evidence/v2.3.2-playwright-aggregate.json`. It covers 49 declarations in Chromium and Mobile Chromium across 6 spec files, with 29 passes, 20 explicit-reason intentional skips, zero unexpected results, zero flaky results, zero top-level errors, `ok=true`, and exactly one result attempt per declaration. Exact duration was 595,996.319 ms (595.996319 seconds, 00:09:55.996319, 9.933271983333334 minutes). Project accounting is Chromium 27 = 25 pass + 2 skip and Mobile Chromium 22 = 4 + 18. Per-file accounting is conjunction 10 = 5 pass + 5 skip, satellite filters 30 = 16 + 14, smoke 2 = 2 + 0, static deployment 2 = 2 + 0, timelines 4 = 3 + 1, and time simulation 1 = 1 + 0.
+
+The authoritative standalone 120,000-record observation measured 57.56 ms build, 245.79 ms filter, 53.86 ms search, 288.86 ms facets, 330.68 ms results, 976.75 ms total, and 95.89 MiB heap growth. The reviewed source budget independently records `index.html` at 314,194/315,000 bytes and modular JavaScript at 904,188/915,000 bytes across 54 files. The JavaScript allowance includes the fail-closed, byte-preserving catalog parser and cross-runtime record validation. Exact final static-artifact counts, bytes, and digest are recorded in `dist/asset-manifest.json` and `release/evidence/v2.3.2-release-metrics.json`. Exact rollback and local-attestation bytes, digests, and timestamps are retained in `release/evidence/v2.3.2-static-rollback.json`, `release/evidence/v2.3.2-local-static-attestation.json`, and the validation manifest; local rollback passed and local attestation records `localExact=true` and `remoteExact=false`. The validation inventory is 334 artifacts, 17 executable contracts, and 94 evidence records, with its exact manifest digest authoritative only in `validation/v2.3.2/manifest.sha256`. One final post-recording `origin/master` source publication is approved. Named browser-performance profiles, remote Pages deployment/attestation, required-reviewer/self-review environment settings, clean committed-tree binding, and independent review remain pending. Do not copy Version 2.3.1 figures into those fields.
 
 ## Version 2.3.1 Tracked-Object Development Verification
 
@@ -625,7 +666,7 @@ Add and maintain focused tests under `tests/`. `npm test` must run all tests, no
 ### Server Data Path
 
 - Test `/api/health` returns status `ok` and version metadata.
-- Test `/api/version` derives app version `2.3.1`, development publication state, and null candidate/release dates from `release/version.json`.
+- Test `/api/version` derives app version `2.3.2`, development publication state, and null candidate/release dates from `release/version.json`.
 - Test `/api/gp` returns valid mixed records, including canonical OMM and a six-digit string identity.
 - Test `/api/gp-metadata` returns the generated GP metadata sidecar unchanged and returns `404` when that sidecar is absent.
 - Test deprecated `/api/tle` returns valid compatibility TLE records and exposes reduced coverage; test `/api/satellites` prefers GP/OMM and falls back to that TLE dataset only when GP is unavailable.

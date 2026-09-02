@@ -483,7 +483,7 @@
     <header class="hero">
       <h1>
         OpenBEXI Earth Orbit API
-        <span class="badge version">2.3.1</span>
+        <span class="badge version">2.3.2</span>
         <span class="badge oas">OAS 3.0.3</span>
       </h1>
       <p class="description">
@@ -539,7 +539,7 @@
               <pre><code>{
   "status": "ok",
   "app": "OpenBEXI Earth Orbit",
-  "version": "2.3.1",
+  "version": "2.3.2",
   "release_date": null,
   "candidate_date": null,
   "publication_state": "development"
@@ -564,9 +564,9 @@
         </summary>
         <div class="operation-body">
           <h3>Description</h3>
-          <p>Both paths return the atomic SATCAT-scoped tracked-object manifest only after validating its complete closure, manifest/metadata revision agreement, raw GP/SATCAT bytes against their sidecar hashes, and current source lineage. The server returns the exact manifest/metadata snapshot that passed those checks. Version 2.3.1 retains tracked schema Version 2.3.0; its special all-debris facets are client-derived and do not change this API. It does not claim provider-universe completeness or make metadata-only objects propagatable.</p>
+          <p>Both paths return the selected root's atomic SATCAT-scoped tracked-object manifest only after validating its complete closure, manifest/metadata revision agreement, raw GP/SATCAT bytes against their sidecar hashes, and current source lineage. Every public data route selects the same atomically promoted private runtime candidate, or the checked-in closure when no pointer exists. The server returns the exact manifest/metadata snapshot that passed those checks. Version 2.3.2 retains tracked schema Version 2.3.0; its debris facets, coverage HUD, result views, and map selection are client-derived and do not change this API. It does not claim provider-universe completeness or make metadata-only objects propagatable.</p>
           <h3>Count Semantics</h3>
-          <p><code>history_total</code> is the history-chunk partition used by <code>total = current + history_total</code>. <code>historical</code> counts decay-dated records and <code>absent</code> counts identities removed from current membership by complete guarded reconciliation; both are diagnostics within <code>history_total</code>, can overlap, and must not be added together. The frozen snapshot has 70,474 total, 34,960 current, 35,514 history-total/decay-dated, and zero absent records. Availability is separate: 16,470 total/current propagatable records plus 54,004 total metadata-only records, including 18,490 current metadata-only records.</p>
+          <p><code>history_total</code> is the history-chunk partition used by <code>total = current + history_total</code>. <code>historical</code> counts decay-dated records and <code>absent</code> counts identities removed from current membership by complete guarded reconciliation; both are diagnostics within <code>history_total</code>, can overlap, and must not be added together. The historical Version 2.3.1 frozen snapshot has 70,474 total, 34,960 current, 35,514 history-total/decay-dated, and zero absent records. Availability is separate: 16,470 total/current propagatable records plus 54,004 total metadata-only records, including 18,490 current metadata-only records. Those values are not asserted for a future runtime candidate.</p>
           <h3>Responses</h3>
           <table class="response-table"><tbody><tr><td>200</td><td>Tracked-object manifest.</td><td>application/json</td></tr><tr><td>404</td><td>No tracked catalog has been built.</td><td>application/json</td></tr><tr><td>503</td><td>Manifest, metadata, closure, or current source lineage is incoherent; code <code>TRACKED_CATALOG_UNAVAILABLE</code>.</td><td>application/problem+json</td></tr></tbody></table>
         </div>
@@ -615,7 +615,7 @@
           </table>
           <h3>Example Response</h3>
           <pre><code>{
-  "app_version": "2.3.1",
+  "app_version": "2.3.2",
   "api_version": "1.0.0",
   "release_date": null,
   "candidate_date": null,
@@ -624,7 +624,7 @@
   "maturity": "experimental",
   "safety_class": "non-operational",
   "repository": "https://github.com/arcazj/openbexi_earth_orbit",
-  "server": "OpenBEXIHTTP/2.3.1"
+  "server": "OpenBEXIHTTP/2.3.2"
 }</code></pre>
         </div>
       </details>
@@ -641,7 +641,7 @@
         </summary>
         <div class="operation-body">
           <h3>Description</h3>
-          <p>Returns <code>json/gp/GP.json</code> with complete string NORAD identifiers and canonical OMM fields. This remains the Version 2.3.1 position and screening catalog; tracked metadata without GP is not included. The configured source is <code>active</code> plus three event-specific debris groups, a partial positioned subset rather than complete debris/provider coverage.</p>
+          <p>Returns the selected root's <code>json/gp/GP.json</code> with complete string NORAD identifiers and canonical OMM fields. This remains the Version 2.3.2 position and screening catalog; tracked metadata without GP is not included. The configured source is <code>active</code> plus three event-specific debris groups, a partial positioned subset rather than complete debris/provider coverage.</p>
           <h3>Responses</h3>
           <table class="response-table"><tbody><tr><td>200</td><td>Mixed GP records.</td><td>application/json</td></tr></tbody></table>
         </div>
@@ -858,7 +858,7 @@
         </summary>
         <div class="operation-body">
           <h3>Description</h3>
-          <p>Returns catalog health plus the optional background scheduler lifecycle, effective GP/TLE/SATCAT/tracked/lifecycle/reconciliation intervals, per-dataset status, bounded retry state, and last reconciliation. GP metadata distinguishes configured <code>source_groups</code>, accepted-byte <code>catalog_source_groups</code>, and <code>source_scope_verified</code>. Active-only migration remains due and validator-free after failed, partial, quarantined, or 304-only responses; only one coherent four-group success verifies the scope. Persisted GP, TLE, SATCAT, tracked, launch, and decay errors survive restart; the public projection recursively bounds, control-character normalizes, and credential-redacts errors in both top-level fields and nested results. The scheduler is disabled by default and runs only with <code>--update-data-on-schedule</code>; <code>npm run serve:update</code> selects the daily profile.</p>
+          <p>Returns catalog health plus the optional background scheduler lifecycle, effective GP/TLE/SATCAT/tracked/lifecycle/reconciliation intervals, per-dataset status, bounded private-candidate promotion phase, retry state, and last reconciliation. GP metadata distinguishes configured <code>source_groups</code>, accepted-byte <code>catalog_source_groups</code>, and <code>source_scope_verified</code>. Active-only migration remains due and validator-free after failed, partial, quarantined, or 304-only responses; only one coherent four-group success verifies the scope. Persisted GP, TLE, SATCAT, tracked, launch, and decay errors survive restart; the public projection recursively bounds, control-character normalizes, and credential-redacts errors in both top-level fields and nested results. Candidate paths, pointer contents, and credentials are never exposed. The scheduler is disabled by default and runs only with <code>--update-data-on-schedule</code>; <code>npm run serve:update</code> selects the daily profile.</p>
           <h3>Parameters</h3>
           <p class="empty">No parameters.</p>
           <h3>Responses</h3>
@@ -889,7 +889,7 @@
   "tracked_current_metadata_only_count": 18490,
   "last_errors": []
 }</code></pre>
-          <p>Unattended GP reconciliation requires valid, quarantine-free responses from <code>active</code>, <code>fengyun-1c-debris</code>, <code>iridium-33-debris</code>, and <code>cosmos-2251-debris</code>; completeness applies only to that partial configured scope. Reconciliation and full replacement always enforce the production-scale shrink guard: when the prior GP, TLE, or SATCAT catalog contains at least 1,000 records, both candidate size and canonical NORAD overlap must retain at least 75%. <code>--force</code> bypasses freshness only. The direct-command <code>--allow-large-catalog-shrink</code> recovery option is unavailable to <code>maybe-update</code> and the server. Accepted conditional <code>304</code> revalidation resets daily due age only after source-scope verification without changing data, revision, or backup state. Fixed-name changed artifacts use collision-safe backups; tracked chunks are content addressed and promoted through one verified manifest pointer.</p>
+          <p>Unattended GP reconciliation requires valid, quarantine-free responses from <code>active</code>, <code>fengyun-1c-debris</code>, <code>iridium-33-debris</code>, and <code>cosmos-2251-debris</code>; completeness applies only to that partial configured scope. Reconciliation and full replacement always enforce the production-scale shrink guard: when the prior GP, TLE, or SATCAT catalog contains at least 1,000 records, both candidate size and canonical NORAD overlap must retain at least 75%. <code>--force</code> bypasses freshness only. The direct-command <code>--allow-large-catalog-shrink</code> recovery option is unavailable to <code>maybe-update</code> and the server. Accepted conditional <code>304</code> revalidation resets daily due age only after source-scope verification without changing data, revision, or backup state. Scheduled maintenance writes only to one isolated revisioned candidate, validates all required data/metadata pairs and the complete tracked closure/current lineage, and atomically replaces the private current pointer only after success. Cancellation, rejection, drift, interruption, or pointer failure preserves the previous pointer and checked-in release bytes.</p>
         </div>
       </details>
     </section>
@@ -1007,7 +1007,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "OpenBEXI Earth Orbit API",
-    "version": "2.3.1"
+    "version": "2.3.2"
   },
   "paths": {
     "/api/health": {},
@@ -1042,7 +1042,7 @@
     </section>
 
     <footer>
-      Static local documentation for OpenBEXI Earth Orbit 2.3.1 development. Companion Markdown: <a href="markdown_viewer.html?source=SWAGGER.md&amp;title=Swagger%20API">SWAGGER.md</a>.
+      Static local documentation for OpenBEXI Earth Orbit 2.3.2 development. Companion Markdown: <a href="markdown_viewer.html?source=SWAGGER.md&amp;title=Swagger%20API">SWAGGER.md</a>.
     </footer>
   </main>
 

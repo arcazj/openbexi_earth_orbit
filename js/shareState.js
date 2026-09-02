@@ -52,7 +52,7 @@ function trackedFacetState(value = {}) {
 }
 
 function trackedFacetsAreActive(orbitTypeFilter, objectTypeFilter) {
-    return orbitTypeFilter?.length === 1 && orbitTypeFilter[0] === 'ALL' &&
+    return Array.isArray(orbitTypeFilter) && orbitTypeFilter.length > 0 &&
         objectTypeFilter?.length === 1 && objectTypeFilter[0] === 'DEBRIS';
 }
 

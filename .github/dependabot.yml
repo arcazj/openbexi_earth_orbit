@@ -3,14 +3,26 @@ updates:
   - package-ecosystem: npm
     directory: /
     schedule:
-      interval: monthly
-    open-pull-requests-limit: 5
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 10
     groups:
-      browser-tooling:
+      production-dependencies:
+        dependency-type: production
+      development-dependencies:
         dependency-type: development
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: monthly
-    open-pull-requests-limit: 5
+      interval: weekly
+      day: monday
+      time: "06:30"
+      timezone: America/New_York
+    open-pull-requests-limit: 10
+    groups:
+      official-actions:
+        patterns:
+          - actions/*

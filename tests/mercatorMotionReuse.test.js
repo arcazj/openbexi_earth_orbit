@@ -3,6 +3,8 @@ import fs from 'node:fs';
 import {
   drawSelectedGroundTrack,
   groundTrackOptions,
+  mercatorMarkerDrawOrder,
+  pickMercatorTarget,
   updateMercatorMap
 } from '../js/mercatorMapLoader.js';
 
@@ -127,6 +129,44 @@ assert.equal(groundTrackOptions.points.length, 0, 'metadata-only selections clea
 
 groundTrackOptions.pathLenMin = originalPathLen;
 groundTrackOptions.timeStepMin = originalTimeStep;
+
+const mercatorPickTargets = [
+  { sat: { norad_id: '100010' }, x: 100, y: 50 },
+  { sat: { norad_id: '100011' }, x: 104, y: 52 }
+];
+const mercatorPickRect = { left: 10, top: 20, width: 400, height: 200 };
+assert.equal(pickMercatorTarget(
+  mercatorPickTargets,
+  { width: 800, height: 400 },
+  { clientX: 62, clientY: 46, rect: mercatorPickRect },
+  { maxDistancePx: 8 }
+)?.norad_id, '100011', 'Mercator picking applies CSS-to-canvas scaling and selects the nearest marker');
+assert.equal(pickMercatorTarget(
+  mercatorPickTargets,
+  { width: 800, height: 400 },
+  { clientX: 300, clientY: 180, rect: mercatorPickRect },
+  { maxDistancePx: 8 }
+), null, 'Mercator picking ignores clicks outside the marker hit radius');
+
+const denseOverlapDrawData = Array.from({ length: 1001 }, (_, index) => ({
+  sat: { norad_id: String(200000 + index), isSelected: index === 0 },
+  pt: index === 0 || index === 1000 ? { x: 140, y: 80 } : { x: index, y: index },
+  visual: { color: index % 2 ? '#ff3b30' : '#00cfff' }
+}));
+const denseDrawOrder = mercatorMarkerDrawOrder(denseOverlapDrawData);
+const denseHitTargets = denseDrawOrder.map(({ sat, pt }, drawOrder) => ({
+  sat,
+  x: pt.x,
+  y: pt.y,
+  drawOrder
+}));
+assert.equal(denseDrawOrder.at(-1).sat.isSelected, true, 'density rendering draws selected markers last');
+assert.equal(pickMercatorTarget(
+  denseHitTargets,
+  { width: 800, height: 400 },
+  { clientX: 80, clientY: 60, rect: mercatorPickRect },
+  { maxDistancePx: 8 }
+)?.norad_id, '200000', 'density picking resolves an overlap to the visibly topmost selected marker');
 
 const sourceText = fs.readFileSync('js/mercatorMapLoader.js', 'utf8');
 assert(!updateMercatorMap.toString().includes('satellite.propagate'), 'Mercator markers do not run a second exact catalog propagation pass');

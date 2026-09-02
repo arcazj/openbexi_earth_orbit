@@ -10,14 +10,14 @@ Supported tooling is declared in `package.json#engines`. CI currently exercises 
 
 ```text
 npm run audit:dependencies
-npm run sbom -- --output openbexi-node-sbom.cdx.json
+npm run sbom -- --output release/evidence/openbexi-node-sbom-2.3.2-development.cdx.json
 npm run check
 npm run test:all
 ```
 
-The audit covers both runtime and development dependencies. The release SBOM intentionally records shipped runtime dependencies only; build an additional toolchain SBOM when release policy requires CI tooling provenance. SBOMs are release artifacts, not source files. Archive them with the version record, commit SHA, validation report, and dependency audit result.
+The audit covers both runtime and development dependencies. The release SBOM intentionally records shipped runtime dependencies only; build an additional toolchain SBOM when release policy requires CI tooling provenance. `release/evidence/openbexi-node-sbom-2.3.2-development.cdx.json` is the current generated inventory, not final checksum-bound evidence until the Version 2.3.2 tree freezes. Archive the final SBOM with the version record, commit SHA, validation report, dependency audit result, artifact manifest, rollback evidence, and deployment attestation.
 
-Dependabot proposes monthly npm and GitHub Actions updates. Updates must retain exact versions, pass local-first vendored dependency delivery in Chromium, and preserve Three.js core/addon version parity.
+Dependabot proposes weekly npm and GitHub Actions updates. Updates must retain exact npm versions and immutable GitHub Action commit pins, pass local-first vendored dependency delivery in Chromium, and preserve Three.js core/addon version parity.
 
 ## Runtime Delivery
 
@@ -27,4 +27,4 @@ The source/server-capable browser bootstrap loads controlled vendored files firs
 
 A future fully bundled build may still simplify delivery, and the current inline-script architecture cannot use a complete strict CSP without further changes. The current local-first vendored delivery is compatible with static hosting and a policy that blocks third-party dependency requests; the pinned CDN path is reserved for explicit source/development fallback.
 
-`npm run build` consumes `release/static-artifact.json` and recreates the curated `dist/` deployment root. It includes only declared runtime/help/data assets and the files named by the two vendor manifests; the manifests themselves remain outside the public artifact. Publish `dist/` rather than the repository root. `npm run check:artifact` and the static artifact unit/browser tests enforce this boundary.
+`npm run build` consumes `release/static-artifact.json` and recreates the curated `dist/` deployment root. It includes only declared runtime/help/data assets and the files named by the two vendor manifests; the manifests themselves remain outside the public artifact. Publish `dist/` rather than the repository root. `npm run check:artifact` and the static artifact unit/browser tests enforce this boundary. Version 2.3.2 Pages deployment verifies a confirmed clean commit, uploads only that exact artifact, and attests remote bytes against `dist/asset-manifest.json`; these controls do not themselves grant publication approval.

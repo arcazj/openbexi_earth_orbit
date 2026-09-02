@@ -2,27 +2,28 @@
 
 OpenBEXI Earth Orbit is an interactive browser application for exploring Earth-orbiting objects, launch and re-entry events, propagated trajectories, and experimental conjunction-screening results. It uses CelesTrak GP/OMM for propagated positions, a SATCAT-derived tracked-object inventory for searchable metadata coverage, and a reduced-coverage TLE compatibility path.
 
-> **Status:** Version `2.3.1` is a development build, not a release candidate or release. Its scientific maturity is **Experimental** and its safety class is **non-operational**. Do not use it for navigation, mission planning, collision avoidance, or safety decisions; collision probability is unavailable.
+> **Status:** Version `2.3.2` is a development build, not a release candidate or release. Its scientific maturity is **Experimental** and its safety class is **non-operational**. Do not use it for navigation, mission planning, collision avoidance, or safety decisions; collision probability is unavailable.
 
 ## Live Demo
 
 [Launch OpenBEXI Earth Orbit](https://arcazj.github.io/openbexi_earth_orbit/index.html)
 
-Repository owner `arcazj` has authorized the exact final Version 2.3.1 commit for one publication through `origin/master` in `arcazj/openbexi_earth_orbit` and the repository-root GitHub Pages deployment linked above. This byte-specific approval includes the final tracked closure, static artifact, validation corpus, and current source tree; it does not cover a later refresh or changed build. Version 2.3.1 remains Experimental, non-operational, and in development publication state. Authenticated durable full-catalog jobs require the optional local Python server.
+The live demo is a separately deployed Pages artifact and may remain on the approved Version 2.3.1 artifact. Repository owner `arcazj` approved exactly one publication of the final post-recording Version 2.3.2 source bytes to `origin/master`; that source-only approval does not dispatch or approve a Pages deployment. Before the source push, the authenticated GitHub Pages API changed the repository from legacy branch-root publishing to the manual workflow. Version 2.3.2 remains Experimental, non-operational, and in development publication state; manual artifact deployment, remote-byte attestation, and required-reviewer/self-review environment settings remain pending. Authenticated durable full-catalog jobs and revisioned scheduled data candidates require the optional local Python server.
 
 ## Features
 
 - Search every accepted record in the bundled SATCAT snapshot, with current objects shown by default and historical/decayed records available by explicit opt-in, including payloads, debris, rocket bodies, unknown objects, and entries with small or missing radar cross-section.
 - Plot only objects with validated current GP/OMM elements on the interactive 3D Earth globe or 2D Mercator map; metadata-only objects never receive synthetic positions. For 0 through 499 drawn objects, the Globe uses the bundled same-origin `icons/ob_satellite.png` alpha silhouette at a fixed 16 screen pixels and tints it by object type or selection; from 500 upward it uses compact perspective-attenuated density points. Positioned debris is red, and red identifies object type only, not risk, proximity, size, mass, or radar cross-section.
 - Load mixed GP/OMM and legacy TLE elements without truncating six-digit NORAD identifiers.
-- Combine independent orbit, object-type, history, and tag filters. In the exact `ALL` orbit plus `Debris` object-type workflow, narrow debris further by position availability, reported RCS, owner/country, launch year, launch site, provider status, and designator/tag, with separate matched, positioned, and metadata-only counts. No mass or weight filter is offered because the admitted data does not supply authoritative mass.
-- Search by tracked-object name, NORAD ID, orbit class, or tag, then inspect consolidated object and orbital-element details.
+- Combine independent orbit, object-type, history, and tag filters. Whenever `Debris` is the sole object type, narrow any selected orbit scope by position availability, reported RCS, owner/country, launch year, launch site, provider status, and designator/tag, with separate matched, positioned, and metadata-only counts. No mass or weight filter is offered because the admitted data does not supply authoritative mass.
+- Keep matched, positioned, and position-unavailable coverage visible beside the globe, then browse a virtualized, sortable result set with All matches, On map, and Position unavailable views.
+- Search by tracked-object name, NORAD ID, orbit class, or tag, select positioned objects directly from the Globe or Mercator map, and inspect consolidated object and orbital-element details.
 - Display selected trajectories, footprints, ground tracks, day/night lighting, detailed models, and observer-oriented views.
 - Move forward, pause, or reverse one shared simulation clock for tracked objects and the Solar System view.
 - Explore launch and confirmed or predicted re-entry timelines that refresh when their data revisions change.
 - Add stars, the Milky Way, Moon, Mars, and a bounded JPL-derived Solar System ephemeris to the scene.
 - Run Experimental selected-object screening in the browser or optional authenticated full-catalog jobs through the local service; selected-object summaries and exports disclose how many current tracked records were excluded because they lack current elements.
-- Share a reproducible view and run either as a curated static artifact or with the local API server.
+- Share a reproducible view and run either as a curated static artifact or with the local API server. Opt-in server refreshes validate isolated private candidates before one atomic runtime-pointer promotion and do not rewrite the checked-in publication data.
 
 ## Images
 
@@ -64,7 +65,7 @@ npm run build
 node scripts/python.mjs -m http.server 8001 --bind 127.0.0.1 --directory dist
 ```
 
-Open [http://127.0.0.1:8001/index.html](http://127.0.0.1:8001/index.html). Publish only the contents of `dist/`; see [Static Deployment](docs/engineering/STATIC_DEPLOYMENT.md) for the deployment contract. The exact final Version 2.3.1 artifact is approved only for the recorded `origin/master` and repository-root GitHub Pages publication; rebuilds, refreshed data, and other channels require renewed exact-byte review.
+Open [http://127.0.0.1:8001/index.html](http://127.0.0.1:8001/index.html). Publish only the contents of `dist/`; see [Static Deployment](docs/engineering/STATIC_DEPLOYMENT.md) and [Pages Deployment](release/PAGES_DEPLOYMENT.md). One exact final Version 2.3.2 `origin/master` source publication is approved. A separate Pages deployment still requires a clean confirmed commit, exact artifact and remote-byte attestations, the manual workflow, and its own deployment decision; later changed source or data bytes require renewed approval.
 
 ## API
 
@@ -91,7 +92,7 @@ Start the API with `npm run serve` or `py server.py --host 127.0.0.1 --port 8000
 | `POST`, `DELETE`, retry, and replay job routes | Submit, cancel, retry, or replay durable screening jobs | Analyst bearer token or higher; mutating creates/replays require `Idempotency-Key` |
 | `GET /api/v1/screening-jobs/{job_id}/stream` | Resumable server-sent job progress | Viewer bearer token or higher; resume with `Last-Event-ID` |
 
-The tracked manifest, metadata, every referenced chunk, and their current GP/SATCAT source revisions must form one coherent publication before either the tracked API routes or the equivalent `server.py` static aliases serve them. The server also verifies raw GP/SATCAT bytes against their metadata hashes and responds from the exact validated manifest/metadata snapshot. A bounded `503 TRACKED_CATALOG_UNAVAILABLE` response makes the client retain its GP-only fallback instead of accepting a partial or stale tracked index.
+The tracked manifest, metadata, every referenced chunk, and their current GP/SATCAT source revisions must form one coherent publication before either the tracked API routes or the equivalent `server.py` static aliases serve them. Data routes resolve through one atomically promoted private candidate when a verified pointer exists; the repository data remains the immutable fallback. The private data plane serializes candidate writers with one persistent lock file and a live cross-platform OS advisory lock; it never unlinks or reclaims the file to break contention. Even under default `npm run serve`, mutable data and `/api/v1` requests recheck the verified pointer. V21 bootstrap or transactional activation completes before the request coordinator commits a changed root, so a failed manual/default rebind serves the prior coherent root and retries on the next qualifying request without publishing a scheduler-status error. Scheduler-driven callback failures are separately visible in `/api/data-update-status` and retry on the next scheduler pass. A bounded `503 TRACKED_CATALOG_UNAVAILABLE` response makes the client retain its GP-only fallback instead of accepting a partial or stale tracked index.
 
 Configure independently generated tokens of at least 24 characters with `OPENBEXI_API_VIEWER_TOKEN`, `OPENBEXI_API_ANALYST_TOKEN`, and `OPENBEXI_API_ADMIN_TOKEN`. Send tokens only in the `Authorization: Bearer ...` header; never place them in URLs, browser storage, source files, or logs. The built-in server is loopback-only by default and is not an approved public multi-user deployment. See [Security Policy](SECURITY.md), [Server Deployment](docs/engineering/SERVER_DEPLOYMENT_V2_1.md), and the [API reference](SWAGGER.md).
 
@@ -126,6 +127,10 @@ Every subcommand supports `-h` and `--help`.
 | `build-decayed-db` | Build confirmed-decay JSON and metadata from SATCAT `PAY` rows with decay dates. | `--all` runs a full rebuild; `--force`; `--dry-run`; `--refresh-satcat` refreshes SATCAT first. All default to false. |
 | `build-tracked` | Build the content-addressed tracked-object manifest and chunks from local SATCAT plus current GP/OMM without inventing positions or making a provider request. | `--all` reconciles a verified complete SATCAT snapshot and may mark missing prior identities absent; `--dry-run` computes without writing. Both default to false. |
 | `maybe-update` | Run one scheduler-style GP, compatibility TLE, SATCAT, tracked-object, launch, confirmed-decay, and reconciliation cycle. | `--force` bypasses freshness checks only; `--dry-run`; `--interval-hours HOURS`, default `24`; optional `--gp-interval-hours`, `--tle-interval-hours`, `--satcat-interval-hours`, `--tracked-interval-hours`, and `--reconciliation-interval-hours` overrides. No catalog-shrink override is available. |
+| `stage-update` | Seed a private revisioned candidate from the selected coherent closure, run one scheduler-style update only inside it, and validate the complete candidate without changing checked-in data. | `--promote` atomically selects the candidate only after successful validation; `--force` bypasses freshness only; `--dry-run`; the same interval overrides as `maybe-update`; `--data-plane-dir`, default `runtime/data-plane`. No catalog-shrink override is available. |
+| `import-candidate` | Byte-snapshot the current local data closure into a private candidate without network access or pointer promotion; useful for quarantine, diagnosis, and reviewed recovery. | `--data-plane-dir`, default `runtime/data-plane`. |
+| `validate-candidate` | Revalidate one private candidate's required revision pairs, artifact inventory, tracked closure, and current GP/SATCAT lineage, then record the result. | Required `candidate_id`; `--data-plane-dir`, default `runtime/data-plane`. It does not change the current pointer. |
+| `promote-candidate` | Revalidate one private candidate and atomically switch the private current-data pointer only after it passes. | Required `candidate_id`; `--data-plane-dir`, default `runtime/data-plane`. It does not rewrite checked-in release data or grant publication approval. |
 
 Common commands:
 
@@ -138,9 +143,13 @@ py tools/satellite_data_tools.py build-decayed-db --refresh-satcat --force
 py tools/satellite_data_tools.py build-tracked --all --dry-run
 py tools/satellite_data_tools.py maybe-update --dry-run
 py tools/satellite_data_tools.py maybe-update --dry-run --interval-hours 24 --reconciliation-interval-hours 24
+py tools/satellite_data_tools.py stage-update --dry-run
+py tools/satellite_data_tools.py import-candidate
+py tools/satellite_data_tools.py validate-candidate <candidate_id>
+py tools/satellite_data_tools.py promote-candidate <candidate_id>
 ```
 
-The tool uses HTTPS-only provider URLs, conditional ETag and Last-Modified requests, validation and per-record quarantine, a stale-lock-aware single-writer boundary, atomic promotion, content-aware data writes, and last-known-good preservation. For an established GP, TLE, or SATCAT catalog with at least 1,000 records, every reconciliation or full replacement must contain at least 75% as many candidate records **and** retain at least 75% of the prior canonical NORAD identities. `--force` bypasses freshness only and never bypasses this guard. Only the direct `export-gp`, `export-tle`, and `refresh-satcat` commands expose the explicit `--allow-large-catalog-shrink` recovery override; `maybe-update` and the server scheduler never expose or pass it. Changed fixed-name data promotions create collision-safe timestamped backups and retain the newest seven backups per artifact. Tracked chunks are content addressed and verified before the manifest is promoted; unchanged input retains the pointer without backup churn. Unchanged provider data creates no backup; an accepted `304 Not Modified`/conditional revalidation records a successful revalidation time and resets the applicable daily due age without changing data bytes or revisions. `--dry-run` writes no data, metadata, temporary files, locks, or backups.
+The tool uses HTTPS-only provider URLs, conditional ETag and Last-Modified requests, validation and per-record quarantine, a stale-owner-aware update lock inside a writable data root, atomic promotion, content-aware data writes, and last-known-good preservation. The outer private data-plane boundary is stricter: its persistent OS-advisory lock file is never unlinked or reclaimed, and stale text does not supersede a live holder. For an established GP, TLE, or SATCAT catalog with at least 1,000 records, every reconciliation or full replacement must contain at least 75% as many candidate records **and** retain at least 75% of the prior canonical NORAD identities. `--force` bypasses freshness only and never bypasses this guard. Only the direct `export-gp`, `export-tle`, and `refresh-satcat` commands expose the explicit `--allow-large-catalog-shrink` recovery override; `maybe-update`, `stage-update`, and the server scheduler never expose or pass it. Changed fixed-name data promotions create collision-safe timestamped backups and retain the newest seven backups per artifact. Tracked chunks are content addressed and verified before the manifest is promoted; unchanged input retains the pointer without backup churn. Unchanged provider data creates no backup; an accepted `304 Not Modified`/conditional revalidation records a successful revalidation time and resets the applicable daily due age without changing data bytes or revisions. A private candidate is not release data until it receives a separate exact-byte decision. Direct-command `--dry-run` writes no data, metadata, temporary files, locks, or backups; `stage-update --dry-run` may create its private candidate envelope but does not change candidate data artifacts, the selected pointer, or checked-in data.
 
 GP and compatibility TLE refreshes retain the two-hour CelesTrak guard; server-managed checks default to 24 hours. GP requests `active`, `fengyun-1c-debris`, `iridium-33-debris`, and `cosmos-2251-debris` once each per due cycle. Those event groups are a documented partial positioned-debris subset, not complete debris or provider coverage. A normal incremental cycle upserts the newest validated record per exact NORAD identity and is `PARTIAL`. A due GP reconciliation accepts pruning only after all four configured responses are structurally valid and quarantine-free; TLE reconciliation retains its own configured scope. Metadata distinguishes configured `source_groups` from accepted-byte `catalog_source_groups`. During migration from active-only data, failed, quarantined, partial, or `304`-only responses preserve last-known-good bytes, remain due, and retry every group without inherited validators. SATCAT-derived launch and confirmed-decay history is retained even when a later source snapshot omits an older event. The `2026-08-30T20:33:29Z` live four-group GP refresh returned HTTP 503, so the last-known-good snapshot was preserved with actual catalog scope `[active]`: all 12,490 current debris records remain searchable and zero currently have a validated GP/OMM position. GP/OMM preserves full NORAD strings. TLE decoding supports numeric and explicit Alpha-5 catalog fields such as `A0001` to canonical `100001`, but remains a deprecated subset and never substitutes for complete six-digit GP/OMM coverage.
 
@@ -294,7 +303,7 @@ Focused commands are `npm run test:unit`, `npm run test:python`, and `npm run te
 
 ## All Project Documentation
 
-This index covers all 42 project-authored Markdown files in the source tree. Historical and archived documents are retained for traceability and do not override current release metadata, ADRs, or gates. Generated build copies, dependency documentation, and the vendored satellite.js license are excluded.
+This index covers all 46 project-authored Markdown files in the source tree. Historical and archived documents are retained for traceability and do not override current release metadata, ADRs, or gates. Generated build copies, dependency documentation, and the vendored satellite.js license are excluded.
 
 <details>
 <summary><strong>Overview and project guidance (5)</strong></summary>
@@ -315,24 +324,26 @@ This index covers all 42 project-authored Markdown files in the source tree. His
 </details>
 
 <details>
-<summary><strong>Architecture decisions (6)</strong></summary>
+<summary><strong>Architecture decisions (7)</strong></summary>
 
 - [ADR 0001: Quality Gates and Local-First Server](docs/adr/0001-v2-quality-gates-and-local-first-server.md) - Version 2.0 decision for authoritative release metadata, CI gates, and the local-first serving boundary.
 - [ADR 0002: Browser Conjunction Screening](docs/adr/0002-browser-selected-object-conjunction-screening.md) - Version 2.0 decision for bounded selected-object screening in a Web Worker without collision-probability claims.
 - [ADR 0003: Durable Full-Catalog Screening](docs/adr/0003-v2.1-durable-full-catalog-screening.md) - Version 2.1 decision for authenticated Python/SQLite job control and an isolated Node screening runner, retained in Version 2.3.
 - [ADR 0004: GP/OMM Catalog Continuity](docs/adr/0004-v2.2-gp-omm-catalog-continuity.md) - Retained Version 2.2 decision for preferred GP/OMM data, lossless identities, lifecycle datasets, compatibility, and rollback.
 - [ADR 0005: Browser State, Time, and Motion](docs/adr/0005-v2.2-browser-state-time-and-motion-continuity.md) - Retained Version 2.2 decision for unified filters, simulation time, display interpolation, render readiness, and ephemeris bounds.
-- [ADR 0006: Provider-Tracked Object Catalog](docs/adr/0006-v2.3-tracked-object-catalog.md) - Version 2.3 decision, amended for 2.3.1, for SATCAT-scoped metadata coverage, exact GP-only positions, partial event-group debris coverage, content-addressed publication, and independent facets.
+- [ADR 0006: Provider-Tracked Object Catalog](docs/adr/0006-v2.3-tracked-object-catalog.md) - Version 2.3 decision, amended for 2.3.1 and 2.3.2, for SATCAT-scoped metadata coverage, exact GP-only positions, partial event-group debris coverage, content-addressed publication, and independent facets.
+- [ADR 0007: Revisioned Runtime Data Candidates](docs/adr/0007-v2.3.2-revisioned-runtime-data-candidates.md) - Version 2.3.2 decision for isolated refresh roots, complete validation, cooperative cancellation, and atomic private-pointer promotion.
 
 </details>
 
 <details>
-<summary><strong>Engineering and deployment (5)</strong></summary>
+<summary><strong>Engineering and deployment (6)</strong></summary>
 
 - [Dependency and SBOM Policy](DEPENDENCIES.md) - Reproducible installation, audit and SBOM checks, vendored runtime delivery, and static-build dependency policy.
 - [Orbital Domain Contracts](docs/orbital-domain-contracts-v2.md) - Versioned identity, ingestion, propagation, screening, time/frame, provenance, and maturity contracts.
 - [Performance Budgets](docs/engineering/PERFORMANCE_BUDGETS.md) - Enforced asset ceilings, runtime targets, scale limits, and versioned local benchmark observations.
 - [Static Deployment](docs/engineering/STATIC_DEPLOYMENT.md) - Deterministic `dist/` build, publication boundary, browser support, verification, limits, and troubleshooting.
+- [Pages Deployment](release/PAGES_DEPLOYMENT.md) - Manual confirmed-commit, artifact-only GitHub Pages workflow, attestation, environment controls, and disposable rollback rehearsal.
 - [Server Deployment](docs/engineering/SERVER_DEPLOYMENT_V2_1.md) - Loopback durable-service prerequisites, roles, storage, health, operations, and public-exposure limits.
 
 </details>
@@ -358,7 +369,7 @@ This index covers all 42 project-authored Markdown files in the source tree. His
 <details>
 <summary><strong>Validation and evidence (3)</strong></summary>
 
-- [Test and Integration Plan](Test_and_Integration.md) - Current Version 2.3.1 verification matrix plus retained historical regression procedures and logs.
+- [Test and Integration Plan](Test_and_Integration.md) - Current Version 2.3.2 verification matrix plus retained historical regression procedures and logs.
 - [Validation Corpus Policy](docs/validation/VALIDATION_CORPUS.md) - Corpus tiers, checksum-manifest requirements, existing fixtures, and independent-review requirements.
 - [v2.0 Local Verification](release/evidence/v2.0-local-verification.md) - Historical local environment, checks, artifact hashes, browser measurements, screenshots, and unresolved v2.0 gates.
 
@@ -374,17 +385,19 @@ This index covers all 42 project-authored Markdown files in the source tree. His
 </details>
 
 <details>
-<summary><strong>Release and rollback (9)</strong></summary>
+<summary><strong>Release and rollback (11)</strong></summary>
 
-- [Release Notes](RELEASE_NOTES.md) - Current Version 2.3.1 development changes and concise summaries of earlier versions.
+- [Release Notes](RELEASE_NOTES.md) - Current Version 2.3.2 development changes and concise summaries of earlier versions.
 - [v2.0 Release Checklist](docs/engineering/RELEASE_CHECKLIST.md) - Version-specific v2.0 promotion evidence, open security/deployment gates, and rollout requirements.
 - [v2.1 Release Checklist](docs/engineering/RELEASE_CHECKLIST_V2_1.md) - Version-specific v2.1 implementation evidence and remaining validation, data, security, and operations gates.
 - [v2.2 Release Checklist](docs/engineering/RELEASE_CHECKLIST_V2_2.md) - Historical Version 2.2 scope, automated evidence, controlled-data checks, rollback readiness, and candidate decision.
 - [v2.3 Release Checklist](docs/engineering/RELEASE_CHECKLIST_V2_3.md) - Version 2.3 tracked-catalog data, browser, API, scale, governance, and promotion gates.
+- [v2.3.2 Release Checklist](docs/engineering/RELEASE_CHECKLIST_V2_3_2.md) - Current interaction, private-candidate, artifact-only deployment, verification, and pending promotion gates.
 - [Rollback Policy](docs/engineering/ROLLBACK.md) - Cross-version abort triggers, application/data restoration rules, and compatibility expectations.
 - [v2.1 Service Rollback](docs/engineering/ROLLBACK_V2_1.md) - Durable-service disablement, artifact preservation, data recovery, and rehearsal procedure.
 - [v2.2 Data and Browser Rollback](docs/engineering/ROLLBACK_V2_2.md) - Coherent GP/lifecycle/browser containment, last-known-good restoration, re-enable criteria, and evidence requirements.
 - [v2.3 Tracked-Catalog Rollback](docs/engineering/ROLLBACK_V2_3.md) - Feature disablement, manifest/chunk restoration, cache invalidation, and re-enable criteria for the tracked-object catalog.
+- [v2.3.2 Runtime and Deployment Rollback](docs/engineering/ROLLBACK_V2_3_2.md) - Private candidate-pointer recovery, GP-only containment, and verified Pages artifact restoration.
 
 </details>
 

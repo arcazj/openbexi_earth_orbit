@@ -20,6 +20,7 @@ function run() {
   const mercatorMapLoader = fs.readFileSync('js/mercatorMapLoader.js', 'utf8');
   const satelliteCategoryFilter = fs.readFileSync('js/satelliteCategoryFilter.js', 'utf8');
   const trackedObjectCatalog = fs.readFileSync('js/trackedObjectCatalog.js', 'utf8');
+  const trackedResultsController = fs.readFileSync('js/trackedResultsController.js', 'utf8');
   const release = JSON.parse(fs.readFileSync('release/version.json', 'utf8'));
 
   assert(!html.includes('role="tablist"'), 'main menu no longer exposes a tablist');
@@ -352,12 +353,19 @@ function run() {
   assert(css.includes('#satelliteCountDisplay'), 'satellite count has a dedicated style hook');
   assert(css.includes('.satellite-found-count'), 'satellite count has a heading-specific style hook');
   assert(css.includes('.satellite-filter-panel'), 'embedded Satellite Selection filters have dedicated CSS');
+  assert(css.includes('.tracked-coverage-hud'), 'coverage HUD has a dedicated responsive presentation');
+  assert(css.includes('.tracked-results-drawer') && css.includes('.tracked-results-viewport'), 'virtualized results have bounded desktop and mobile layout');
   assert(!css.includes('.debris-reset-row'), 'obsolete debris reset row CSS is removed');
   assert(css.includes('.orbit-segmented') && css.includes('grid-template-columns: repeat(6, minmax(0, 1fr))'), 'orbit taxonomy is styled as an independent six-button row');
   assert(css.includes('.object-type-segmented') && css.includes('grid-template-columns: repeat(3, minmax(0, 1fr))'), 'tracked object taxonomy is styled as an independent two-row six-button control');
   assert(html.includes('data-object-type-filter="DEBRIS"'), 'tracked object taxonomy includes an explicit Debris filter');
   assert(html.includes('Include history'), 'tracked lifecycle history has a compact opt-in label');
   assert(html.includes('aria-label="Include decayed and absent tracked-object history"'), 'tracked lifecycle history has a precise accessible label');
+  assert(html.includes('id="openTrackedResults"'), 'tracked-object selection exposes the virtualized catalog browser');
+  assert(indexHtml.includes('id="trackedCoverageHud"') && indexHtml.includes('role="status"'), 'Globe coverage is persistently summarized in an accessible status HUD');
+  assert(indexHtml.includes('id="trackedResultsDrawer"') && trackedResultsController.includes('role="listbox"'), 'catalog results use a keyboard-navigable virtualized list');
+  assert(indexHtml.includes('pickSatellitePoint') && indexHtml.includes('pickMercatorSatellite'), 'Globe and Mercator markers share the canonical selection path');
+  assert(indexHtml.includes('function isDebrisFacetContext()'), 'debris facets remain available within any selected orbit scope');
   assert(css.includes('grid-template-columns: minmax(0, 1fr) auto auto'), 'search row styles search, Clear, and Reset Filters on one row');
   assert(css.includes('.reset-filters-inline-button'), 'inline Reset Filters button has dedicated CSS');
   assert(!css.includes('.filter-status-summary'), 'removed filter summary CSS is gone');
@@ -388,7 +396,8 @@ function run() {
   assert(css.includes('body:has(#mercatorContainer.fullscreen) #controlsContainer'), 'fixed menu and server controls remain above full-screen Mercator');
   assert(css.includes('#mercatorContainer.fullscreen .mercator-fullscreen-exit'), 'full-screen Mercator reveals its in-map exit');
   assert(css.includes('top: 50px !important'), 'narrow viewport time slider is moved away from top controls');
-  assert(css.includes('top: 132px') && css.includes('top: 172px'), 'narrow viewport menu toggle and panel start below the full Time x control');
+  assert(css.includes('grid-template-columns: auto minmax(0, 1fr) auto auto 28px 42px'), 'narrow viewport time controls stay on one stable row');
+  assert(css.includes('top: 190px') && css.includes('top: 180px'), 'narrow viewport menu toggle and panel start below the Time x and coverage bands');
   assert(css.includes('.menu-accordion-heading-satellite { border-left-color: #35b9a9; }'), 'Satellite keeps the legacy teal accent');
   assert(css.includes('.menu-accordion-heading-view { border-left-color: #f0b429; }'), 'View keeps the legacy yellow accent');
   assert(css.includes('.menu-accordion-heading-timelines { border-left-color: #d45187; }'), 'Timelines keeps the legacy pink accent');
@@ -403,7 +412,7 @@ function run() {
   assert(css.includes('.menu-header-row'), 'menu top row has dedicated CSS');
   assert(css.includes('--menu-header-control-height: 30px;'), 'menu header controls share a fixed alignment height');
   assert(css.includes('height: var(--menu-header-control-height);'), 'Close and server controls share the header control height');
-  assert(css.includes('margin: 0 0 10px 54px;'), 'menu header row reserves aligned space for the external Close button');
+  assert(css.includes('margin: 0 0 10px 72px;'), 'menu header row reserves aligned space for the Close button');
   assert(css.includes('.server-status-icon'), 'server status icon has dedicated CSS');
   assert(css.includes('.server-state-connected .server-status-icon'), 'server connected icon state has CSS');
   assert(css.includes('.server-state-disconnected .server-status-icon'), 'server disconnected icon state has CSS');

@@ -28,6 +28,22 @@
             aria-label="Exit full-screen Mercator map" title="Exit full-screen Mercator map">&times;</button>
 </div>
 <div id="utcClockDisplay"></div>
+<aside id="trackedCoverageHud" class="tracked-coverage-hud" role="status" aria-live="polite" hidden>
+    <div class="tracked-coverage-hud-header">
+        <strong>Tracked coverage</strong>
+        <span id="trackedCoverageState" class="tracked-coverage-state">Orbital catalog</span>
+    </div>
+    <div class="tracked-coverage-metrics" aria-hidden="true">
+        <span><b id="trackedCoverageMatched">0</b> matches</span>
+        <span><b id="trackedCoveragePositioned">0</b> positioned</span>
+        <span><b id="trackedCoverageUnavailable">0</b> position unavailable</span>
+    </div>
+    <div class="tracked-coverage-meta">
+        <span id="trackedCoverageScope">current</span>
+        <time id="trackedCoverageTimestamp"></time>
+    </div>
+</aside>
+<section id="trackedResultsDrawer" class="tracked-results-drawer" aria-labelledby="trackedResultsTitle" hidden></section>
 <aside id="selectedSatelliteDetailPanel" class="selected-satellite-detail-panel" aria-live="polite" hidden></aside>
 <aside id="solarSystemPlanetHud" class="selected-satellite-detail-panel solar-system-planet-hud" aria-live="polite" hidden></aside>
 <div id="marsTextureLoading" class="planet-texture-loading" role="status" aria-live="polite" hidden>
@@ -52,6 +68,7 @@
         mapWidth,
         mercatorCtx,
         initMercatorView,
+        pickMercatorSatellite,
         updateMercatorMap
     } from './js/mercatorMapLoader.js';
 
@@ -114,6 +131,8 @@
         getLastCatalogValidationSnapshot,
         removeAllGeometry,
         isUsableOrbitPosition,
+        pickSatellitePoint,
+        satellitePointClientPosition,
         selectedOrbitNearestPointDistance,
         syncSatellitePointCloud
     } from './js/satelliteTLELoader.js';
@@ -226,6 +245,8 @@
         shareStateSummary,
         shareUrlContainsUnsafeLocalData
     } from './js/shareState.js';
+    import { buildTrackedCoveragePresentation } from './js/trackedCoveragePresentation.js';
+    import { createTrackedResultsController } from './js/trackedResultsController.js';
     import { createConjunctionPanel, parseUtcDateTimeLocal } from './js/conjunction/conjunctionPanel.js';
     import { createConjunctionVisualization } from './js/conjunction/conjunctionVisualization.js';
     import { createConjunctionWorkerClient } from './js/conjunction/conjunctionWorkerClient.js';
@@ -525,6 +546,11 @@
     let trackedCountTotalElement, trackedCountFilteredElement, trackedCountCurrentElement;
     let trackedCountHistoricalElement, trackedCountPropagatableElement, trackedCountMetadataOnlyElement;
     let trackedCountRenderReadyElement, trackedCountQuarantineElement;
+    let trackedCoverageHudElement, trackedCoverageStateElement, trackedCoverageMatchedElement;
+    let trackedCoveragePositionedElement, trackedCoverageUnavailableElement;
+    let trackedCoverageScopeElement, trackedCoverageTimestampElement;
+    let trackedResultsController;
+    let globePointerDown = null;
     let currentSearchResults = [];
     let activeFilteredSatelliteCount = 0;
     let activeTotalSatelliteCount = 0;
@@ -1310,15 +1336,15 @@
         [TRACKED_POSITION_FILTER.METADATA_ONLY]: 'Position unavailable'
     });
 
-    function isAllDebrisFacetContext() {
+    function isDebrisFacetContext() {
         const orbitSelection = normalizeTrackedOrbitSelection(simParams.orbitTypeFilter);
         const objectSelection = normalizeTrackedObjectTypeSelection(simParams.objectTypeFilter);
-        return orbitSelection.length === 1 && orbitSelection[0] === ORBIT_ALL_OPTION &&
+        return orbitSelection.length > 0 &&
             objectSelection.length === 1 && objectSelection[0] === TRACKED_OBJECT_TYPE.DEBRIS;
     }
 
     function activeTrackedFacets() {
-        return isAllDebrisFacetContext() ? simParams.trackedFacets : null;
+        return isDebrisFacetContext() ? simParams.trackedFacets : null;
     }
 
     function activeTrackedCatalogDescriptors(manifest = trackedObjectCatalogLoader?.snapshot?.().manifest) {
@@ -1344,7 +1370,7 @@
     }
 
     function activeContextRequiresTrackedMembership() {
-        return isAllDebrisFacetContext() && !trackedCatalogLineageBlocked && trackedDebrisCoverageIsUsable();
+        return isDebrisFacetContext() && !trackedCatalogLineageBlocked && trackedDebrisCoverageIsUsable();
     }
 
     function recordParticipatesInActiveCatalogContext(record, requireTrackedCatalogMembership) {
@@ -1353,7 +1379,7 @@
 
     function trackedDebrisFacetBaseRecords(records = allTrackedDisplayRecords()) {
         return records.filter(record => isTrackedCatalogMember(record) && trackedObjectMatchesFilters(record, {
-            orbitSelection: [ORBIT_ALL_OPTION],
+            orbitSelection: simParams.orbitTypeFilter,
             objectTypeSelection: [TRACKED_OBJECT_TYPE.DEBRIS],
             tagSelection: simParams.companyFilter,
             allTagValue: ALL_COMPANY_OPTION,
@@ -1492,7 +1518,7 @@
 
     function renderTrackedDebrisFacetPanel(records = allTrackedDisplayRecords()) {
         if (!trackedDebrisFacetsElement) return;
-        const visible = isAllDebrisFacetContext();
+        const visible = isDebrisFacetContext();
         trackedDebrisFacetsElement.hidden = !visible;
         trackedDebrisFacetsElement.setAttribute('aria-hidden', visible ? 'false' : 'true');
         if (!visible) return;
@@ -1869,14 +1895,74 @@
         setTrackedCountValue(trackedCountMetadataOnlyElement, displayCounts.metadata_only);
         setTrackedCountValue(trackedCountRenderReadyElement, displayCounts.render_ready);
         setTrackedCountValue(trackedCountQuarantineElement, displayCounts.quarantine);
-        if (trackedDebrisFacetSummaryElement && isAllDebrisFacetContext()) {
+        if (trackedDebrisFacetSummaryElement && isDebrisFacetContext()) {
             trackedDebrisFacetSummaryElement.textContent =
                 `${displayCounts.filtered.toLocaleString()} ${displayCounts.filtered === 1 ? 'match' : 'matches'} | ` +
                 `${displayCounts.propagatable.toLocaleString()} positioned | ` +
                 `${displayCounts.metadata_only.toLocaleString()} position unavailable`;
         }
+        const coveragePresentation = buildTrackedCoveragePresentation({
+            counts: displayCounts,
+            manifest: trackedSnapshot?.manifest,
+            snapshotState: trackedCatalogStatusElement?.dataset?.state ?? trackedSnapshot?.state,
+            lineageBlocked: trackedCatalogLineageBlocked,
+            includeHistorical: simParams.includeHistoricalTrackedObjects
+        });
+        if (trackedCoverageHudElement) {
+            trackedCoverageHudElement.hidden = !coveragePresentation.visible || simParams.solarSystemOverview;
+            trackedCoverageHudElement.dataset.state = coveragePresentation.state.key;
+            trackedCoverageHudElement.setAttribute('aria-label', coveragePresentation.ariaLabel);
+        }
+        if (trackedCoverageStateElement) trackedCoverageStateElement.textContent = coveragePresentation.state.label;
+        setTrackedCountValue(trackedCoverageMatchedElement, coveragePresentation.matched);
+        setTrackedCountValue(trackedCoveragePositionedElement, coveragePresentation.positioned);
+        setTrackedCountValue(trackedCoverageUnavailableElement, coveragePresentation.unavailable);
+        if (trackedCoverageScopeElement) trackedCoverageScopeElement.textContent = coveragePresentation.scope;
+        if (trackedCoverageTimestampElement) {
+            trackedCoverageTimestampElement.textContent = coveragePresentation.timestamp;
+            trackedCoverageTimestampElement.dateTime = coveragePresentation.timestamp;
+            trackedCoverageTimestampElement.hidden = !coveragePresentation.timestamp;
+        }
         lastTrackedRenderReadyCount = displayCounts.render_ready;
         return displayCounts;
+    }
+
+    function selectMapTrackedObject(record) {
+        if (!record) return false;
+        selectSatelliteViaShortcut(record);
+        return true;
+    }
+
+    function handleGlobePointerDown(event) {
+        globePointerDown = { x: event.clientX, y: event.clientY, pointerId: event.pointerId };
+    }
+
+    function handleGlobeTrackedObjectClick(event) {
+        if (simParams.solarSystemOverview || !simParams.view3D || event.button !== 0) return;
+        if (globePointerDown && globePointerDown.pointerId === event.pointerId &&
+            Math.hypot(event.clientX - globePointerDown.x, event.clientY - globePointerDown.y) > 5) return;
+        const canvas = renderer?.domElement;
+        const record = pickSatellitePoint(camera, {
+            clientX: event.clientX,
+            clientY: event.clientY,
+            rect: canvas?.getBoundingClientRect?.()
+        }, { occluderRadius: EARTH_SCENE_RADIUS });
+        if (record) {
+            event.preventDefault();
+            selectMapTrackedObject(record);
+        }
+    }
+
+    function handleMercatorTrackedObjectClick(event) {
+        const record = pickMercatorSatellite({
+            clientX: event.clientX,
+            clientY: event.clientY,
+            rect: event.currentTarget.getBoundingClientRect()
+        });
+        if (record) {
+            event.preventDefault();
+            selectMapTrackedObject(record);
+        }
     }
 
     function setSatelliteLoadingState(text) {
@@ -4444,6 +4530,22 @@
         trackedCountMetadataOnlyElement = document.getElementById('trackedCountMetadataOnly');
         trackedCountRenderReadyElement = document.getElementById('trackedCountRenderReady');
         trackedCountQuarantineElement = document.getElementById('trackedCountQuarantine');
+        trackedCoverageHudElement = document.getElementById('trackedCoverageHud');
+        trackedCoverageStateElement = document.getElementById('trackedCoverageState');
+        trackedCoverageMatchedElement = document.getElementById('trackedCoverageMatched');
+        trackedCoveragePositionedElement = document.getElementById('trackedCoveragePositioned');
+        trackedCoverageUnavailableElement = document.getElementById('trackedCoverageUnavailable');
+        trackedCoverageScopeElement = document.getElementById('trackedCoverageScope');
+        trackedCoverageTimestampElement = document.getElementById('trackedCoverageTimestamp');
+        trackedResultsController = createTrackedResultsController({
+            root: document,
+            getRecords: buildFilteredSatellitesBySelection,
+            getSelectedNoradId: () => currentSelectedSatellite?.norad_id,
+            onSelect: selectSatelliteViaShortcut
+        });
+        renderer?.domElement?.addEventListener('pointerdown', handleGlobePointerDown);
+        renderer?.domElement?.addEventListener('click', handleGlobeTrackedObjectClick);
+        document.getElementById('mercatorCanvas')?.addEventListener('click', handleMercatorTrackedObjectClick);
 
         view3DToggle = document.getElementById('view3DToggle');
         viewMercatorToggle = document.getElementById('viewMercatorToggle');
@@ -4981,6 +5083,10 @@
         const selectedNameInDropdown = selectedOption?.textContent?.trim() || selectedValue;
         simParams.selectedSatelliteName = selectedNameInDropdown;
 
+        if (currentSelectedSatellite) {
+            currentSelectedSatellite.isSelected = false;
+        }
+
         if (detailedSatelliteModel?.userData?.noradId) {
             const prevTleSat = satellites.find(s => s.norad_id.toString() === detailedSatelliteModel.userData.noradId.toString());
             if (prevTleSat?.mesh) {
@@ -5269,6 +5375,16 @@
         },
         markerState(noradId) {
             return satelliteMarkerState(satellites, noradId);
+        },
+        markerClientPosition(noradId) {
+            const canvas = renderer?.domElement;
+            const projected = satellitePointClientPosition(
+                camera,
+                noradId,
+                canvas?.getBoundingClientRect?.(),
+                { occluderRadius: EARTH_SCENE_RADIUS }
+            );
+            return projected ? { x: projected.x, y: projected.y, depth: projected.depth } : null;
         },
         planetPosition(planetName) {
             return solarSystemOverview?.planets?.get(planetName)?.group?.position?.toArray?.() || null;
@@ -6058,6 +6174,7 @@
         );
 
         updateTrackedCatalogCountPanel(allRecords, filteredTLEs);
+        if (trackedResultsController?.isOpen()) trackedResultsController.refresh(filteredTLEs);
         setSatelliteCatalogCount();
         updateFilterStatus(filteredTLEs);
         updateSelectedSatelliteDetails(currentSelectedSatellite);

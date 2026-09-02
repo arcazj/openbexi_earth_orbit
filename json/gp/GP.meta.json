@@ -4,34 +4,76 @@
   "dataset_format": "CCSDS_OMM_JSON",
   "source_format": "CCSDS_OMM_JSON",
   "provider": "CelesTrak",
-  "fetched_at": "2026-08-31T23:11:42.024508Z",
-  "retrieval_timestamp": "2026-08-31T23:11:42.024508Z",
-  "last_success_at": "2026-08-31T23:11:42.024508Z",
-  "last_attempt_at": "2026-08-31T23:11:42.024508Z",
-  "last_status": "ok",
-  "last_error": null,
-  "source_status": "COMPLETE",
+  "fetched_at": "2026-08-29T23:55:59.461499Z",
+  "retrieval_timestamp": "2026-08-29T23:55:59.461499Z",
+  "last_success_at": "2026-08-30T02:15:33.809525Z",
+  "last_attempt_at": "2026-08-30T20:33:29.501427Z",
+  "last_status": "failed",
+  "source_status": "DEGRADED",
   "partial_update": false,
-  "mode": "reconcile",
+  "mode": "all",
   "source_urls": [
     "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=json",
     "https://celestrak.org/NORAD/elements/gp.php?GROUP=fengyun-1c-debris&FORMAT=json",
     "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-33-debris&FORMAT=json",
     "https://celestrak.org/NORAD/elements/gp.php?GROUP=cosmos-2251-debris&FORMAT=json"
   ],
-  "catalog_source_groups": [
-    "active",
-    "fengyun-1c-debris",
-    "iridium-33-debris",
-    "cosmos-2251-debris"
-  ],
+  "celestrak_min_refresh_hours": 2.0,
+  "catalog_revision": "sha256:b5314199094c140abc58d4cec4b3cdee15711958224d7547926823c10640add0",
+  "dataset_hash": "sha256:b5314199094c140abc58d4cec4b3cdee15711958224d7547926823c10640add0",
+  "newest_orbital_epoch": "2026-09-07T15:41:18.581Z",
+  "newest_launch_date": "2026-08-27",
+  "counts": {
+    "existing": 16400,
+    "fetched": 16470,
+    "added": 93,
+    "updated": 16361,
+    "retained": 16,
+    "pruned": 23,
+    "duplicates": 0,
+    "quarantined": 0,
+    "total": 16470,
+    "omm": 16470,
+    "tle": 0,
+    "six_digit_ids": 421,
+    "nine_digit_ids": 0,
+    "tag_enriched": 0,
+    "tag_source_matches": 13533,
+    "tagged": 13533,
+    "tag_unmatched": 2937,
+    "orbit_reclassified": 0,
+    "satcat_enriched": 0
+  },
+  "tag_enrichment": {
+    "source": "json/tle/TLE.json",
+    "source_catalog_revision": "sha256:4642771a06caac6839f89ecfc797e4967e904fd4e0f4e9afef11ee870b50c55e",
+    "tag_map_revision": "sha256:e37f2a0b09fc6b27c3a3724d6877fe2a920c614d6f79bde12580d4acf05666b8",
+    "available_tags": 13533,
+    "matched_records": 13533,
+    "tagged_records": 13533,
+    "unmatched_records": 2937
+  },
+  "quarantine": [],
+  "quarantine_truncated": 0,
+  "urls": {
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=json": {
+      "status": 304,
+      "last_attempt_at": "2026-08-30T02:15:33.809525Z"
+    }
+  },
+  "last_tag_metadata_refresh_at": "2026-08-30T02:13:23.342346Z",
+  "revalidated_at": "2026-08-30T02:15:33.809525Z",
+  "last_error": "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=json: HTTP 503 for https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=json: ; https://celestrak.org/NORAD/elements/gp.php?GROUP=fengyun-1c-debris&FORMAT=json: HTTP 503 for https://celestrak.org/NORAD/elements/gp.php?GROUP=fengyun-1c-debris&FORMAT=json: ; https://celestrak.org/NORAD/elements/gp.php?GROUP=cosmos-2251-debris&FORMAT=json: HTTP 503 for https://celestrak.org/NORAD/elements/gp.php?GROUP=cosmos-2251-debris&FORMAT=json: ",
   "source_groups": [
     "active",
     "fengyun-1c-debris",
     "iridium-33-debris",
     "cosmos-2251-debris"
   ],
-  "source_scope_verified": true,
+  "source_scope_verified": false,
+  "catalog_source_groups": [
+    "active"
+  ],
   "source_scope": {
     "kind": "configured-current-gp-collections",
     "active_group": "active",
@@ -42,61 +84,5 @@
     ],
     "all_debris": false
   },
-  "provider_completeness_claim": false,
-  "celestrak_min_refresh_hours": 2.0,
-  "catalog_revision": "sha256:bc95aa2b6376c04a59f614fc4829957147a1762801714d946e606da6c8e2ef1f",
-  "dataset_hash": "sha256:bc95aa2b6376c04a59f614fc4829957147a1762801714d946e606da6c8e2ef1f",
-  "newest_orbital_epoch": "2026-09-07T15:41:18.581Z",
-  "newest_launch_date": "2026-08-30",
-  "counts": {
-    "existing": 16470,
-    "fetched": 19111,
-    "added": 2645,
-    "updated": 16351,
-    "retained": 115,
-    "pruned": 4,
-    "duplicates": 0,
-    "quarantined": 0,
-    "total": 19111,
-    "omm": 19111,
-    "tle": 0,
-    "six_digit_ids": 422,
-    "nine_digit_ids": 0,
-    "tag_enriched": 0,
-    "tag_source_matches": 13529,
-    "tagged": 16172,
-    "tag_unmatched": 2939,
-    "orbit_reclassified": 0
-  },
-  "tag_enrichment": {
-    "source": "json/tle/TLE.json",
-    "source_catalog_revision": "sha256:f7d6d622513c5bda326e8e5b8ce2d27f95734a70e843e3e521e5c65c8e30991a",
-    "tag_map_revision": "sha256:086a325ece3c13293cb48405f4ef4235f783f0848fbb8186335df394336239be",
-    "available_tags": 13529,
-    "matched_records": 13529,
-    "tagged_records": 16172,
-    "unmatched_records": 2939
-  },
-  "quarantine": [],
-  "quarantine_truncated": 0,
-  "urls": {
-    "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=json": {
-      "status": 200,
-      "last_attempt_at": "2026-08-31T23:11:42.024508Z"
-    },
-    "https://celestrak.org/NORAD/elements/gp.php?GROUP=fengyun-1c-debris&FORMAT=json": {
-      "status": 200,
-      "last_attempt_at": "2026-08-31T23:11:42.024508Z"
-    },
-    "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-33-debris&FORMAT=json": {
-      "status": 200,
-      "last_attempt_at": "2026-08-31T23:11:42.024508Z"
-    },
-    "https://celestrak.org/NORAD/elements/gp.php?GROUP=cosmos-2251-debris&FORMAT=json": {
-      "status": 200,
-      "last_attempt_at": "2026-08-31T23:11:42.024508Z"
-    }
-  },
-  "last_reconciled_at": "2026-08-31T23:11:42.024508Z",
-  "last_reconciled_catalog_revision": "sha256:bc95aa2b6376c04a59f614fc4829957147a1762801714d946e606da6c8e2ef1f"
+  "provider_completeness_claim": false
 }

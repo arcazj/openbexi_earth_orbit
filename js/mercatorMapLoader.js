@@ -37,6 +37,7 @@ const groundTrackCache = {
     lastBuiltRealMs: Number.NEGATIVE_INFINITY
 };
 const mercatorVisualCache = new WeakMap();
+let mercatorHitTargets = [];
 
 function mercatorVisualSource(record) {
     return record?.object_type ?? record?.objectType ?? record?.catalogObject?.object_type ??
@@ -354,6 +355,7 @@ export function updateMercatorMap(simParams, frameContext = {}) {
     mercatorCanvasElement.dataset.selectedMarkerRendered = 'false';
     mercatorCanvasElement.dataset.objectTypeMarkerCounts = '{}';
     mercatorCanvasElement.dataset.debrisMarkerCount = '0';
+    mercatorHitTargets = [];
 
     if (isMarsMercatorContext(simParams)) {
         mercatorCtx.save();
@@ -423,7 +425,6 @@ export function updateMercatorMap(simParams, frameContext = {}) {
             }
         })
         .filter(Boolean);
-
     mercatorCanvasElement.dataset.renderedMarkerCount = String(satDrawData.length);
     mercatorCanvasElement.dataset.selectedMarkerNoradId = selectedSat?.norad_id?.toString() || '';
     mercatorCanvasElement.dataset.selectedMarkerRendered = String(
@@ -439,10 +440,17 @@ export function updateMercatorMap(simParams, frameContext = {}) {
 
     const densityMode = satDrawData.length > 1000;
     mercatorCanvasElement.dataset.markerMode = densityMode ? 'density' : 'detailed';
+    const markerDrawOrder = mercatorMarkerDrawOrder(satDrawData, densityMode);
+    mercatorHitTargets = markerDrawOrder.map(({ sat, pt }, drawOrder) => ({
+        sat,
+        x: pt.x,
+        y: pt.y,
+        drawOrder
+    }));
     if (densityMode) {
         const pointSize = w >= 800 ? 2 : 1;
         const markerColors = new Set();
-        satDrawData.forEach(({ sat, visual }) => {
+        markerDrawOrder.forEach(({ sat, visual }) => {
             if (!sat.isSelected) markerColors.add(visual.color);
         });
         mercatorCtx.save();
@@ -450,16 +458,16 @@ export function updateMercatorMap(simParams, frameContext = {}) {
         markerColors.forEach(color => {
             mercatorCtx.fillStyle = color;
             mercatorCtx.beginPath();
-            satDrawData.forEach(({ sat, pt, visual }) => {
+            markerDrawOrder.forEach(({ sat, pt, visual }) => {
                 if (sat.isSelected || visual.color !== color) return;
                 mercatorCtx.rect(Math.round(pt.x), Math.round(pt.y), pointSize, pointSize);
             });
             mercatorCtx.fill();
         });
         mercatorCtx.restore();
-        satDrawData = satDrawData.filter(({ sat }) => sat.isSelected);
+        satDrawData = markerDrawOrder.filter(({ sat }) => sat.isSelected);
     } else {
-        satDrawData.sort((a, b) => a.pt.y - b.pt.y);
+        satDrawData = markerDrawOrder;
     }
 
     satDrawData.forEach(({ sat, pt, visual: baseVisual }) => {
@@ -539,6 +547,80 @@ export function updateMercatorMap(simParams, frameContext = {}) {
             mercatorCtx.fillText(name, pt.x, pt.y - iconSize / 2 - 2);
         }
     });
+}
+
+export function mercatorMarkerDrawOrder(drawData, densityMode = drawData?.length > 1000) {
+    const records = Array.isArray(drawData) ? drawData : [];
+    if (!densityMode) return [...records].sort((left, right) => left.pt.y - right.pt.y);
+    const colors = [...new Set(
+        records.filter(({ sat }) => !sat.isSelected).map(({ visual }) => visual.color)
+    )];
+    return [
+        ...colors.flatMap(color => records.filter(
+            ({ sat, visual }) => !sat.isSelected && visual.color === color
+        )),
+        ...records.filter(({ sat }) => sat.isSelected)
+    ];
+}
+
+export function pickMercatorTarget(targets, canvasSize, pointer = {}, options = {}) {
+    if (!Array.isArray(targets) || !targets.length) return null;
+    const rect = pointer.rect;
+    const clientX = Number(pointer.clientX);
+    const clientY = Number(pointer.clientY);
+    if (!rect || !(rect.width > 0) || !(rect.height > 0) ||
+        !Number.isFinite(clientX) || !Number.isFinite(clientY)) return null;
+    const width = Number(canvasSize?.width);
+    const height = Number(canvasSize?.height);
+    if (!(width > 0) || !(height > 0)) return null;
+    const canvasX = (clientX - rect.left) * width / rect.width;
+    const canvasY = (clientY - rect.top) * height / rect.height;
+    const cssDistance = Math.max(4, Number(options.maxDistancePx) || 12);
+    const maxDistanceX = cssDistance * width / rect.width;
+    const maxDistanceY = cssDistance * height / rect.height;
+    let nearest = null;
+    let nearestNormalizedDistance = 1;
+    let nearestDrawOrder = Number.NEGATIVE_INFINITY;
+    for (const [index, target] of targets.entries()) {
+        const dx = (target.x - canvasX) / maxDistanceX;
+        const dy = (target.y - canvasY) / maxDistanceY;
+        const normalizedDistance = dx * dx + dy * dy;
+        const drawOrder = Number.isFinite(Number(target.drawOrder)) ? Number(target.drawOrder) : index;
+        if (
+            normalizedDistance < nearestNormalizedDistance ||
+            (
+                normalizedDistance === nearestNormalizedDistance &&
+                (nearest === null || drawOrder > nearestDrawOrder)
+            )
+        ) {
+            nearest = target.sat;
+            nearestNormalizedDistance = normalizedDistance;
+            nearestDrawOrder = drawOrder;
+        }
+    }
+    return nearest;
+}
+
+export function pickMercatorSatellite(pointer = {}, options = {}) {
+    if (!mercatorCanvasElement || !mercatorHitTargets.length) return null;
+    return pickMercatorTarget(
+        mercatorHitTargets,
+        { width: mercatorCanvasElement.width, height: mercatorCanvasElement.height },
+        {
+            ...pointer,
+            rect: pointer.rect ?? mercatorCanvasElement.getBoundingClientRect?.()
+        },
+        options
+    );
+}
+
+export function getMercatorMarkerDiagnostics() {
+    return Object.freeze(mercatorHitTargets.map(target => Object.freeze({
+        noradId: target.sat?.norad_id?.toString() || null,
+        x: target.x,
+        y: target.y,
+        drawOrder: target.drawOrder
+    })));
 }
 
 function latLonToMercator(latDeg, lonDeg) {

@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "kind": "openbexi-static-rollback-rehearsal",
+  "baselineManifestSha256": "61d59ceead6d6bf97f28c3c5c595e6a105d8a51e3f0211349fbae0b1a9329a37",
+  "baselineTrackedRevision": "sha256:7c1a20d93d1eb5faf7e2b964b13c7b4f0478f2eec95cc701ea1b1e57ef0d730c",
+  "corruptCandidate": {
+    "chunk": "json/tracked/chunks/f928ad3607f7079831056dc487686b2cfbd73e5a448f0bf5e3f49ae23df0c373-current-payload.json",
+    "liveStatus": 200,
+    "readyStatus": 503,
+    "trackedStatus": 503
+  },
+  "gpOnly": {
+    "readyStatus": 200,
+    "trackedStatus": 404,
+    "featureEnabled": false,
+    "manifestSha256": "a5370b20a449f4f05a111d98afa515835274164df7436efe594f0cbca946806b"
+  },
+  "restoredTracked": {
+    "readyStatus": 200,
+    "trackedRevision": "sha256:7c1a20d93d1eb5faf7e2b964b13c7b4f0478f2eec95cc701ea1b1e57ef0d730c",
+    "pointerCacheControl": "no-cache",
+    "chunkCacheControl": "public, max-age=31536000, immutable",
+    "conditionalChunkStatus": 304,
+    "staleFeatureEtagInvalidated": true
+  },
+  "disposable": true,
+  "passed": true,
+  "rehearsedAt": "2026-09-02T08:51:17.732Z"
+}

@@ -26834,17 +26834,6 @@
       "DECAY_DATE": "2026-05-11"
     }
   ],
-  "FLOCK 4BE-35": [
-    {
-      "OBJECT_NAME": "FLOCK 4BE-35",
-      "OBJECT_ID": "2024-149CU",
-      "NORAD_CAT_ID": "60558",
-      "OBJECT_TYPE": "PAY",
-      "LAUNCH_DATE": "2024-08-16",
-      "LAUNCH_SITE": "AFWTR",
-      "DECAY_DATE": "2026-08-30"
-    }
-  ],
   "FLOCK 4BE-4": [
     {
       "OBJECT_NAME": "FLOCK 4BE-4",
@@ -60447,17 +60436,6 @@
       "DECAY_DATE": "2023-08-24"
     }
   ],
-  "STARLINK-1301": [
-    {
-      "OBJECT_NAME": "STARLINK-1301",
-      "OBJECT_ID": "2020-019B",
-      "NORAD_CAT_ID": "45361",
-      "OBJECT_TYPE": "PAY",
-      "LAUNCH_DATE": "2020-03-18",
-      "LAUNCH_SITE": "AFETR",
-      "DECAY_DATE": "2026-08-30"
-    }
-  ],
   "STARLINK-1303": [
     {
       "OBJECT_NAME": "STARLINK-1303",
@@ -64537,17 +64515,6 @@
       "LAUNCH_DATE": "2020-10-24",
       "LAUNCH_SITE": "AFETR",
       "DECAY_DATE": "2025-02-19"
-    }
-  ],
-  "STARLINK-1835": [
-    {
-      "OBJECT_NAME": "STARLINK-1835",
-      "OBJECT_ID": "2020-074AV",
-      "NORAD_CAT_ID": "46782",
-      "OBJECT_TYPE": "PAY",
-      "LAUNCH_DATE": "2020-10-24",
-      "LAUNCH_SITE": "AFETR",
-      "DECAY_DATE": "2026-08-30"
     }
   ],
   "STARLINK-1836": [
@@ -73986,17 +73953,6 @@
       "LAUNCH_DATE": "2022-07-11",
       "LAUNCH_SITE": "AFWTR",
       "DECAY_DATE": "2025-06-05"
-    }
-  ],
-  "STARLINK-4310": [
-    {
-      "OBJECT_NAME": "STARLINK-4310",
-      "OBJECT_ID": "2022-077AH",
-      "NORAD_CAT_ID": "53074",
-      "OBJECT_TYPE": "PAY",
-      "LAUNCH_DATE": "2022-07-11",
-      "LAUNCH_SITE": "AFWTR",
-      "DECAY_DATE": "2026-08-30"
     }
   ],
   "STARLINK-4315": [

@@ -7,6 +7,8 @@ import {
   REQUIRED_STATIC_RUNTIME_PATHS,
   assertRequiredStaticRuntimePaths,
   buildStaticArtifact,
+  readStrictTrackedJson,
+  validateStaticJsonRevisionPair,
   validateTrackedStaticCatalog,
   validateTrackedStaticLineage
 } from '../scripts/build-static.mjs';
@@ -25,6 +27,49 @@ function sha256(file) {
   return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 }
 
+function trackedCatalogRevision(chunks, historyChunks, coverageRevision) {
+  const material = [...chunks, ...historyChunks].map(descriptor => ({
+    path: descriptor.path,
+    sha256: descriptor.sha256
+  }));
+  const body = Buffer.from(JSON.stringify({
+    chunks: material,
+    coverage_revision: coverageRevision
+  }), 'utf8');
+  return `sha256:${crypto.createHash('sha256').update(body).digest('hex')}`;
+}
+
+function trackedCoverageRevision(rowAccounting, expected, quarantineSha256) {
+  const body = Buffer.from(JSON.stringify({
+    row_accounting: rowAccounting,
+    expected,
+    quarantine_sha256: quarantineSha256
+  }), 'utf8');
+  return `sha256:${crypto.createHash('sha256').update(body).digest('hex')}`;
+}
+
+function rebindTrackedRevisions(manifest, metadata) {
+  const rowAccounting = Object.fromEntries(
+    ['received', 'accepted', 'quarantined', 'duplicates', 'issues']
+      .map(key => [key, manifest.counts[key]])
+  );
+  const coverageRevision = trackedCoverageRevision(
+    rowAccounting,
+    manifest.counts.expected,
+    manifest.quarantine.sha256
+  );
+  const catalogRevision = trackedCatalogRevision(
+    manifest.chunks,
+    manifest.history_chunks,
+    coverageRevision
+  );
+  manifest.coverage_revision = coverageRevision;
+  manifest.catalog_revision = catalogRevision;
+  metadata.coverage_revision = coverageRevision;
+  metadata.catalog_revision = catalogRevision;
+  metadata.dataset_hash = catalogRevision;
+}
+
 function normalized(relative) {
   return relative.replaceAll('\\', '/');
 }
@@ -39,12 +84,29 @@ function contentAddressedTrackedChunk(root, scope, objectType, records) {
   fs.mkdirSync(path.dirname(target), { recursive: true });
   fs.writeFileSync(target, body);
   return {
+    id: `${scope.toLowerCase()}-${objectType.toLowerCase().replaceAll('_', '-')}`,
     path: relative,
     count: records.length,
     bytes: body.length,
     sha256: `sha256:${digest}`,
     scope,
     object_type: objectType
+  };
+}
+
+function contentAddressedQuarantineChunk(root, records = []) {
+  const payload = { schema_version: '2.3.0', records };
+  const body = Buffer.from(JSON.stringify(payload));
+  const digest = crypto.createHash('sha256').update(body).digest('hex');
+  const relative = `json/tracked/chunks/${digest}-quarantine.json`;
+  const target = path.join(root, ...relative.split('/'));
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.writeFileSync(target, body);
+  return {
+    path: relative,
+    count: records.length,
+    bytes: body.length,
+    sha256: `sha256:${digest}`
   };
 }
 
@@ -161,30 +223,151 @@ const trackedManifest = JSON.parse(
 const trackedMetadata = JSON.parse(
   fs.readFileSync(path.join(outputRoot, 'json', 'tracked', 'TRACKED.meta.json'), 'utf8')
 );
+const strictNumberRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'openbexi-tracked-numbers-'));
+try {
+  const invalidVectors = [
+    ['fractional', Buffer.from('{"unexpected":1.0}'), /canonical nonnegative safe-integer/],
+    ['negative-zero', Buffer.from('{"unexpected":-0}'), /canonical nonnegative safe-integer|non-finite or unsafe/],
+    ['exponent', Buffer.from('{"unexpected":1e400}'), /canonical nonnegative safe-integer|non-finite or unsafe/],
+    ['unsafe', Buffer.from('{"unexpected":9007199254740993}'), /canonical nonnegative safe-integer|non-finite or unsafe/],
+    ['nan', Buffer.from('{"unexpected":NaN}'), /Unexpected token|not valid JSON/i],
+    ['infinity', Buffer.from('{"unexpected":Infinity}'), /Unexpected token|not valid JSON/i],
+    ['duplicate-key', Buffer.from('{"unexpected":1,"unexpected":2}'), /duplicate(?: JSON)? object key/i],
+    ['invalid-utf8', Buffer.from([0x7b, 0x22, 0x78, 0x22, 0x3a, 0x22, 0x80, 0x22, 0x7d]), /valid UTF-8/],
+    ['utf8-bom', Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('{}')]), /BOM-free UTF-8/],
+    ['utf16', Buffer.from('\ufeff{}', 'utf16le'), /BOM-free UTF-8/],
+    ['lone-surrogate', Buffer.from('{"unexpected":"\\ud800"}'), /Unicode scalar/]
+  ];
+  for (const [name, body, expected] of invalidVectors) {
+    const file = path.join(strictNumberRoot, `${name}.json`);
+    fs.writeFileSync(file, body);
+    assert.throws(
+      () => readStrictTrackedJson(file),
+      expected,
+      `the static build rejects noncanonical tracked JSON bytes: ${name}`
+    );
+  }
+} finally {
+  fs.rmSync(strictNumberRoot, { recursive: true, force: true });
+}
 const gpMetadata = JSON.parse(
   fs.readFileSync(path.join(outputRoot, 'json', 'gp', 'GP.meta.json'), 'utf8')
 );
 const gpCatalogPath = path.join(outputRoot, 'json', 'gp', 'GP.json');
 validateTrackedStaticLineage({ trackedManifest, trackedMetadata, gpMetadata, gpCatalogPath });
+const revisionPairRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'openbexi-static-revision-pair-'));
+try {
+  const launchSource = fs.readFileSync(path.join(outputRoot, 'json', 'launches', 'launches.json'));
+  const rewrittenLaunch = Buffer.concat([launchSource, Buffer.from('\n')]);
+  const rewrittenLaunchPath = path.join(revisionPairRoot, 'launches.json');
+  fs.writeFileSync(rewrittenLaunchPath, rewrittenLaunch);
+  const rawRevision = `sha256:${crypto.createHash('sha256').update(rewrittenLaunch).digest('hex')}`;
+  assert.throws(
+    () => validateStaticJsonRevisionPair(
+      rewrittenLaunchPath,
+      { catalog_revision: rawRevision, dataset_hash: rawRevision },
+      'launch'
+    ),
+    /producer-canonical metadata revision/,
+    'a raw-only non-GP rewrite cannot forge a matching static revision pair'
+  );
+
+  const duplicateKeyPath = path.join(revisionPairRoot, 'duplicate-key.json');
+  const duplicateKeyBody = Buffer.from('{"unexpected":1,"unexpected":2}');
+  fs.writeFileSync(duplicateKeyPath, duplicateKeyBody);
+  const duplicateKeyRevision = `sha256:${crypto.createHash('sha256').update(duplicateKeyBody).digest('hex')}`;
+  assert.throws(
+    () => validateStaticJsonRevisionPair(
+      duplicateKeyPath,
+      { catalog_revision: duplicateKeyRevision, dataset_hash: duplicateKeyRevision },
+      'generic'
+    ),
+    /duplicate(?: JSON)? object key/i,
+    'generic static revision pairs reject duplicate JSON object keys'
+  );
+
+  const gpSource = fs.readFileSync(gpCatalogPath, 'utf8');
+  const surrogateGp = `${gpSource.slice(0, -1)},{"unexpected":"\\ud800"}]`;
+  const surrogateGpPath = path.join(revisionPairRoot, 'GP.json');
+  fs.writeFileSync(surrogateGpPath, surrogateGp);
+  const surrogateRevision = `sha256:${crypto.createHash('sha256').update(surrogateGp).digest('hex')}`;
+  assert.throws(
+    () => validateStaticJsonRevisionPair(
+      surrogateGpPath,
+      { catalog_revision: surrogateRevision, dataset_hash: surrogateRevision },
+      'GP'
+    ),
+    /Unicode scalar/,
+    'escaped lone surrogates cannot enter a statically packaged core catalog'
+  );
+} finally {
+  fs.rmSync(revisionPairRoot, { recursive: true, force: true });
+}
+const reorderedCoverageMetadata = structuredClone(trackedMetadata);
+reorderedCoverageMetadata.coverage = Object.fromEntries(
+  Object.entries(reorderedCoverageMetadata.coverage).reverse()
+);
+assert.doesNotThrow(
+  () => validateTrackedStaticLineage({
+    trackedManifest,
+    trackedMetadata: reorderedCoverageMetadata,
+    gpMetadata,
+    gpCatalogPath
+  }),
+  'tracked coverage objects compare semantically without depending on key order'
+);
 const absentCatalogRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'openbexi-tracked-absent-'));
 try {
+  const validCurrentRecord = {
+    norad_id: '100001',
+    object_type: 'PAYLOAD',
+    lifecycle_status: 'ACTIVE',
+    observation_status: 'OBSERVED',
+    catalog_membership_status: 'PRESENT',
+    decay_date: null,
+    has_current_elements: true,
+    metadata_only: false
+  };
+  const validHistoricalRecord = {
+    norad_id: '100002',
+    object_type: 'DEBRIS',
+    lifecycle_status: 'ABSENT',
+    observation_status: 'ABSENT',
+    catalog_membership_status: 'ABSENT',
+    decay_date: null,
+    has_current_elements: false,
+    metadata_only: true
+  };
   const currentDescriptor = contentAddressedTrackedChunk(
     absentCatalogRoot,
     'CURRENT',
     'PAYLOAD',
-    [{ norad_id: '100001', object_type: 'PAYLOAD', catalog_membership_status: 'PRESENT', decay_date: null }]
+    [validCurrentRecord]
   );
   const absentDescriptor = contentAddressedTrackedChunk(
     absentCatalogRoot,
     'HISTORICAL',
     'DEBRIS',
-    [{ norad_id: '100002', object_type: 'DEBRIS', catalog_membership_status: 'ABSENT', decay_date: null }]
+    [validHistoricalRecord]
   );
+  const quarantineDescriptor = contentAddressedQuarantineChunk(absentCatalogRoot);
+  const rowAccounting = {
+    received: 2,
+    accepted: 2,
+    quarantined: 0,
+    duplicates: 0,
+    issues: 0
+  };
+  const coverageRevision = trackedCoverageRevision(rowAccounting, 2, quarantineDescriptor.sha256);
   const absentManifest = {
     schema_version: '2.3.0',
-    catalog_revision: `sha256:${'1'.repeat(64)}`,
+    catalog_revision: trackedCatalogRevision([currentDescriptor], [absentDescriptor], coverageRevision),
+    coverage_revision: coverageRevision,
     provider_completeness_claim: false,
     counts: {
+      expected: 2,
+      expected_provider_records: null,
+      ...rowAccounting,
       current: 1,
       historical: 0,
       absent: 1,
@@ -193,7 +376,22 @@ try {
       propagatable: 1,
       metadata_only: 1,
       current_propagatable: 1,
-      current_metadata_only: 0
+      current_metadata_only: 0,
+      object_types: { PAYLOAD: 1, DEBRIS: 1, ROCKET_BODY: 0, MISSION_RELATED: 0, UNKNOWN: 0 },
+      current_object_types: { PAYLOAD: 1, DEBRIS: 0, ROCKET_BODY: 0, MISSION_RELATED: 0, UNKNOWN: 0 }
+    },
+    coverage: {
+      expected: 2,
+      expected_provider_records: null,
+      received: 2,
+      accepted: 2,
+      quarantined: 0,
+      duplicates: 0,
+      complete_source_snapshot: true,
+      provider_completeness_claim: false,
+      invariant: 'received == accepted + quarantined + duplicates',
+      invariant_holds: true,
+      expected_matches_received: true
     },
     invariants: {
       provider_coverage_holds: true,
@@ -203,11 +401,189 @@ try {
     },
     chunks: [currentDescriptor],
     history_chunks: [absentDescriptor],
-    quarantine: null
+    quarantine: quarantineDescriptor
   };
   assert.doesNotThrow(
     () => validateTrackedStaticCatalog(absentManifest, () => {}, absentCatalogRoot),
     'tracked static validation accepts a valid ABSENT history partition'
+  );
+  const recordCases = [
+    ['boolean-id', record => { record.norad_id = true; }],
+    ['object-id', record => { record.norad_id = { id: '100001' }; }],
+    ['leading-zero-id', record => { record.norad_id = '0100001'; }],
+    ['lifecycle-scope', record => { record.lifecycle_status = 'DECAYED'; }],
+    ['observation-scope', record => { record.observation_status = 'ABSENT'; }],
+    ['non-string-date', record => { record.decay_date = []; }],
+    ['invalid-date', record => { record.decay_date = '2026-02-31'; }],
+    ['historical-current-elements', record => {
+      record.lifecycle_status = 'DECAYED';
+      record.decay_date = '2026-01-01';
+      record.has_current_elements = true;
+      record.metadata_only = false;
+    }]
+  ];
+  for (const [label, mutate] of recordCases) {
+    const record = structuredClone(validCurrentRecord);
+    mutate(record);
+    const descriptor = contentAddressedTrackedChunk(
+      absentCatalogRoot,
+      'CURRENT',
+      'PAYLOAD',
+      [record]
+    );
+    const candidate = {
+      ...absentManifest,
+      chunks: [descriptor],
+      catalog_revision: trackedCatalogRevision(
+        [descriptor],
+        absentManifest.history_chunks,
+        absentManifest.coverage_revision
+      )
+    };
+    assert.throws(
+      () => validateTrackedStaticCatalog(candidate, () => {}, absentCatalogRoot),
+      /record violates identity, type, or scope partition/,
+      `static tracked validation rejects a self-consistently rehashed ${label}`
+    );
+  }
+
+  const duplicateDescriptor = contentAddressedTrackedChunk(
+    absentCatalogRoot,
+    'CURRENT',
+    'PAYLOAD',
+    [validCurrentRecord, { ...validCurrentRecord }]
+  );
+  const duplicateManifest = structuredClone(absentManifest);
+  duplicateManifest.chunks = [duplicateDescriptor];
+  duplicateManifest.counts.current = 2;
+  duplicateManifest.counts.total = 3;
+  duplicateManifest.counts.propagatable = 2;
+  duplicateManifest.counts.current_propagatable = 2;
+  duplicateManifest.counts.object_types.PAYLOAD = 2;
+  duplicateManifest.counts.current_object_types.PAYLOAD = 2;
+  duplicateManifest.catalog_revision = trackedCatalogRevision(
+    duplicateManifest.chunks,
+    duplicateManifest.history_chunks,
+    duplicateManifest.coverage_revision
+  );
+  assert.throws(
+    () => validateTrackedStaticCatalog(duplicateManifest, () => {}, absentCatalogRoot),
+    /record violates identity, type, or scope partition/,
+    'static tracked validation rejects duplicate NORAD identities after all hashes are rebound'
+  );
+
+  const availabilityManifest = structuredClone(absentManifest);
+  availabilityManifest.counts.propagatable = 0;
+  availabilityManifest.counts.metadata_only = 2;
+  availabilityManifest.counts.current_propagatable = 0;
+  availabilityManifest.counts.current_metadata_only = 1;
+  assert.throws(
+    () => validateTrackedStaticCatalog(availabilityManifest, () => {}, absentCatalogRoot),
+    /manifest counts do not match its referenced chunks/,
+    'static tracked validation derives availability counts from records'
+  );
+  const booleanTypeManifest = structuredClone(absentManifest);
+  booleanTypeManifest.counts.object_types.ROCKET_BODY = false;
+  booleanTypeManifest.counts.current_object_types.ROCKET_BODY = false;
+  assert.throws(
+    () => validateTrackedStaticCatalog(booleanTypeManifest, () => {}, absentCatalogRoot),
+    /manifest counts do not match its referenced chunks/,
+    'static tracked validation does not equate boolean false with a zero type count'
+  );
+  const nonstandardChunkBody = Buffer.from(
+    '{"schema_version":"2.3.0","scope":"CURRENT","object_type":"PAYLOAD",' +
+    '"records":[{"norad_id":"100001","object_type":"PAYLOAD",' +
+    '"catalog_membership_status":"PRESENT","decay_date":null}],"unexpected":NaN}'
+  );
+  const nonstandardChunkDigest = crypto.createHash('sha256').update(nonstandardChunkBody).digest('hex');
+  const nonstandardChunkRelative =
+    `json/tracked/chunks/${nonstandardChunkDigest}-current-payload.json`;
+  const nonstandardChunkPath = path.join(absentCatalogRoot, ...nonstandardChunkRelative.split('/'));
+  fs.writeFileSync(nonstandardChunkPath, nonstandardChunkBody);
+  const nonstandardDescriptor = {
+    ...currentDescriptor,
+    path: nonstandardChunkRelative,
+    bytes: nonstandardChunkBody.length,
+    sha256: `sha256:${nonstandardChunkDigest}`
+  };
+  const nonstandardManifest = {
+    ...absentManifest,
+    chunks: [nonstandardDescriptor],
+    catalog_revision: trackedCatalogRevision(
+      [nonstandardDescriptor],
+      absentManifest.history_chunks,
+      absentManifest.coverage_revision
+    )
+  };
+  assert.throws(
+    () => validateTrackedStaticCatalog(nonstandardManifest, () => {}, absentCatalogRoot),
+    /chunk is not valid JSON/,
+    'tracked static validation rejects non-standard constants in content-addressed chunks'
+  );
+  const overflowChunkBody = Buffer.from(
+    '{"schema_version":"2.3.0","scope":"CURRENT","object_type":"PAYLOAD",' +
+    '"records":[' + JSON.stringify(validCurrentRecord) + '],"unexpected":1e400}'
+  );
+  const overflowDigest = crypto.createHash('sha256').update(overflowChunkBody).digest('hex');
+  const overflowRelative = `json/tracked/chunks/${overflowDigest}-current-payload.json`;
+  fs.writeFileSync(path.join(absentCatalogRoot, ...overflowRelative.split('/')), overflowChunkBody);
+  const overflowDescriptor = {
+    ...currentDescriptor,
+    path: overflowRelative,
+    bytes: overflowChunkBody.length,
+    sha256: `sha256:${overflowDigest}`
+  };
+  assert.throws(
+    () => validateTrackedStaticCatalog({
+      ...absentManifest,
+      chunks: [overflowDescriptor],
+      catalog_revision: trackedCatalogRevision(
+        [overflowDescriptor], absentManifest.history_chunks, absentManifest.coverage_revision
+      )
+    }, () => {}, absentCatalogRoot),
+    /chunk is not valid JSON/,
+    'tracked static validation rejects finite-syntax numeric overflow in a chunk'
+  );
+
+  assert.throws(
+    () => validateTrackedStaticCatalog({
+      ...absentManifest,
+      quarantine: { ...absentManifest.quarantine, path: '' }
+    }, () => {}, absentCatalogRoot),
+    /local content-addressed chunk/,
+    'tracked static validation requires a quarantine descriptor path'
+  );
+  const malformedQuarantineBody = Buffer.from('[]');
+  const malformedQuarantineDigest = crypto.createHash('sha256').update(malformedQuarantineBody).digest('hex');
+  const malformedQuarantineRelative =
+    `json/tracked/chunks/${malformedQuarantineDigest}-quarantine.json`;
+  fs.writeFileSync(
+    path.join(absentCatalogRoot, ...malformedQuarantineRelative.split('/')),
+    malformedQuarantineBody
+  );
+  const malformedQuarantine = {
+    path: malformedQuarantineRelative,
+    count: 0,
+    bytes: malformedQuarantineBody.length,
+    sha256: `sha256:${malformedQuarantineDigest}`
+  };
+  const malformedQuarantineManifest = structuredClone(absentManifest);
+  malformedQuarantineManifest.quarantine = malformedQuarantine;
+  const malformedCoverageRevision = trackedCoverageRevision(
+    rowAccounting,
+    2,
+    malformedQuarantine.sha256
+  );
+  malformedQuarantineManifest.coverage_revision = malformedCoverageRevision;
+  malformedQuarantineManifest.catalog_revision = trackedCatalogRevision(
+    malformedQuarantineManifest.chunks,
+    malformedQuarantineManifest.history_chunks,
+    malformedCoverageRevision
+  );
+  assert.throws(
+    () => validateTrackedStaticCatalog(malformedQuarantineManifest, () => {}, absentCatalogRoot),
+    /chunk record count does not match/,
+    'tracked static validation rejects a non-object quarantine payload'
   );
 } finally {
   fs.rmSync(absentCatalogRoot, { recursive: true, force: true });
@@ -257,6 +633,183 @@ assert.throws(
 );
 assert.throws(
   () => validateTrackedStaticLineage({
+    trackedManifest: { ...trackedManifest, catalog_revision: `sha256:${'0'.repeat(64)}` },
+    trackedMetadata: {
+      ...trackedMetadata,
+      catalog_revision: `sha256:${'0'.repeat(64)}`,
+      dataset_hash: `sha256:${'0'.repeat(64)}`
+    },
+    gpMetadata,
+    gpCatalogPath
+  }),
+  /manifest and metadata revisions are inconsistent/,
+  'the static build recomputes the tracked catalog revision instead of trusting matching declarations'
+);
+{
+  const forgedCoverageRevision = `sha256:${'0'.repeat(64)}`;
+  const forgedCatalogRevision = trackedCatalogRevision(
+    trackedManifest.chunks,
+    trackedManifest.history_chunks,
+    forgedCoverageRevision
+  );
+  assert.throws(
+    () => validateTrackedStaticLineage({
+      trackedManifest: {
+        ...trackedManifest,
+        coverage_revision: forgedCoverageRevision,
+        catalog_revision: forgedCatalogRevision
+      },
+      trackedMetadata: {
+        ...trackedMetadata,
+        coverage_revision: forgedCoverageRevision,
+        catalog_revision: forgedCatalogRevision,
+        dataset_hash: forgedCatalogRevision
+      },
+      gpMetadata,
+      gpCatalogPath
+    }),
+    /revision inputs are invalid|coverage_revision does not match/,
+    'the static build recomputes coverage_revision instead of trusting matching declarations'
+  );
+}
+{
+  const impossibleManifest = structuredClone(trackedManifest);
+  const impossibleMetadata = structuredClone(trackedMetadata);
+  impossibleManifest.counts.issues = 9;
+  impossibleMetadata.counts.issues = 9;
+  rebindTrackedRevisions(impossibleManifest, impossibleMetadata);
+  assert.throws(
+    () => validateTrackedStaticLineage({
+      trackedManifest: impossibleManifest,
+      trackedMetadata: impossibleMetadata,
+      gpMetadata,
+      gpCatalogPath
+    }),
+    /issue accounting does not match quarantine evidence/,
+    'the static build rejects self-consistently rehashed impossible issue accounting'
+  );
+}
+assert.throws(
+  () => validateTrackedStaticLineage({
+    trackedManifest,
+    trackedMetadata: {
+      ...trackedMetadata,
+      counts: { ...trackedMetadata.counts, issues: trackedMetadata.counts.issues + 1 }
+    },
+    gpMetadata,
+    gpCatalogPath
+  }),
+  /metadata row accounting are inconsistent/,
+  'the static build binds metadata row accounting to the tracked manifest'
+);
+{
+  const forgedManifest = structuredClone(trackedManifest);
+  const forgedMetadata = structuredClone(trackedMetadata);
+  forgedManifest.counts.expected_provider_records = 123;
+  forgedManifest.coverage.expected_provider_records = 123;
+  forgedMetadata.counts.expected_provider_records = 123;
+  forgedMetadata.coverage.expected_provider_records = 123;
+  assert.throws(
+    () => validateTrackedStaticLineage({
+      trackedManifest: forgedManifest,
+      trackedMetadata: forgedMetadata,
+      gpMetadata,
+      gpCatalogPath
+    }),
+    /expected provider-record count must be null/,
+    'the static build rejects an unsigned provider expected-count claim'
+  );
+}
+{
+  const unsafeManifest = structuredClone(trackedManifest);
+  const unsafeMetadata = structuredClone(trackedMetadata);
+  const unsafe = Number.MAX_SAFE_INTEGER + 1;
+  unsafeManifest.counts.expected = unsafe;
+  unsafeManifest.coverage.expected = unsafe;
+  unsafeMetadata.counts.expected = unsafe;
+  unsafeMetadata.coverage.expected = unsafe;
+  assert.throws(
+    () => validateTrackedStaticLineage({
+      trackedManifest: unsafeManifest,
+      trackedMetadata: unsafeMetadata,
+      gpMetadata,
+      gpCatalogPath
+    }),
+    /expected coverage count is invalid/,
+    'the static validator rejects parsed tracked integers outside the safe range'
+  );
+}
+{
+  const falseCompleteManifest = structuredClone(trackedManifest);
+  const falseCompleteMetadata = structuredClone(trackedMetadata);
+  falseCompleteManifest.counts.expected = null;
+  falseCompleteMetadata.counts.expected = null;
+  falseCompleteManifest.coverage.expected = null;
+  falseCompleteManifest.coverage.expected_matches_received = null;
+  falseCompleteMetadata.coverage = structuredClone(falseCompleteManifest.coverage);
+  rebindTrackedRevisions(falseCompleteManifest, falseCompleteMetadata);
+  assert.throws(
+    () => validateTrackedStaticLineage({
+      trackedManifest: falseCompleteManifest,
+      trackedMetadata: falseCompleteMetadata,
+      gpMetadata,
+      gpCatalogPath
+    }),
+    /coverage invariants are inconsistent/,
+    'the static build rejects a complete-snapshot claim without a verified expected-record match'
+  );
+}
+assert.throws(
+  () => validateTrackedStaticLineage({
+    trackedManifest,
+    trackedMetadata: {
+      ...trackedMetadata,
+      source_status: 'PARTIAL',
+      last_reconciled_catalog_revision: null
+    },
+    gpMetadata,
+    gpCatalogPath
+  }),
+  /complete-snapshot claim is not backed by reconciled metadata/,
+  'the static build rejects a complete manifest paired with unverified reconciliation metadata'
+);
+for (const [label, value] of [
+  ['missing', undefined],
+  ['non-ISO numeric', '0'],
+  ['impossible-date', '2026-02-31T12:00:00Z']
+]) {
+  const metadata = { ...trackedMetadata };
+  if (value === undefined) {
+    delete metadata.last_reconciled_at;
+  } else {
+    metadata.last_reconciled_at = value;
+  }
+  assert.throws(
+    () => validateTrackedStaticLineage({
+      trackedManifest,
+      trackedMetadata: metadata,
+      gpMetadata,
+      gpCatalogPath
+    }),
+    /complete-snapshot claim is not backed by reconciled metadata/,
+    `the static build rejects ${label} complete-snapshot reconciliation timestamps`
+  );
+}
+assert.throws(
+  () => validateTrackedStaticLineage({
+    trackedManifest,
+    trackedMetadata: {
+      ...trackedMetadata,
+      coverage_revision: `sha256:${'0'.repeat(64)}`
+    },
+    gpMetadata,
+    gpCatalogPath
+  }),
+  /coverage revisions are inconsistent/,
+  'the static build binds tracked metadata to the manifest coverage revision'
+);
+assert.throws(
+  () => validateTrackedStaticLineage({
     trackedManifest,
     trackedMetadata: {
       ...trackedMetadata,
@@ -286,6 +839,88 @@ assert.throws(
 );
 assert.throws(
   () => validateTrackedStaticCatalog(
+    { ...trackedManifest, chunks: [{ ...trackedManifest.chunks[0], path: 'json/tracked/chunks/current-payload.json' }] },
+    () => {}
+  ),
+  /local content-addressed chunk/,
+  'tracked static validation rejects a generic chunk filename'
+);
+assert.throws(
+  () => validateTrackedStaticCatalog(
+    {
+      ...trackedManifest,
+      chunks: [{
+        ...trackedManifest.chunks[0],
+        path: `json/tracked/chunks/${'0'.repeat(64)}-current-payload.json`
+      }]
+    },
+    () => {}
+  ),
+  /local content-addressed chunk/,
+  'tracked static validation rejects a filename digest that differs from its descriptor'
+);
+for (const digest of [
+  trackedManifest.chunks[0].sha256.replace(/^sha256:/, ''),
+  trackedManifest.chunks[0].sha256.toUpperCase()
+]) {
+  assert.throws(
+    () => validateTrackedStaticCatalog(
+      { ...trackedManifest, chunks: [{ ...trackedManifest.chunks[0], sha256: digest }] },
+      () => {}
+    ),
+    /local content-addressed chunk/,
+    'tracked static validation requires exact lowercase sha256: descriptor syntax'
+  );
+}
+assert.throws(
+  () => validateTrackedStaticCatalog(
+    {
+      ...trackedManifest,
+      chunks: trackedManifest.chunks.map((descriptor, index) => ({
+        ...descriptor,
+        id: index === 1 ? trackedManifest.chunks[0].id : descriptor.id
+      }))
+    },
+    () => {}
+  ),
+  /descriptor ids must be nonempty and unique/,
+  'tracked static validation rejects duplicate descriptor ids'
+);
+assert.throws(
+  () => validateTrackedStaticCatalog(
+    {
+      ...trackedManifest,
+      chunks: [{ ...trackedManifest.chunks[0], scope: 'HISTORICAL' }, ...trackedManifest.chunks.slice(1)]
+    },
+    () => {}
+  ),
+  /descriptor taxonomy is invalid/,
+  'tracked static validation requires collection-consistent descriptor scope'
+);
+assert.throws(
+  () => validateTrackedStaticCatalog(
+    {
+      ...trackedManifest,
+      chunks: [{ ...trackedManifest.chunks[0], object_type: 'NOT_A_TRACKED_TYPE' }, ...trackedManifest.chunks.slice(1)]
+    },
+    () => {}
+  ),
+  /descriptor taxonomy is invalid/,
+  'tracked static validation rejects unknown descriptor object types'
+);
+assert.throws(
+  () => validateTrackedStaticCatalog(
+    {
+      ...trackedManifest,
+      chunks: [trackedManifest.chunks[1], trackedManifest.chunks[0], ...trackedManifest.chunks.slice(2)]
+    },
+    () => {}
+  ),
+  /catalog_revision does not match its descriptor closure/,
+  'tracked static validation binds catalog_revision to current-then-history descriptor order'
+);
+assert.throws(
+  () => validateTrackedStaticCatalog(
     { ...trackedManifest, counts: { ...trackedManifest.counts, current: trackedManifest.counts.current + 1 } },
     () => {}
   ),
@@ -300,7 +935,7 @@ assert.throws(
     },
     () => {}
   ),
-  /Manifest tracked catalog counts are inconsistent/,
+  /tracked (?:static catalog manifest|catalog) counts (?:are inconsistent|do not match)/i,
   'tracked static validation rejects availability partition drift'
 );
 assert.throws(
@@ -326,7 +961,7 @@ assert.throws(
     },
     () => {}
   ),
-  /taxonomy does not match/,
+  /descriptor taxonomy is invalid|taxonomy does not match/,
   'tracked static validation rejects current and historical partition drift'
 );
 const trackedDescriptors = [

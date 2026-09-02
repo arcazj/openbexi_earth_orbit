@@ -1,5 +1,15 @@
 # Prompt History
 
+## Approval Date: 2026-09-02  Version 2.3.2 Exact-Byte Origin/Master Source Publication
+
+Repository and remote owner `arcazj` explicitly instructed, `RESUME AND PUSH TO GITHUB`, after receiving the exact Version 2.3.2 pre-approval manifest SHA-256 warning `c456703d12602e83a73233f693cf684315565436d8c08c645a0b7e5d984d8177`. The approval is recorded on local date `2026-09-02` at `2026-09-02T08:31:23.110Z`. The checked Git identity is `arcazj`, and `origin` is `https://github.com/arcazj/openbexi_earth_orbit`. This is the named repository/data/release-owner approval for exactly one publication of the final post-recording Version `2.3.2` repository bytes to `origin/master` in `arcazj/openbexi_earth_orbit`.
+
+The source-only scope covers the final Git-tracked source tree, checked-in data closure, validation manifest and sidecar, release evidence, governance records, documentation, and workflow bytes included in that commit. The warned manifest identifies the reviewed pre-approval development state; the approval follows the final resealed bytes after this authorization record and its derived static/evidence fixed point are regenerated. Before the source push, the authenticated GitHub Pages API changed the repository Pages `build_type` from the legacy branch-root mode to `workflow`, so the push does not publish a Pages artifact.
+
+This approval does not dispatch or approve the manual artifact-only Pages workflow, a remote Pages deployment, or its remote-byte attestation. Required-reviewer and self-review protections for the `github-pages` environment remain pending, as do independent scientific/security review, named-hardware profiles, provider-universe and physical-debris completeness, and clean committed-tree binding until the commit exists. The approval does not cover private runtime candidates, later provider refreshes, regenerated or otherwise changed bytes after the final approved commit, another branch, another repository, another channel, or a future publication.
+
+Version 2.3.2 remains in `development` publication state with `Experimental` scientific maturity, a `non-operational` safety class, and null candidate/release dates. This source-publication approval does not authorize collision probability, CDM/covariance, operational risk, alerts, reports, maneuver recommendations, safety use, candidate promotion, or stable release. No rollback waiver is granted or needed: the local disposable rollback rehearsal passed, while a Pages deployment rehearsal and remote verification remain separate gates.
+
 ## Approval Date: 2026-08-30  Version 2.3.1 Exact-Byte Repository Publication
 
 Repository and remote owner `arcazj` explicitly instructed, `commit and push to github`. The approval was recorded on local date `2026-08-30` at `2026-08-31T01:55:18Z`. The checked Git identity is `arcazj`, and `origin` is `https://github.com/arcazj/openbexi_earth_orbit`. This is the named repository/data/release-owner approval to commit the exact final Version `2.3.1` tree to `origin/master` in `arcazj/openbexi_earth_orbit` and publish that commit from the repository root at `https://arcazj.github.io/openbexi_earth_orbit/`.

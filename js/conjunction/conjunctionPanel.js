@@ -812,13 +812,15 @@ export function createConjunctionPanel({
         setPrimary(nextPrimary) {
             const previousIdentity = firstDefined(primary?.object_id, primary?.objectId, primary?.norad_id, primary?.noradId, null);
             const nextIdentity = firstDefined(nextPrimary?.object_id, nextPrimary?.objectId, nextPrimary?.norad_id, nextPrimary?.noradId, null);
-            if (previousIdentity !== nextIdentity) {
+            const identityChanged = previousIdentity !== nextIdentity;
+            const preserveCompletedStatus = !identityChanged && latestResult !== null;
+            if (identityChanged) {
                 cancelActiveScreening();
                 clearResults();
             }
             primary = nextPrimary || null;
             elements.primary.textContent = recordLabel(primary);
-            updateReadinessStatus();
+            if (!preserveCompletedStatus) updateReadinessStatus();
             updateRunAvailability();
         },
         setCatalog(nextCatalog, catalogMetadata = null) {

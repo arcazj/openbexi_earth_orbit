@@ -176,6 +176,7 @@ function pointVisual(record) {
 }
 
 const selectedPointRgb = pointColorRgb('#ffffff');
+const pointPickProjection = new THREE.Vector3();
 
 function removeSatellitePointCloud(scene) {
     if (!satellitePointCloud) return;
@@ -265,6 +266,7 @@ export function syncSatellitePointCloud(sourceSatellites = satellites) {
     const colorAttribute = satellitePointCloud.geometry.getAttribute('color');
     let drawnCount = 0;
     let selectedDrawnCount = 0;
+    const drawnRecords = [];
     const objectTypeMarkerCounts = {};
     for (const satelliteRecord of sourceSatellites) {
         const position = satelliteRecord?.mesh?.position;
@@ -275,6 +277,7 @@ export function syncSatellitePointCloud(sourceSatellites = satellites) {
         colorAttribute.setXYZ(drawnCount, r, g, b);
         objectTypeMarkerCounts[baseVisual.label] = (objectTypeMarkerCounts[baseVisual.label] || 0) + 1;
         if (satelliteRecord.isSelected) selectedDrawnCount += 1;
+        drawnRecords.push(satelliteRecord);
         drawnCount += 1;
     }
     satellitePointCloud.geometry.setDrawRange(0, drawnCount);
@@ -284,6 +287,7 @@ export function syncSatellitePointCloud(sourceSatellites = satellites) {
     satellitePointCloud.userData.drawnCount = drawnCount;
     satellitePointCloud.userData.objectTypeMarkerCounts = objectTypeMarkerCounts;
     satellitePointCloud.userData.selectedDrawnCount = selectedDrawnCount;
+    satellitePointCloud.userData.drawnRecords = drawnRecords;
     const denseMode = globePointMarkerMode(drawnCount) === 'density';
     const nextMap = denseMode ? null : satellitePointCloud.userData.iconMap;
     if (satellitePointCloud.material.map !== nextMap) {
@@ -297,6 +301,77 @@ export function syncSatellitePointCloud(sourceSatellites = satellites) {
     }
     satellitePointCloud.material.size = denseMode ? GLOBE_DENSITY_POINT_SIZE : satellitePointCloud.userData.baseSize;
     return drawnCount;
+}
+
+function pointOccludedBySphere(cameraPosition, position, radius) {
+    if (!(radius > 0) || !cameraPosition || !position) return false;
+    const dx = position.x - cameraPosition.x;
+    const dy = position.y - cameraPosition.y;
+    const dz = position.z - cameraPosition.z;
+    const lengthSquared = dx * dx + dy * dy + dz * dz;
+    if (!(lengthSquared > 0)) return false;
+    const t = -(cameraPosition.x * dx + cameraPosition.y * dy + cameraPosition.z * dz) / lengthSquared;
+    if (t <= 0 || t >= 1) return false;
+    const closestX = cameraPosition.x + t * dx;
+    const closestY = cameraPosition.y + t * dy;
+    const closestZ = cameraPosition.z + t * dz;
+    return closestX * closestX + closestY * closestY + closestZ * closestZ < radius * radius;
+}
+
+export function satellitePointClientPosition(camera, recordOrNoradId, rect, options = {}) {
+    if (!camera || !satellitePointCloud?.visible || !(Number(rect?.width) > 0) || !(Number(rect?.height) > 0)) {
+        return null;
+    }
+    const record = typeof recordOrNoradId === 'object'
+        ? recordOrNoradId
+        : (satellitePointCloud.userData.drawnRecords || []).find(candidate =>
+            candidate?.norad_id?.toString() === String(recordOrNoradId)
+        );
+    const position = record?.mesh?.position;
+    if (!record || !pointCloudRecordReady(record) ||
+        pointOccludedBySphere(camera.position, position, Number(options.occluderRadius))) return null;
+    pointPickProjection.copy(position).project(camera);
+    if (pointPickProjection.z < -1 || pointPickProjection.z > 1) return null;
+    return Object.freeze({
+        x: Number(rect.left || 0) + (pointPickProjection.x + 1) * Number(rect.width) / 2,
+        y: Number(rect.top || 0) + (1 - pointPickProjection.y) * Number(rect.height) / 2,
+        depth: pointPickProjection.z,
+        record
+    });
+}
+
+export function pickSatellitePoint(camera, pointer = {}, options = {}) {
+    if (!camera || !satellitePointCloud?.visible) return null;
+    const rect = pointer.rect;
+    const width = Number(rect?.width);
+    const height = Number(rect?.height);
+    const clientX = Number(pointer.clientX);
+    const clientY = Number(pointer.clientY);
+    if (!(width > 0) || !(height > 0) || !Number.isFinite(clientX) || !Number.isFinite(clientY)) return null;
+    const drawnRecords = satellitePointCloud.userData.drawnRecords || [];
+    const detailed = globePointMarkerMode(drawnRecords.length) === 'detailed';
+    const maxDistancePx = Math.max(3, Number(options.maxDistancePx) || (detailed ? 12 : 7));
+    const maxDistanceSquared = maxDistancePx * maxDistancePx;
+    let nearest = null;
+    let nearestDistanceSquared = maxDistanceSquared;
+    let nearestDepth = Number.POSITIVE_INFINITY;
+    for (const record of drawnRecords) {
+        const projected = satellitePointClientPosition(camera, record, rect, options);
+        if (!projected) continue;
+        const distanceSquared = (projected.x - clientX) ** 2 + (projected.y - clientY) ** 2;
+        if (
+            distanceSquared < nearestDistanceSquared ||
+            (
+                distanceSquared === nearestDistanceSquared &&
+                (nearest === null || projected.depth < nearestDepth)
+            )
+        ) {
+            nearest = record;
+            nearestDistanceSquared = distanceSquared;
+            nearestDepth = projected.depth;
+        }
+    }
+    return nearest;
 }
 
 export function getSatellitePointCloudDiagnostics(sourceSatellites = satellites) {

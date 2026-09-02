@@ -6,6 +6,8 @@ import {
     GLOBE_DETAILED_ICON_SIZE_PX,
     getSatellitePointCloudDiagnostics,
     globePointMarkerMode,
+    pickSatellitePoint,
+    satellitePointClientPosition,
     satellites,
     setupTLESatellites,
     syncSatellitePointCloud,
@@ -216,6 +218,57 @@ assert.deepEqual(
     'selection uses a white marker so it is distinguishable from red debris'
 );
 assert.equal(getSatellitePointCloudDiagnostics(satellites).selectedDrawnCount, 1);
+const pickingCamera = new THREE.PerspectiveCamera(45, 2, 0.1, 100);
+pickingCamera.position.set(0, 0, 30);
+pickingCamera.lookAt(0, 0, 0);
+pickingCamera.updateProjectionMatrix();
+pickingCamera.updateMatrixWorld(true);
+const projectedPoint = satellites[0].mesh.position.clone().project(pickingCamera);
+const pickingRect = { left: 100, top: 50, width: 800, height: 400 };
+const pickedSatellite = pickSatellitePoint(pickingCamera, {
+    clientX: pickingRect.left + (projectedPoint.x + 1) * pickingRect.width / 2,
+    clientY: pickingRect.top + (1 - projectedPoint.y) * pickingRect.height / 2,
+    rect: pickingRect
+});
+assert.equal(pickedSatellite, satellites[0], 'Globe picking resolves the exact rendered record');
+const nearOverlappingRecord = {
+    norad_id: '900000010',
+    satellite_name: 'NEAR OVERLAPPING MARKER',
+    object_type: 'PAYLOAD',
+    isSelected: false,
+    motionPositionReady: true,
+    mesh: { visible: true, position: new THREE.Vector3(0, 0, 10) }
+};
+const farOverlappingRecord = {
+    norad_id: '900000011',
+    satellite_name: 'FAR OVERLAPPING MARKER',
+    object_type: 'PAYLOAD',
+    isSelected: false,
+    motionPositionReady: true,
+    mesh: { visible: true, position: new THREE.Vector3(0, 0, 8) }
+};
+syncSatellitePointCloud([nearOverlappingRecord, farOverlappingRecord]);
+const overlappingPoint = satellitePointClientPosition(pickingCamera, nearOverlappingRecord, pickingRect);
+assert.equal(
+    pickSatellitePoint(pickingCamera, {
+        clientX: overlappingPoint.x,
+        clientY: overlappingPoint.y,
+        rect: pickingRect
+    }),
+    nearOverlappingRecord,
+    'Globe picking resolves overlapping markers to the visually nearest rendered point'
+);
+syncSatellitePointCloud(satellites);
+assert.equal(pickSatellitePoint(pickingCamera, {
+    clientX: pickingRect.left,
+    clientY: pickingRect.top,
+    rect: pickingRect
+}, { maxDistancePx: 4 }), null, 'Globe picking ignores clicks outside the marker hit radius');
+assert.equal(satellitePointClientPosition(pickingCamera, {
+    ...satellites[0],
+    mesh: { ...satellites[0].mesh, position: new THREE.Vector3(0, 0, -8), visible: true }
+}, pickingRect, { occluderRadius: 6.378137 }), null,
+'Globe picking cannot select a projected record through the Earth');
 
 const selectedFirstDebris = {
     norad_id: '900000001',

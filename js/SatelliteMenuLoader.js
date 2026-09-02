@@ -196,6 +196,7 @@ export function satelliteMenuLoader() {
               <li><span class="tracked-marker tracked-marker-unknown" aria-hidden="true"></span>Unknown</li>
               <li><span class="tracked-marker tracked-marker-selected" aria-hidden="true"></span>Selected</li>
             </ul>
+            <button id="openTrackedResults" class="tracked-results-open" type="button">Browse catalog results</button>
           </div>
 
           <div id="selectedSatelliteControls" class="satellite-option-grid" aria-label="Selected tracked-object options" aria-hidden="true" hidden>

@@ -7,10 +7,89 @@ import {
   conjunctionEventRelativeSpeedKmS,
   conjunctionEventSecondaryLabel,
   conjunctionRunQualityNotices,
+  createConjunctionPanel,
   filterAndSortConjunctionEvents,
   formatUtcDateTimeLocal,
   parseUtcDateTimeLocal
 } from '../js/conjunction/conjunctionPanel.js';
+
+class PanelElement {
+  constructor() {
+    this.dataset = {};
+    this.disabled = false;
+    this.hidden = false;
+    this.listeners = new Map();
+    this.textContent = '';
+    this.value = '';
+  }
+
+  addEventListener(type, listener) {
+    const listeners = this.listeners.get(type) || [];
+    listeners.push(listener);
+    this.listeners.set(type, listeners);
+  }
+
+  async dispatch(type) {
+    const event = { preventDefault() {} };
+    for (const listener of this.listeners.get(type) || []) await listener(event);
+  }
+
+  reportValidity() {
+    return true;
+  }
+
+  querySelectorAll() {
+    return [];
+  }
+
+  setAttribute(name, value) {
+    this[name] = String(value);
+  }
+
+  appendChild() {}
+  append() {}
+}
+
+class PanelDocument {
+  constructor() {
+    const ids = [
+      'conjunctionScreeningForm',
+      'conjunctionPrimarySummary',
+      'conjunctionCatalogSummary',
+      'conjunctionStartTime',
+      'conjunctionDurationHours',
+      'conjunctionCoarseStepSeconds',
+      'conjunctionScreeningRadiusKm',
+      'conjunctionRefinementToleranceSeconds',
+      'conjunctionMaxResults',
+      'conjunctionRunButton',
+      'conjunctionCancelButton',
+      'conjunctionExportButton',
+      'conjunctionProgress',
+      'conjunctionStatus',
+      'conjunctionResults',
+      'conjunctionResultFilter',
+      'conjunctionResultSort',
+      'conjunctionResultRows',
+      'conjunctionEventDetails',
+      'conjunctionEventTitle',
+      'conjunctionEventQuality',
+      'conjunctionEventMetrics',
+      'conjunctionPlaybackButton',
+      'conjunctionPlaybackOffset',
+      'conjunctionPlaybackOffsetValue'
+    ];
+    this.elements = new Map(ids.map(id => [id, new PanelElement()]));
+  }
+
+  getElementById(id) {
+    return this.elements.get(id) || null;
+  }
+
+  createElement() {
+    return new PanelElement();
+  }
+}
 
 const start = new Date('2026-07-19T12:34:56.000Z');
 assert.strictEqual(formatUtcDateTimeLocal(start), '2026-07-19T12:34:56');
@@ -164,5 +243,33 @@ assert.deepStrictEqual(conjunctionRunQualityNotices({
   'some element epochs occur after the screening window',
   'some element epochs are unavailable'
 ]);
+
+const panelDocument = new PanelDocument();
+panelDocument.getElementById('conjunctionDurationHours').value = '1';
+panelDocument.getElementById('conjunctionCoarseStepSeconds').value = '300';
+panelDocument.getElementById('conjunctionScreeningRadiusKm').value = '100';
+panelDocument.getElementById('conjunctionRefinementToleranceSeconds').value = '0.5';
+panelDocument.getElementById('conjunctionMaxResults').value = '100';
+panelDocument.getElementById('conjunctionResultSort').value = 'tca';
+const panel = createConjunctionPanel({
+  documentRef: panelDocument,
+  startScreening: async () => ({ events: [] })
+});
+panel.setCatalog([primary, secondary]);
+panel.setPrimary(primary);
+await panelDocument.getElementById('conjunctionScreeningForm').dispatch('submit');
+
+const completedStatus = panelDocument.getElementById('conjunctionStatus').textContent;
+assert.match(completedStatus, /^0 close approaches found in /);
+assert.strictEqual(panelDocument.getElementById('conjunctionExportButton').disabled, false);
+
+panel.setPrimary({ ...primary, satellite_name: 'ISS UPDATED' });
+assert.strictEqual(panelDocument.getElementById('conjunctionPrimarySummary').textContent, 'ISS UPDATED (NORAD 25544)');
+assert.strictEqual(panelDocument.getElementById('conjunctionStatus').textContent, completedStatus);
+assert.strictEqual(panelDocument.getElementById('conjunctionExportButton').disabled, false);
+
+panel.setPrimary({ ...primary, norad_id: '25545', satellite_name: 'DIFFERENT' });
+assert.strictEqual(panelDocument.getElementById('conjunctionStatus').textContent, 'Ready to screen the loaded catalog.');
+assert.strictEqual(panelDocument.getElementById('conjunctionExportButton').disabled, true);
 
 console.log('conjunctionPanel tests passed');

@@ -90,6 +90,7 @@ class ServerDataUpdateSchedulerTests(unittest.TestCase):
         result = {
             "skipped": False,
             "degraded": False,
+            "promoted": True,
             "due": {"gp": True, "tle": False, "satcat": True, "reconciliation": False},
             "gp": {"changed": True, "skipped": False, "message": "GP updated"},
             "tle": {"changed": False, "skipped": True, "message": "TLE is current"},
@@ -97,6 +98,8 @@ class ServerDataUpdateSchedulerTests(unittest.TestCase):
             "reconciliation": {"changed": False, "skipped": True, "message": "Not due"},
         }
         registered = mock.Mock()
+        plane = mock.Mock()
+        plane.stage_update.return_value = result
         scheduler = server.DataUpdateScheduler(
             interval_hours=30,
             gp_interval_hours=24,
@@ -105,15 +108,17 @@ class ServerDataUpdateSchedulerTests(unittest.TestCase):
             tracked_interval_hours=54,
             reconciliation_interval_hours=72,
             on_updated=registered,
+            data_plane=plane,
             clock=lambda: 1_800_000_000.0,
         )
 
-        with mock.patch.object(server, "maybe_update_satellite_data", return_value=result) as update:
-            state = scheduler.run_once()
+        state = scheduler.run_once()
 
         self.assertEqual(state, "succeeded")
-        update.assert_called_once_with(
-            root=server.ROOT,
+        plane.stage_update.assert_called_once_with(
+            promote=True,
+            cancel_requested=mock.ANY,
+            publication_guard=mock.ANY,
             interval_hours=30,
             gp_interval_hours=24,
             tle_interval_hours=36,
@@ -189,6 +194,7 @@ class ServerDataUpdateSchedulerTests(unittest.TestCase):
         result = {
             "skipped": True,
             "degraded": False,
+            "promoted": False,
             "due": {
                 "gp": False,
                 "tle": False,
@@ -218,10 +224,11 @@ class ServerDataUpdateSchedulerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             metadata = write_dataset_metadata(root, tle_error="TLE source unavailable")
-            scheduler = server.DataUpdateScheduler(clock=lambda: 1_800_000_000.0)
+            plane = mock.Mock()
+            plane.stage_update.return_value = result
+            scheduler = server.DataUpdateScheduler(data_plane=plane, clock=lambda: 1_800_000_000.0)
             with (
                 mock.patch.object(server, "ROOT", root),
-                mock.patch.object(server, "maybe_update_satellite_data", return_value=result),
             ):
                 self.assertEqual(scheduler.run_once(), "skipped")
                 snapshot = server._data_update_status_snapshot()
@@ -257,6 +264,7 @@ class ServerDataUpdateSchedulerTests(unittest.TestCase):
         result = {
             "skipped": False,
             "degraded": True,
+            "promoted": False,
             "gp": {
                 "changed": False,
                 "skipped": True,
@@ -276,10 +284,11 @@ class ServerDataUpdateSchedulerTests(unittest.TestCase):
         }
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            scheduler = server.DataUpdateScheduler(clock=lambda: 1_800_000_000.0)
+            plane = mock.Mock()
+            plane.stage_update.return_value = result
+            scheduler = server.DataUpdateScheduler(data_plane=plane, clock=lambda: 1_800_000_000.0)
             with (
                 mock.patch.object(server, "ROOT", root),
-                mock.patch.object(server, "maybe_update_satellite_data", return_value=result),
             ):
                 self.assertEqual(scheduler.run_once(), "degraded")
                 self.assertIn(live_secret, status_snapshot()["last_result"]["gp"]["errors"][0])
@@ -315,23 +324,22 @@ class ServerDataUpdateSchedulerTests(unittest.TestCase):
         )
 
     def test_failures_use_bounded_exponential_backoff_and_success_resets_it(self):
+        plane = mock.Mock()
         scheduler = server.DataUpdateScheduler(
             initial_delay_seconds=0,
             jitter=lambda lower, _upper: lower,
             clock=lambda: 1_800_000_000.0,
+            data_plane=plane,
         )
-        with mock.patch.object(server, "maybe_update_satellite_data", side_effect=RuntimeError("provider unavailable")):
-            self.assertEqual(scheduler.run_once(), "failed")
-            self.assertEqual(scheduler._failure_delay_seconds(), 240.0)
-            self.assertEqual(scheduler.run_once(), "failed")
-            self.assertEqual(scheduler._failure_delay_seconds(), 480.0)
+        plane.stage_update.side_effect = RuntimeError("provider unavailable")
+        self.assertEqual(scheduler.run_once(), "failed")
+        self.assertEqual(scheduler._failure_delay_seconds(), 240.0)
+        self.assertEqual(scheduler.run_once(), "failed")
+        self.assertEqual(scheduler._failure_delay_seconds(), 480.0)
 
-        with mock.patch.object(
-            server,
-            "maybe_update_satellite_data",
-            return_value={"skipped": True, "degraded": False},
-        ):
-            self.assertEqual(scheduler.run_once(), "skipped")
+        plane.stage_update.side_effect = None
+        plane.stage_update.return_value = {"skipped": True, "degraded": False, "promoted": False}
+        self.assertEqual(scheduler.run_once(), "skipped")
         self.assertEqual(scheduler.consecutive_failures, 0)
         self.assertEqual(status_snapshot()["consecutive_failures"], 0)
 
@@ -339,17 +347,19 @@ class ServerDataUpdateSchedulerTests(unittest.TestCase):
         result = {
             "skipped": False,
             "degraded": True,
+            "promoted": False,
             "gp": {"changed": True, "skipped": False},
             "tle": {"changed": False, "skipped": True, "errors": ["TLE source unavailable"]},
             "satcat": {"changed": False, "skipped": True, "error": "SATCAT source unavailable"},
         }
         registered = mock.Mock()
-        scheduler = server.DataUpdateScheduler(on_updated=registered)
+        plane = mock.Mock()
+        plane.stage_update.return_value = result
+        scheduler = server.DataUpdateScheduler(on_updated=registered, data_plane=plane)
 
-        with mock.patch.object(server, "maybe_update_satellite_data", return_value=result):
-            self.assertEqual(scheduler.run_once(), "degraded")
+        self.assertEqual(scheduler.run_once(), "degraded")
 
-        registered.assert_called_once_with()
+        registered.assert_not_called()
         status = status_snapshot()
         self.assertEqual(status["last_error"], "TLE source unavailable")
         self.assertEqual(
@@ -359,24 +369,90 @@ class ServerDataUpdateSchedulerTests(unittest.TestCase):
         self.assertEqual(status["dataset_status"]["tle"]["state"], "degraded")
         self.assertEqual(status["dataset_status"]["satcat"]["state"], "degraded")
 
-    def test_tle_fallback_change_registers_catalog_but_launch_only_change_does_not(self):
+    def test_every_promoted_candidate_updates_the_runtime_root_callback(self):
         registered = mock.Mock()
-        scheduler = server.DataUpdateScheduler(on_updated=registered)
-        with mock.patch.object(
-            server,
-            "maybe_update_satellite_data",
-            return_value={"skipped": False, "tle": {"changed": True}},
-        ):
-            self.assertEqual(scheduler.run_once(), "succeeded")
+        plane = mock.Mock()
+        scheduler = server.DataUpdateScheduler(on_updated=registered, data_plane=plane)
+        plane.stage_update.return_value = {
+            "skipped": False,
+            "promoted": True,
+            "satcat": {"changed": True},
+            "tracked": {"changed": True},
+        }
+        self.assertEqual(scheduler.run_once(), "succeeded")
         registered.assert_called_once_with()
 
         registered.reset_mock()
-        with mock.patch.object(
-            server,
-            "maybe_update_satellite_data",
-            return_value={"skipped": False, "launches": {"changed": True}},
-        ):
-            self.assertEqual(scheduler.run_once(), "succeeded")
+        plane.stage_update.return_value = {
+            "skipped": False,
+            "promoted": True,
+            "launches": {"changed": True},
+        }
+        self.assertEqual(scheduler.run_once(), "succeeded")
+        registered.assert_called_once_with()
+
+        registered.reset_mock()
+        plane.stage_update.return_value = {
+            "skipped": False,
+            "promoted": False,
+            "gp": {"changed": True},
+        }
+        self.assertEqual(scheduler.run_once(), "succeeded")
+        registered.assert_not_called()
+
+    def test_failed_runtime_registration_retries_on_a_skipped_cycle(self):
+        registered = mock.Mock(side_effect=[RuntimeError("transient registration failure"), None])
+        plane = mock.Mock()
+        plane.stage_update.side_effect = [
+            {
+                "skipped": False,
+                "degraded": False,
+                "promoted": True,
+            },
+            {
+                "skipped": True,
+                "degraded": False,
+                "promoted": False,
+            },
+        ]
+        scheduler = server.DataUpdateScheduler(on_updated=registered, data_plane=plane)
+
+        self.assertEqual(scheduler.run_once(), "degraded")
+        self.assertTrue(scheduler.registration_pending)
+        self.assertEqual(status_snapshot()["last_error"], "transient registration failure")
+
+        self.assertEqual(scheduler.run_once(), "skipped")
+        self.assertFalse(scheduler.registration_pending)
+        self.assertEqual(registered.call_count, 2)
+        self.assertEqual(scheduler.consecutive_failures, 0)
+        self.assertIsNone(status_snapshot()["last_error"])
+
+    def test_external_pointer_promotion_rebinds_runtime_on_a_skipped_cycle(self):
+        promoted_identity = ("candidate", "candidate-new", "sha256:" + ("a" * 64))
+        registered = mock.Mock(return_value=promoted_identity)
+        plane = mock.Mock()
+        plane.pointer.return_value = {
+            "candidate_id": promoted_identity[1],
+            "candidate_revision": promoted_identity[2],
+        }
+        plane.stage_update.return_value = {
+            "skipped": True,
+            "degraded": False,
+            "promoted": False,
+        }
+        scheduler = server.DataUpdateScheduler(
+            on_updated=registered,
+            data_plane=plane,
+            registered_pointer_identity=server.REPOSITORY_DATA_POINTER_IDENTITY,
+        )
+
+        self.assertEqual(scheduler.run_once(), "skipped")
+        registered.assert_called_once_with()
+        self.assertEqual(scheduler.registered_pointer_identity, promoted_identity)
+        self.assertFalse(scheduler.registration_pending)
+
+        registered.reset_mock()
+        self.assertEqual(scheduler.run_once(), "skipped")
         registered.assert_not_called()
 
     def test_success_polling_uses_due_hint_and_never_exceeds_one_hour(self):
@@ -396,10 +472,13 @@ class ServerDataUpdateSchedulerTests(unittest.TestCase):
             cycle_finished.set()
             return {"skipped": True, "degraded": False}
 
-        scheduler = server.DataUpdateScheduler(initial_delay_seconds=0)
-        with mock.patch.object(server, "maybe_update_satellite_data", side_effect=update):
+        plane = mock.Mock()
+        plane.stage_update.side_effect = update
+        scheduler = server.DataUpdateScheduler(initial_delay_seconds=0, data_plane=plane)
+        try:
             scheduler.start()
             self.assertTrue(cycle_finished.wait(timeout=2), "initial catch-up cycle ran in the background")
+        finally:
             scheduler.stop(timeout_seconds=2)
 
         self.assertFalse(scheduler.thread.is_alive())
