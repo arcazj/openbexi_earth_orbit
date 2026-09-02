@@ -36,8 +36,8 @@
     "version:sync": "node scripts/sync-version.mjs"
   },
   "dependencies": {
-    "satellite.js": "6.0.2",
-    "three": "0.184.0"
+    "satellite.js": "7.1.0",
+    "three": "0.185.1"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.12.1",
