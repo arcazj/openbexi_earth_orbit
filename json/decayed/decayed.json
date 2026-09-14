@@ -13605,6 +13605,17 @@
       "DECAY_DATE": "2022-05-18"
     }
   ],
+  "COSMOS 2558": [
+    {
+      "OBJECT_NAME": "COSMOS 2558",
+      "OBJECT_ID": "2022-089A",
+      "NORAD_CAT_ID": "53323",
+      "OBJECT_TYPE": "PAY",
+      "LAUNCH_DATE": "2022-08-01",
+      "LAUNCH_SITE": "PLMSC",
+      "DECAY_DATE": "2026-09-12"
+    }
+  ],
   "COSMOS 2560": [
     {
       "OBJECT_NAME": "COSMOS 2560",
@@ -41609,6 +41620,15 @@
     },
     {
       "OBJECT_NAME": "OBJECT B",
+      "OBJECT_ID": "2022-019B",
+      "NORAD_CAT_ID": "51825",
+      "OBJECT_TYPE": "PAY",
+      "LAUNCH_DATE": "2022-02-27",
+      "LAUNCH_SITE": "WSC",
+      "DECAY_DATE": "2026-09-12"
+    },
+    {
+      "OBJECT_NAME": "OBJECT B",
       "OBJECT_ID": "2022-095B",
       "NORAD_CAT_ID": "53368",
       "OBJECT_TYPE": "PAY",
@@ -68376,6 +68396,17 @@
       "DECAY_DATE": "2025-02-01"
     }
   ],
+  "STARLINK-2291": [
+    {
+      "OBJECT_NAME": "STARLINK-2291",
+      "OBJECT_ID": "2021-021C",
+      "NORAD_CAT_ID": "47862",
+      "OBJECT_TYPE": "PAY",
+      "LAUNCH_DATE": "2021-03-14",
+      "LAUNCH_SITE": "AFETR",
+      "DECAY_DATE": "2026-09-13"
+    }
+  ],
   "STARLINK-2293": [
     {
       "OBJECT_NAME": "STARLINK-2293",
@@ -74534,6 +74565,17 @@
       "LAUNCH_DATE": "2022-08-12",
       "LAUNCH_SITE": "AFWTR",
       "DECAY_DATE": "2026-09-02"
+    }
+  ],
+  "STARLINK-4456": [
+    {
+      "OBJECT_NAME": "STARLINK-4456",
+      "OBJECT_ID": "2022-105AB",
+      "NORAD_CAT_ID": "53673",
+      "OBJECT_TYPE": "PAY",
+      "LAUNCH_DATE": "2022-08-31",
+      "LAUNCH_SITE": "AFWTR",
+      "DECAY_DATE": "2026-09-13"
     }
   ],
   "STARLINK-4461": [
