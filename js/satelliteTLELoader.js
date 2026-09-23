@@ -1089,7 +1089,17 @@ export function refreshSelectedOrbitOcclusion(camera, options = {}) {
     visibleSegments.forEach((segment, index) => {
         const existing = orbitLine.children[index];
         if (existing) {
-            existing.geometry.setFromPoints(segment);
+            // setFromPoints updates an existing buffer but cannot enlarge it.
+            // Camera motion can reveal more of the orbit than the previous arc.
+            if (existing.geometry.getAttribute('position').count < segment.length) {
+                const previousGeometry = existing.geometry;
+                existing.geometry = new THREE.BufferGeometry().setFromPoints(segment);
+                previousGeometry.dispose();
+            } else {
+                existing.geometry.setFromPoints(segment);
+            }
+            // Shorter arcs must not draw leftover vertices from the previous view.
+            existing.geometry.setDrawRange(0, segment.length);
             existing.geometry.computeBoundingSphere();
         } else {
             orbitLine.add(createOrbitLineSegment(segment, material));

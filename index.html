@@ -72,7 +72,7 @@
         updateMercatorMap
     } from './js/mercatorMapLoader.js';
 
-    import { drawDayNight3D, sunSceneVectorFromJD } from './js/drawDayNight.js';
+    import { createEarthDayNightMaterial, drawDayNight3D, sunSceneVectorFromJD } from './js/drawDayNight.js';
 
     import {
         satelliteConfig,
@@ -3701,6 +3701,7 @@
             (texture) => {
                 // Reasonable defaults for globe (keep mipmaps for quality)
                 texture.anisotropy = renderer.capabilities.getMaxAnisotropy?.() || 1;
+                texture.colorSpace = THREE.SRGBColorSpace;
                 earthMesh.material.map = texture;
                 earthMesh.material.color.set(0xffffff);
                 earthMesh.material.needsUpdate = true;
@@ -4354,7 +4355,7 @@
 
         /* Earth */
         textureLoader = new THREE.TextureLoader();
-        const earthMat = new THREE.MeshPhongMaterial({ color: 0xffffff });
+        const earthMat = createEarthDayNightMaterial();
         earthMat.depthTest = true;
         earthMat.depthWrite = true;
         earthMat.transparent = false;
@@ -6426,6 +6427,7 @@
         });
 
         drawDayNight3D(scene, earthMesh, SIM_DATE, {
+            showDayNight: simParams.showDayNight,
             showSun:  simParams.showDayNight && simParams.view3D && !simParams.solarSystemOverview,
             showHalo: simParams.showDayNight && simParams.view3D && !simParams.solarSystemOverview,
             earthRadius: EARTH_SCENE_RADIUS,

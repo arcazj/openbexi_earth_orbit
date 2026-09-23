@@ -2,7 +2,7 @@
 
 OpenBEXI Earth Orbit is an interactive browser application for exploring Earth-orbiting objects, launch and re-entry events, propagated trajectories, and experimental conjunction-screening results. It uses CelesTrak GP/OMM for propagated positions, a SATCAT-derived tracked-object inventory for searchable metadata coverage, and a reduced-coverage TLE compatibility path.
 
-> **Status:** Version `2.3.2` is a development build, not a release candidate or release. Its scientific maturity is **Experimental** and its safety class is **non-operational**. Do not use it for navigation, mission planning, collision avoidance, or safety decisions; collision probability is unavailable.
+> **Status:** Version `2.3.3` is a development build, not a release candidate or release. Its scientific maturity is **Experimental** and its safety class is **non-operational**. Do not use it for navigation, mission planning, collision avoidance, or safety decisions; collision probability is unavailable.
 
 ## Live Demo
 
@@ -387,7 +387,7 @@ This index covers all 46 project-authored Markdown files in the source tree. His
 <details>
 <summary><strong>Release and rollback (11)</strong></summary>
 
-- [Release Notes](RELEASE_NOTES.md) - Current Version 2.3.2 development changes and concise summaries of earlier versions.
+- [Release Notes](RELEASE_NOTES.md) - Current Version 2.3.3 development changes and concise summaries of earlier versions.
 - [v2.0 Release Checklist](docs/engineering/RELEASE_CHECKLIST.md) - Version-specific v2.0 promotion evidence, open security/deployment gates, and rollout requirements.
 - [v2.1 Release Checklist](docs/engineering/RELEASE_CHECKLIST_V2_1.md) - Version-specific v2.1 implementation evidence and remaining validation, data, security, and operations gates.
 - [v2.2 Release Checklist](docs/engineering/RELEASE_CHECKLIST_V2_2.md) - Historical Version 2.2 scope, automated evidence, controlled-data checks, rollback readiness, and candidate decision.

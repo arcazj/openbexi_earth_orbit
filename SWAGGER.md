@@ -85,7 +85,7 @@ Example response:
 {
   "status": "ok",
   "app": "openbexi_earth_orbit",
-  "version": "2.3.2",
+  "version": "2.3.3",
   "release_date": null,
   "candidate_date": null,
   "publication_state": "development"
@@ -103,7 +103,7 @@ Example response:
 
 ```json
 {
-  "app_version": "2.3.2",
+  "app_version": "2.3.3",
   "api_version": "1.0.0",
   "release_date": null,
   "candidate_date": null,
@@ -112,7 +112,7 @@ Example response:
   "maturity": "experimental",
   "safety_class": "non-operational",
   "repository": "https://github.com/arcazj/openbexi_earth_orbit",
-  "server": "OpenBEXIHTTP/2.3.2"
+  "server": "OpenBEXIHTTP/2.3.3"
 }
 ```
 

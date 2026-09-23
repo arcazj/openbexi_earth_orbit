@@ -11,6 +11,7 @@ import {
   nearestPointDistanceToOrbitSegments,
   isScenePointOccludedByEarth,
   refreshOrbitTrajectoryIfNeeded,
+  refreshSelectedOrbitOcclusion,
   splitOrbitSegmentsByEarthOcclusion,
   updateOrbitTrajectory
 } from '../js/satelliteTLELoader.js';
@@ -142,6 +143,40 @@ function run() {
     realTimeMs: 0
   });
   const firstMaterial = firstOrbit.userData.material;
+  const assertRenderedOrbitMatches = (cameraPosition, message) => {
+    const segments = refreshSelectedOrbitOcclusion({ position: cameraPosition });
+    assert.strictEqual(firstOrbit.children.length, segments.length, `${message}: all visible arcs exist`);
+    segments.forEach((segment, index) => {
+      const geometry = firstOrbit.children[index].geometry;
+      const position = geometry.getAttribute('position');
+      const drawnCount = Math.min(position.count, geometry.drawRange.count);
+      assert.strictEqual(drawnCount, segment.length, `${message}: no missing or stale vertices`);
+      segment.forEach((point, pointIndex) => {
+        closeTo(position.getX(pointIndex), point.x, 1e-6, `${message}: rendered X`);
+        closeTo(position.getY(pointIndex), point.y, 1e-6, `${message}: rendered Y`);
+        closeTo(position.getZ(pointIndex), point.z, 1e-6, `${message}: rendered Z`);
+      });
+      assert.strictEqual(firstOrbit.children[index].material, firstMaterial, 'camera changes reuse the orbit material');
+    });
+    return segments;
+  };
+  assertRenderedOrbitMatches(new THREE.Vector3(0, 0, 20), 'partly hidden orbit');
+  const initialLine = firstOrbit.children[0];
+  const shortGeometry = initialLine.geometry;
+  let shortGeometryDisposed = false;
+  shortGeometry.addEventListener('dispose', () => { shortGeometryDisposed = true; });
+  const fullSegments = assertRenderedOrbitMatches(new THREE.Vector3(0, 20, 0), 'fully revealed orbit');
+  assert.strictEqual(fullSegments.length, 1, 'looking down on this orbit reveals one complete ring');
+  assert.strictEqual(fullSegments[0].length, 97, 'all one-period samples are rendered after revealing the orbit');
+  assert.strictEqual(firstOrbit.children[0], initialLine, 'buffer growth preserves the line object');
+  assert(shortGeometryDisposed, 'replaced GPU geometry is disposed');
+  const fullGeometry = initialLine.geometry;
+  assertRenderedOrbitMatches(new THREE.Vector3(20, 0, 0), 'shorter visible arc');
+  assert.strictEqual(initialLine.geometry, fullGeometry, 'shorter arcs reuse capacity with a limited draw range');
+  assertRenderedOrbitMatches(new THREE.Vector3(0, 20, 0), 'full orbit after shrinking');
+  assert.strictEqual(initialLine.geometry, fullGeometry, 'revealing the orbit reuses sufficient capacity');
+  assertRenderedOrbitMatches(new THREE.Vector3(0, 0, -20), 'orbit split from opposite side');
+  assertRenderedOrbitMatches(new THREE.Vector3(0, 20, 0), 'full orbit after another split');
   const unchangedOrbit = refreshOrbitTrajectoryIfNeeded(scene, {
     showOrbit: true,
     simDate: new Date(startDate.getTime() + 30_000)
@@ -179,6 +214,7 @@ function run() {
   assert.strictEqual(runningOrbit, refreshedOrbit, 'running Time x preserves the selected orbit root');
   assert.strictEqual(runningOrbit.userData.material, firstMaterial, 'running Time x preserves the selected orbit material');
   assert.strictEqual(runningOrbit.userData.startTimeMs, startDate.getTime() + 10 * 60_000, 'running Time x advances the one-revolution orbit path');
+  assertRenderedOrbitMatches(new THREE.Vector3(0, 20, 0), 'full orbit after simulation time changes');
   assert.strictEqual(
     scene.children.filter(child => child.name === 'selectedOrbitTrajectoryRoot').length,
     1,

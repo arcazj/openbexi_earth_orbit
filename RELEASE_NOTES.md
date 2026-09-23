@@ -1,5 +1,13 @@
 # Release Notes
 
+## Version 2.3.3 Day/Night and Orbit Rendering Fixes (2026-09-23)
+
+Version 2.3.3 corrects the 2D night region across seasons and equinoxes, adds a smooth twilight transition, and fixes Earth texture color handling. The globe uses dedicated solar shading so satellite fill lights do not wash out its night side, and the Day/Night toggle now controls globe shading.
+
+Selected orbit lines now grow their geometry buffers when camera movement reveals longer arcs and limit the draw range when arcs shrink. This prevents missing arcs and stale line segments while preserving Earth occlusion and reusing orbit objects and materials.
+
+Regression coverage includes seasonal and resized 2D maps, globe shading and toggle behavior, and rendered orbit continuity through camera and simulation-time changes. Version 2.3.3 retains the development channel, Experimental maturity, and non-operational status. Historical release evidence remains specific to its original version; the existing catalog-data and Windows rollback-permission failures are not claimed as resolved by this rendering update.
+
 ## Version 2.3.2 Catalog Workflow and Publication Hardening Development (2026-09-01)
 
 Version 2.3.2 makes the tracked-object catalog easier to understand and navigate without changing the scientific boundary introduced in Version 2.3. Metadata-only records remain searchable and inspectable but never receive synthetic positions, markers, trajectories, footprints, models, or screening state. A persistent coverage HUD now keeps matched, positioned, and position-unavailable counts beside the visualization, including current/history scope, snapshot state, and the available generation timestamp. The virtualized tracked-object results drawer provides `All matches`, `On map`, and `Position unavailable` views, sortable metadata columns, keyboard listbox navigation, narrow-viewport reflow, and selection through the existing object-detail path.

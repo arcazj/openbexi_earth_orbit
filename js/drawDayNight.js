@@ -6,7 +6,7 @@
 
 import * as THREE from 'three';
 import { eciToSceneVector, gmstFromJulianDay } from './sceneFrame.js';
-import { mercatorPixelFromLonLat, radToDeg } from './orbit/orbitLinkGeometry.js';
+import { lonLatFromMercatorPixel } from './orbit/orbitLinkGeometry.js';
 
 /* ≡≡ Sun position in ECI frame from Date (unit vector) ≡≡ */
 function sunEciUnit(date) {
@@ -28,43 +28,97 @@ function eciToEcf(vecEci, gmst) {
 
 /* ------------------------------------------------------------------ */
 export function terminatorLatitudeRad(lonRad, subLonRad, subLatRad) {
-    return Math.atan2(-Math.cos(lonRad - subLonRad), Math.tan(subLatRad));
+    let lat = Math.atan2(-Math.cos(lonRad - subLonRad), Math.tan(subLatRad));
+    // atan2 can select the opposite hemisphere when solar declination is negative.
+    if (lat > Math.PI / 2) lat -= Math.PI;
+    if (lat < -Math.PI / 2) lat += Math.PI;
+    return lat;
+}
+
+const TWILIGHT_START = Math.sin(-6 * Math.PI / 180);
+const TWILIGHT_END = Math.sin(2 * Math.PI / 180);
+const mercatorNightCache = new WeakMap();
+
+export function daylightFactor(solarDot) {
+    const t = Math.max(0, Math.min(1, (solarDot - TWILIGHT_START) / (TWILIGHT_END - TWILIGHT_START)));
+    return t * t * (3 - 2 * t);
 }
 
 export function drawDayNightMercator(ctx, width, height, date) {
-    const jd = window.satellite.jday(
-        date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate(),
-        date.getUTCHours(), date.getUTCMinutes(), date.getUTCSeconds()
-    );
-    const gmst = window.satellite.gstime(jd);
-    const sunEcf = eciToEcf(sunEciUnit(date), gmst);
-    const subLat = Math.asin(sunEcf.z);
-    const subLon = Math.atan2(sunEcf.y, sunEcf.x);
-
+    if (!(width > 0 && height > 0)) return;
+    const time = date.valueOf();
+    const jd = time / 86400000 + 2440587.5;
+    let cached = mercatorNightCache.get(ctx);
+    if (!cached || cached.width !== width || cached.height !== height) {
+        const canvas = document.createElement('canvas');
+        const scale = Math.min(1, 1024 / width, 1024 / height);
+        canvas.width = Math.max(1, Math.round(width * scale));
+        canvas.height = Math.max(1, Math.round(height * scale));
+        const context = canvas.getContext('2d');
+        cached = { canvas, context, width, height, time: NaN,
+            pixels: context.createImageData(canvas.width, canvas.height) };
+        mercatorNightCache.set(ctx, cached);
+    }
+    if (!Number.isFinite(cached.time) || Math.abs(time - cached.time) >= 30_000) {
+        const sun = eciToEcf(sunEciUnit(date), gmstFromJD(jd));
+        const { canvas, pixels } = cached;
+        const longitudeDots = new Float64Array(canvas.width);
+        for (let x = 0; x < canvas.width; x++) {
+            const lon = ((x + 0.5) / canvas.width) * 2 * Math.PI - Math.PI;
+            longitudeDots[x] = Math.cos(lon) * sun.x + Math.sin(lon) * sun.y;
+        }
+        for (let y = 0; y < canvas.height; y++) {
+            const { latDeg } = lonLatFromMercatorPixel(0, (y + 0.5) * height / canvas.height, width, height);
+            const lat = latDeg * Math.PI / 180;
+            const cosLat = Math.cos(lat);
+            const polarDot = Math.sin(lat) * sun.z;
+            for (let x = 0; x < canvas.width; x++) {
+                const offset = (y * canvas.width + x) * 4;
+                pixels.data[offset] = 5;
+                pixels.data[offset + 1] = 12;
+                pixels.data[offset + 2] = 28;
+                pixels.data[offset + 3] = Math.round(255 * 0.58 *
+                    (1 - daylightFactor(cosLat * longitudeDots[x] + polarDot)));
+            }
+        }
+        cached.context.putImageData(pixels, 0, 0);
+        cached.time = time;
+    }
+    // Sampling the surface/Sun dot product handles equinoxes, poles and map seams
+    // without closing a terminator polygon through the wrong hemisphere.
     ctx.save();
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.beginPath();
-
-    const pts = [];
-    for (let x = 0; x <= width; ++x) {
-        const lon = (x / width) * 2 * Math.PI - Math.PI;
-        const lat = terminatorLatitudeRad(lon, subLon, subLat);
-        const latDeg = Number.isFinite(lat) ? radToDeg(lat) : 0;
-        const mercatorPoint = mercatorPixelFromLonLat(radToDeg(lon), latDeg, width, height);
-        pts.push({x, y: mercatorPoint.y});
-    }
-    ctx.moveTo(pts[0].x, pts[0].y);
-    pts.forEach(p => ctx.lineTo(p.x, p.y));
-    if (subLat > 0) {
-        ctx.lineTo(width, height);
-        ctx.lineTo(0, height);
-    } else {
-        ctx.lineTo(width, 0);
-        ctx.lineTo(0, 0);
-    }
-    ctx.closePath();
-    ctx.fill();
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(cached.canvas, 0, 0, width, height);
     ctx.restore();
+}
+
+// Earth has its own solar shading so satellite fill lights and exposure changes
+// cannot wash out its night side or introduce a second highlight.
+export function createEarthDayNightMaterial() {
+    const material = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
+    const uniforms = {
+        earthSunDirection: { value: new THREE.Vector3(1, 0, 0) },
+        earthDayNightEnabled: { value: 1 }
+    };
+    material.userData.dayNightUniforms = uniforms;
+    material.onBeforeCompile = shader => {
+        Object.assign(shader.uniforms, uniforms);
+        shader.vertexShader = `varying vec3 vEarthNormal;\n${shader.vertexShader}`
+            .replace('#include <begin_vertex>', `#include <begin_vertex>
+                vEarthNormal = normalize(mat3(modelMatrix) * normal);`);
+        shader.fragmentShader = `varying vec3 vEarthNormal;
+            uniform vec3 earthSunDirection;
+            uniform float earthDayNightEnabled;\n${shader.fragmentShader}`
+            .replace('#include <opaque_fragment>', `
+                float solarDot = dot(normalize(vEarthNormal), earthSunDirection);
+                float daylight = smoothstep(${TWILIGHT_START}, ${TWILIGHT_END}, solarDot);
+                float dayBrightness = 0.72 + 0.28 * sqrt(max(0.0, solarDot));
+                float illumination = mix(0.08, dayBrightness, daylight);
+                outgoingLight *= mix(1.0, illumination, earthDayNightEnabled);
+                #include <opaque_fragment>`);
+    };
+    material.customProgramCacheKey = () => 'earth-day-night-v1';
+    return material;
 }
 
 /* ── Cached 3-D objects ── */
@@ -94,7 +148,7 @@ function makeHaloTexture() {
 
 /**
  * Update day/night in 3-D:
- *  - positions a DirectionalLight based on Sun ECF direction
+ *  - positions a DirectionalLight based on Sun inertial scene direction
  *  - renders a visible Sun and a soft halo at the correct location
  *
  * @param {THREE.Scene} scene
@@ -103,6 +157,7 @@ function makeHaloTexture() {
  * @param {Object} options
  * @param {boolean} [options.showSun=true]       render a visible Sun mesh
  * @param {boolean} [options.showHalo=true]      render a glow halo sprite
+ * @param {boolean} [options.showDayNight=true]  shade the Earth night side
  * @param {number}  [options.earthRadius=10]     scene Earth radius (units)
  * @param {number}  [options.sunDistance]        distance of Sun (defaults to 60×earthRadius)
  * @param {number}  [options.haloSize]           halo sprite size (defaults to 2.5×earthRadius)
@@ -114,6 +169,7 @@ export function drawDayNight3D(scene, earthMesh, date = new Date(), options = {}
     const {
         showSun = true,
         showHalo = true,
+        showDayNight = true,
         earthRadius = 10,
         sunDistance = 60 * earthRadius,
         haloSize = 2.5 * earthRadius,
@@ -155,9 +211,14 @@ export function drawDayNight3D(scene, earthMesh, date = new Date(), options = {}
     }
     sunHalo.visible = !!showHalo;
 
-    // Time → Sun ECF direction
+    // Time → Sun inertial scene direction (Earth itself rotates by -GMST).
     const jd = date.valueOf() / 86400000 + 2440587.5;
     const sunScenePosition = sunSceneVectorFromJD(jd, sunDistance);
+    const earthUniforms = earthMesh.material?.userData?.dayNightUniforms;
+    if (earthUniforms) {
+        earthUniforms.earthSunDirection.value.copy(sunScenePosition).normalize();
+        earthUniforms.earthDayNightEnabled.value = showDayNight ? 1 : 0;
+    }
 
     // Scene axes use X-Z-Y: (x, z, y)
 
