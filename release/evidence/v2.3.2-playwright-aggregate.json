@@ -1,0 +1,153 @@
+{
+  "schema_version": "1.0.0",
+  "release_version": "2.3.2",
+  "evidence_type": "playwright-aggregate",
+  "source_report": {
+    "path": "playwright-report/index.html",
+    "bytes": 677198,
+    "sha256": "sha256:893b507b3c29b511f190655643539e66b20c84dcb715723790ac1cdfe6394170",
+    "embedded_archive_bytes": 114278,
+    "embedded_report_json_bytes": 26674
+  },
+  "timing": {
+    "started_at": "2026-09-02T06:05:05.616Z",
+    "started_at_epoch_ms": 1788329105616,
+    "duration_ms": 595996.319,
+    "duration_seconds": 595.996319,
+    "duration_minutes": 9.933271983333334,
+    "duration_clock": "00:09:55.996319"
+  },
+  "summary": {
+    "total": 49,
+    "expected": 29,
+    "skipped": 20,
+    "unexpected": 0,
+    "flaky": 0,
+    "errors": 0,
+    "ok": true,
+    "project_count": 2,
+    "file_count": 6,
+    "attempts": {
+      "total": 49,
+      "minimum_per_declaration": 1,
+      "maximum_per_declaration": 1,
+      "every_declaration_exactly_one": true
+    },
+    "skip_without_reason": 0
+  },
+  "projects": [
+    {
+      "name": "chromium",
+      "total": 27,
+      "passed": 25,
+      "skipped": 2,
+      "files": [
+        {
+          "name": "conjunction.spec.js",
+          "total": 5,
+          "passed": 4,
+          "skipped": 1
+        },
+        {
+          "name": "satelliteFilters.spec.js",
+          "total": 15,
+          "passed": 14,
+          "skipped": 1
+        },
+        {
+          "name": "smoke.spec.js",
+          "total": 2,
+          "passed": 2,
+          "skipped": 0
+        },
+        {
+          "name": "staticDeployment.spec.js",
+          "total": 2,
+          "passed": 2,
+          "skipped": 0
+        },
+        {
+          "name": "timelines.spec.js",
+          "total": 2,
+          "passed": 2,
+          "skipped": 0
+        },
+        {
+          "name": "timeSimulation.spec.js",
+          "total": 1,
+          "passed": 1,
+          "skipped": 0
+        }
+      ]
+    },
+    {
+      "name": "mobile-chromium",
+      "total": 22,
+      "passed": 4,
+      "skipped": 18,
+      "files": [
+        {
+          "name": "conjunction.spec.js",
+          "total": 5,
+          "passed": 1,
+          "skipped": 4
+        },
+        {
+          "name": "satelliteFilters.spec.js",
+          "total": 15,
+          "passed": 2,
+          "skipped": 13
+        },
+        {
+          "name": "timelines.spec.js",
+          "total": 2,
+          "passed": 1,
+          "skipped": 1
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "name": "conjunction.spec.js",
+      "total": 10,
+      "passed": 5,
+      "skipped": 5
+    },
+    {
+      "name": "satelliteFilters.spec.js",
+      "total": 30,
+      "passed": 16,
+      "skipped": 14
+    },
+    {
+      "name": "smoke.spec.js",
+      "total": 2,
+      "passed": 2,
+      "skipped": 0
+    },
+    {
+      "name": "staticDeployment.spec.js",
+      "total": 2,
+      "passed": 2,
+      "skipped": 0
+    },
+    {
+      "name": "timelines.spec.js",
+      "total": 4,
+      "passed": 3,
+      "skipped": 1
+    },
+    {
+      "name": "timeSimulation.spec.js",
+      "total": 1,
+      "passed": 1,
+      "skipped": 0
+    }
+  ],
+  "derivation": {
+    "source": "report.json from the single embedded Playwright report archive",
+    "passed_definition": "outcome is expected and ok is true",
+    "skip_reason_definition": "a skipped declaration has a skip annotation with a nonempty description"
+  }
+}

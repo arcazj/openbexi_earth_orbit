@@ -13,6 +13,17 @@ const GP_METADATA = {
   counts: { rejected: 0, total: 2, fetched: 2 }
 };
 
+const EMPTY_TRACKED_MANIFEST = {
+  schema_version: '2.3.0',
+  catalog_revision: 'sha256:time-simulation-tracked-empty',
+  generated_at: '2026-08-23T00:00:00Z',
+  default_membership: 'CURRENT',
+  counts: { total: 0, current: 0, historical: 0, history_total: 0, quarantined: 0 },
+  chunks: [],
+  history_chunks: [],
+  quarantine: { count: 0 }
+};
+
 function ommRecord(noradId, name, meanAnomaly) {
   return {
     satellite_name: name,
@@ -100,6 +111,20 @@ async function bootTimeFixture(page, requestCounts) {
     last_status: 'ok',
     counts: { records: 0 }
   });
+  for (const pattern of [
+    '**/json/tracked/TRACKED.manifest.json',
+    '**/api/tracked-objects/manifest',
+    '**/api/tracked-objects'
+  ]) {
+    await page.route(pattern, route => {
+      requestCounts.trackedManifest += 1;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(EMPTY_TRACKED_MANIFEST)
+      });
+    });
+  }
 
   await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => (
@@ -108,6 +133,9 @@ async function bootTimeFixture(page, requestCounts) {
       .some(entry => entry.name === 'first-interactive-ui') &&
     typeof window.openbexiSimulation?.snapshot === 'function'
   ));
+  await expect.poll(() => requestCounts.trackedManifest).toBeGreaterThan(0);
+  await expect.poll(() => page.locator('#trackedCatalogStatus').getAttribute('data-state'))
+    .not.toBe('loading');
 }
 
 function vectorDistance(a, b) {
@@ -116,7 +144,7 @@ function vectorDistance(a, b) {
 
 test('Time x keeps selected satellite fluid and drives bounded Solar System ephemeris motion', async ({ page }, testInfo) => {
   test.setTimeout(120_000);
-  const requestCounts = { gp: 0 };
+  const requestCounts = { gp: 0, trackedManifest: 0 };
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
   await bootTimeFixture(page, requestCounts);

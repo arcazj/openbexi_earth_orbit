@@ -19,6 +19,8 @@ function run() {
   const marsFrameLoader = fs.readFileSync('js/MarsFrameLoader.js', 'utf8');
   const mercatorMapLoader = fs.readFileSync('js/mercatorMapLoader.js', 'utf8');
   const satelliteCategoryFilter = fs.readFileSync('js/satelliteCategoryFilter.js', 'utf8');
+  const trackedObjectCatalog = fs.readFileSync('js/trackedObjectCatalog.js', 'utf8');
+  const trackedResultsController = fs.readFileSync('js/trackedResultsController.js', 'utf8');
   const release = JSON.parse(fs.readFileSync('release/version.json', 'utf8'));
 
   assert(!html.includes('role="tablist"'), 'main menu no longer exposes a tablist');
@@ -148,15 +150,15 @@ function run() {
   assert(html.includes('id="satelliteSearchInput"'), 'satellite search input is present');
   assert(!html.includes('Select Satellite:'), 'old Select Satellite visible label is removed');
   assert(!html.includes('Search by name, NORAD ID, orbit type, or tag.'), 'old satellite selection helper text is removed');
-  assert(html.includes('aria-label="Search satellite by name, NORAD ID, orbit type, or tag"'), 'satellite search keeps an accessible name after visible label removal');
+  assert(html.includes('aria-label="Search tracked object by name, full NORAD ID, orbit class, object type, or tag"'), 'tracked-object search keeps an accessible name after visible label removal');
   assert(html.includes('role="combobox"'), 'satellite search uses combobox semantics');
   assert(html.includes('aria-expanded="false"'), 'satellite search exposes collapsed aria-expanded state');
   assert(html.includes('aria-controls="satelliteSearchResults"'), 'satellite search controls the result list');
   assert(html.includes('id="satelliteSearchResults"'), 'satellite search results list is present');
   assert(html.includes('role="listbox"'), 'satellite search results use listbox semantics');
   assert(html.includes('id="satelliteSearchClear"'), 'satellite search clear action is present');
-  assert(html.includes('Satellites Selection - Found'), 'Satellite Selection heading includes found-count text');
-  assert(html.includes('id="satelliteCountDisplay" class="satellite-found-count" aria-live="polite" aria-label="0 satellites match active filters out of 0 total satellites">0 / 0'), 'found count starts with explicit filtered and total semantics');
+  assert(html.includes('Tracked Objects - Matches'), 'tracked-object heading uses inclusive catalog terminology');
+  assert(html.includes('id="satelliteCountDisplay" class="satellite-found-count" aria-live="polite" aria-label="0 tracked objects match active filters out of 0 total tracked objects">0 / 0'), 'found count starts with explicit filtered and total semantics');
   assert(html.includes('id="resetFiltersButton"'), 'reset filters action is present');
   assert(!html.includes('id="debrisFilter"'), 'old standalone debris filter group is removed');
   assert(!html.includes('data-debris-filter'), 'old debris filter buttons are removed');
@@ -177,23 +179,52 @@ function run() {
   const orbitMeoButton = indexOfOrFail(html, 'data-orbit-filter="MEO"', 'MEO orbit filter exists');
   const orbitLeoButton = indexOfOrFail(html, 'data-orbit-filter="LEO"', 'LEO orbit filter exists');
   const orbitHroButton = indexOfOrFail(html, '>HRO</button>', 'HRO orbit label exists');
-  const orbitDebrisButton = indexOfOrFail(html, 'data-orbit-filter="DEBRIS"', 'Debris orbit/category filter exists');
   const orbitOthersButton = indexOfOrFail(html, '>Others</button>', 'Others orbit label exists');
   assert(
     orbitAllButton < orbitGeoButton && orbitGeoButton < orbitMeoButton && orbitMeoButton < orbitLeoButton &&
-      orbitLeoButton < orbitHroButton && orbitHroButton < orbitDebrisButton && orbitDebrisButton < orbitOthersButton,
-    'orbit/category row order is ALL, GEO, MEO, LEO, HRO, Debris, Others'
+      orbitLeoButton < orbitHroButton && orbitHroButton < orbitOthersButton,
+    'orbit row order is ALL, GEO, MEO, LEO, HRO, Others'
   );
-  assert(indexHtml.includes('toggleSatelliteCategorySelection(simParams.orbitTypeFilter, changedValue)'), 'all category buttons use one union-selection transition');
-  assert(indexHtml.includes('satelliteMatchesCategorySelection(satDataOrOrbitType, selection)'), 'index delegates category matching to one classifier');
+  const objectTypeFilter = indexOfOrFail(html, 'id="objectTypeFilter"', 'independent object-type filter exists');
+  const payloadType = indexOfOrFail(html, 'data-object-type-filter="PAYLOAD"', 'Payload type exists');
+  const debrisType = indexOfOrFail(html, 'data-object-type-filter="DEBRIS"', 'Debris type exists');
+  const rocketBodyType = indexOfOrFail(html, 'data-object-type-filter="ROCKET_BODY"', 'Rocket Body type exists');
+  assert(objectTypeFilter < payloadType && payloadType < debrisType && debrisType < rocketBodyType);
+  assert(html.includes('id="includeHistoricalTrackedObjects"'), 'decayed and absent history is opt-in');
+  assert(html.includes('id="trackedDebrisFacets"') && html.includes('Debris filters'), 'ALL + Debris has a dedicated contextual facet panel');
+  assert(html.includes('Radar cross-section (m2)'), 'RCS is labeled as radar cross-section rather than physical size or mass');
+  assert(html.includes('Operational status code'), 'the status facet names its authoritative source vocabulary');
+  assert(!html.includes('Mass filter') && !html.includes('Weight filter'), 'the UI does not invent unavailable mass or weight data');
+  for (const facetId of ['trackedPositionFacet', 'trackedRcsFacet', 'trackedOwnerFacet', 'trackedLaunchSiteFacet', 'trackedStatusFacet', 'trackedLaunchYearFrom', 'trackedLaunchYearTo', 'trackedDesignatorFacet']) {
+    assert(html.includes(`id="${facetId}"`), `${facetId} is present`);
+  }
+  assert(html.includes('aria-label="Tracked-object color key"'), 'the object-type color key has an accessible name');
+  assert(html.includes('Shapes are additional cues on the detailed map.'), 'legend semantics distinguish detailed-map shapes from color-only rendering');
+  assert(css.includes('.tracked-marker-debris') && css.includes('rotate(45deg)'), 'the debris legend cue is a diamond');
+  assert(css.includes('.tracked-marker-mission') && css.includes('clip-path: polygon'), 'the mission legend cue is a triangle');
+  assert(css.includes('.tracked-marker-unknown::before') && css.includes('.tracked-marker-unknown::after'), 'the unknown legend cue is a cross');
+  assert(indexHtml.includes('toggleTrackedOrbitSelection(simParams.orbitTypeFilter, changedValue)'), 'orbit buttons use the independent orbit union transition');
+  assert(indexHtml.includes('toggleTrackedObjectTypeSelection(simParams.objectTypeFilter'), 'object-type buttons use the independent type union transition');
+  assert(indexHtml.includes('trackedObjectMatchesFilters(s, {'), 'index delegates intersecting filter dimensions to one classifier');
   assert(!indexHtml.includes('debrisMatchesSelection'), 'obsolete debris-only matcher is removed');
   assert(!indexHtml.includes('debrisFilter:'), 'obsolete debris-only runtime state is removed');
-  assert(satelliteCategoryFilter.includes('SATELLITE_CATEGORY_OPTIONS'), 'category module defines the complete category set');
-  assert(satelliteCategoryFilter.includes('if (isDebrisSatellite(recordOrOrbitType))'), 'Debris classification takes precedence over orbit class');
-  assert(satelliteCategoryFilter.includes("SATELLITE_CATEGORY.OTHER"), 'unknown orbit values map to Other');
-  assert(indexHtml.includes('function buildFilteredSatellitesBySelection()'), 'index has one canonical filtered satellite builder');
+  assert(satelliteCategoryFilter.includes('SATELLITE_CATEGORY_OPTIONS'), 'legacy category module remains available for compatibility');
+  assert(trackedObjectCatalog.includes('TRACKED_OBJECT_TYPE_OPTIONS'), 'tracked catalog module defines independent object types');
+  assert(trackedObjectCatalog.includes('trackedObjectMatchesOrbitSelection'), 'tracked catalog keeps object type independent from orbit class');
+  assert(indexHtml.includes('function buildFilteredSatellitesBySelection(options = {})'), 'index has one canonical filtered satellite builder');
+  assert(indexHtml.includes('const coverage = trackedObjectCatalogLoader?.coverage?.();'),
+    'tracked debris coverage uses the loader metadata view without cloning the record catalog');
+  assert.equal(
+    (indexHtml.match(/const requireTrackedCatalogMembership = activeContextRequiresTrackedMembership\(\);/g) || []).length,
+    2,
+    'tracked membership coverage is evaluated once before each catalog traversal'
+  );
+  const membershipPredicate = /function recordParticipatesInActiveCatalogContext\([^)]*\) \{([^}]*)\}/
+    .exec(indexHtml)?.[1] || '';
+  assert(membershipPredicate && !membershipPredicate.includes('snapshot('),
+    'the per-record membership predicate cannot clone a loader snapshot');
   assert(indexHtml.includes('const filteredTLEs = buildFilteredSatellitesBySelection();'), 'updateSatelliteList uses the canonical filtered satellite set');
-  assert(indexHtml.includes("import { buildSatelliteSearchMatches } from './js/satelliteSearchUtils.js';"), 'index imports shared satellite search matching helper');
+  assert(indexHtml.includes("import { buildSatelliteSearchMatches, satelliteSearchBadges } from './js/satelliteSearchUtils.js';"), 'index imports shared satellite search matching and status helpers');
   assert(indexHtml.includes('renderSatelliteSearchResults(filteredTLEs, false)'), 'visible search results are rendered from the canonical filtered satellite set');
   assert(indexHtml.includes('satelliteSelectDropdown.replaceChildren(noneOption)'), 'hidden legacy select is virtualized to its None option before restoring one active NORAD');
   assert(!indexHtml.includes('dropdownFragment'), 'filter changes do not materialize the catalog as hidden select options');
@@ -202,7 +233,7 @@ function run() {
   assert(indexHtml.includes('activeFilteredSatelliteCount') && indexHtml.includes('activeTotalSatelliteCount'), 'found count distinguishes filtered and total satellites');
   assert(indexHtml.includes('setSatelliteFoundCountLabel('), 'found count updates use one accessible helper');
 
-  const satelliteSelection = indexOfOrFail(html, 'Satellites Selection - Found', 'satellite selection section exists');
+  const satelliteSelection = indexOfOrFail(html, 'Tracked Objects - Matches', 'tracked-object selection section exists');
   const searchInput = indexOfOrFail(html, 'id="satelliteSearchInput"', 'search input exists');
   const clearSearch = indexOfOrFail(html, 'id="satelliteSearchClear"', 'clear search exists');
   const resetFilters = indexOfOrFail(html, 'id="resetFiltersButton"', 'reset filters exists');
@@ -211,6 +242,7 @@ function run() {
   const issShortcut = indexOfOrFail(html, 'id="selectIssButton"', 'ISS shortcut exists');
   const satelliteFilterPanel = indexOfOrFail(html, 'class="satellite-filter-panel filters-panel"', 'filter panel is inside Satellite Selection');
   const orbitFilter = indexOfOrFail(html, 'id="orbitTypeFilter"', 'orbit filter exists');
+  const objectFilter = indexOfOrFail(html, 'id="objectTypeFilter"', 'object filter exists');
   const companyFilter = indexOfOrFail(html, 'id="companyFilter"', 'tag filter exists');
   const selectedControls = indexOfOrFail(html, 'id="selectedSatelliteControls"', 'selected satellite controls exist');
   const firstSatelliteCheckbox = indexOfOrFail(html, 'id="showYPRToggle"', 'satellite-specific checkboxes exist');
@@ -218,10 +250,10 @@ function run() {
     satelliteSelection < searchInput && searchInput < clearSearch && clearSearch < resetFilters &&
       resetFilters < satelliteShortcutRow && satelliteShortcutRow < starlinkShortcut &&
       starlinkShortcut < issShortcut && issShortcut < satelliteFilterPanel && satelliteFilterPanel < orbitFilter &&
-      orbitFilter < companyFilter && companyFilter < selectedControls && selectedControls < firstSatelliteCheckbox,
+      orbitFilter < objectFilter && objectFilter < companyFilter && companyFilter < selectedControls && selectedControls < firstSatelliteCheckbox,
     'search, Clear, Reset Filters, shortcuts, filters, and selected-satellite controls appear inside Satellite Selection in the required order'
   );
-  assert(html.includes('id="selectedSatelliteControls" class="satellite-option-grid" aria-label="Selected satellite options" aria-hidden="true" hidden'), 'satellite-specific controls are hidden until selection');
+  assert(html.includes('id="selectedSatelliteControls" class="satellite-option-grid" aria-label="Selected tracked-object options" aria-hidden="true" hidden'), 'object controls are hidden until a positioned selection');
   assert(html.includes('id="showFootprintCheckbox"><span>Show Footprint</span>'), 'Show Footprint checkbox exists and is unchecked by default');
   assert(html.includes('id="showOnlySelectedSatellite" checked'), 'Show only selected satellite checkbox is checked by default when shown');
   assert(html.includes('id="showOrbitFrameToggle"> Orbit Frame (LVLH)'), 'Orbit Frame checkbox exists and is unchecked by default');
@@ -321,8 +353,19 @@ function run() {
   assert(css.includes('#satelliteCountDisplay'), 'satellite count has a dedicated style hook');
   assert(css.includes('.satellite-found-count'), 'satellite count has a heading-specific style hook');
   assert(css.includes('.satellite-filter-panel'), 'embedded Satellite Selection filters have dedicated CSS');
+  assert(css.includes('.tracked-coverage-hud'), 'coverage HUD has a dedicated responsive presentation');
+  assert(css.includes('.tracked-results-drawer') && css.includes('.tracked-results-viewport'), 'virtualized results have bounded desktop and mobile layout');
   assert(!css.includes('.debris-reset-row'), 'obsolete debris reset row CSS is removed');
-  assert(css.includes('grid-template-columns: repeat(7, minmax(0, 1fr))'), 'orbit/category row is styled as one seven-button row');
+  assert(css.includes('.orbit-segmented') && css.includes('grid-template-columns: repeat(6, minmax(0, 1fr))'), 'orbit taxonomy is styled as an independent six-button row');
+  assert(css.includes('.object-type-segmented') && css.includes('grid-template-columns: repeat(3, minmax(0, 1fr))'), 'tracked object taxonomy is styled as an independent two-row six-button control');
+  assert(html.includes('data-object-type-filter="DEBRIS"'), 'tracked object taxonomy includes an explicit Debris filter');
+  assert(html.includes('Include history'), 'tracked lifecycle history has a compact opt-in label');
+  assert(html.includes('aria-label="Include decayed and absent tracked-object history"'), 'tracked lifecycle history has a precise accessible label');
+  assert(html.includes('id="openTrackedResults"'), 'tracked-object selection exposes the virtualized catalog browser');
+  assert(indexHtml.includes('id="trackedCoverageHud"') && indexHtml.includes('role="status"'), 'Globe coverage is persistently summarized in an accessible status HUD');
+  assert(indexHtml.includes('id="trackedResultsDrawer"') && trackedResultsController.includes('role="listbox"'), 'catalog results use a keyboard-navigable virtualized list');
+  assert(indexHtml.includes('pickSatellitePoint') && indexHtml.includes('pickMercatorSatellite'), 'Globe and Mercator markers share the canonical selection path');
+  assert(indexHtml.includes('function isDebrisFacetContext()'), 'debris facets remain available within any selected orbit scope');
   assert(css.includes('grid-template-columns: minmax(0, 1fr) auto auto'), 'search row styles search, Clear, and Reset Filters on one row');
   assert(css.includes('.reset-filters-inline-button'), 'inline Reset Filters button has dedicated CSS');
   assert(!css.includes('.filter-status-summary'), 'removed filter summary CSS is gone');
@@ -353,7 +396,8 @@ function run() {
   assert(css.includes('body:has(#mercatorContainer.fullscreen) #controlsContainer'), 'fixed menu and server controls remain above full-screen Mercator');
   assert(css.includes('#mercatorContainer.fullscreen .mercator-fullscreen-exit'), 'full-screen Mercator reveals its in-map exit');
   assert(css.includes('top: 50px !important'), 'narrow viewport time slider is moved away from top controls');
-  assert(css.includes('top: 132px') && css.includes('top: 172px'), 'narrow viewport menu toggle and panel start below the full Time x control');
+  assert(css.includes('grid-template-columns: auto minmax(0, 1fr) auto auto 28px 42px'), 'narrow viewport time controls stay on one stable row');
+  assert(css.includes('top: 190px') && css.includes('top: 180px'), 'narrow viewport menu toggle and panel start below the Time x and coverage bands');
   assert(css.includes('.menu-accordion-heading-satellite { border-left-color: #35b9a9; }'), 'Satellite keeps the legacy teal accent');
   assert(css.includes('.menu-accordion-heading-view { border-left-color: #f0b429; }'), 'View keeps the legacy yellow accent');
   assert(css.includes('.menu-accordion-heading-timelines { border-left-color: #d45187; }'), 'Timelines keeps the legacy pink accent');
@@ -368,7 +412,7 @@ function run() {
   assert(css.includes('.menu-header-row'), 'menu top row has dedicated CSS');
   assert(css.includes('--menu-header-control-height: 30px;'), 'menu header controls share a fixed alignment height');
   assert(css.includes('height: var(--menu-header-control-height);'), 'Close and server controls share the header control height');
-  assert(css.includes('margin: 0 0 10px 54px;'), 'menu header row reserves aligned space for the external Close button');
+  assert(css.includes('margin: 0 0 10px 72px;'), 'menu header row reserves aligned space for the Close button');
   assert(css.includes('.server-status-icon'), 'server status icon has dedicated CSS');
   assert(css.includes('.server-state-connected .server-status-icon'), 'server connected icon state has CSS');
   assert(css.includes('.server-state-disconnected .server-status-icon'), 'server disconnected icon state has CSS');
@@ -435,7 +479,7 @@ function run() {
   assert(indexHtml.includes('solar-system-hud-row'), 'Solar System HUD uses compact row layout');
   assert(indexHtml.includes('<details class="selected-satellite-detail-section selected-satellite-data-section" open>'), 'selected satellite data section is expanded by default');
   assert(indexHtml.includes('<details class="selected-satellite-detail-section selected-satellite-tle-section" open>'), 'selected satellite TLE section is expanded by default');
-  assert(indexHtml.includes('<span>Satellite data</span>'), 'selected satellite data section has a visible toggle label');
+  assert(indexHtml.includes('<span>Catalog data</span>'), 'selected tracked-object data section has an inclusive visible toggle label');
   assert(indexHtml.includes('<span>TLE details</span>'), 'selected satellite TLE section has a visible toggle label');
   assert(indexHtml.includes('Collapse details'), 'satellite data default-open state uses a matching summary hint');
   assert(indexHtml.includes('Collapse TLE'), 'TLE details default-open state uses a matching summary hint');

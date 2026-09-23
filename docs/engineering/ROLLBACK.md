@@ -1,6 +1,6 @@
 # Rollback Policy
 
-Last reviewed: 2026-08-23
+Last reviewed: 2026-08-30
 
 ## Abort Triggers
 
@@ -13,6 +13,8 @@ Rollback or disable the affected feature when there is data corruption, schema i
 3. Confirm `/api/health`, the main page, dependency loading, and the browser smoke journey.
 4. Invalidate only caches whose content changed.
 5. Record incident time, scope, decision owner, restored version, and follow-up issue.
+
+Direct artifact repointing is valid only for a deployment channel with a tested retained-artifact mechanism. The Version 2.3.2 GitHub Pages workflow has none; follow `ROLLBACK_V2_3_2.md` and deploy a reviewed revert merged to current `master` under a new exact commit SHA.
 
 ## Data Rollback
 
@@ -38,3 +40,7 @@ Detailed worker recovery, feature disablement, backup/restore, data-retention, a
 ## v2.2 GP/OMM, Timeline, and Browser Continuity
 
 Version 2.2 adds a preferred GP/OMM catalog, SATCAT-backed launch events, revision-driven timeline refresh, and a bounded browser follow-up for unified filters/details, Mercator layering, signed simulation time, visual interpolation, and ephemeris limits while retaining deprecated TLE compatibility. Restore only a coherent checksummed data/metadata revision and complete application artifact; never convert OMM to TLE, present the legacy fallback as complete current coverage, or mix an older entrypoint with newer state/time/motion modules. Detailed containment, last-known-good restoration, cache invalidation, application rollback, and rehearsal requirements are in `ROLLBACK_V2_2.md`.
+
+## v2.3.1 Tracked-Object Catalog
+
+Version 2.3 adds a feature-gated SATCAT-scoped metadata inventory, content-addressed current/history chunks, a manifest allowlist API, independent taxonomy filters, and a sixth scheduler/revision component. Version 2.3.1 adds the special all-debris facets, object-type colors, and atomic four-group GP scope. The immediate browser fallback is to disable `experimental_tracked_object_catalog`, regenerate release metadata, and deploy the verified Version 2.3.1 build in its GP-only path. Abort GP promotion when configured and actual catalog source groups are confused, `source_scope_verified` is asserted without a coherent four-group success, or a partial/failed/quarantined response changes accepted bytes. Preserve the failed-attempt metadata and last-known-good files. Do not delete the suspect manifest, quarantine, or chunks before preserving hashes and status evidence. Restore only a previously verified manifest after every referenced chunk passes byte, SHA-256, record-count, and accounting checks. Never point an old manifest at newly generated chunks or expose retained orphan chunks. If the underlying GP/SATCAT revision is suspect, also follow `ROLLBACK_V2_2.md`. Detailed containment, cache invalidation, restoration, and re-enable criteria are in `ROLLBACK_V2_3.md`.

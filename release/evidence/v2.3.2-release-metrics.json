@@ -1,0 +1,142 @@
+{
+  "schemaVersion": 1,
+  "kind": "openbexi-v2.3.2-local-release-metrics",
+  "version": "2.3.2",
+  "publicationState": "development",
+  "scientificMaturity": "Experimental",
+  "safetyClass": "non-operational",
+  "recordedAt": "2026-09-02T08:51:32.487Z",
+  "environment": {
+    "platform": "Windows",
+    "architecture": "x64",
+    "node": "24.13.0",
+    "npm": "11.6.2",
+    "python": "3.9.13",
+    "representativeHardwareProfile": false
+  },
+  "verification": {
+    "javascriptUnit": {
+      "files": 63,
+      "passed": 63,
+      "failed": 0
+    },
+    "python": {
+      "discovered": 152,
+      "passed": 151,
+      "skipped": 1,
+      "failed": 0,
+      "errors": 0,
+      "durationSeconds": 83.452,
+      "skipReason": "Windows directory-symlink capability unavailable"
+    },
+    "javascriptSyntax": {
+      "files": 147,
+      "passed": 147
+    },
+    "dependencyAudit": {
+      "vulnerabilities": 0,
+      "dependencies": {
+        "production": 3,
+        "development": 6,
+        "optional": 1,
+        "total": 8
+      }
+    },
+    "releaseEngineering": {
+      "passed": true
+    },
+    "playwrightEvidence": {
+      "path": "release/evidence/v2.3.2-playwright-aggregate.json",
+      "bytes": 3385,
+      "sha256": "07674df975c579638da6d214557b44b109a67d630d1a1a32ab9d1fff1eeef5ca",
+      "reportSha256": "893b507b3c29b511f190655643539e66b20c84dcb715723790ac1cdfe6394170"
+    }
+  },
+  "sourceBudgets": {
+    "indexHtml": {
+      "bytes": 314194,
+      "ceilingBytes": 315000,
+      "headroomBytes": 806
+    },
+    "firstPartyBrowserJavaScript": {
+      "files": 54,
+      "bytes": 904188,
+      "ceilingBytes": 915000,
+      "headroomBytes": 10812
+    }
+  },
+  "trackedCatalogBenchmark120k": {
+    "recordCount": 120000,
+    "filteredCount": 24000,
+    "searchMatchCount": 10,
+    "observed": {
+      "buildMs": 57.56,
+      "filterMs": 245.79,
+      "searchMs": 53.86,
+      "facetMs": 288.86,
+      "resultsMs": 330.68,
+      "totalMs": 976.75,
+      "heapDeltaMiB": 95.89
+    },
+    "ceilings": {
+      "buildMs": 2500,
+      "filterMs": 3000,
+      "searchMs": 3000,
+      "facetMs": 6000,
+      "resultsMs": 3000,
+      "totalMs": 16000,
+      "heapDeltaMiB": 384
+    },
+    "passed": true
+  },
+  "staticArtifact": {
+    "payloadFileCount": 138,
+    "payloadTotalBytes": 280577774,
+    "selfManifestExcludedFromPayloadInventory": true,
+    "assetManifest": {
+      "path": "dist/asset-manifest.json",
+      "bytes": 23702,
+      "sha256": "61d59ceead6d6bf97f28c3c5c595e6a105d8a51e3f0211349fbae0b1a9329a37"
+    },
+    "deterministicConsecutiveBuilds": 2
+  },
+  "checkedInDataClosure": {
+    "candidateRevision": "sha256:011cefcf5f7291b1089259e0834c85503f64bf21a2ede878d3c234597178ea93",
+    "artifacts": 24,
+    "totalBytes": 127385726,
+    "tracked": {
+      "catalogRevision": "sha256:7c1a20d93d1eb5faf7e2b964b13c7b4f0478f2eec95cc701ea1b1e57ef0d730c",
+      "closureFiles": 13,
+      "closureBytes": 74565511,
+      "largestChunkBytes": 24215754,
+      "total": 70474,
+      "current": 34960,
+      "history": 35514,
+      "propagatable": 16470,
+      "metadataOnly": 54004,
+      "currentDebris": 12490,
+      "positionedCurrentDebris": 0,
+      "quarantine": 0
+    }
+  },
+  "rollbackEvidence": {
+    "path": "release/evidence/v2.3.2-static-rollback.json",
+    "bytes": 1096,
+    "sha256": "788bbc51ef586d5279e36b35bf6c9e1b41bfb8a144cd5b55169b1a9ea4da15d2",
+    "passed": true
+  },
+  "localAttestationEvidence": {
+    "path": "release/evidence/v2.3.2-local-static-attestation.json",
+    "bytes": 537,
+    "sha256": "c61da99d5a47e63a5c7621b528736dba876a161413b21d1cff65afcbe733be9f",
+    "localExact": true,
+    "remoteExact": false
+  },
+  "pending": [
+    "named-browser-performance-profiles",
+    "v2.3.2-validation-seal",
+    "remote-pages-deployment-and-attestation",
+    "github-environment-protection-settings",
+    "independent-scientific-and-security-review"
+  ]
+}

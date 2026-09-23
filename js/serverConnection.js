@@ -85,7 +85,7 @@ export function validateGpData(data) {
     return data.some(item => {
         if (!item || typeof item !== 'object') return false;
         const norad = item.norad_id ?? item.NORAD_CAT_ID ?? item.element_set?.omm?.NORAD_CAT_ID;
-        if (norad === undefined || norad === null || !/^\d+$/.test(String(norad).trim())) return false;
+        if (norad === undefined || norad === null || !/^(?:\d{1,9}|[A-HJ-NP-Z]\d{4})$/i.test(String(norad).trim())) return false;
         const format = gpRecordFormat(item);
         if (format === 'TLE' || format === 'TLE_JSON') {
             return typeof (item.tle_line1 ?? item.element_set?.line1) === 'string' &&
@@ -300,8 +300,8 @@ export async function loadDataUpdateStatus({
 }
 
 function metadataRevision(metadata) {
-    const value = metadata?.catalog_revision ?? metadata?.dataset_hash ?? metadata?.revision ??
-        metadata?.last_success_at ?? metadata?.built_at ?? metadata?.fetched_at;
+    const value = metadata?.catalog_revision ?? metadata?.manifest_hash ?? metadata?.dataset_hash ?? metadata?.revision ??
+        metadata?.last_success_at ?? metadata?.generated_at ?? metadata?.built_at ?? metadata?.fetched_at;
     if (value === undefined || value === null) return null;
     const normalized = String(value).trim();
     return normalized || null;
@@ -315,26 +315,29 @@ export async function loadStaticDataUpdateStatus({
         .then(metadata => ({ kind: 'GP', metadata }))
         .catch(() => fetchJsonWithTimeout('json/tle/TLE.meta.json', { fetchImpl, timeoutMs })
             .then(metadata => ({ kind: 'TLE', metadata })));
-    const [orbital, launch, decay] = await Promise.all([
+    const [orbital, launch, decay, tracked] = await Promise.all([
         orbitalMetadataPromise,
         fetchJsonWithTimeout('json/launches/launches.meta.json', { fetchImpl, timeoutMs }),
-        fetchJsonWithTimeout('json/decayed/decayed.meta.json', { fetchImpl, timeoutMs })
+        fetchJsonWithTimeout('json/decayed/decayed.meta.json', { fetchImpl, timeoutMs }),
+        fetchJsonWithTimeout('json/tracked/TRACKED.manifest.json', { fetchImpl, timeoutMs })
     ]);
     const orbitalRevision = metadataRevision(orbital.metadata);
     const launchRevision = metadataRevision(launch);
     const decayRevision = metadataRevision(decay);
-    if (!orbitalRevision || !launchRevision || !decayRevision) {
+    const trackedRevision = metadataRevision(tracked);
+    if (!orbitalRevision || !launchRevision || !decayRevision || !trackedRevision) {
         throw new Error('Static catalog metadata is missing a revision identity.');
     }
     return {
         source: 'static-metadata',
         catalog_kind: orbital.kind,
-        data_revision: `static:${[orbitalRevision, launchRevision, decayRevision].map(encodeURIComponent).join('|')}`,
+        data_revision: `static:${[orbitalRevision, launchRevision, decayRevision, trackedRevision].map(encodeURIComponent).join('|')}`,
         orbital_revision: orbitalRevision,
         gp_revision: orbital.kind === 'GP' ? orbitalRevision : null,
         tle_revision: orbital.kind === 'TLE' ? orbitalRevision : null,
         launch_revision: launchRevision,
         decay_revision: decayRevision,
+        tracked_revision: trackedRevision,
         catalog_revision: orbitalRevision,
         datasets: {
             orbital: { kind: orbital.kind, revision: orbitalRevision },
@@ -342,7 +345,8 @@ export async function loadStaticDataUpdateStatus({
                 ? { gp: { revision: orbitalRevision } }
                 : { tle: { revision: orbitalRevision } }),
             launch: { revision: launchRevision },
-            decay: { revision: decayRevision }
+            decay: { revision: decayRevision },
+            tracked: { revision: trackedRevision }
         }
     };
 }
@@ -465,6 +469,16 @@ export function resolveServerDataUrl(originalUrl, baseUrl) {
     }
     if (/json\/decayed\/decayed\.json$/i.test(cleanUrl)) {
         return apiEndpoint(normalizedBaseUrl, '/api/decayed');
+    }
+    if (/json\/tracked\/TRACKED\.manifest\.json$/i.test(cleanUrl)) {
+        return apiEndpoint(normalizedBaseUrl, '/api/tracked-objects/manifest');
+    }
+    const trackedChunkMatch = cleanUrl.match(/json\/tracked\/chunks\/([^/]+\.json)$/i);
+    if (trackedChunkMatch) {
+        return apiEndpoint(
+            normalizedBaseUrl,
+            `/api/tracked-objects/chunks/${encodeURIComponent(trackedChunkMatch[1])}`
+        );
     }
 
     const metadataMatch = cleanUrl.match(/json\/satellites\/([^/]+\.json)$/i);

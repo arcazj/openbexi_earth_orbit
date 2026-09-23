@@ -2,37 +2,38 @@
   "schema_version": "2.2.0",
   "dataset_format": "TLE_JSON_COMPATIBILITY",
   "deprecated_compatibility": true,
-  "fetched_at": "2026-09-23T17:09:18.383453Z",
-  "last_success_at": "2026-09-23T17:09:18.383453Z",
-  "last_attempt_at": "2026-09-23T17:09:18.383453Z",
+  "fetched_at": "2026-09-14T11:45:01.235928Z",
+  "last_success_at": "2026-09-14T11:45:01.235928Z",
+  "last_attempt_at": "2026-09-14T11:45:01.235928Z",
   "last_status": "ok",
-  "mode": "incremental",
+  "mode": "reconcile",
   "source_urls": [
     "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle"
   ],
   "celestrak_min_refresh_hours": 2.0,
   "counts": {
     "existing": 16049,
-    "fetched": 15987,
-    "added": 6,
-    "updated": 15981,
-    "retained": 68,
+    "fetched": 16015,
+    "added": 3,
+    "updated": 16009,
+    "retained": 3,
     "rejected": 0,
-    "total": 16055,
+    "total": 16015,
+    "pruned": 37,
     "sidecar_added": 0,
     "sidecar_updated": 0,
     "satellite_launch_dates_updated": 0
   },
-  "catalog_revision": "sha256:496964184b11350f4bbdb22a6564aae9a0f1b1889c866ade9ada4ec4c32cff30",
-  "dataset_hash": "sha256:496964184b11350f4bbdb22a6564aae9a0f1b1889c866ade9ada4ec4c32cff30",
+  "catalog_revision": "sha256:58b3a6299bc22682165be28eaa09567e42c09d1df187458cfafbebfee6735d5d",
+  "dataset_hash": "sha256:58b3a6299bc22682165be28eaa09567e42c09d1df187458cfafbebfee6735d5d",
   "urls": {
     "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle": {
       "status": 200,
-      "last_attempt_at": "2026-09-23T17:09:18.383453Z"
+      "last_attempt_at": "2026-09-14T11:45:01.235928Z"
     }
   },
-  "last_reconciled_at": "2026-08-30T02:13:23.342346Z",
-  "last_reconciled_catalog_revision": "sha256:4642771a06caac6839f89ecfc797e4967e904fd4e0f4e9afef11ee870b50c55e",
-  "source_status": "PARTIAL",
-  "partial_update": true
+  "last_reconciled_at": "2026-09-14T11:45:01.235928Z",
+  "last_reconciled_catalog_revision": "sha256:58b3a6299bc22682165be28eaa09567e42c09d1df187458cfafbebfee6735d5d",
+  "source_status": "COMPLETE",
+  "partial_update": false
 }

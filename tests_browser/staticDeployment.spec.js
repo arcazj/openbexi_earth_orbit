@@ -157,6 +157,7 @@ test('curated static artifact boots offline and screens the full catalog in its 
 
   expect(network.requests.some(url => url.endsWith('/js/conjunction/conjunctionWorker.js'))).toBe(true);
   expect(network.requests.some(url => url.endsWith('/vendor/satellite.js/6.0.2/satellite.es.js'))).toBe(true);
+  expect(network.requests.some(url => new URL(url).pathname.endsWith('/icons/ob_satellite.png'))).toBe(true);
   expect(network.requests.some(url => url.includes('/node_modules/'))).toBe(false);
   expect(network.requests.every(url => new URL(url).origin === origin)).toBe(true);
   expect(network.externalRequests).toEqual([]);

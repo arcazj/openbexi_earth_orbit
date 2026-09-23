@@ -25,6 +25,7 @@ function runPython(candidate, script, tempRoot) {
 
 function run() {
   const tool = read('tools/satellite_data_tools.py');
+  const dataPlane = read('tools/satellite_data_plane.py');
   const server = read('server.py');
   const promptHistory = read('PROMPT_History.md');
   const readme = read('README.md');
@@ -49,12 +50,22 @@ function run() {
   assert(tool.includes('return None'), 'Space-Track fallback remains disabled by default');
   assert(tool.includes('fetcher:'), 'tool exposes injectable fetchers for no-network tests');
   assert(tool.includes('atomic_write_json'), 'tool writes generated JSON atomically');
+  assert(tool.includes('import-candidate'), 'tool exposes a no-network local closure import command');
+  assert(tool.includes('validate-candidate'), 'tool exposes explicit candidate validation');
+  assert(tool.includes('promote-candidate'), 'tool exposes explicit atomic candidate promotion');
+  assert(dataPlane.includes('def import_candidate('), 'data plane can preserve an unvalidated local closure');
+  assert(dataPlane.includes('def stage_update('), 'data plane stages scheduled refreshes outside the release closure');
+  assert(dataPlane.includes('atomic_write_json(self.pointer_path'), 'data plane activates candidates through an atomic pointer');
+  assert(server.includes('cancel_requested=self.stop_event.is_set'), 'server shutdown cooperatively blocks late publication');
   assert(tool.includes('If-None-Match'), 'tool sends conditional ETag request headers');
   assert(tool.includes('If-Modified-Since'), 'tool sends conditional Last-Modified request headers');
   assert(tool.includes('merge_launch_date_sidecar_from_satcat'), 'incremental TLE updates can fill launch-date sidecars from SATCAT');
   assert(tool.includes('Decayed DB rebuild skipped; SATCAT source has not changed.'), 'unchanged SATCAT skips decayed rebuilds');
   assert(tool.includes('GP_RELATIVE_PATH = Path("json") / "gp" / "GP.json"'), 'GP/OMM output has a format-correct path');
-  assert(tool.includes('GP_SOURCE_GROUPS = ("active",)'), 'GP export avoids overlapping group downloads');
+  assert(tool.includes('GP_EVENT_DEBRIS_GROUPS = ('), 'GP export declares the named current event-debris groups');
+  for (const group of ['fengyun-1c-debris', 'iridium-33-debris', 'cosmos-2251-debris']) {
+    assert(tool.includes(`"${group}"`), `GP export includes the ${group} collection`);
+  }
   assert(tool.includes('output_format="json"'), 'GP export requests CelesTrak JSON');
   assert(tool.includes('def canonicalize_omm_record('), 'GP export canonicalizes OMM records');
   assert(tool.includes('def load_gp_company_tag_enrichment('), 'GP export restores stable group tags from the compatibility catalog');
@@ -138,6 +149,13 @@ root = pathlib.Path(${JSON.stringify(tempRoot)})
 assert all(s.parse.urlparse(url).scheme == "https" for url in s.LEGACY_TLE_SOURCE_URLS)
 assert all(s.parse.urlparse(url).scheme == "https" for url in s.source_urls_for_mode("all"))
 assert s.make_celestrak_group_url("active").startswith("https://")
+assert s.GP_SOURCE_GROUPS == (
+    "active",
+    "fengyun-1c-debris",
+    "iridium-33-debris",
+    "cosmos-2251-debris",
+)
+assert [s.extract_group_from_url(url).lower() for url in s.gp_source_urls_for_mode("incremental")] == list(s.GP_SOURCE_GROUPS)
 
 blocked_fetch_calls = []
 def blocked_fetcher(url, headers=None):
@@ -190,6 +208,10 @@ incremental_args = s.build_parser().parse_args(["export-tle"])
 explicit_n2yo_args = s.build_parser().parse_args(["export-tle", "--all", "--refresh-launch-dates"])
 gp_args = s.build_parser().parse_args(["export-gp", "--all", "--dry-run"])
 launch_args = s.build_parser().parse_args(["build-launches", "--dry-run"])
+stage_args = s.build_parser().parse_args(["stage-update", "--promote"])
+import_args = s.build_parser().parse_args(["import-candidate"])
+validate_args = s.build_parser().parse_args(["validate-candidate", "20260901T120000Z-012345abcdef"])
+promote_args = s.build_parser().parse_args(["promote-candidate", "20260901T120000Z-012345abcdef"])
 for direct_command in ("export-gp", "export-tle", "refresh-satcat"):
     direct_args = s.build_parser().parse_args([direct_command, "--allow-large-catalog-shrink"])
     assert direct_args.allow_large_catalog_shrink is True
@@ -213,6 +235,10 @@ assert incremental_args.refresh_launch_dates is False
 assert explicit_n2yo_args.refresh_launch_dates is True
 assert gp_args.command == "export-gp" and gp_args.all is True and gp_args.dry_run is True
 assert launch_args.command == "build-launches" and launch_args.dry_run is True
+assert stage_args.command == "stage-update" and stage_args.promote is True
+assert import_args.command == "import-candidate"
+assert validate_args.command == "validate-candidate"
+assert promote_args.command == "promote-candidate"
 
 def omm(norad_id, epoch="2026-08-20T12:00:00Z", **overrides):
     record = {
@@ -347,7 +373,22 @@ gp_root = root / "gp"
 gp_calls = []
 def gp_fetcher(url, headers=None):
     gp_calls.append((url, headers or {}))
-    return s.FetchResponse(url=url, text=omm_response.text, headers=omm_response.headers)
+    group = s.extract_group_from_url(url).lower()
+    if group == "active":
+        payload = [
+            omm(100001, "2026-08-19T00:00:00Z"),
+            omm(100001, "2026-08-20T00:00:00Z"),
+            omm(999999999),
+        ]
+    else:
+        payload = [
+            omm(
+                800000 + len(gp_calls),
+                OBJECT_NAME=f"{group.upper()} OBJECT",
+                OBJECT_TYPE="DEBRIS",
+            )
+        ]
+    return s.FetchResponse(url=url, text=json.dumps(payload), headers=omm_response.headers)
 
 gp_export = s.export_gp_data(
     root=gp_root,
@@ -357,7 +398,8 @@ gp_export = s.export_gp_data(
     now=dt.datetime(2026, 8, 20, 13, 0, tzinfo=dt.timezone.utc),
 )
 assert gp_export.changed is True
-assert len(gp_calls) == 1 and "GROUP=active" in gp_calls[0][0] and "FORMAT=json" in gp_calls[0][0]
+assert [s.extract_group_from_url(url).lower() for url, _headers in gp_calls] == list(s.GP_SOURCE_GROUPS)
+assert all("FORMAT=json" in url for url, _headers in gp_calls)
 gp_json_path = gp_root / "json" / "gp" / "GP.json"
 gp_meta_path = gp_root / "json" / "gp" / "GP.meta.json"
 written_gp = json.loads(gp_json_path.read_text(encoding="utf-8"))
@@ -373,6 +415,10 @@ assert written_meta["dataset_hash"] == written_meta["catalog_revision"]
 assert written_meta["newest_orbital_epoch"] == "2026-08-20T12:00:00.000Z"
 assert written_meta["tag_enrichment"]["source"] == "json/tle/TLE.json"
 assert written_meta["tag_enrichment"]["matched_records"] == 1
+assert written_meta["source_groups"] == list(s.GP_SOURCE_GROUPS)
+assert written_meta["source_scope"]["event_debris_groups"] == list(s.GP_EVENT_DEBRIS_GROUPS)
+assert written_meta["source_scope"]["all_debris"] is False
+assert written_meta["provider_completeness_claim"] is False
 
 written_gp[0]["company"] = "ACTIVE"
 gp_json_path.write_text(json.dumps(written_gp), encoding="utf-8")

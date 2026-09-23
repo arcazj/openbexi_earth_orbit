@@ -1,0 +1,100 @@
+{
+  "schema_version": "1.0.0",
+  "release_version": "2.3.2",
+  "recorded_at": "2026-09-02T01:50:50.314Z",
+  "publication_state": "development",
+  "selected_release_data": {
+    "kind": "checked-in-v2.3.1-last-known-good",
+    "source_commit": "ef98cfe",
+    "tracked_revision": "sha256:7c1a20d93d1eb5faf7e2b964b13c7b4f0478f2eec95cc701ea1b1e57ef0d730c",
+    "total": 70474,
+    "propagatable": 16470,
+    "metadata_only": 54004,
+    "current_debris": 12490,
+    "positioned_debris": 0
+  },
+  "private_candidates": [
+    {
+      "evidence_id": "exact-head-partial-refresh",
+      "source_kind": "source-commit-data-and-recovered-content-addressed-closure",
+      "source_commit": "95b4303b06667435456568f565a6bec298a632f8",
+      "source_commit_referenced_closure_complete": false,
+      "candidate_id": "20260902T014734Z-9faea7cdb724",
+      "candidate_state": "validated",
+      "network_used": false,
+      "pinned": true,
+      "promoted": false,
+      "selected_by_pointer": false,
+      "raw_revision": "sha256:4fa944e1283feb2a8dd5a09e51c5d8c8fc332f4f96d0e119347afa994e1193f2",
+      "artifact_count": 24,
+      "total_bytes": 131613453,
+      "source_copy_compared_artifacts": 24,
+      "source_copy_mismatch_count": 0,
+      "source_copy_evidence_basis": "independently-recomputed-against-the-recovered-source-closure",
+      "tracked_revision": "sha256:8fd7f619f16e714a9d170a8eb538a183e240051830430b09b1201bbf0d36e4a4",
+      "tracked_counts": {
+        "total": 70475,
+        "current": 34953,
+        "history_total": 35522,
+        "propagatable": 19111,
+        "metadata_only": 51364,
+        "current_propagatable": 19111,
+        "current_metadata_only": 15842,
+        "current_debris": 12488,
+        "positioned_debris": 2640
+      },
+      "decision": "retained-private-and-unpromoted"
+    },
+    {
+      "evidence_id": "later-dirty-working-tree-import",
+      "source_kind": "post-head-dirty-working-tree-closure",
+      "source_commit_at_capture": "95b4303b06667435456568f565a6bec298a632f8",
+      "byte_relationship_to_source_commit": "different",
+      "candidate_id": "20260902T011924Z-8c8d999bf6df",
+      "candidate_state": "quarantined",
+      "network_used": false,
+      "pinned": true,
+      "promoted": false,
+      "selected_by_pointer": false,
+      "raw_revision": "sha256:e27ff6b5c34bdaa715f3924ea5cafa67fec6fd83ea0ddd7ff63340b80e08683c",
+      "artifact_count": 24,
+      "total_bytes": 131692789,
+      "source_copy_compared_artifacts": 24,
+      "source_copy_mismatch_count": 0,
+      "source_copy_evidence_basis": "recorded-at-byte-preserving-import-before-source-restoration",
+      "tracked_revision": "sha256:de60852484cc6ccee624380286080b993543ad6c412016710673ccd1b75f4cb7",
+      "tracked_counts": {
+        "total": 70532,
+        "current": 35005,
+        "history_total": 35527,
+        "propagatable": 19106,
+        "metadata_only": 51426,
+        "current_propagatable": 19106,
+        "current_metadata_only": 15899,
+        "current_debris": 12488,
+        "positioned_debris": 2640
+      },
+      "malformed_artifact": {
+        "path": "json/tle/TLE.meta.json",
+        "bytes": 1328,
+        "sha256": "sha256:198d5b32afdb9ea35b3c7ee64218528fedcb9c87182f1f89bcb7c21d47891ca1",
+        "validation_error": "Invalid JSON at json/tle/TLE.meta.json: Expecting value: line 1 column 1 (char 0)"
+      },
+      "decision": "quarantined-and-unpromoted"
+    }
+  ],
+  "pointer_observation": {
+    "path": "runtime/data-plane/current.json",
+    "present": false,
+    "selected_candidate_id": null
+  },
+  "portability_boundary": {
+    "excluded_paths": [
+      "runtime/data-plane/**"
+    ],
+    "private_candidate_bytes_tracked": false,
+    "private_candidate_bytes_in_static_artifact": false,
+    "clean_clone_validation_requires_private_runtime_state": false,
+    "evidence_scope": "This tracked record preserves compact observations only; it does not redistribute the ignored private candidate bytes or approve either candidate for release."
+  }
+}

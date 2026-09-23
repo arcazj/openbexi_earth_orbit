@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "kind": "openbexi-github-pages-deployment-policy",
+  "sourceBranch": "master",
+  "environment": "github-pages",
+  "artifactDirectory": "dist",
+  "assetManifest": "dist/asset-manifest.json",
+  "siteUrl": "https://arcazj.github.io/openbexi_earth_orbit/",
+  "controls": {
+    "manualCommitConfirmation": true,
+    "exactResolvedCommitBinding": true,
+    "requireEnvironmentProtection": true,
+    "cleanCommitTree": true,
+    "commitSnapshotBuild": true,
+    "freshBuildJobAfterValidation": true,
+    "artifactExactVerification": true,
+    "uploadedPagesArchiveVerification": true,
+    "uploadedPagesArchiveAttestation": true,
+    "postDeployExactVerification": true,
+    "disposableRollbackRehearsal": true,
+    "directArchivedArtifactRollback": false
+  },
+  "rollbackStrategy": "reviewed-master-revert"
+}

@@ -303,6 +303,48 @@ class V21HttpApiTests(V21ApiFixture):
         retained = self.store.get_current_object(missing_object["object_id"])
         self.assertEqual(retained["current_revision_id"], previous_revision_id)
 
+    def test_existing_bundled_revision_is_reactivated_after_pointer_rollback(self):
+        def source_root(label):
+            root = self.runtime_root / ("rollback-source-" + label.lower())
+            gp_root = root / "json" / "gp"
+            gp_root.mkdir(parents=True)
+            record = gp_record()
+            record["satellite_name"] = "ROLLBACK " + label
+            record["element_set"]["omm"]["OBJECT_NAME"] = "ROLLBACK " + label
+            (gp_root / "GP.json").write_text(json.dumps([record]), encoding="utf-8")
+            (gp_root / "GP.meta.json").write_text(
+                json.dumps({
+                    "last_status": "ok",
+                    "mode": "incremental",
+                    "fetched_at": "2026-08-20T0%s:00:00Z" % ("1" if label == "A" else "2"),
+                    "source_format": "CCSDS_OMM_JSON",
+                }),
+                encoding="utf-8",
+            )
+            return root
+
+        service = V21ApiService(
+            root=source_root("A"),
+            runtime_root=self.runtime_root,
+            store=self.store,
+            feature_flag=self.service.feature_flag,
+            authenticator=self.service.authenticator,
+            cursor_secret=b"rollback-bootstrap-cursor-secret-32-bytes",
+            manager=None,
+        )
+        revision_a = service.bootstrap_bundled_catalog()["revision_id"]
+        service.root = source_root("B")
+        revision_b = service.bootstrap_bundled_catalog()["revision_id"]
+        self.assertNotEqual(revision_a, revision_b)
+        self.assertEqual(self.store.get_current_object("obx:norad:100001")["name"], "ROLLBACK B")
+
+        service.root = self.runtime_root / "rollback-source-a"
+        reactivated = service.bootstrap_bundled_catalog()
+
+        self.assertEqual(reactivated["revision_id"], revision_a)
+        self.assertEqual(self.store.get_current_catalog_revision()["revision_id"], revision_a)
+        self.assertEqual(self.store.get_current_object("obx:norad:100001")["name"], "ROLLBACK A")
+
     def test_bundled_catalog_bootstrap_prefers_gp_omm_when_available(self):
         source_root = self.runtime_root / "gp-source"
         gp_root = source_root / "json" / "gp"

@@ -429,7 +429,12 @@ class V21ApiService:
                 raise CatalogSnapshotError("Bundled catalog has no propagatable records")
             existing = self.store.get_catalog_revision(snapshot.revision_id)
             if existing is not None:
-                return _public_catalog(existing)
+                return _public_catalog(
+                    self.store.activate_catalog_revision(
+                        snapshot.revision_id,
+                        actor_id="catalog-bootstrap",
+                    )
+                )
             observations = _source_observations(
                 records,
                 snapshot.retrieved_at,

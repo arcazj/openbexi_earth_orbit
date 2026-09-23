@@ -1,6 +1,6 @@
 # Conjunction Screening v2.0
 
-> Historical method note: this document describes the Version 2.0 TLE-only browser workflow. Version 2.2 adds a preferred mixed GP/OMM application catalog and display-only satellite interpolation, but it does not promote the screening maturity or add collision probability. Current catalog and browser-state decisions are in ADR 0004, ADR 0005, and `RELEASE_CHECKLIST_V2_2.md`.
+> Historical method note: this document describes the Version 2.0 TLE-only browser workflow. Version 2.3.1 retains the preferred mixed GP/OMM application catalog and display-only interpolation, and adds SATCAT-scoped metadata discovery whose metadata-only records are excluded from screening. The three event-specific debris GP groups remain a partial positioned subset and do not make metadata-only debris screenable. It does not promote screening maturity or add collision probability. Current decisions are in ADRs 0004 through 0006 and `RELEASE_CHECKLIST_V2_3.md`.
 
 ## Capability and scope
 

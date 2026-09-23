@@ -1,0 +1,86 @@
+{
+  "0": {
+    "name": "oneweb",
+    "meta": {
+      "norad_id": "44072",
+      "smuid": "oneweb_44072",
+      "type": "platform",
+      "description": "OneWeb first-generation broadband satellite providing global connectivity in near-polar low Earth orbit.",
+      "scid": "oneweb_GEN1",
+      "modDate": "2025-11-02T00:00:00Z",
+      "sduid": "OW-GEN1",
+      "bus": "OneWeb Gen1 Bus",
+      "manufacturer": "Airbus OneWeb Satellites",
+      "launch_mass_kg": 150,
+      "dry_mass_kg": 147,
+      "launch_date": "2019-02-27T21:37:00Z",
+      "launch_vehicle": "Soyuz-ST-B / Fregat-M",
+      "inclined_orbit_operation": true,
+      "expected_lifetime_yrs": 7,
+      "orbit": {
+        "latitude": 0.0,
+        "longitude": 0.0,
+        "altitude": 1200000
+      },
+      "attitude": {
+        "roll": 0,
+        "pitch": 0,
+        "yaw": 0
+      },
+      "attitudeCapability": {
+        "minRoll": -10,
+        "maxRoll": 10,
+        "minPitch": -8,
+        "maxPitch": 8,
+        "canFlyInverted": false
+      },
+      "orbital_slot": {
+        "nominal": "LEO 1,200 km, ~87° inclination",
+        "operational_history": [
+          "Initial constellation planes at ~87° inclination; first deployment from CSG Kourou on 2019-02-27"
+        ]
+      }
+    },
+    "payload": {
+      "transponders": {
+        "Ku": {
+          "num_36MHz_eq": 12,
+          "beam_classes": {
+            "user_downlink": {
+              "beam_peak_eirp_dBW": 55,
+              "edge_eirp_dBW": 48,
+              "beam_peak_G_T_dBK": 16,
+              "contours": []
+            }
+          }
+        },
+        "Ka": {
+          "num_36MHz_eq": 8,
+          "beam_classes": {
+            "gateway_uplink": {
+              "beam_peak_eirp_dBW": 62,
+              "edge_eirp_dBW": 54,
+              "beam_peak_G_T_dBK": 20,
+              "contours": []
+            }
+          }
+        }
+      },
+      "bandwidth_MHz": [250],
+      "polarization": {
+        "Ku": "dual-circular",
+        "Ka": "dual-circular"
+      },
+      "frequency_bands_ghz": {
+        "Ku": {
+          "downlink": [10.7, 12.7],
+          "uplink": [14.0, 14.5]
+        },
+        "Ka": {
+          "downlink": [17.8, 18.6],
+          "uplink": [27.5, 30.0]
+        }
+      }
+    }
+  }
+}

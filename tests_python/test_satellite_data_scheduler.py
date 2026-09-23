@@ -77,6 +77,38 @@ def _result(name: str) -> data_tools.UpdateResult:
 
 
 class ScheduledDataUpdateTests(unittest.TestCase):
+    def test_decayed_missing_satcat_after_refresh_failure_persists_error(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            attempted_at = dt.datetime(2026, 8, 30, 12, 0, tzinfo=dt.timezone.utc)
+            refresh_failure = data_tools.UpdateResult(
+                changed=False,
+                skipped=True,
+                mode="refresh-satcat",
+                message="SATCAT unavailable",
+                errors=["provider unavailable " + ("x" * 3000)],
+            )
+            with mock.patch.object(
+                data_tools,
+                "refresh_satcat_csv",
+                return_value=refresh_failure,
+            ):
+                result = data_tools.build_decayed_db(
+                    root=root,
+                    refresh_satcat=True,
+                    now=attempted_at,
+                )
+
+            self.assertTrue(result.skipped)
+            self.assertTrue(result.errors)
+            meta = json.loads(
+                (root / data_tools.DECAYED_META_RELATIVE_PATH).read_text(encoding="utf-8")
+            )
+            self.assertEqual(meta["last_status"], "failed")
+            self.assertEqual(meta["last_attempt_at"], data_tools.isoformat_utc(attempted_at))
+            self.assertEqual(meta["last_error"], result.errors[0])
+            self.assertLessEqual(len(meta["last_error"]), data_tools.METADATA_ERROR_MAX_LENGTH)
+
     def test_update_lock_recovers_dead_owner_but_preserves_live_owner(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -569,7 +601,11 @@ class ScheduledDataUpdateTests(unittest.TestCase):
 
             self.assertEqual([url for url, _headers in calls].count(data_tools.CELESTRAK_SATCAT_CSV_URL), 1)
             self.assertEqual(sum("FORMAT=tle" in url for url, _headers in calls), 1)
-            self.assertEqual(sum("FORMAT=json" in url for url, _headers in calls), 1)
+            gp_urls = [url for url, _headers in calls if "FORMAT=json" in url]
+            self.assertEqual(
+                [data_tools.extract_group_from_url(url).lower() for url in gp_urls],
+                list(data_tools.GP_SOURCE_GROUPS),
+            )
             self.assertFalse(any("n2yo.com" in url or "space-track" in url for url, _headers in calls))
 
             launches = json.loads((root / data_tools.LAUNCHES_RELATIVE_PATH).read_text(encoding="utf-8"))

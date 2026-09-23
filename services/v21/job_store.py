@@ -314,6 +314,111 @@ class JobStore:
             (job_id, progress_sequence, event_type, encoded, sha256_json(payload), now or self._now()),
         )
 
+    def _activate_catalog_revision(
+        self,
+        conn: sqlite3.Connection,
+        revision_id: str,
+        *,
+        actor_id: str,
+        now: str,
+    ) -> Dict[str, Any]:
+        revision = conn.execute(
+            "SELECT * FROM catalog_revisions WHERE revision_id = ?",
+            (revision_id,),
+        ).fetchone()
+        if revision is None:
+            raise ValidationError("catalog revision does not exist")
+        if revision["is_current"] == 1:
+            return self._catalog_from_row(revision)
+        observations = conn.execute(
+            """SELECT * FROM catalog_object_observations
+               WHERE catalog_revision_id = ? ORDER BY object_id""",
+            (revision_id,),
+        ).fetchall()
+        if len(observations) != revision["accepted_count"]:
+            raise JobStoreError("catalog revision observations are incomplete")
+        previous = conn.execute(
+            "SELECT revision_id FROM catalog_revisions WHERE is_current = 1"
+        ).fetchone()
+
+        conn.execute("UPDATE catalog_revisions SET is_current = 0 WHERE is_current = 1")
+        conn.execute(
+            "UPDATE catalog_revisions SET is_current = 1 WHERE revision_id = ?",
+            (revision_id,),
+        )
+        if revision["source_status"] == "COMPLETE":
+            conn.execute("UPDATE catalog_object_observations SET is_current = 0 WHERE is_current = 1")
+
+        for observation in observations:
+            object_id = observation["object_id"]
+            payload = _decode_json(observation["payload_json"])
+            if not isinstance(payload, dict):
+                raise JobStoreError("catalog revision observation payload is invalid")
+            conn.execute(
+                "UPDATE catalog_object_observations SET is_current = 0 WHERE object_id = ? AND is_current = 1",
+                (object_id,),
+            )
+            updated = conn.execute(
+                """UPDATE catalog_objects SET
+                       current_revision_id = ?, current_element_set_id = ?, name = ?, norad_id = ?,
+                       international_designator = ?, object_type = ?, lifecycle_status = ?,
+                       last_seen_at = ?, updated_at = ?
+                   WHERE object_id = ?""",
+                (
+                    revision_id,
+                    observation["element_set_id"],
+                    _require_text(payload.get("name", object_id), "observation.name"),
+                    payload.get("norad_id"),
+                    payload.get("international_designator"),
+                    _require_text(payload.get("object_type", "UNKNOWN"), "observation.object_type"),
+                    observation["lifecycle_status"],
+                    observation["observed_at"],
+                    now,
+                    object_id,
+                ),
+            ).rowcount
+            if updated != 1:
+                raise JobStoreError("catalog revision object state is missing")
+            conn.execute(
+                """UPDATE catalog_object_observations SET is_current = 1
+                   WHERE catalog_revision_id = ? AND object_id = ?""",
+                (revision_id, object_id),
+            )
+
+        self._audit(
+            conn,
+            actor_id,
+            "catalog.revision.activated",
+            "catalog_revision",
+            revision_id,
+            {
+                "previous_revision_id": previous["revision_id"] if previous else None,
+                "source_status": revision["source_status"],
+            },
+            now,
+        )
+        activated = conn.execute(
+            "SELECT * FROM catalog_revisions WHERE revision_id = ?",
+            (revision_id,),
+        ).fetchone()
+        return self._catalog_from_row(activated)
+
+    def activate_catalog_revision(
+        self,
+        revision_id: str,
+        *,
+        actor_id: str = "system",
+    ) -> Dict[str, Any]:
+        revision_id = _require_text(revision_id, "revision_id")
+        now = self._now()
+        with self._transaction() as conn:
+            return self._activate_catalog_revision(
+                conn,
+                revision_id,
+                actor_id=actor_id,
+                now=now,
+            )
+
     def create_catalog_revision(
         self,
         revision_id: str,
@@ -393,6 +498,13 @@ class JobStore:
                     )
                 )
                 if same:
+                    if promote and existing["is_current"] != 1:
+                        return self._activate_catalog_revision(
+                            conn,
+                            revision_id,
+                            actor_id=actor_id,
+                            now=now,
+                        )
                     return self._catalog_from_row(existing)
                 raise IdempotencyConflictError("catalog revision id already represents different content")
 

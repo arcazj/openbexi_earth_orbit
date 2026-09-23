@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { buildSatelliteSearchMatches, satelliteSearchText } from '../js/satelliteSearchUtils.js';
+import { buildSatelliteSearchMatches, satelliteSearchBadges, satelliteSearchText } from '../js/satelliteSearchUtils.js';
 
 const satellites = [
   { satellite_name: 'STARLINK-1001', norad_id: 44714, orbitType: 'LEO', company: 'Starlink' },
@@ -15,6 +15,25 @@ function run() {
       satelliteSearchText(satellites[0]).includes('leo') &&
       satelliteSearchText(satellites[0]).includes('starlink'),
     'search text includes name, NORAD, orbit, and tag/company'
+  );
+  const historicalDebris = {
+    satellite_name: 'TINY FRAGMENT',
+    norad_id: '101234',
+    provider_catalog_id: 'A1234',
+    alpha5_id: 'A1234',
+    orbit_class: 'UNKNOWN',
+    object_type: 'DEBRIS',
+    lifecycle_status: 'DECAYED',
+    metadata_only: true,
+    rcs_m2: null
+  };
+  assert(satelliteSearchText(historicalDebris).includes('101234'), 'search indexes the canonical decoded NORAD ID');
+  assert(satelliteSearchText(historicalDebris).includes('a1234'), 'search preserves provider and Alpha-5 catalog identities');
+  assert(satelliteSearchText(historicalDebris).includes('debris'), 'search indexes independent object taxonomy');
+  assert.deepStrictEqual(
+    satelliteSearchBadges(historicalDebris),
+    ['Historical', 'Metadata only', 'Debris'],
+    'historical metadata-only results carry explicit status badges'
   );
 
   const emptySearch = buildSatelliteSearchMatches(satellites, '', {

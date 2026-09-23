@@ -7,10 +7,89 @@ import {
   conjunctionEventRelativeSpeedKmS,
   conjunctionEventSecondaryLabel,
   conjunctionRunQualityNotices,
+  createConjunctionPanel,
   filterAndSortConjunctionEvents,
   formatUtcDateTimeLocal,
   parseUtcDateTimeLocal
 } from '../js/conjunction/conjunctionPanel.js';
+
+class PanelElement {
+  constructor() {
+    this.dataset = {};
+    this.disabled = false;
+    this.hidden = false;
+    this.listeners = new Map();
+    this.textContent = '';
+    this.value = '';
+  }
+
+  addEventListener(type, listener) {
+    const listeners = this.listeners.get(type) || [];
+    listeners.push(listener);
+    this.listeners.set(type, listeners);
+  }
+
+  async dispatch(type) {
+    const event = { preventDefault() {} };
+    for (const listener of this.listeners.get(type) || []) await listener(event);
+  }
+
+  reportValidity() {
+    return true;
+  }
+
+  querySelectorAll() {
+    return [];
+  }
+
+  setAttribute(name, value) {
+    this[name] = String(value);
+  }
+
+  appendChild() {}
+  append() {}
+}
+
+class PanelDocument {
+  constructor() {
+    const ids = [
+      'conjunctionScreeningForm',
+      'conjunctionPrimarySummary',
+      'conjunctionCatalogSummary',
+      'conjunctionStartTime',
+      'conjunctionDurationHours',
+      'conjunctionCoarseStepSeconds',
+      'conjunctionScreeningRadiusKm',
+      'conjunctionRefinementToleranceSeconds',
+      'conjunctionMaxResults',
+      'conjunctionRunButton',
+      'conjunctionCancelButton',
+      'conjunctionExportButton',
+      'conjunctionProgress',
+      'conjunctionStatus',
+      'conjunctionResults',
+      'conjunctionResultFilter',
+      'conjunctionResultSort',
+      'conjunctionResultRows',
+      'conjunctionEventDetails',
+      'conjunctionEventTitle',
+      'conjunctionEventQuality',
+      'conjunctionEventMetrics',
+      'conjunctionPlaybackButton',
+      'conjunctionPlaybackOffset',
+      'conjunctionPlaybackOffsetValue'
+    ];
+    this.elements = new Map(ids.map(id => [id, new PanelElement()]));
+  }
+
+  getElementById(id) {
+    return this.elements.get(id) || null;
+  }
+
+  createElement() {
+    return new PanelElement();
+  }
+}
 
 const start = new Date('2026-07-19T12:34:56.000Z');
 assert.strictEqual(formatUtcDateTimeLocal(start), '2026-07-19T12:34:56');
@@ -35,7 +114,11 @@ const request = buildConjunctionScreeningRequest({
     provider: 'Fixture Provider',
     retrieved_at: start.toISOString(),
     source_status: 'COMPLETE',
-    partial_update: false
+    partial_update: false,
+    tracked_count: 12,
+    propagatable_count: 2,
+    metadata_only_excluded_count: 10,
+    screening_coverage_fraction: 1 / 6
   }
 });
 
@@ -50,6 +133,39 @@ assert.strictEqual(request.primary_object_id, 'obx:norad:25544');
 assert.strictEqual(request.configuration.configuration_version, '2.0.0');
 assert.strictEqual(request.configuration.max_results, 100);
 assert.strictEqual(request.dataset_provenance.provider, 'Fixture Provider');
+assert.deepStrictEqual(request.catalog_metadata, {
+  source_urls: [],
+  accepted_count: 2,
+  rejected_count: 0,
+  stale_count_at_ingestion: 0,
+  retained_count: null,
+  tracked_count: 12,
+  propagatable_count: 2,
+  metadata_only_excluded_count: 10,
+  screening_coverage_fraction: 1 / 6
+});
+const unavailableCoverageRequest = buildConjunctionScreeningRequest({
+  primary,
+  catalog: [primary, secondary],
+  startTime: start,
+  durationHours: 6,
+  coarseStepSeconds: 60,
+  screeningRadiusKm: 100,
+  refinementToleranceSeconds: 0.5,
+  maxResults: 100,
+  dataset: {
+    datasetId: 'fixture-without-tracked-manifest',
+    datasetHash: 'test:fixture-without-tracked-manifest',
+    provider: 'Fixture Provider'
+  }
+});
+assert.strictEqual(unavailableCoverageRequest.catalog_metadata.propagatable_count, 2);
+assert.strictEqual(unavailableCoverageRequest.catalog_metadata.tracked_count, null);
+assert.strictEqual(unavailableCoverageRequest.catalog_metadata.metadata_only_excluded_count, null);
+assert.strictEqual(unavailableCoverageRequest.catalog_metadata.screening_coverage_fraction, null);
+const unavailableCoverageExport = buildConjunctionExportPayload(unavailableCoverageRequest, { events: [] });
+assert.strictEqual(unavailableCoverageExport.request.catalogSnapshot.metadata.tracked_count, null);
+assert.strictEqual(unavailableCoverageExport.request.catalogSnapshot.metadata.screening_coverage_fraction, null);
 assert.throws(() => buildConjunctionScreeningRequest({ primary: null, catalog: [secondary], startTime: start }), /primary/i);
 assert.throws(() => buildConjunctionScreeningRequest({
   primary,
@@ -93,6 +209,8 @@ assert.strictEqual(exported.limitations.collision_probability.status, 'unavailab
 assert.strictEqual(exported.result.events.length, 2);
 assert.strictEqual(exported.request.catalog, undefined, 'exports do not duplicate the complete catalog');
 assert.strictEqual(exported.request.catalogSnapshot.objectCount, 2);
+assert.strictEqual(exported.request.catalogSnapshot.metadata.metadata_only_excluded_count, 10);
+assert.strictEqual(exported.request.catalog_metadata.screening_coverage_fraction, 1 / 6);
 assert.strictEqual(exported.request.catalogSnapshot.objects.length, 2);
 assert.strictEqual(exported.request.catalogSnapshot.objects[1].element_set.line1, 'line-1');
 assert.strictEqual(exported.replay.input_status, 'SELF_CONTAINED_FROZEN_CATALOG');
@@ -125,5 +243,33 @@ assert.deepStrictEqual(conjunctionRunQualityNotices({
   'some element epochs occur after the screening window',
   'some element epochs are unavailable'
 ]);
+
+const panelDocument = new PanelDocument();
+panelDocument.getElementById('conjunctionDurationHours').value = '1';
+panelDocument.getElementById('conjunctionCoarseStepSeconds').value = '300';
+panelDocument.getElementById('conjunctionScreeningRadiusKm').value = '100';
+panelDocument.getElementById('conjunctionRefinementToleranceSeconds').value = '0.5';
+panelDocument.getElementById('conjunctionMaxResults').value = '100';
+panelDocument.getElementById('conjunctionResultSort').value = 'tca';
+const panel = createConjunctionPanel({
+  documentRef: panelDocument,
+  startScreening: async () => ({ events: [] })
+});
+panel.setCatalog([primary, secondary]);
+panel.setPrimary(primary);
+await panelDocument.getElementById('conjunctionScreeningForm').dispatch('submit');
+
+const completedStatus = panelDocument.getElementById('conjunctionStatus').textContent;
+assert.match(completedStatus, /^0 close approaches found in /);
+assert.strictEqual(panelDocument.getElementById('conjunctionExportButton').disabled, false);
+
+panel.setPrimary({ ...primary, satellite_name: 'ISS UPDATED' });
+assert.strictEqual(panelDocument.getElementById('conjunctionPrimarySummary').textContent, 'ISS UPDATED (NORAD 25544)');
+assert.strictEqual(panelDocument.getElementById('conjunctionStatus').textContent, completedStatus);
+assert.strictEqual(panelDocument.getElementById('conjunctionExportButton').disabled, false);
+
+panel.setPrimary({ ...primary, norad_id: '25545', satellite_name: 'DIFFERENT' });
+assert.strictEqual(panelDocument.getElementById('conjunctionStatus').textContent, 'Ready to screen the loaded catalog.');
+assert.strictEqual(panelDocument.getElementById('conjunctionExportButton').disabled, true);
 
 console.log('conjunctionPanel tests passed');

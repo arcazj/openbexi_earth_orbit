@@ -111,6 +111,70 @@ class V21JobStoreTests(unittest.TestCase):
         self.assertEqual(self.store.health()["status"], "healthy")
         self.assertEqual(self.store.get_current_catalog_revision()["snapshot_path"], "catalogs/catalog-2/catalog.json")
 
+    def test_existing_catalog_activation_replays_complete_and_partial_state(self):
+        self.catalog("complete-a", ("100", "200"))
+        self.catalog("complete-b", ("100", "300"))
+
+        activated = self.store.activate_catalog_revision("complete-a", actor_id="rollback-test")
+
+        self.assertEqual(activated["revision_id"], "complete-a")
+        self.assertEqual(
+            [item["object_id"] for item in self.store.list_current_objects()],
+            ["100", "200"],
+        )
+        self.assertEqual(self.store.get_current_object("100")["current_revision_id"], "complete-a")
+        self.assertIsNone(self.store.get_current_object("300"))
+
+        def partial(revision_id, observations):
+            return self.store.create_catalog_revision(
+                revision_id=revision_id,
+                source_id="partial-source",
+                dataset_id="dataset-" + revision_id,
+                metadata={"revision": revision_id},
+                observations=observations,
+                snapshot_path="catalogs/%s/catalog.json" % revision_id,
+                source_status="PARTIAL",
+            )
+
+        partial(
+            "partial-a",
+            [{
+                "object_id": "100",
+                "name": "Object 100 from A",
+                "norad_id": "100",
+                "object_type": "PAYLOAD",
+                "lifecycle_status": "ACTIVE",
+                "observation_status": "CHANGED",
+            }],
+        )
+        partial(
+            "partial-b",
+            [
+                {
+                    "object_id": "100",
+                    "name": "Object 100 from B",
+                    "norad_id": "100",
+                    "object_type": "PAYLOAD",
+                    "lifecycle_status": "ACTIVE",
+                    "observation_status": "CHANGED",
+                },
+                {
+                    "object_id": "400",
+                    "name": "Object 400 from B",
+                    "norad_id": "400",
+                    "object_type": "PAYLOAD",
+                    "lifecycle_status": "ACTIVE",
+                    "observation_status": "NEW",
+                },
+            ],
+        )
+
+        self.store.activate_catalog_revision("partial-a", actor_id="partial-rollback-test")
+
+        self.assertEqual(self.store.get_current_catalog_revision()["revision_id"], "partial-a")
+        self.assertEqual(self.store.get_current_object("100")["name"], "Object 100 from A")
+        self.assertEqual(self.store.get_current_object("400")["current_revision_id"], "partial-b")
+
     def test_atomic_job_idempotency_and_conflict(self):
         self.catalog()
         first = self.store.create_job(
