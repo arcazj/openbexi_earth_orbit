@@ -73,7 +73,7 @@ function run() {
   assert(tool.includes('if due["launches"] or reconciliation_due["launches"] or satcat_changed:'), 'scheduled launch work has an independent due branch');
   assert(tool.includes('"parser_version": "2.2.0"'), 'GP metadata records the parser version');
 
-  assert(server.includes('--update-data-on-schedule'), 'server exposes scheduled update opt-in flag');
+  assert(server.includes('--update-data-on-schedule'), 'server retains the scheduled update compatibility flag');
   assert(server.includes('--no-data-update'), 'server exposes scheduled update disable flag');
   assert(server.includes('--data-update-interval-hours'), 'server exposes update interval control');
   for (const intervalFlag of [
@@ -90,7 +90,7 @@ function run() {
   assert(server.includes('/api/gp'), 'server exposes the GP/OMM catalog endpoint');
   assert(server.includes('/api/launches'), 'server exposes the launch-event catalog endpoint');
   assert(server.includes('catalog_revision'), 'server data health exposes the catalog revision');
-  assert(server.includes('"state": "disabled"'), 'server data update scheduler is disabled by default');
+  assert(server.includes('if not args.no_data_update:'), 'server owns scheduled maintenance unless explicitly disabled');
 
   assert(readme.includes('tools/satellite_data_tools.py'), 'README documents the Python data tool');
   for (const command of [
@@ -673,7 +673,7 @@ satcat_meta = json.loads((fresh_root / "json" / "satcat.meta.json").read_text(en
 assert satcat_meta["last_status"] == "not-modified"
 
 print("satellite data tool fixture passed")
-assert s.default_repo_root().name == "openbexi_earth_orbit"
+assert s.default_repo_root() == pathlib.Path(${JSON.stringify(process.cwd())}).resolve()
 `;
   runPython(python, script, tempRoot);
   fs.rmSync(tempRoot, { recursive: true, force: true });

@@ -13,12 +13,14 @@ import datetime as dt
 import hashlib
 import ipaddress
 import json
+import logging
 import math
 import mimetypes
 import os
 import random
 import re
 import secrets
+import sys
 import threading
 import time
 from http import HTTPStatus
@@ -252,6 +254,19 @@ DATA_UPDATE_STATUS: dict[str, object] = {
     "last_error": None,
     "last_errors": [],
 }
+DATA_UPDATE_LOGGER = logging.getLogger("openbexi.data_update")
+
+
+def configure_data_update_logging() -> None:
+    """Keep maintenance visible even when an IDE has configured the root logger."""
+    DATA_UPDATE_LOGGER.setLevel(logging.INFO)
+    DATA_UPDATE_LOGGER.disabled = False
+    DATA_UPDATE_LOGGER.propagate = False
+    if not any(getattr(handler, "openbexi_console", False) for handler in DATA_UPDATE_LOGGER.handlers):
+        handler = logging.StreamHandler(sys.stdout)
+        handler.openbexi_console = True
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s Data updates: %(message)s"))
+        DATA_UPDATE_LOGGER.addHandler(handler)
 
 
 def _bounded_public_error(value: object) -> str | None:
@@ -502,7 +517,12 @@ def _strict_json_loads(
             "parse_int": _parse_canonical_nonnegative_json_integer,
             "parse_float": _reject_tracked_json_float,
         })
-    return _normalize_json_unicode_scalars(json.loads(source, **options))
+    payload = json.loads(source, **options)
+    # UTF-8 decoding and the JSON parser already preserve ordinary Unicode
+    # scalars. Only surrogate literals/escapes require the recursive repair.
+    if re.search(r"[\ud800-\udfff]|\\u[dD][89a-fA-F][0-9a-fA-F]{2}", source) is None:
+        return payload
+    return _normalize_json_unicode_scalars(payload)
 
 
 def _tracked_record_is_historical(record: dict[str, object]) -> bool:
@@ -2241,6 +2261,7 @@ class DataUpdateScheduler:
         self.registration_pending = False
         self.registered_pointer_identity = _data_pointer_identity_from_value(registered_pointer_identity)
         self.stop_event = threading.Event()
+        self.cycle_lock = threading.Lock()
         self.publication_lock = threading.Lock()
         self.thread = threading.Thread(target=self._run, name="openbexi-data-update", daemon=False)
 
@@ -2273,6 +2294,14 @@ class DataUpdateScheduler:
             last_errors=[],
             tool_available=maybe_update_satellite_data is not None,
             import_error=DATA_TOOL_IMPORT_ERROR,
+            phase="scheduled",
+            active_dataset=None,
+            last_progress_at=None,
+        )
+        DATA_UPDATE_LOGGER.info(
+            "Background worker scheduled: startup check in %.0fs; GP, TLE, SATCAT, tracked, launches, "
+            "and decayed data checked every %gh by default. Status: /api/data-update-status",
+            self.initial_delay_seconds, self.interval_hours,
         )
         self.thread.start()
 
@@ -2322,6 +2351,10 @@ class DataUpdateScheduler:
                     poll_interval_seconds=sleep_seconds,
                     retry_delay_seconds=retry_delay,
                 )
+                DATA_UPDATE_LOGGER.info(
+                    "Next data check at %s (delay %.0fs, retry=%s)",
+                    self._timestamp(self.clock() + sleep_seconds), sleep_seconds, retry_delay is not None,
+                )
                 if self.stop_event.wait(sleep_seconds):
                     break
         finally:
@@ -2336,14 +2369,69 @@ class DataUpdateScheduler:
             )
 
     def run_once(self) -> str:
+        if not self.cycle_lock.acquire(blocking=False):
+            DATA_UPDATE_LOGGER.info("Data check skipped: a check is already running")
+            return "busy"
+        try:
+            DATA_UPDATE_LOGGER.info("Data check started at %s", self._timestamp())
+            state = self._run_once()
+            _set_data_update_status(active_dataset=None, phase=state)
+            with DATA_UPDATE_STATUS_LOCK:
+                status = dict(DATA_UPDATE_STATUS)
+            summary = {
+                "state": state,
+                "checked_at": status.get("last_finished_at"),
+                "promoted": bool(self.last_result and self.last_result.get("promoted")),
+                "local_repair_promoted": bool(self.last_result and self.last_result.get("local_repair_promoted")),
+                "candidate_state": self.last_result.get("candidate_state") if self.last_result else None,
+                "datasets": {
+                    name: {key: item.get(key) for key in ("state", "due")}
+                    for name, item in status.get("dataset_status", {}).items()
+                },
+                "errors": status.get("last_errors", []),
+            }
+            DATA_UPDATE_LOGGER.log(
+                logging.WARNING if state in {"failed", "degraded", "unavailable"} else logging.INFO,
+                "Data check completed: %s", json.dumps(_public_data_update_result(summary), ensure_ascii=True),
+            )
+            return state
+        finally:
+            self.cycle_lock.release()
+
+    def _record_progress(self, progress: dict[str, object]) -> None:
+        phase = str(progress.get("phase") or "checking")
+        name = progress.get("dataset")
+        message = _bounded_public_error(progress.get("message")) or phase
+        errors = _bounded_public_errors(progress.get("errors", []))
+        checked_at = self._timestamp()
+        with DATA_UPDATE_STATUS_LOCK:
+            DATA_UPDATE_STATUS.update(phase=phase, last_progress_at=checked_at)
+            if name in {"gp", "tle", "satcat", "tracked", "launches", "decayed"}:
+                statuses = dict(DATA_UPDATE_STATUS.get("dataset_status", {}))
+                item = dict(statuses.get(name, {}))
+                item.update(state=progress.get("state", "checking"), message=message, last_checked_at=checked_at)
+                item["errors"] = errors
+                statuses[name] = item
+                DATA_UPDATE_STATUS["dataset_status"] = statuses
+                DATA_UPDATE_STATUS["active_dataset"] = name if item["state"] == "updating" else None
+        DATA_UPDATE_LOGGER.log(
+            logging.WARNING if errors else logging.INFO,
+            "%s%s%s", f"{name.upper()}: " if isinstance(name, str) else "", message,
+            f" Errors: {'; '.join(errors)}" if errors else "",
+        )
+
+    def _run_once(self) -> str:
+        self.last_result = None
         if self.data_plane is None:
             self.consecutive_failures += 1
             _set_data_update_status(
                 state="unavailable",
                 last_cycle_state="unavailable",
                 consecutive_failures=self.consecutive_failures,
-                last_error=DATA_TOOL_IMPORT_ERROR,
-                last_errors=[DATA_TOOL_IMPORT_ERROR] if DATA_TOOL_IMPORT_ERROR else [],
+                last_error=DATA_TOOL_IMPORT_ERROR or "Satellite data tools are unavailable.",
+                last_errors=[DATA_TOOL_IMPORT_ERROR or "Satellite data tools are unavailable."],
+                last_finished_at=self._timestamp(),
+                dataset_status=self._dataset_status(None),
             )
             return "unavailable"
         started_at = self._timestamp()
@@ -2354,12 +2442,32 @@ class DataUpdateScheduler:
             retry_delay_seconds=None,
             last_error=None,
             last_errors=[],
+            dataset_status=self._dataset_status(None),
+            active_dataset=None,
+            phase="checking",
         )
         try:
+            repair_result = None
+            repair = getattr(self.data_plane, "repair_tracked_lineage", None)
+            if callable(repair):
+                try:
+                    repair_result = repair(
+                        cancel_requested=self.stop_event.is_set,
+                        publication_guard=self.publication_lock,
+                        on_progress=self._record_progress,
+                    )
+                except DataPlaneCancelled:
+                    raise
+                except Exception as exc:
+                    DATA_UPDATE_LOGGER.warning(
+                        "Local tracked repair could not complete; continuing the normal refresh: %s",
+                        _bounded_public_error(str(exc)),
+                    )
             result = self.data_plane.stage_update(
                 promote=True,
                 cancel_requested=self.stop_event.is_set,
                 publication_guard=self.publication_lock,
+                on_progress=self._record_progress,
                 interval_hours=self.interval_hours,
                 gp_interval_hours=self.intervals_hours["gp"],
                 tle_interval_hours=self.intervals_hours["tle"],
@@ -2369,6 +2477,8 @@ class DataUpdateScheduler:
             )
             if not isinstance(result, dict):
                 raise TypeError("Satellite data update returned a non-object result.")
+            if isinstance(repair_result, dict) and repair_result.get("promoted") is True:
+                result = {**result, "local_repair_promoted": True}
         except DataPlaneCancelled:
             _set_data_update_status(
                 state="cancelled",
@@ -2399,7 +2509,7 @@ class DataUpdateScheduler:
             else "succeeded"
         )
         registration_error = None
-        candidate_promoted = result.get("promoted") is True
+        candidate_promoted = result.get("promoted") is True or result.get("local_repair_promoted") is True
         selected_pointer_identity = None
         if self.on_updated is not None and self.registered_pointer_identity is not None:
             try:
@@ -2470,7 +2580,7 @@ class DataUpdateScheduler:
         return min(self.failure_backoff_cap_seconds, max(60.0, jittered))
 
     def _success_delay_seconds(self, result: dict[str, object] | None) -> float:
-        default_delay = min(3600.0, max(60.0, min(self.intervals_hours.values()) * 900.0))
+        default_delay = min(self.intervals_hours.values()) * 3600.0
         if not isinstance(result, dict):
             return default_delay
         numeric_delay = next(
@@ -2482,7 +2592,7 @@ class DataUpdateScheduler:
             None,
         )
         if numeric_delay is not None:
-            return min(3600.0, max(60.0, numeric_delay))
+            return min(default_delay, max(60.0, numeric_delay))
         timestamps = []
         for container in (result, result.get("datasets"), result.get("schedule")):
             if not isinstance(container, dict):
@@ -2500,7 +2610,7 @@ class DataUpdateScheduler:
         future_epochs = [value for value in epochs if value is not None]
         if not future_epochs:
             return default_delay
-        return min(3600.0, max(60.0, min(future_epochs) - self.clock()))
+        return min(default_delay, max(60.0, min(future_epochs) - self.clock()))
 
     @staticmethod
     def _parse_timestamp(value: str) -> float | None:
@@ -3108,6 +3218,14 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
         self._response_status = HTTPStatus.OK
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
+    def handle(self) -> None:
+        try:
+            super().handle()
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            # A navigation, cancelled fetch, or client timeout closes the socket.
+            # There is no remaining connection on which to send an error response.
+            self.close_connection = True
+
     def send_response(self, code: int, message: str | None = None) -> None:
         self._response_status = code
         super().send_response(code, message)
@@ -3475,6 +3593,8 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
             if path == "/docs":
                 self._send_bytes(_docs_html(), content_type="text/html; charset=utf-8", head_only=head_only)
                 return True
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            raise
         except FileNotFoundError:
             self.send_error(HTTPStatus.NOT_FOUND, "Requested API resource was not found")
             return True
@@ -3564,7 +3684,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--update-data-on-schedule",
         action="store_true",
-        help="Enable background GP/OMM, TLE, SATCAT, tracked, launch, decay, and reconciliation cycles.",
+        default=True,
+        help="Compatibility flag: background data checks on startup and every 24 hours are enabled by default.",
     )
     parser.add_argument(
         "--no-data-update",
@@ -3625,6 +3746,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    configure_data_update_logging()
+    DATA_UPDATE_LOGGER.info(
+        "Initializing server; automatic background maintenance %s.",
+        "disabled by --no-data-update" if args.no_data_update else "enabled on startup and while running",
+    )
     cors_origins = tuple(origin.rstrip("/") for origin in args.cors_origin if origin)
     runtime_root = (ROOT / args.runtime_dir).resolve()
     if ROOT != runtime_root and ROOT not in runtime_root.parents:
@@ -3707,7 +3833,7 @@ def main() -> None:
         ),
     )
     scheduler = None
-    if args.update_data_on_schedule and not args.no_data_update:
+    if not args.no_data_update:
         on_data_promoted = None
         if v21_service and data_selection:
             def on_data_promoted() -> tuple[str, ...]:
@@ -3757,9 +3883,9 @@ def main() -> None:
             import_error=DATA_TOOL_IMPORT_ERROR,
         )
     url = f"http://{args.host}:{args.port}"
-    print(f"OpenBEXI Earth Orbit server {APP_VERSION} listening on {url}")
-    print(f"App:  {url}/index.html")
-    print(f"Docs: {url}/docs")
+    print(f"OpenBEXI Earth Orbit server {APP_VERSION} listening on {url}", flush=True)
+    print(f"App:  {url}/index.html", flush=True)
+    print(f"Docs: {url}/docs", flush=True)
     if v21_service:
         auth_state = "configured" if v21_service.authenticator.configured else "not configured"
         print(f"API v1: {url}/api/v1/capabilities (bearer credentials {auth_state})")
@@ -3771,8 +3897,10 @@ def main() -> None:
             "Data updates: enabled "
             f"(GP {intervals['gp']:g}h, TLE {intervals['tle']:g}h, "
             f"SATCAT {intervals['satcat']:g}h, tracked {intervals.get('tracked', intervals['satcat']):g}h, "
-            f"reconciliation {intervals['reconciliation']:g}h)"
+            f"launches/decayed {intervals['satcat']:g}h, reconciliation {intervals['reconciliation']:g}h)",
+            flush=True,
         )
+        DATA_UPDATE_LOGGER.info("Validated updates are served from %s; status at %s/api/data-update-status", runtime_root / "data-plane", url)
     else:
         print("Data updates: disabled")
     try:

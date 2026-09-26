@@ -1,5 +1,15 @@
 # Release Notes
 
+## Version 2.3.3 Server Maintenance Update (2026-09-26)
+
+The server now owns background data maintenance by default. It checks GP, TLE, SATCAT, tracked objects, launches, and decayed objects after startup and every 24 hours, logs each stage, and exposes progress through `/api/data-update-status`. Failed cycles retry with bounded backoff. `--no-data-update` supports offline operation.
+
+Missing core artifacts become due immediately. Updates are staged privately, validated together, and published through an atomic runtime pointer. Stale tracked lineage can first be repaired from validated local GP/SATCAT data, so a later provider failure does not undo that repair. Existing source coverage, historical records, and catalog-size checks remain enforced.
+
+Strict JSON parsing avoids unnecessary Unicode conversion for ordinary catalog strings. Cancelled or disconnected HTTP clients no longer trigger a second 500 response and traceback. Regression tests cover disconnect handling, Unicode validation, missing-artifact recovery, progress reporting, and local repair followed by provider failure.
+
+This update retains Version 2.3.3's development channel, Experimental maturity, and non-operational status. It does not resolve the existing published catalog snapshot defects or guarantee complete provider responses.
+
 ## Version 2.3.3 Day/Night and Orbit Rendering Fixes (2026-09-23)
 
 Version 2.3.3 corrects the 2D night region across seasons and equinoxes, adds a smooth twilight transition, and fixes Earth texture color handling. The globe uses dedicated solar shading so satellite fill lights do not wash out its night side, and the Day/Night toggle now controls globe shading.

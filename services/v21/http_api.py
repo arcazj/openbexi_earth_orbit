@@ -112,6 +112,8 @@ class V21HttpRouter:
             return False
         try:
             return self._route(handler, method=method.upper(), path=path, parsed=parsed, head_only=head_only)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            raise
         except ApiProblem as problem:
             if not problem.instance:
                 problem.instance = parsed.path
@@ -287,5 +289,5 @@ class V21HttpRouter:
                     handler.wfile.write(b": keep-alive\n\n")
                     handler.wfile.flush()
                 time.sleep(0.25)
-        except (BrokenPipeError, ConnectionResetError):
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             return

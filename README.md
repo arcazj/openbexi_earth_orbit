@@ -23,7 +23,7 @@ The live demo is a separately deployed Pages artifact and may remain on the appr
 - Explore launch and confirmed or predicted re-entry timelines that refresh when their data revisions change.
 - Add stars, the Milky Way, Moon, Mars, and a bounded JPL-derived Solar System ephemeris to the scene.
 - Run Experimental selected-object screening in the browser or optional authenticated full-catalog jobs through the local service; selected-object summaries and exports disclose how many current tracked records were excluded because they lack current elements.
-- Share a reproducible view and run either as a curated static artifact or with the local API server. Opt-in server refreshes validate isolated private candidates before one atomic runtime-pointer promotion and do not rewrite the checked-in publication data.
+- Share a reproducible view and run either as a curated static artifact or with the local API server. Automatic server refreshes validate isolated private candidates before one atomic runtime-pointer promotion and do not rewrite the checked-in publication data.
 
 ## Images
 
@@ -176,8 +176,8 @@ py server.py --host 127.0.0.1 --port 8000 --update-data-on-schedule --gp-update-
 | `--allow-public` | false | Required acknowledgement for a non-loopback bind. |
 | `--cors-origin ORIGIN` | None | Add an exact allowed CORS origin; repeatable. Loopback HTTP(S) is allowed by default. Use `*` only for an intentionally public read-only deployment. |
 | `--no-static` | false | Disable serving `index.html` and repository static files. |
-| `--update-data-on-schedule` | false | After the HTTP bind, start background GP, compatibility TLE, SATCAT, tracked-object, launch, confirmed-decay, and reconciliation checks; continue until shutdown. |
-| `--no-data-update` | false | Disable updates even when scheduling was requested. |
+| `--update-data-on-schedule` | true | Compatibility flag; automatic checks run on startup and every 24 hours by default. |
+| `--no-data-update` | false | Disable automatic updates for offline use; overrides the compatibility scheduling flag. |
 | `--data-update-interval-hours HOURS` | `24` | Legacy/fallback GP, TLE, and SATCAT interval; minimum `1` hour. |
 | `--gp-update-interval-hours HOURS` | fallback interval | GP/OMM freshness interval; minimum `1` hour. |
 | `--tle-update-interval-hours HOURS` | fallback interval | Deprecated compatibility TLE freshness interval; minimum `1` hour. |
@@ -187,9 +187,30 @@ py server.py --host 127.0.0.1 --port 8000 --update-data-on-schedule --gp-update-
 | `--runtime-dir DIR` | `runtime` | Private v2.1 database and job-artifact directory; it must remain inside the project root. |
 | `--no-v21-service` | false | Disable the authenticated durable screening service. |
 
-Scheduled provider access is disabled by default; `npm run serve` never enables it, while `npm run serve:update` explicitly selects daily maintenance. Due work shares one lock and one SATCAT fetch per cycle; tracked data is derived locally without another provider request. The scheduler always retains the production-scale catalog guard and has no shrink override. Unchanged payloads keep their data bytes, revision, and backup count stable; an accepted conditional revalidation advances successful freshness and resets the daily due age. Dataset failures are isolated, persisted in the GP/TLE/SATCAT/tracked/launch/decay metadata sidecars, retained across server restart, and retried with jittered exponential backoff from a nominal five minutes up to six hours. `/api/data-update-status` exposes all six dataset histories plus live state, due flags, effective intervals, failure count, retry/next-check times, reconciliation time, worker state, and graceful-shutdown state. Its public errors and nested `last_result` values are recursively bounded, control-character normalized, and credential-redacted. A durable-service bootstrap failure leaves the static and unversioned APIs available while reporting the v1 service unavailable.
+The server owns data freshness by default: `npm run serve`, `npm run serve:update`, and plain `server.py` start a background check after the HTTP bind and repeat it every 24 hours. Per-dataset overrides can shorten the cadence; failed cycles retry sooner. Use `--no-data-update` for offline operation. Due work shares one lock and one SATCAT fetch per cycle; tracked data is derived locally without another provider request. The scheduler always retains the production-scale catalog guard and has no shrink override. Unchanged payloads keep their data bytes, revision, and backup count stable; an accepted conditional revalidation advances successful freshness and resets the daily due age. Dataset failures are isolated, persisted in the GP/TLE/SATCAT/tracked/launch/decay metadata sidecars, retained across server restart, and retried with jittered exponential backoff from a nominal five minutes up to six hours. `/api/data-update-status` exposes all six dataset histories plus live state, due flags, effective intervals, failure count, retry/next-check times, reconciliation time, worker state, and graceful-shutdown state. Its public errors and nested `last_result` values are recursively bounded, control-character normalized, and credential-redacted. A durable-service bootstrap failure leaves the static and unversioned APIs available while reporting the v1 service unavailable.
 
 GitHub Pages and other static hosts cannot execute `server.py` or this scheduler. They serve the packaged snapshot until a separate deployment workflow replaces the generated files.
+
+#### Server freshness policy
+
+No provider dataset must be freshly downloaded before the HTTP server accepts requests. Existing validated data remains available during background refreshes. If a required catalog is unavailable, its API reports unavailability until a complete replacement passes validation.
+
+| Data under `json/` | Source and automatic policy |
+| --- | --- |
+| `gp/GP.json` and metadata | Configured CelesTrak GP/OMM groups; refresh after 24 hours since the latest successful fetch or accepted conditional revalidation. |
+| `tle/TLE.json` and metadata | CelesTrak compatibility TLE feed; the same daily freshness policy. |
+| `satcat.csv` and metadata | CelesTrak SATCAT; the same daily freshness policy, fetched once per due cycle. |
+| `tracked/` manifest, metadata, and referenced chunks | Rebuild from accepted SATCAT and GP when due or when their source revisions change. Validate the complete referenced catalog before serving it. |
+| `launches/` and `decayed/` | Rebuild from accepted SATCAT when due or when SATCAT changes, retaining available historical events. |
+| `tle/satellite_launch_dates.json` | Compatibility enrichment derived locally from SATCAT during TLE maintenance; no additional provider request. |
+| `satellites/`, `display_satellite_models.json`, `stars/`, and legacy `starts/` | Maintainer-controlled model/reference assets; updated with source changes, with no daily remote freshness clock. |
+| Legacy audit JSON, local `ops/` files, backups, ZIP files, and unreferenced tracked chunks | No configured automatic upstream. These are not active provider datasets and are not overwritten by maintenance. |
+
+Missing core data or metadata makes that dataset due immediately, even when a surviving sidecar has a recent timestamp. Missing core files are rebuilt in a private candidate; unsafe paths or a damaged existing tracked chunk set still fail validation and preserve the selected data. Files without a configured source cannot be declared current or downloaded automatically.
+
+Before contacting providers, the worker checks whether the tracked catalog matches the accepted local GP and SATCAT revisions. Stale tracked lineage is repaired in a separate, fully validated candidate using those local sources. This restores tracked routes even if the subsequent provider refresh fails; it does not advance provider freshness or claim broader GP source coverage. Normal browser disconnects end the request quietly instead of triggering a second error response.
+
+The server logs startup scheduling, freshness decisions, each dataset's download or rebuild as it begins, staged or unchanged outcomes, validation, publication or rejection, sanitized errors, and the next check or retry time. These messages are flushed to the console even when an IDE already has logging configured. `/api/data-update-status` also exposes `phase`, `active_dataset`, and `last_progress_at` during a running check. One in-process check and the cross-process data-plane lock prevent overlapping updates. Successful cycles wait 24 hours by default; failures use the existing jittered exponential retry delay (about five minutes initially, capped at six hours). Updates are validated together and selected through an atomic runtime pointer under `runtime/data-plane`; the server's API and static data URLs serve that selected revision. Checked-in publication snapshots stay reproducible. A staged dataset is not yet active: if another dataset fails, the entire candidate is rejected and the previous data remains served. See `/api/data-update-status` for live status.
 
 </details>
 
@@ -276,8 +297,8 @@ This fixed-purpose helper has no CLI options. Passing `--help` starts the fixed 
 
 | Command | Purpose |
 | --- | --- |
-| `npm run serve` | Start the loopback static/API server through shared Python discovery. |
-| `npm run serve:update` | Start the loopback server with explicit daily GP/TLE/SATCAT/tracked/launch/decay maintenance and reconciliation scheduling. |
+| `npm run serve` | Start the loopback static/API server with automatic startup and daily data checks through shared Python discovery. |
+| `npm run serve:update` | Compatibility command for automatic daily maintenance, with explicit 24-hour intervals. |
 | `npm run build` | Build the curated `dist/` artifact. |
 | `npm run check` | Run syntax, Python compilation, version, dependency, artifact, validation, and budget gates. |
 | `npm test` | Run JavaScript, Python, and Playwright browser suites. |

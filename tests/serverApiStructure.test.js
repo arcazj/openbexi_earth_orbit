@@ -35,7 +35,7 @@ function run() {
   assert(serverPy.includes('PUBLICATION_STATE = str(RELEASE_METADATA["publicationState"])'), 'server.py derives its publication state from release metadata');
   assert(serverPy.includes('RELEASE_DATE = RELEASE_METADATA.get("releasedAt")'), 'server.py preserves a nullable release date');
   assert(serverPy.includes('CANDIDATE_DATE = RELEASE_METADATA.get("candidateAt")'), 'server.py derives its candidate date from release metadata');
-  assert(serverPy.includes('--update-data-on-schedule'), 'server.py exposes data update schedule opt-in');
+  assert(serverPy.includes('--update-data-on-schedule'), 'server.py retains the data update schedule compatibility flag');
   assert(serverPy.includes('--no-data-update'), 'server.py exposes data update disable flag');
   assert(serverPy.includes('--data-update-interval-hours'), 'server.py exposes data update interval flag');
   for (const intervalFlag of [
@@ -53,7 +53,7 @@ function run() {
   assert(serverPy.includes('"launch_revision": launch_revision'), 'server.py exposes the launch dataset revision');
   assert(serverPy.includes('"decay_revision": decay_revision'), 'server.py exposes the decay dataset revision');
   assert((serverPy.match(/"\/api\/gp-metadata"/g) || []).length >= 2, 'GP metadata is present in routing and OpenAPI');
-  assert(serverPy.includes('"state": "disabled"'), 'server.py keeps data updates disabled by default');
+  assert(serverPy.includes('if not args.no_data_update:'), 'server.py starts automatic maintenance by default');
   assert(serverPy.includes('SwaggerUIBundle'), 'server docs page initializes Swagger UI when CDN is available');
   assert(serverPy.includes('.swagger-ui .opblock .opblock-summary-path'), 'server docs override Swagger route text contrast');
   assert(serverPy.includes('color: #ffffff !important'), 'server docs include high-contrast route/method text');
@@ -80,7 +80,7 @@ function run() {
     ['/api/display-satellite-models', 'README documents the model manifest'],
     ['Deprecated numeric/Alpha-5 TLE compatibility subset; not complete six-digit coverage', 'README labels the TLE API as deprecated and reduced coverage'],
     ['tools/satellite_data_tools.py', 'README documents the Python data tool'],
-    ['--update-data-on-schedule', 'README documents scheduled update opt-in']
+    ['--update-data-on-schedule', 'README documents the scheduled update compatibility flag']
     ,['npm run serve:update', 'README documents the daily update server command']
   ].forEach(([text, message]) => {
     assert(readme.includes(text), message);

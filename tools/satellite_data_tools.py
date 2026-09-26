@@ -435,7 +435,12 @@ def strict_json_loads(
             "parse_int": _parse_canonical_nonnegative_json_integer,
             "parse_float": _reject_tracked_json_float,
         })
-    return _normalize_json_unicode_scalars(json.loads(source, **options))
+    payload = json.loads(source, **options)
+    # Keep strict surrogate handling without walking millions of ordinary
+    # strings in catalogs that contain no surrogate literals or escapes.
+    if re.search(r"[\ud800-\udfff]|\\u[dD][89a-fA-F][0-9a-fA-F]{2}", source) is None:
+        return payload
+    return _normalize_json_unicode_scalars(payload)
 
 
 def repo_path(root: Path | str, relative: Path) -> Path:
@@ -617,6 +622,8 @@ def _restore_bytes_snapshot(
 
 
 def latest_success_time(meta: dict[str, object], data_path: Path) -> dt.datetime | None:
+    if not data_path.is_file():
+        return None
     successful_times = [
         parsed
         for key in ("fetched_at", "last_success_at", "revalidated_at")
@@ -1666,7 +1673,7 @@ def build_launch_catalog(
     previous_payload = load_json(output_path, [])
     previous = previous_payload if isinstance(previous_payload, list) else []
     launches, retained_history = merge_historical_launch_events(previous, current_launches)
-    changed = not isinstance(previous_payload, list) or previous != launches
+    changed = not output_path.is_file() or not isinstance(previous_payload, list) or previous != launches
     if changed:
         atomic_write_json(output_path, launches, dry_run=dry_run, backup=True)
     newest_launch_date = max((str(item["launch_date"]) for item in launches), default=None)
@@ -2196,7 +2203,7 @@ def export_tle_data(
     source_urls = configured_source_urls
     complete_snapshot_current = reconciliation_snapshot_is_current(meta, current_revision)
     request_meta = meta
-    if mode == RECONCILIATION_MODE and not complete_snapshot_current:
+    if not tle_path.is_file() or (mode == RECONCILIATION_MODE and not complete_snapshot_current):
         request_meta = {key: value for key, value in meta.items() if key != "urls"}
     responses, not_modified, errors = fetch_tle_sources(source_urls, fetcher=fetcher, meta=request_meta)
     if errors and allow_space_track and mode != RECONCILIATION_MODE:
@@ -2389,7 +2396,7 @@ def export_tle_data(
         key: sidecar_counts.get(key, 0) + local_sidecar_counts.get(key, 0)
         for key in sidecar_counts
     })
-    changed = satellites != existing
+    changed = not tle_path.is_file() or satellites != existing
     if changed:
         atomic_write_json(tle_path, satellites, dry_run=dry_run, backup=True)
     update_tle_success_metadata(
@@ -2729,7 +2736,8 @@ def export_gp_data(
         and meta.get("dataset_hash") == existing_revision_at_start
     )
     source_scope_current_at_start = (
-        gp_source_scope_is_current(meta)
+        gp_path.is_file()
+        and gp_source_scope_is_current(meta)
         and metadata_revision_matches_at_start
     )
     if not metadata_revision_matches_at_start:
@@ -3041,7 +3049,7 @@ def export_gp_data(
                 paths={"gp": str(gp_path), "metadata": str(meta_path)},
             )
 
-    changed = satellites != existing
+    changed = not gp_path.is_file() or satellites != existing
     if changed:
         atomic_write_json(gp_path, satellites, dry_run=dry_run, backup=True)
     newest_epoch = max(
@@ -3305,7 +3313,7 @@ def refresh_satcat_csv(
 
     complete_snapshot_current = reconciliation_snapshot_is_current(meta, current_revision)
     request_meta = meta
-    if reconcile and not complete_snapshot_current:
+    if current_text is None or (reconcile and not complete_snapshot_current):
         request_meta = {key: value for key, value in meta.items() if key != "urls"}
     headers = _metadata_request_headers(request_meta, CELESTRAK_SATCAT_CSV_URL)
     try:
@@ -4929,7 +4937,7 @@ def build_decayed_db(
     existing_grouped = existing_payload if isinstance(existing_payload, dict) else {}
     grouped, retained_history = merge_historical_decayed_records(existing_grouped, grouped)
     record_count = sum(len(records) for records in grouped.values())
-    changed = not isinstance(existing_payload, dict) or grouped != existing_grouped
+    changed = not output_path.is_file() or not isinstance(existing_payload, dict) or grouped != existing_grouped
     if changed:
         atomic_write_json(output_path, grouped, dry_run=dry_run, backup=True, indent=2)
     newest_confirmed_decay_date = max(
@@ -5064,6 +5072,8 @@ def metadata_is_older_than(
 ) -> bool:
     meta_path = repo_path(root, relative_meta_path)
     data_path = repo_path(root, data_relative_path)
+    if not meta_path.is_file() or not data_path.is_file():
+        return True
     meta = load_json(meta_path, {})
     if not isinstance(meta, dict):
         meta = {}
@@ -5209,6 +5219,7 @@ def maybe_update_satellite_data(
     fetcher: Callable[..., FetchResponse] | None = None,
     now: dt.datetime | None = None,
     cancel_requested: Callable[[], bool] | None = None,
+    on_progress: Callable[[dict[str, object]], None] | None = None,
 ) -> dict[str, object]:
     now = now or utc_now()
     root_path = Path(root).resolve()
@@ -5273,6 +5284,9 @@ def maybe_update_satellite_data(
         def record_result(name: str, operation: Callable[[], UpdateResult]) -> UpdateResult | None:
             check_cancelled()
             executed_names.add(name)
+            if on_progress is not None:
+                action = "Downloading/checking provider data" if name in {"gp", "tle", "satcat"} else "Rebuilding from local source data"
+                on_progress({"phase": "updating", "dataset": name, "state": "updating", "message": action + " in the background."})
             try:
                 result = operation()
                 check_cancelled()
@@ -5288,8 +5302,17 @@ def maybe_update_satellite_data(
                     "errors": [str(exc)],
                     "paths": {},
                 }
+                if on_progress is not None:
+                    on_progress({"phase": "updating", "dataset": name, "state": "failed", "message": "Update failed; preserving previous data.", "errors": [str(exc)]})
                 return None
             results[name] = update_result_for_metadata(result, root_path)
+            if on_progress is not None:
+                state = "failed" if result.errors else "staged" if result.changed else "skipped" if result.skipped else "unchanged"
+                on_progress({
+                    "phase": "updating", "dataset": name, "state": state,
+                    "message": result.message + (" Update staged; awaiting complete-catalog validation." if result.changed and not result.errors else ""),
+                    "errors": result.errors,
+                })
             return result
 
         satcat_result: UpdateResult | None = None

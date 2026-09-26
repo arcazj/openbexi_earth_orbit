@@ -3,6 +3,7 @@ import inspect
 import hashlib
 import io
 import json
+import logging
 import tempfile
 import threading
 import unittest
@@ -80,11 +81,19 @@ class ServerDataUpdateSchedulerTests(unittest.TestCase):
     def setUp(self):
         with server.DATA_UPDATE_STATUS_LOCK:
             self.original_status = dict(server.DATA_UPDATE_STATUS)
+        logger = server.DATA_UPDATE_LOGGER
+        self.original_logging = (logger.handlers[:], logger.level, logger.propagate, logger.disabled)
 
     def tearDown(self):
         with server.DATA_UPDATE_STATUS_LOCK:
             server.DATA_UPDATE_STATUS.clear()
             server.DATA_UPDATE_STATUS.update(self.original_status)
+        logger = server.DATA_UPDATE_LOGGER
+        handlers, logger.level, logger.propagate, logger.disabled = self.original_logging
+        for handler in logger.handlers:
+            if handler not in handlers:
+                handler.close()
+        logger.handlers = handlers
 
     def test_cycle_passes_independent_intervals_and_reports_dataset_state(self):
         result = {
@@ -119,6 +128,7 @@ class ServerDataUpdateSchedulerTests(unittest.TestCase):
             promote=True,
             cancel_requested=mock.ANY,
             publication_guard=mock.ANY,
+            on_progress=mock.ANY,
             interval_hours=30,
             gp_interval_hours=24,
             tle_interval_hours=36,
@@ -455,15 +465,131 @@ class ServerDataUpdateSchedulerTests(unittest.TestCase):
         self.assertEqual(scheduler.run_once(), "skipped")
         registered.assert_not_called()
 
-    def test_success_polling_uses_due_hint_and_never_exceeds_one_hour(self):
+    def test_success_polling_defaults_to_daily_and_respects_earlier_due_hints(self):
         scheduler = server.DataUpdateScheduler(clock=lambda: 1_800_000_000.0)
+        self.assertEqual(scheduler._success_delay_seconds(None), 86_400)
+        self.assertEqual(scheduler._success_delay_seconds({"skipped": True}), 86_400)
         self.assertEqual(scheduler._success_delay_seconds({"next_due_in_seconds": 120}), 120)
-        self.assertEqual(scheduler._success_delay_seconds({"next_due_in_seconds": 20_000}), 3600)
+        self.assertEqual(scheduler._success_delay_seconds({"next_due_in_seconds": 20_000}), 20_000)
+        self.assertEqual(scheduler._success_delay_seconds({"next_due_in_seconds": 200_000}), 86_400)
         self.assertEqual(scheduler._success_delay_seconds({"next_due_in_seconds": 1}), 60)
         self.assertEqual(
             scheduler._success_delay_seconds({"next_due_at": "2027-01-15T08:02:00Z"}),
             120,
         )
+        scheduler = server.DataUpdateScheduler(gp_interval_hours=2)
+        self.assertEqual(scheduler._success_delay_seconds({}), 7200)
+
+    def test_background_worker_repeats_daily_without_waiting_a_real_day(self):
+        plane = mock.Mock()
+        plane.stage_update.return_value = {"skipped": True, "degraded": False}
+        scheduler = server.DataUpdateScheduler(data_plane=plane, initial_delay_seconds=0)
+        scheduler.stop_event = mock.Mock()
+        scheduler.stop_event.is_set.return_value = False
+        scheduler.stop_event.wait.side_effect = [False, False, True]
+        scheduler._run()
+        self.assertEqual(plane.stage_update.call_count, 2)
+        self.assertEqual(scheduler.stop_event.wait.call_args_list, [mock.call(0), mock.call(86_400), mock.call(86_400)])
+
+    def test_concurrent_checks_are_skipped_without_changing_inflight_status(self):
+        entered = threading.Event()
+        release = threading.Event()
+
+        def update(**_kwargs):
+            entered.set()
+            if not release.wait(timeout=2):
+                raise AssertionError("test did not release the data check")
+            return {"skipped": True, "degraded": False}
+
+        plane = mock.Mock()
+        plane.stage_update.side_effect = update
+        scheduler = server.DataUpdateScheduler(data_plane=plane)
+        worker = threading.Thread(target=scheduler.run_once)
+        worker.start()
+        try:
+            self.assertTrue(entered.wait(timeout=2))
+            self.assertEqual(scheduler.run_once(), "busy")
+            self.assertEqual(status_snapshot()["state"], "checking")
+            plane.stage_update.assert_called_once()
+        finally:
+            release.set()
+            worker.join(timeout=2)
+        self.assertFalse(worker.is_alive())
+
+    def test_cycle_logs_results_and_redacts_failure_credentials(self):
+        plane = mock.Mock()
+        plane.stage_update.return_value = {
+            "promoted": True, "gp": {"changed": True}, "degraded": False,
+        }
+        scheduler = server.DataUpdateScheduler(data_plane=plane)
+        with self.assertLogs("openbexi.data_update", level="INFO") as captured:
+            self.assertEqual(scheduler.run_once(), "succeeded")
+        self.assertIn('"promoted": true', captured.output[-1])
+        self.assertIn('"state": "updated"', captured.output[-1])
+        plane.stage_update.side_effect = RuntimeError("provider failed\nAuthorization=private-token")
+        with self.assertLogs("openbexi.data_update", level="INFO") as captured:
+            self.assertEqual(scheduler.run_once(), "failed")
+        self.assertNotIn("private-token", "\n".join(captured.output))
+        self.assertIn("<redacted>", captured.output[-1])
+        self.assertIn('"promoted": false', captured.output[-1])
+        plane.stage_update.side_effect = None
+        self.assertEqual(scheduler.run_once(), "succeeded", "failure releases the cycle lock")
+
+    def test_console_progress_is_visible_with_an_existing_warning_only_root_logger(self):
+        output = io.StringIO()
+        root = logging.getLogger()
+        with mock.patch.object(root, "handlers", [logging.NullHandler()]), mock.patch.object(root, "level", logging.WARNING):
+            with contextlib.redirect_stdout(output):
+                server.configure_data_update_logging()
+                server.configure_data_update_logging()
+                scheduler = server.DataUpdateScheduler(data_plane=mock.Mock())
+                scheduler._record_progress({
+                    "phase": "updating", "dataset": "tle", "state": "updating",
+                    "message": "Downloading in the background.",
+                })
+            self.assertEqual(root.level, logging.WARNING)
+            self.assertEqual(len(root.handlers), 1)
+        self.assertEqual(output.getvalue().count("TLE: Downloading in the background."), 1)
+
+    def test_progress_is_logged_and_exposed_before_a_slow_update_finishes(self):
+        entered = threading.Event()
+        release = threading.Event()
+
+        def update(*, on_progress, **_kwargs):
+            on_progress({
+                "phase": "updating", "dataset": "satcat", "state": "updating",
+                "message": "Downloading/checking provider data in the background.",
+            })
+            entered.set()
+            if not release.wait(timeout=2):
+                raise AssertionError("test did not release the update")
+            on_progress({
+                "phase": "updating", "dataset": "satcat", "state": "failed",
+                "message": "Provider failed\nAuthorization=private-progress-token",
+                "errors": ["Bearer private-progress-secret"],
+            })
+            return {"degraded": True, "satcat": {"errors": ["Provider unavailable"]}}
+
+        plane = mock.Mock()
+        plane.stage_update.side_effect = update
+        scheduler = server.DataUpdateScheduler(data_plane=plane)
+        with self.assertLogs("openbexi.data_update", level="INFO") as captured:
+            worker = threading.Thread(target=scheduler.run_once)
+            worker.start()
+            try:
+                self.assertTrue(entered.wait(timeout=2))
+                status = status_snapshot()
+                self.assertEqual(status["phase"], "updating")
+                self.assertEqual(status["active_dataset"], "satcat")
+                self.assertEqual(status["dataset_status"]["satcat"]["state"], "updating")
+                self.assertTrue(any("SATCAT: Downloading" in line for line in captured.output))
+            finally:
+                release.set()
+                worker.join(timeout=2)
+        self.assertFalse(worker.is_alive())
+        self.assertIsNone(status_snapshot()["active_dataset"])
+        self.assertNotIn("private-progress-token", "\n".join(captured.output))
+        self.assertNotIn("private-progress-secret", "\n".join(captured.output))
 
     def test_background_catch_up_is_non_blocking_and_stop_is_graceful(self):
         cycle_finished = threading.Event()
@@ -506,10 +632,10 @@ class ServerDataUpdateSchedulerTests(unittest.TestCase):
             def __init__(self, **kwargs):
                 scheduler_kwargs.update(kwargs)
                 self.intervals_hours = {
-                    "gp": kwargs["gp_interval_hours"],
-                    "tle": kwargs["tle_interval_hours"],
-                    "satcat": kwargs["satcat_interval_hours"],
-                    "tracked": kwargs["tracked_interval_hours"],
+                    "gp": kwargs["gp_interval_hours"] or kwargs["interval_hours"],
+                    "tle": kwargs["tle_interval_hours"] or kwargs["interval_hours"],
+                    "satcat": kwargs["satcat_interval_hours"] or kwargs["interval_hours"],
+                    "tracked": kwargs["tracked_interval_hours"] or kwargs["interval_hours"],
                     "reconciliation": kwargs["reconciliation_interval_hours"],
                 }
 
@@ -522,12 +648,6 @@ class ServerDataUpdateSchedulerTests(unittest.TestCase):
         args = server.parse_args([
             "--port", "0",
             "--no-v21-service",
-            "--update-data-on-schedule",
-            "--gp-update-interval-hours", "24",
-            "--tle-update-interval-hours", "24",
-            "--satcat-update-interval-hours", "24",
-            "--tracked-update-interval-hours", "24",
-            "--reconciliation-interval-hours", "24",
         ])
         with (
             mock.patch.object(server, "parse_args", return_value=args),
@@ -539,14 +659,31 @@ class ServerDataUpdateSchedulerTests(unittest.TestCase):
 
         self.assertEqual(events, ["bind", "scheduler-start", "serve", "scheduler-stop", "server-close"])
         self.assertEqual(scheduler_kwargs["interval_hours"], 24)
-        self.assertEqual(scheduler_kwargs["gp_interval_hours"], 24)
-        self.assertEqual(scheduler_kwargs["tle_interval_hours"], 24)
-        self.assertEqual(scheduler_kwargs["satcat_interval_hours"], 24)
-        self.assertEqual(scheduler_kwargs["tracked_interval_hours"], 24)
+        self.assertIsNone(scheduler_kwargs["gp_interval_hours"])
+        self.assertIsNone(scheduler_kwargs["tle_interval_hours"])
+        self.assertIsNone(scheduler_kwargs["satcat_interval_hours"])
+        self.assertIsNone(scheduler_kwargs["tracked_interval_hours"])
         self.assertEqual(scheduler_kwargs["reconciliation_interval_hours"], 24)
 
+    def test_explicit_offline_flag_disables_scheduler_even_with_compatibility_flag(self):
+        for flags in (["--no-data-update"], ["--no-data-update", "--update-data-on-schedule"]):
+            with self.subTest(flags=flags), tempfile.TemporaryDirectory() as temporary:
+                args = server.parse_args(["--no-v21-service", *flags])
+                with (
+                    mock.patch.object(server, "ROOT", Path(temporary)),
+                    mock.patch.object(server, "parse_args", return_value=args),
+                    mock.patch.object(server, "ThreadingHTTPServer"),
+                    mock.patch.object(server, "DataUpdateScheduler") as scheduler,
+                    mock.patch("builtins.print"),
+                ):
+                    server.main()
+                scheduler.assert_not_called()
+                self.assertEqual(status_snapshot()["state"], "disabled")
+
     def test_cli_defaults_to_daily_intervals_and_accepts_per_dataset_overrides(self):
-        defaults = server.parse_args(["--update-data-on-schedule"])
+        defaults = server.parse_args([])
+        self.assertTrue(defaults.update_data_on_schedule)
+        self.assertFalse(defaults.no_data_update)
         self.assertEqual(defaults.data_update_interval_hours, 24)
         self.assertIsNone(defaults.gp_update_interval_hours)
         self.assertIsNone(defaults.tle_update_interval_hours)

@@ -259,7 +259,7 @@ def _copy_file(source: Path, target: Path) -> None:
     target.chmod(target.stat().st_mode | stat.S_IWUSR)
 
 
-def _resolve_regular_artifact(root: Path, relative: Path | str) -> Path:
+def _resolve_regular_artifact(root: Path, relative: Path | str, *, allow_missing: bool = False) -> Path:
     root = root.resolve()
     relative_path = Path(relative)
     if relative_path.is_absolute() or not relative_path.parts or ".." in relative_path.parts:
@@ -270,13 +270,17 @@ def _resolve_regular_artifact(root: Path, relative: Path | str) -> Path:
         if candidate.is_symlink():
             raise DataPlaneError(f"Candidate artifact may not use symlinks: {relative_path.as_posix()}")
     resolved = candidate.resolve()
-    if root not in resolved.parents or not resolved.is_file():
+    if root not in resolved.parents or (not resolved.is_file() and not (allow_missing and not resolved.exists())):
         raise DataPlaneError(f"Candidate artifact is missing or unsafe: {relative_path.as_posix()}")
     return resolved
 
 
-def _tracked_closure_paths(root: Path) -> list[Path]:
-    manifest_path = root / data_tools.TRACKED_MANIFEST_RELATIVE_PATH
+def _tracked_closure_paths(root: Path, *, allow_missing_manifest: bool = False) -> list[Path]:
+    manifest_path = _resolve_regular_artifact(
+        root, data_tools.TRACKED_MANIFEST_RELATIVE_PATH, allow_missing=allow_missing_manifest,
+    )
+    if not manifest_path.exists():
+        return []
     manifest = _read_json_object(
         manifest_path,
         canonical_nonnegative_integers=True,
@@ -303,7 +307,9 @@ def _tracked_closure_paths(root: Path) -> list[Path]:
     return paths
 
 
-def seed_candidate_root(source_root: Path | str, candidate_root: Path | str) -> list[str]:
+def seed_candidate_root(
+    source_root: Path | str, candidate_root: Path | str, *, allow_missing: bool = False,
+) -> list[str]:
     """Clone only update inputs and the current tracked closure into a private root."""
 
     source = Path(source_root).resolve()
@@ -315,11 +321,16 @@ def seed_candidate_root(source_root: Path | str, candidate_root: Path | str) -> 
     target.mkdir(parents=True)
     relative_paths = list(CORE_DATA_PATHS)
     relative_paths.extend(path for path in OPTIONAL_SEED_PATHS if (source / path).is_file())
-    relative_paths.extend(path.relative_to(source) for path in _tracked_closure_paths(source))
+    relative_paths.extend(
+        path.relative_to(source)
+        for path in _tracked_closure_paths(source, allow_missing_manifest=allow_missing)
+    )
     copied: list[str] = []
     try:
         for relative in dict.fromkeys(relative_paths):
-            source_path = _resolve_regular_artifact(source, relative)
+            source_path = _resolve_regular_artifact(source, relative, allow_missing=allow_missing)
+            if not source_path.exists():
+                continue
             _copy_file(source_path, target / relative)
             copied.append(relative.as_posix())
     except Exception:
@@ -970,6 +981,58 @@ class SatelliteDataPlane:
                 "promoted": False,
             }
 
+    def repair_tracked_lineage(
+        self,
+        *,
+        cancel_requested: Callable[[], bool] | None = None,
+        publication_guard: ContextManager[object] | None = None,
+        on_progress: Callable[[dict[str, object]], None] | None = None,
+        now: dt.datetime | None = None,
+    ) -> dict[str, object]:
+        """Repair derived data from accepted local inputs without provider access."""
+        root = self.current_root()
+        required = (
+            data_tools.TRACKED_MANIFEST_RELATIVE_PATH, data_tools.TRACKED_META_RELATIVE_PATH,
+            data_tools.GP_META_RELATIVE_PATH, data_tools.SATCAT_META_RELATIVE_PATH,
+        )
+        if not all((root / relative).is_file() for relative in required):
+            return {"skipped": True, "promoted": False}
+        manifest, tracked, gp, satcat = [_read_json_object(root / relative) for relative in required]
+        provenance = manifest.get("provenance")
+        provenance = provenance if isinstance(provenance, dict) else {}
+        groups = data_tools.gp_catalog_source_groups(gp)
+        if (
+            provenance.get("gp_revision") == tracked.get("source_gp_revision") == gp.get("catalog_revision")
+            and provenance.get("satcat_revision") == tracked.get("source_satcat_revision") == satcat.get("catalog_revision")
+            and provenance.get("gp_source_groups") == tracked.get("source_gp_groups") == groups
+        ):
+            return {"skipped": True, "promoted": False}
+
+        def rebuild(*, root: Path, now=None, cancel_requested=None, on_progress=None):
+            _check_cancelled(cancel_requested)
+            # A rebuild may only use bytes matching their accepted source metadata.
+            # The existing tracked history and the final complete candidate are
+            # still validated by the normal builders and promotion boundary.
+            for label, data_path, meta_path in REVISION_PAIRS:
+                if label in {"gp", "satcat"}:
+                    _validate_revision_pair(root, label, data_path, meta_path)
+            if on_progress is not None:
+                on_progress({
+                    "phase": "repairing", "dataset": "tracked", "state": "updating",
+                    "message": "Repairing stale tracked lineage from validated local GP/SATCAT data; no provider download required.",
+                })
+            result = data_tools.build_tracked_catalog(root=root, now=now)
+            _check_cancelled(cancel_requested)
+            return {
+                "skipped": False, "degraded": bool(result.errors), "local_repair": True,
+                "tracked": data_tools.update_result_for_metadata(result, root),
+            }
+
+        return self.stage_update(
+            promote=True, updater=rebuild, now=now, cancel_requested=cancel_requested,
+            publication_guard=publication_guard, on_progress=on_progress,
+        )
+
     def stage_update(
         self,
         *,
@@ -978,12 +1041,19 @@ class SatelliteDataPlane:
         publication_guard: ContextManager[object] | None = None,
         updater: Callable[..., dict[str, object]] = data_tools.maybe_update_satellite_data,
         now: dt.datetime | None = None,
+        on_progress: Callable[[dict[str, object]], None] | None = None,
         **update_kwargs: object,
     ) -> dict[str, object]:
         """Refresh a private clone, validate it, and optionally switch the pointer."""
 
         if promote and update_kwargs.get("dry_run") is True:
             raise DataPlaneError("A dry-run candidate cannot be promoted.")
+
+        def report(phase: str, message: str, **details: object) -> None:
+            if on_progress is not None:
+                on_progress({"phase": phase, "message": message, **details})
+
+        report("checking", "Checking dataset freshness in the background.")
         with _data_plane_lock(self.state_root):
             _check_cancelled(cancel_requested)
             base_root = self.current_root()
@@ -1005,7 +1075,12 @@ class SatelliteDataPlane:
                     now=now,
                     **{key: value for key, value in update_kwargs.items() if key in plan_keys},
                 )
+                report("checking", "Freshness: " + ", ".join(
+                    f"{name.upper()}={'due' if due or plan['reconciliation'].get(name) else 'current'}"
+                    for name, due in plan["due"].items()
+                ))
                 if plan["any_due"] is not True:
+                    report("current", "All datasets are current; no download or rebuild is needed.")
                     return {
                         "started_at": data_tools.isoformat_utc(now),
                         "finished_at": data_tools.isoformat_utc(now),
@@ -1040,7 +1115,8 @@ class SatelliteDataPlane:
                     }
             candidate_id = self._new_candidate_id(now)
             candidate_root = _candidate_path(self.state_root, candidate_id)
-            seeded_paths = seed_candidate_root(base_root, candidate_root)
+            report("staging", f"Preparing update files in {candidate_root}.")
+            seeded_paths = seed_candidate_root(base_root, candidate_root, allow_missing=True)
             seed_inventory = _raw_inventory(candidate_root, seeded_paths)
             metadata: dict[str, object] = {
                 "schema_version": DATA_PLANE_SCHEMA_VERSION,
@@ -1064,6 +1140,7 @@ class SatelliteDataPlane:
                     root=candidate_root,
                     cancel_requested=cancel_requested,
                     now=now,
+                    **({"on_progress": on_progress} if on_progress is not None else {}),
                     **update_kwargs,
                 )
                 if not isinstance(result, dict):
@@ -1084,6 +1161,7 @@ class SatelliteDataPlane:
                 if result.get("degraded") or result_errors:
                     metadata["state"] = "rejected"
                     metadata["errors"] = result_errors or ["Candidate refresh reported a degraded result."]
+                    report("rejected", "Update not published: one or more datasets failed. The previous data remains active.", errors=metadata["errors"])
                     self._write_candidate_metadata(candidate_root, metadata)
                     self._prune_candidates()
                     return {
@@ -1094,6 +1172,7 @@ class SatelliteDataPlane:
                         "promoted": False,
                         "errors": metadata["errors"],
                     }
+                report("validating", "Validating the complete updated catalog before publication.")
                 validation = validate_data_root(candidate_root)
                 validation["validated_at"] = data_tools.isoformat_utc(now)
                 metadata["state"] = "validated"
@@ -1108,6 +1187,9 @@ class SatelliteDataPlane:
                         cancel_requested=cancel_requested,
                         publication_guard=publication_guard,
                     )
+                    report("promoted", "Validated update published; API and static data routes now use the new data.")
+                else:
+                    report("validated", "Validation completed; " + ("data is unchanged." if not changed else "candidate retained without publication."))
                 response = {
                     **result,
                     "candidate_id": candidate_id,

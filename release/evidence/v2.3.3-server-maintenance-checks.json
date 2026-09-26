@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "version": "2.3.3",
+  "channel": "development",
+  "checkedAt": "2026-09-26T19:03:00.803714+00:00",
+  "baseCommit": "8d03bcea6f5c996031b307d297c0fdff320b9ef7",
+  "environment": {
+    "platform": "Windows",
+    "node": "v24.19.0"
+  },
+  "checks": {
+    "javascriptSyntax": {
+      "status": "passed",
+      "files": 149
+    },
+    "pythonCompile": {
+      "status": "passed"
+    },
+    "versionPolicy": {
+      "status": "passed"
+    },
+    "vendorIntegrity": {
+      "status": "passed"
+    },
+    "lockedDependencyInstall": {
+      "status": "passed",
+      "reportedVulnerabilities": 0
+    },
+    "pythonTests": {
+      "status": "passed",
+      "total": 167,
+      "passed": 166,
+      "skipped": 1,
+      "failed": 0
+    },
+    "javascriptTests": {
+      "status": "failed",
+      "totalFiles": 63,
+      "passedFiles": 61,
+      "failedFiles": [
+        "staticArtifact.test.js",
+        "trackedObjectCatalogRealManifest.test.js"
+      ]
+    },
+    "chromiumSmoke": {
+      "status": "failed",
+      "passed": 1,
+      "failed": 1,
+      "detail": "Matched-position count 16254 differs from drawn count 16255 at smoke.spec.js:152."
+    },
+    "staticArtifact": {
+      "status": "failed",
+      "detail": "Decay catalog bytes do not match their producer-canonical metadata revision."
+    },
+    "assetBudgets": {
+      "status": "failed",
+      "detail": "Referenced tracked chunks are missing from the published closure."
+    },
+    "historicalValidation": {
+      "status": "failed",
+      "detail": "Current source bytes differ from the frozen v2.3.2 evidence checksums."
+    }
+  },
+  "missingTrackedChunks": [
+    "json/tracked/chunks/962ddbd7d686835d38a15db59a5f8d0e8b517278dc4e58fa1ead7832330eb020-current-payload.json",
+    "json/tracked/chunks/b5105200ce67b4b575e550aa6940725eb3b4ee625cfcdb5d815a28b4e6ba5d90-current-debris.json",
+    "json/tracked/chunks/d9b505ea7bed9834f92067fb0cd496e40542d1c0dadb56fed1fbcc8359885060-current-rocket-body.json",
+    "json/tracked/chunks/e7a05e3b023236d3cbc78d4c43d1e0c64c5d12e32684411d42012e0132c60cea-current-unknown.json"
+  ],
+  "dataSnapshotChanged": false,
+  "publication": {
+    "kind": "GitHub development prerelease",
+    "pagesDeployment": false,
+    "stableQualification": false
+  },
+  "logDigests": {
+    "artifact.log": "8d50676acb58f13c324fe45210711eb5f151fb7e2ec01a5f9ef8a797ab93c3e5",
+    "browser-smoke.log": "a266cdc2bc5843cb2aad6adbc8231b268f543c590bc6bc2c36615019e7b46a56",
+    "budgets.log": "e67268f4f821a46c41bcfc93177ba14554ea93255076a1b1933f0c11f6d3dd61",
+    "js-tests.log": "44e93e37e50296d5692ea90951efa52bf9b1aaa70176b5e3474605803f0ed49b",
+    "python-compile.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "python-tests.log": "c8d2478feb0bf570353bf33324812a77344d208c739259cd4bcabb297c4a9da2",
+    "syntax.log": "be2548d5401d7d3601a6086bb8dc1727e53dc9980fe4560f515d20879342b6d2",
+    "validation.log": "891db28c5d803635171e3a6b3eb84d543c56d9a7d3a1d7b675f69498d68f073b",
+    "vendor.log": "dfee9061a278fac86dc45ac8ad35db05dc226f162664d6493978903bbd5024a5",
+    "version.log": "cee9dbbb27c8f58a1e0835f02ae6518e88aa7db02ecaadaa16398d8732164444"
+  }
+}

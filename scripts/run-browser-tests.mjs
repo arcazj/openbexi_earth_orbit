@@ -130,7 +130,7 @@ try {
     const python = resolvePython();
     managedServer = spawn(
       python.command,
-      [...python.prefix, 'server.py', '--host', '127.0.0.1', '--port', String(PORT)],
+      [...python.prefix, 'server.py', '--host', '127.0.0.1', '--port', String(PORT), '--no-data-update'],
       {
         cwd: ROOT,
         stdio: 'inherit',

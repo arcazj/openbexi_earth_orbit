@@ -21,7 +21,8 @@ const webServerCommand = [
   '--host',
   '127.0.0.1',
   '--port',
-  String(port)
+  String(port),
+  '--no-data-update'
 ].map(quoteShellArgument).join(' ');
 
 export default defineConfig({

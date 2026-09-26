@@ -305,6 +305,52 @@ class StaticPathPolicyTests(unittest.TestCase):
 
 
 class HttpServerCapacityTests(unittest.TestCase):
+    def test_disconnected_status_client_does_not_receive_a_second_error_response(self):
+        for error in (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+            with self.subTest(error=error.__name__):
+                handler = object.__new__(server.OpenBexiHandler)
+                handler.path = "/api/data-update-status"
+                handler.headers = {}
+                handler.command = "GET"
+                handler.server = mock.Mock(server_port=8000)
+                handler.v21_router = None
+                handler.data_root_resolver = None
+                handler._send_json = mock.Mock(side_effect=error("client disconnected"))
+                handler.send_error = mock.Mock()
+                handler.log_error = mock.Mock()
+                with (
+                    mock.patch.object(server, "_data_update_status_snapshot", return_value={"state": "checking"}),
+                    mock.patch.object(server.SimpleHTTPRequestHandler, "handle", side_effect=lambda: handler._handle_api(head_only=False)),
+                ):
+                    handler.handle()
+                self.assertTrue(handler.close_connection)
+                handler._send_json.assert_called_once()
+                handler.send_error.assert_not_called()
+                handler.log_error.assert_not_called()
+
+    def test_real_resource_errors_still_return_500(self):
+        handler = object.__new__(server.OpenBexiHandler)
+        handler.path = "/api/data-update-status"
+        handler.headers = {}
+        handler.command = "GET"
+        handler.server = mock.Mock(server_port=8000)
+        handler.v21_router = None
+        handler.data_root_resolver = None
+        handler.send_error = mock.Mock()
+        handler.log_error = mock.Mock()
+        with mock.patch.object(server, "_data_update_status_snapshot", side_effect=PermissionError("unreadable metadata")):
+            self.assertTrue(handler._handle_api(head_only=False))
+        handler.send_error.assert_called_once_with(500, "Unable to read the requested API resource")
+
+    def test_v1_disconnect_is_not_reclassified_as_an_internal_error(self):
+        router = server.V21HttpRouter(mock.Mock())
+        handler = mock.Mock(path="/api/v1/capabilities")
+        with mock.patch.object(router, "_route", side_effect=ConnectionAbortedError("client disconnected")):
+            with self.assertRaises(ConnectionAbortedError):
+                router.handle(handler, method="GET")
+        handler.log_error.assert_not_called()
+        handler.send_response.assert_not_called()
+
     class FakeRequest:
         def __init__(self):
             self.closed = False

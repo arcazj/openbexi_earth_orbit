@@ -167,7 +167,7 @@ function run() {
   assert.strictEqual(
     packageJson.scripts['serve:update'],
     'node scripts/python.mjs server.py --host 127.0.0.1 --port 8000 --update-data-on-schedule --gp-update-interval-hours 24 --tle-update-interval-hours 24 --satcat-update-interval-hours 24 --tracked-update-interval-hours 24 --reconciliation-interval-hours 24',
-    'serve:update starts the explicit opt-in daily maintenance server'
+    'serve:update retains the daily maintenance compatibility command'
   );
   const playwrightConfig = read('playwright.config.js');
   assert.match(

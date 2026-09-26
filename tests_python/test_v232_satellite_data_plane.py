@@ -17,6 +17,7 @@ from unittest import mock
 import server
 from tools import satellite_data_plane as data_plane
 from tools import satellite_data_tools as data_tools
+from tests_python.test_satellite_data_scheduler import TLE_FIXTURE, _omm
 
 
 NOW = dt.datetime(2026, 9, 1, 12, 0, tzinfo=dt.timezone.utc)
@@ -164,6 +165,133 @@ def request(port: int, path: str) -> tuple[int, bytes]:
 
 
 class SatelliteDataPlaneTests(unittest.TestCase):
+    def test_local_tracked_repair_survives_a_failed_provider_refresh(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            seed_repository(root)
+            before_gp = (root / data_tools.GP_RELATIVE_PATH).read_bytes()
+            satcat = SATCAT.replace("TEST OBJECT", "RENAMED OBJECT")
+            (root / data_tools.SATCAT_RELATIVE_PATH).write_bytes(satcat.encode())
+            meta_path = root / data_tools.SATCAT_META_RELATIVE_PATH
+            meta = json.loads(meta_path.read_text())
+            revision = data_tools.catalog_revision_for_text(satcat)
+            meta.update(catalog_revision=revision, dataset_hash=revision)
+            write_json(meta_path, meta)
+            self.assertIsNone(server._load_coherent_tracked_catalog_snapshot(root))
+            plane = data_plane.SatelliteDataPlane(repository_root=root, state_root=root / "runtime")
+            callback = mock.Mock()
+            scheduler = server.DataUpdateScheduler(data_plane=plane, on_updated=callback)
+            with mock.patch.object(data_tools, "fetch_url", side_effect=data_tools.SatelliteDataError("provider unavailable")):
+                self.assertEqual(scheduler.run_once(), "degraded")
+            self.assertTrue(scheduler.last_result["local_repair_promoted"])
+            self.assertFalse(scheduler.last_result["promoted"], "the failed provider candidate must remain rejected")
+            callback.assert_called_once()
+            self.assertIsNotNone(server._load_coherent_tracked_catalog_snapshot(plane.current_root()))
+            self.assertEqual((plane.current_root() / data_tools.GP_RELATIVE_PATH).read_bytes(), before_gp)
+            with running_server(root, plane) as port:
+                self.assertEqual(request(port, "/json/tracked/TRACKED.manifest.json")[0], 200)
+            self.assertIsNone(server._load_coherent_tracked_catalog_snapshot(root), "repository files stay untouched")
+            with mock.patch.object(data_tools, "fetch_url", side_effect=AssertionError("network used")):
+                self.assertFalse(plane.repair_tracked_lineage()["promoted"], "coherent data needs no additional candidate")
+
+    def test_local_tracked_repair_rejects_unverified_source_bytes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            seed_repository(root)
+            path = root / data_tools.SATCAT_META_RELATIVE_PATH
+            meta = json.loads(path.read_text())
+            meta.update(catalog_revision="sha256:incorrect", dataset_hash="sha256:incorrect")
+            write_json(path, meta)
+            plane = data_plane.SatelliteDataPlane(repository_root=root, state_root=root / "runtime")
+            with self.assertRaisesRegex(data_plane.DataPlaneError, "bytes do not match"):
+                plane.repair_tracked_lineage()
+            self.assertIsNone(plane.pointer())
+
+    def test_json_fast_path_preserves_strict_unicode_and_duplicate_key_validation(self):
+        for loader in (server._strict_json_loads, data_tools.strict_json_loads):
+            with self.subTest(loader=loader.__module__):
+                self.assertEqual(loader('{"name":"Étoile 星 🛰", "values":[1,null,true]}')["name"], "Étoile 星 🛰")
+                self.assertEqual(loader(r'{"name":"\ud83d\ude80"}')["name"], "🚀")
+                self.assertEqual(loader(r'{"name":"\\ud800"}')["name"], r"\ud800")
+                for source in (
+                    r'{"name":"\ud800"}', r'{"\udfff":1}', r'{"name":"\uDABC"}',
+                    r'{"x":1,"\u0078":2}', r'{"🚀":1,"\ud83d\ude80":2}',
+                    '"\ud800"',
+                ):
+                    with self.subTest(source=ascii(source)), self.assertRaises(ValueError):
+                        loader(source)
+
+    def test_scheduled_refresh_recovers_each_missing_core_artifact_with_recent_metadata(self):
+        def fetcher(url, headers=None):
+            if url == data_tools.CELESTRAK_SATCAT_CSV_URL:
+                payload = SATCAT
+            elif "FORMAT=tle" in url:
+                payload = TLE_FIXTURE
+            elif "FORMAT=json" in url:
+                payload = json.dumps([_omm(100001)])
+            else:
+                raise AssertionError(f"unexpected provider URL: {url}")
+            return data_tools.FetchResponse(url=url, text=payload)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            baseline = Path(temporary) / "baseline"
+            progress = []
+            initial = data_tools.maybe_update_satellite_data(root=baseline, fetcher=fetcher, force=True, now=NOW, on_progress=progress.append)
+            self.assertFalse(initial["degraded"], initial)
+            for name in ("satcat", "launches", "decayed", "tle", "gp", "tracked"):
+                events = [item for item in progress if item["dataset"] == name]
+                self.assertEqual(events[0]["state"], "updating")
+                self.assertIn(events[-1]["state"], {"staged", "unchanged", "skipped"})
+            data_plane.validate_data_root(baseline)
+            for index, relative in enumerate(data_plane.CORE_DATA_PATHS):
+                with self.subTest(missing=relative):
+                    root = Path(temporary) / f"repository-{index}"
+                    shutil.copytree(baseline, root)
+                    missing = root / relative
+                    missing.unlink()
+                    plane = data_plane.SatelliteDataPlane(repository_root=root, state_root=root / "runtime")
+                    result = plane.stage_update(promote=True, fetcher=fetcher, now=NOW + dt.timedelta(minutes=1))
+                    self.assertTrue(result["promoted"], result)
+                    self.assertFalse(missing.exists(), "recovery must only write private candidate files")
+                    self.assertTrue((plane.current_root() / relative).is_file())
+                    self.assertTrue(data_plane.validate_data_root(plane.current_root())["valid"])
+
+    def test_progress_distinguishes_rejection_from_publication(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            seed_repository(root)
+            plane = data_plane.SatelliteDataPlane(repository_root=root, state_root=root / "runtime")
+            progress = []
+            rejected = plane.stage_update(
+                promote=True, on_progress=progress.append,
+                updater=lambda **_kwargs: {"degraded": True, "errors": ["GP source scope is incomplete"]},
+            )
+            self.assertFalse(rejected["promoted"])
+            self.assertEqual(progress[-1]["phase"], "rejected")
+            self.assertIn("previous data remains active", progress[-1]["message"])
+            self.assertNotIn("promoted", [item["phase"] for item in progress])
+            self.assertIsNone(plane.pointer())
+            progress.clear()
+            accepted = plane.stage_update(promote=True, on_progress=progress.append, updater=changed_launch_updater("progress"))
+            self.assertTrue(accepted["promoted"])
+            self.assertEqual(progress[-1]["phase"], "promoted")
+            self.assertLess(
+                [item["phase"] for item in progress].index("validating"),
+                [item["phase"] for item in progress].index("promoted"),
+            )
+
+    def test_missing_data_is_due_even_when_its_metadata_is_recent(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            seed_repository(root)
+            (root / data_tools.SATCAT_RELATIVE_PATH).unlink()
+            plan = data_tools.scheduled_data_update_plan(root=root, now=NOW)
+            self.assertTrue(plan["due"]["satcat"])
+            self.assertFalse(plan["reconciliation"]["satcat"], "recovery preserves the separate reconciliation clock")
+            self.assertIsNone(data_tools.latest_success_time(
+                {"last_success_at": data_tools.isoformat_utc(NOW)}, root / data_tools.SATCAT_RELATIVE_PATH,
+            ))
+
     def test_cli_import_validate_and_promote_are_explicit_and_network_free(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
