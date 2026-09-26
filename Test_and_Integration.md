@@ -2,7 +2,30 @@
 
 ## Purpose
 
-This file preserves the historical regression and manual-test record through Version 2.3.1 and records current Version 2.3.2 integration expectations. Authoritative promotion gates remain the separate release checklists, the scripts selected by `npm run check` and `npm test`, and retained evidence under `release/evidence/` and `validation/`. Historical statements below are not current dependency, version, or publication requirements.
+This file records Version 2.3.3 integration expectations and preserves earlier regression and manual-test records. Authoritative promotion gates remain the separate release checklists, the scripts selected by `npm run check` and `npm test`, and retained evidence under `release/evidence/` and `validation/`. Historical statements below are not current dependency, version, or publication requirements.
+
+## Version 2.3.3 Server Maintenance Verification
+
+The `v2.3.3` development prerelease was published on 2026-09-26. The [recorded checks](release/evidence/v2.3.3-server-maintenance-checks.json) apply to its source and catalog snapshot. Earlier version totals and frozen checksums remain historical evidence.
+
+| Check | Recorded result |
+| --- | --- |
+| Python suite | 167 cases: 166 passed, one skipped, zero failed |
+| JavaScript suite | 63 files: 61 passed; `staticArtifact.test.js` and `trackedObjectCatalogRealManifest.test.js` failed |
+| Chromium smoke | One passed; one failed with 16,254 matched positions versus 16,255 drawn objects |
+| Syntax, Python compilation, version policy, vendor integrity | Passed |
+| Static packaging and asset checks | Failed: decay revision mismatch and four missing tracked chunks |
+| Historical validation | Failed: current source differs from frozen Version 2.3.2 evidence |
+
+Required maintenance regressions cover automatic startup and daily scheduling, `--no-data-update`, retry backoff, overlapping checks, progress events, missing core data/metadata, and cancellation before publication. Tracked-lineage repair must use validated local sources, retain history, and remain selected when the subsequent provider refresh fails. A disconnected client must not receive a second error response. The JSON fast path must still reject invalid Unicode, duplicate keys, and invalid numbers.
+
+Run focused backend checks with:
+
+```powershell
+node scripts/python.mjs -m unittest tests_python.test_server_data_update_scheduler tests_python.test_server_security tests_python.test_v232_satellite_data_plane
+```
+
+Use `npm run check` and `npm test` for the complete matrix. The managed browser-test server runs with `--no-data-update`; provider tests use local fixtures and mocked responses. Keep failed checks visible until the underlying defects are repaired. Full browser coverage and a successful Pages deployment are not established by the focused smoke run.
 
 ## Version 2.3.2 Workflow and Publication-Hardening Verification
 

@@ -1,10 +1,10 @@
-# v2.1 Durable Service Deployment with v2.3.2 Catalog Input
+# v2.1 Durable Service Deployment with v2.3.3 Data Maintenance
 
-Last reviewed: 2026-09-01
+Last reviewed: 2026-09-26
 
 ## Supported Boundary
 
-The Version 2.1 durable service remains a single-node local development deployment inside the Version 2.3.2 application. The Python standard-library server owns HTTP admission and SQLite persistence; one isolated Node subprocess at a time performs full-catalog screening. The server binds to loopback by default. This is not a distributed queue, multi-tenant service, operational conjunction system, or hosted provider-ingestion service. Tracked-object records without current GP/OMM remain outside the screening catalog. Version 2.3.2 deliberately restores the strict Version 2.3.1 checked-in fallback, with 12,490 current and 23,348 historical debris records all metadata-only and zero eligible for screening or map positioning; a future private runtime candidate may differ only after the complete candidate gate passes.
+The Version 2.1 durable service remains a single-node local development deployment inside the Version 2.3.3 application. The Python standard-library server owns HTTP admission and SQLite persistence; one isolated Node subprocess at a time performs full-catalog screening. The server binds to loopback by default. This is not a distributed queue, multi-tenant service, operational conjunction system, or hosted provider-ingestion service. Tracked-object records without current GP/OMM remain outside the screening catalog. Inspect the selected catalog's health and coverage rather than assuming historical release counts still apply. The published 2.3.3 snapshot has missing tracked chunks and a decay metadata mismatch; the [release check report](../../release/evidence/v2.3.3-server-maintenance-checks.json) records these defects.
 
 By itself, and without an explicit API base, static deployment provides only the v2.0 selected-object browser screener. Full-catalog jobs, durable history, authenticated API reads, and server event streams require this local service; an explicitly configured static client may connect to it.
 
@@ -62,7 +62,7 @@ At startup the service:
 
 Scheduled provider maintenance is enabled by default. `npm run serve`, `npm run serve:update`, and `server.py` check GP, compatibility TLE, SATCAT, tracked objects, launches, decay, and reconciliation on startup and every 24 hours. Use `--no-data-update` for offline operation. `--tracked-update-interval-hours` is independent and defaults to the effective SATCAT interval. The server binds before background catch-up, requests every configured GP group at most once per due cycle, coalesces SATCAT-derived work, derives tracked chunks locally without a further provider request, retries isolated failures with bounded jittered backoff, and joins the worker during shutdown. Normal upserts are `PARTIAL`; only a validated complete reconciliation can infer absence. During active-only to four-group migration, `source_scope_verified` remains false and the cycle remains retry-eligible until all groups succeed together; failed, partial, quarantined, or `304`-only responses retry without inherited validators. Metadata distinguishes configured `source_groups` from accepted-byte `catalog_source_groups`, and a tracked rebuild carries only the latter. Historical launch and decay events are retained. Changed GP/TLE/SATCAT/tracked/launch/decay bytes update the six-component server `data_revision`, while `catalog_revision` remains GP-only. Conditional, identical, failed, malformed, interrupted, or rejected operations preserve the last-known-good selected root and do not fabricate completion.
 
-### Version 2.3.2 Scheduled-Data Plane
+### Version 2.3.3 Scheduled Data Maintenance
 
 Each scheduled cycle seeds one revisioned candidate beneath the private runtime boundary from the currently selected coherent root, then supplies that candidate as the data-tool root. The updater cannot write the repository publication data. Candidate import, staging, and promotion critical sections share one persistent regular lock file protected by a nonblocking OS advisory lock on Windows and POSIX. The lock file is never unlinked or reclaimed; stale file contents never authorize takeover, and only release of the held OS lock permits the next writer. Before any reader can select the candidate, the data plane validates required GP, compatibility TLE, SATCAT, launch, and decay data/metadata revision pairs; the tracked manifest/metadata agreement; every referenced chunk's safe path, size, hash, type, scope, and count; population invariants; and current GP/SATCAT lineage. A changed, non-degraded candidate replaces one private current-candidate pointer atomically only after validation.
 
@@ -117,6 +117,21 @@ The driver creates a fresh private runtime and generated role credentials, start
 
 ## Operations and Limits
 
+### Background update troubleshooting
+
+Restart the Python server after installing code changes. Startup logs should report automatic maintenance enabled, followed by a freshness decision and each due dataset's download or rebuild. `--no-data-update` explicitly disables the worker. Successful cycles normally wait 24 hours; failures retry with bounded jittered backoff.
+
+Use `/api/data-update-status` to inspect `phase`, `active_dataset`, `last_progress_at`, `dataset_status`, errors, and `next_check_at`. A message saying an update is staged means complete-catalog validation is still pending. If any provider dataset fails, that provider candidate remains rejected. A separately validated local tracked repair may already have succeeded; the cycle result then includes `local_repair_promoted: true`.
+
+| Symptom | Meaning and next step |
+| --- | --- |
+| GP source-scope verification fails on `304` responses | Full responses from every configured group are still required. Keep the accepted catalog and inspect the scheduled retry; an unchanged response cannot prove expanded coverage. |
+| Tracked manifest returns `503` | Check the three tracked health fields and bounded error. Stale lineage can be repaired from verified local sources. A missing or damaged referenced chunk requires restoring a complete valid closure; the server does not bypass validation. |
+| Logs show staged datasets but no new data is served | Inspect the final validation/publication result and candidate errors. Only a promoted complete candidate changes the active provider data. |
+| A browser cancels a request | The updated handler closes that connection quietly. A repeat of the old double-response traceback indicates that the running process may still use the previous code. |
+
+### Service limits
+
 - Default job bounds include a one-hour horizon, 60-second coarse step, 10 km screening radius, 30-minute timeout, two attempts, and explicit spatial/candidate/result ceilings. Requests are normalized and validated server-side.
 - One service process runs one screening subprocess at a time. Queue growth, disk growth, and latency have no production service-level objective.
 - No OS/process CPU or memory quota is implemented. The 256 MiB result-artifact limit and engine work caps do not bound peak heap/RSS; process isolation and representative memory budgets remain deployment gates.
@@ -124,7 +139,7 @@ The driver creates a fresh private runtime and generated role credentials, start
 - Mutations are limited to 30 requests per minute per local principal; viewer reads are limited to 240. These are development controls, not a public abuse-defense design.
 - Completed results can be `PARTIAL`. Inspect quality flags, structured errors, propagation failures, motion-bound violations, unscreened intervals, truncation, and source status before interpreting any event list.
 - The tracked manifest's metadata-only population is not screened. Any coverage statement must report that excluded population and must not treat a successful GP-only job as complete tracked-population coverage.
-- Scheduled screening, report export, notifications, and operator workflow are not included. Daily GP/TLE/SATCAT/tracked/lifecycle maintenance is optional, guarded, disabled by default, and isolated in a private candidate. For established catalogs of at least 1,000 records, unattended full/reconciliation replacement requires both 75% candidate size and 75% canonical NORAD overlap. `--force` cannot bypass the guard, and the direct-command shrink override is unavailable to the server. Accepted `304` revalidation resets due age; changed fixed-name artifacts retain the newest seven collision-safe backups inside the candidate, while tracked content-addressed cleanup preserves current and bounded rollback references. Candidate retention and disk ceilings require final representative evidence.
+- Scheduled screening, report export, notifications, and operator workflow are not included. GP/TLE/SATCAT/tracked/lifecycle maintenance runs on startup and daily by default, is guarded, and is isolated in private candidates. Use `--no-data-update` to disable it. For established catalogs of at least 1,000 records, unattended full/reconciliation replacement requires both 75% candidate size and 75% canonical NORAD overlap. `--force` cannot bypass the guard, and the direct-command shrink override is unavailable to the server. Accepted `304` revalidation resets due age; changed fixed-name artifacts retain the newest seven collision-safe backups inside the candidate, while tracked content-addressed cleanup preserves current and bounded rollback references. Candidate retention and disk ceilings require final representative evidence.
 - Public exposure requires a reviewed TLS reverse proxy, stronger identity and authorization, token lifecycle management, quotas, monitoring, backups, retention, incident response, and provider license approval. `--allow-public` is an acknowledgement, not approval.
 
 Use `ROLLBACK_V2_1.md` for durable-service disablement and restoration, `ROLLBACK_V2_2.md` for GP/TLE/SATCAT/launch/decay continuity, `ROLLBACK_V2_3.md` for tracked manifest/chunk and browser fallback, and `ROLLBACK_V2_3_2.md` for private pointer and artifact-only deployment recovery. All version checklists remain separate open gates before any candidate decision.

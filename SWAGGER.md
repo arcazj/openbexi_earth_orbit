@@ -18,11 +18,21 @@ Live endpoint requests and the generated OpenAPI JSON still require the optional
 py server.py --host 127.0.0.1 --port 8000
 ```
 
+Version 2.3.3 enables background data checks after startup and every 24 hours. `--no-data-update` disables them; `--update-data-on-schedule` remains a compatibility flag. Changes to server code take effect after a restart.
+
 Default base URL:
 
 ```text
 http://127.0.0.1:8000
 ```
+
+### Background update status
+
+Read `GET /api/data-update-status` while the worker runs. `state` reports the cycle state; `phase`, `active_dataset`, and `last_progress_at` describe current work. `dataset_status` contains per-dataset outcomes, while `next_check_at`, `retry_delay_seconds`, and bounded errors explain the schedule and failures.
+
+A staged update becomes active only after complete-catalog validation and atomic publication. `last_result.promoted` reports provider-candidate publication; `last_result.local_repair_promoted` can report a successful tracked-lineage repair even when the later provider cycle is degraded. Check `tracked_pointer_valid`, `tracked_revision_match`, and `tracked_source_revision_match` for tracked-catalog health.
+
+Tracked routes return `503 TRACKED_CATALOG_UNAVAILABLE` while the selected tracked closure is missing, corrupt, or inconsistent. A healthy HTTP process can still report degraded catalog health. Normal client disconnects close the request without a second error response.
 
 ## Static Documentation
 
@@ -43,7 +53,7 @@ http://127.0.0.1:8000
 | `GET` | `/api/tle` | Yes | Deprecated Version 2.2 numeric/Alpha-5 compatibility subset from `json/tle/TLE.json`; it is not complete six-digit coverage. |
 | `GET` | `/api/satellites` | Yes | Generic catalog route that returns preferred GP/OMM with deprecated TLE fallback. |
 | `GET` | `/api/launches` | Yes | Returns SATCAT-backed launch events, including details-only records with no propagatable orbit. |
-| `GET` | `/api/tracked-objects` | Yes | Alias for the current tracked-object manifest; Version 2.3.2 retains tracked schema Version 2.3.0. Returns bounded `503 TRACKED_CATALOG_UNAVAILABLE` when the publication is incoherent. |
+| `GET` | `/api/tracked-objects` | Yes | Alias for the current tracked-object manifest; Version 2.3.3 retains tracked schema Version 2.3.0. Returns bounded `503 TRACKED_CATALOG_UNAVAILABLE` when the publication is incoherent. |
 | `GET` | `/api/tracked-objects/manifest` | Yes | Returns the selected root's atomic tracked-object publication manifest, coverage/accounting invariants, counts, provenance, and referenced chunks only after closure/revision/current-source-lineage verification. Version 2.3.2 facets and result views are client-derived and do not change this API. |
 | `GET` | `/api/tracked-objects/chunks/{file_name}` | Yes | Returns one content-addressed chunk referenced by the current manifest after whole-publication coherence plus allowlist, byte, SHA-256, and record-count validation. |
 | `GET` | `/api/satellite-metadata` | Yes | Lists available metadata JSON files under `json/satellites/`. |

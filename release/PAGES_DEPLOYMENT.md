@@ -1,5 +1,11 @@
 # GitHub Pages deployment
 
+## Version 2.3.3 publication status
+
+The [v2.3.3 GitHub development prerelease](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/v2.3.3) was published on 2026-09-26 at commit `68f80ce1e267be1d95d74ed5c123fd63a483f373`. No Pages workflow was dispatched for that release. The [recorded checks](evidence/v2.3.3-server-maintenance-checks.json) report static packaging failures from mismatched decay metadata and four missing tracked chunks, plus historical-evidence drift and a browser smoke failure. Resolve the failing gates and verify the resulting commit before deploying it.
+
+## Deployment workflow
+
 Production publishing is intentionally manual. Run **Deploy verified GitHub Pages artifact** from the `master` branch and enter the full commit SHA shown by GitHub. The workflow resolves that value to a commit object, requires it to equal both the dispatch SHA and checked-out `master` SHA, records the resolved object ID, and uses that immutable ID for every later source verification, release build, attestation, evidence name, and verifier checkout. No post-confirmation release operation uses movable `HEAD`.
 
 Dependency installation, tests, browser execution, audit, and SBOM generation run only in the validation job. The deployment build then starts in a separate job with a fresh checkout of the confirmed object ID; its first command invokes the stdlib-only strict builder, before any dependency installation, repository test, lifecycle script, or evidence download can mutate its executable. That builder derives its manifest, release metadata, vendor manifests, recursive trees, tracked closure, and semantic validation inputs from regular blobs in the commit. It materializes those blobs into an isolated temporary source snapshot before creating `dist`, so ignored files and worktree races cannot enter the artifact. After `actions/upload-pages-artifact` creates the immutable `github-pages` artifact, a separate job downloads it by artifact ID, parses and extracts `artifact.tar`, rejects links, unsafe paths, missing files, byte drift, and extras, and compares the complete result to `asset-manifest.json`. Deployment depends on that verification. The tar SHA-256 and verification record are preserved, and signing-only jobs attest the asset manifest, uploaded tar, verification record, and post-deploy evidence.

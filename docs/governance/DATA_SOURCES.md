@@ -1,6 +1,6 @@
 # Data Source Governance
 
-Last reviewed: 2026-09-01
+Last reviewed: 2026-09-26
 
 ## Admission Record
 
@@ -29,6 +29,12 @@ HTTPS is required. Exceptions need a time-limited security waiver and must not f
 Partial validation must not publish a mixed batch silently. Reports must expose accepted, rejected, stale, and duplicate counts.
 
 ## Current Source Registry
+
+### Version 2.3.3 maintenance and publication
+
+The 2026-09-26 server-maintenance update was published to `master` and tagged `v2.3.3` as a GitHub development prerelease. That update changed source and documentation; it retained the data snapshot from its base commit. Its [check report](../../release/evidence/v2.3.3-server-maintenance-checks.json) records the existing missing tracked chunks and decay revision mismatch. Pages deployment was not performed, and this publication makes no new provider-completeness claim.
+
+The server owns startup and daily freshness checks. Before a provider refresh, it may rebuild stale tracked lineage from accepted local GP/SATCAT bytes in a separate candidate. Source hashes, retained history, and the complete candidate must pass validation before selection. This local repair does not advance provider freshness or verify additional GP groups. Missing or corrupt tracked history remains a validation failure. Console progress and `/api/data-update-status` distinguish staging, local repair, provider publication, and rejection.
 
 ### `celestrak-gp-catalog`
 

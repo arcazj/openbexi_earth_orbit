@@ -2,13 +2,13 @@
 
 OpenBEXI Earth Orbit is an interactive browser application for exploring Earth-orbiting objects, launch and re-entry events, propagated trajectories, and experimental conjunction-screening results. It uses CelesTrak GP/OMM for propagated positions, a SATCAT-derived tracked-object inventory for searchable metadata coverage, and a reduced-coverage TLE compatibility path.
 
-> **Status:** Version `2.3.3` is a development build, not a release candidate or release. Its scientific maturity is **Experimental** and its safety class is **non-operational**. Do not use it for navigation, mission planning, collision avoidance, or safety decisions; collision probability is unavailable.
+> **Status:** Version `2.3.3` is published as a [GitHub development prerelease](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/v2.3.3). Application metadata remains in the `development` channel with **Experimental** scientific maturity and a **non-operational** safety class. Do not use it for navigation, mission planning, collision avoidance, or safety decisions; collision probability is unavailable.
 
 ## Live Demo
 
 [Launch OpenBEXI Earth Orbit](https://arcazj.github.io/openbexi_earth_orbit/index.html)
 
-The live demo is a separately deployed Pages artifact and may remain on the approved Version 2.3.1 artifact. Repository owner `arcazj` approved exactly one publication of the final post-recording Version 2.3.2 source bytes to `origin/master`; that source-only approval does not dispatch or approve a Pages deployment. Before the source push, the authenticated GitHub Pages API changed the repository from legacy branch-root publishing to the manual workflow. Version 2.3.2 remains Experimental, non-operational, and in development publication state; manual artifact deployment, remote-byte attestation, and required-reviewer/self-review environment settings remain pending. Authenticated durable full-catalog jobs and revisioned scheduled data candidates require the optional local Python server.
+The live demo is a separately deployed Pages artifact. Version 2.3.3 was pushed to `master` and tagged `v2.3.3` on 2026-09-26; publishing that prerelease did not deploy Pages, so the demo may show an earlier version. Authenticated full-catalog jobs and automatic background data maintenance require the local Python server.
 
 ## Features
 
@@ -58,6 +58,8 @@ npm run serve
 
 Open [http://127.0.0.1:8000/index.html](http://127.0.0.1:8000/index.html).
 
+The server checks GP, TLE, SATCAT, tracked, launch, and decay data in the background after startup and every 24 hours. Watch the console or open `/api/data-update-status` for progress and the next check time. Restart an already running server after updating the code. For offline use, run `node scripts/python.mjs server.py --no-data-update`.
+
 To build and inspect the curated static artifact instead:
 
 ```powershell
@@ -65,7 +67,7 @@ npm run build
 node scripts/python.mjs -m http.server 8001 --bind 127.0.0.1 --directory dist
 ```
 
-Open [http://127.0.0.1:8001/index.html](http://127.0.0.1:8001/index.html). Publish only the contents of `dist/`; see [Static Deployment](docs/engineering/STATIC_DEPLOYMENT.md) and [Pages Deployment](release/PAGES_DEPLOYMENT.md). One exact final Version 2.3.2 `origin/master` source publication is approved. A separate Pages deployment still requires a clean confirmed commit, exact artifact and remote-byte attestations, the manual workflow, and its own deployment decision; later changed source or data bytes require renewed approval.
+After a successful build, open [http://127.0.0.1:8001/index.html](http://127.0.0.1:8001/index.html). The published 2.3.3 snapshot currently fails static packaging because decay metadata does not match its data and four referenced tracked chunks are missing. See the recorded checks below. Publish only a verified `dist/` artifact; [Static Deployment](docs/engineering/STATIC_DEPLOYMENT.md) and [Pages Deployment](release/PAGES_DEPLOYMENT.md) describe the manual workflow and its verification requirements.
 
 ## API
 
@@ -322,6 +324,10 @@ npm test
 
 Focused commands are `npm run test:unit`, `npm run test:python`, and `npm run test:browser`. Python-backed npm commands honor `OPENBEXI_PYTHON_COMMAND` and otherwise discover a Python 3 interpreter. See [Test and Integration Plan](Test_and_Integration.md), [Performance Budgets](docs/engineering/PERFORMANCE_BUDGETS.md), and the versioned release checklists for scope and evidence.
 
+### Version 2.3.3 recorded checks
+
+The [2026-09-26 check report](release/evidence/v2.3.3-server-maintenance-checks.json) records 166 Python passes and one skip, 61 of 63 JavaScript test files passing, and one Chromium smoke pass and one failure. Syntax, compilation, version policy, and vendor integrity passed. Open failures cover the published catalog snapshot, static packaging and asset checks, drift from historical 2.3.2 evidence, and a one-object matched/drawn count mismatch in the browser smoke test. These results are specific to the prerelease; they do not establish a successful Pages deployment.
+
 ## All Project Documentation
 
 This index covers all 46 project-authored Markdown files in the source tree. Historical and archived documents are retained for traceability and do not override current release metadata, ADRs, or gates. Generated build copies, dependency documentation, and the vendored satellite.js license are excluded.
@@ -390,7 +396,7 @@ This index covers all 46 project-authored Markdown files in the source tree. His
 <details>
 <summary><strong>Validation and evidence (3)</strong></summary>
 
-- [Test and Integration Plan](Test_and_Integration.md) - Current Version 2.3.2 verification matrix plus retained historical regression procedures and logs.
+- [Test and Integration Plan](Test_and_Integration.md) - Version 2.3.3 maintenance coverage, recorded checks, and retained historical regression procedures and logs.
 - [Validation Corpus Policy](docs/validation/VALIDATION_CORPUS.md) - Corpus tiers, checksum-manifest requirements, existing fixtures, and independent-review requirements.
 - [v2.0 Local Verification](release/evidence/v2.0-local-verification.md) - Historical local environment, checks, artifact hashes, browser measurements, screenshots, and unresolved v2.0 gates.
 
@@ -413,7 +419,7 @@ This index covers all 46 project-authored Markdown files in the source tree. His
 - [v2.1 Release Checklist](docs/engineering/RELEASE_CHECKLIST_V2_1.md) - Version-specific v2.1 implementation evidence and remaining validation, data, security, and operations gates.
 - [v2.2 Release Checklist](docs/engineering/RELEASE_CHECKLIST_V2_2.md) - Historical Version 2.2 scope, automated evidence, controlled-data checks, rollback readiness, and candidate decision.
 - [v2.3 Release Checklist](docs/engineering/RELEASE_CHECKLIST_V2_3.md) - Version 2.3 tracked-catalog data, browser, API, scale, governance, and promotion gates.
-- [v2.3.2 Release Checklist](docs/engineering/RELEASE_CHECKLIST_V2_3_2.md) - Current interaction, private-candidate, artifact-only deployment, verification, and pending promotion gates.
+- [v2.3.2 Release Checklist](docs/engineering/RELEASE_CHECKLIST_V2_3_2.md) - Historical interaction, private-candidate, artifact-only deployment, verification, and pending promotion gates for Version 2.3.2.
 - [Rollback Policy](docs/engineering/ROLLBACK.md) - Cross-version abort triggers, application/data restoration rules, and compatibility expectations.
 - [v2.1 Service Rollback](docs/engineering/ROLLBACK_V2_1.md) - Durable-service disablement, artifact preservation, data recovery, and rehearsal procedure.
 - [v2.2 Data and Browser Rollback](docs/engineering/ROLLBACK_V2_2.md) - Coherent GP/lifecycle/browser containment, last-known-good restoration, re-enable criteria, and evidence requirements.

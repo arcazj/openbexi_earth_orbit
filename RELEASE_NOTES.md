@@ -2,6 +2,8 @@
 
 ## Version 2.3.3 Server Maintenance Update (2026-09-26)
 
+Published to `master` at commit `68f80ce1e267be1d95d74ed5c123fd63a483f373` and tagged `v2.3.3` as a [GitHub development prerelease](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/v2.3.3). No Pages deployment accompanied this publication. The application continues to report `publication_state: development` with null release and candidate dates.
+
 The server now owns background data maintenance by default. It checks GP, TLE, SATCAT, tracked objects, launches, and decayed objects after startup and every 24 hours, logs each stage, and exposes progress through `/api/data-update-status`. Failed cycles retry with bounded backoff. `--no-data-update` supports offline operation.
 
 Missing core artifacts become due immediately. Updates are staged privately, validated together, and published through an atomic runtime pointer. Stale tracked lineage can first be repaired from validated local GP/SATCAT data, so a later provider failure does not undo that repair. Existing source coverage, historical records, and catalog-size checks remain enforced.
@@ -9,6 +11,8 @@ Missing core artifacts become due immediately. Updates are staged privately, val
 Strict JSON parsing avoids unnecessary Unicode conversion for ordinary catalog strings. Cancelled or disconnected HTTP clients no longer trigger a second 500 response and traceback. Regression tests cover disconnect handling, Unicode validation, missing-artifact recovery, progress reporting, and local repair followed by provider failure.
 
 This update retains Version 2.3.3's development channel, Experimental maturity, and non-operational status. It does not resolve the existing published catalog snapshot defects or guarantee complete provider responses.
+
+The [release check report](release/evidence/v2.3.3-server-maintenance-checks.json) records 166 Python passes and one skip, 61 passing and two failing JavaScript test files, and one pass and one failure in Chromium smoke tests. Static packaging and asset checks remain blocked by a decay revision mismatch and four missing tracked chunks. Historical validation reports source drift from the frozen 2.3.2 evidence. The browser smoke failure records a one-object matched/drawn count mismatch. Syntax, Python compilation, version policy, and vendor integrity passed.
 
 ## Version 2.3.3 Day/Night and Orbit Rendering Fixes (2026-09-23)
 
