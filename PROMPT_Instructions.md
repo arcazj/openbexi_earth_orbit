@@ -64,7 +64,7 @@ Release Date: YYYY-MM-DD Version X.Y.Z - <short description>
 ### Documentation Rules
 
 - `PROMPT_Instructions.md`: general execution prompt and project rules only; no release history.
-- `PROMPT_History.md`: dated release-specific prompts and implementation requirements by version.
+- `PROMPT_History.md`: dated release-specific prompts and implementation requirements by version, with the newest entry immediately below the title. Preserve the wording of older records when reordering entries.
 - `PROMPT_IMPLEMENT_ROADMAP_V2.md`: archived accepted standalone v2.0 execution prompt; its status banner must prevent accidental authorization of later releases.
 - `README.md`: current setup, usage, commands, features, architecture, limitations, and an index of every root Markdown file.
 - `RELEASE_NOTES.md`: concise user-facing candidate and release history.

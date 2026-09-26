@@ -1,5 +1,9 @@
 # Prompt History
 
+## Version 2.3.3 Project Cleanup (2026-09-26)
+
+The repository owner requested project cleanup, retention of what is needed for the latest version, and synchronization with Git. Removed obsolete prototype pages, superseded Java/Maven tooling, unused assets, and unreferenced catalog chunks. Kept maintained source, supported viewers, tests, build tools, licenses, and historical evidence. Local IDE settings and private runtime state remain outside version control. Restored a complete packaged data closure from the existing GP/SATCAT sources and retained historical records. Verification is recorded in `release/evidence/v2.3.3-cleanup-checks.json`. This work does not deploy GitHub Pages or promote the development release.
+
 ## Approval Date: 2026-09-02  Version 2.3.2 Exact-Byte Origin/Master Source Publication
 
 Repository and remote owner `arcazj` explicitly instructed, `RESUME AND PUSH TO GITHUB`, after receiving the exact Version 2.3.2 pre-approval manifest SHA-256 warning `c456703d12602e83a73233f693cf684315565436d8c08c645a0b7e5d984d8177`. The approval is recorded on local date `2026-09-02` at `2026-09-02T08:31:23.110Z`. The checked Git identity is `arcazj`, and `origin` is `https://github.com/arcazj/openbexi_earth_orbit`. This is the named repository/data/release-owner approval for exactly one publication of the final post-recording Version `2.3.2` repository bytes to `origin/master` in `arcazj/openbexi_earth_orbit`.
@@ -3638,8 +3642,3 @@ Update the `openbexi_earth_orbit` app filters and add a regression test plan.
    - Multi-select filter combinations working correctly.
    - Existing controls such as Globe/Mercator view, Day/Night, satellite selection, orbit display, footprint display, and timelines still working.
 6. Report the files changed, the tests performed, and any remaining issues or limitations.
-
-
-## Version 2.3.3 Project Cleanup (2026-09-26)
-
-The repository owner requested project cleanup, retention of what is needed for the latest version, and synchronization with Git. Removed obsolete prototype pages, superseded Java/Maven tooling, unused assets, and unreferenced catalog chunks. Kept maintained source, supported viewers, tests, build tools, licenses, and historical evidence. Local IDE settings and private runtime state remain outside version control. Restored a complete packaged data closure from the existing GP/SATCAT sources and retained historical records. Verification is recorded in `release/evidence/v2.3.3-cleanup-checks.json`. This work does not deploy GitHub Pages or promote the development release.
