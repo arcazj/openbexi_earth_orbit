@@ -1,8 +1,0 @@
-<component name="ArtifactManager">
-  <artifact type="jar" build-on-make="true" name="openbexi_earth_orbit:jar">
-    <output-path>$PROJECT_DIR$/out/artifacts/openbexi_earth_orbit_jar</output-path>
-    <root id="archive" name="openbexi_earth_orbit.jar">
-      <element id="module-output" name="openbexi_earth_orbit" />
-    </root>
-  </artifact>
-</component>

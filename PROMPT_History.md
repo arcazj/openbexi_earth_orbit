@@ -3638,3 +3638,8 @@ Update the `openbexi_earth_orbit` app filters and add a regression test plan.
    - Multi-select filter combinations working correctly.
    - Existing controls such as Globe/Mercator view, Day/Night, satellite selection, orbit display, footprint display, and timelines still working.
 6. Report the files changed, the tests performed, and any remaining issues or limitations.
+
+
+## Version 2.3.3 Project Cleanup (2026-09-26)
+
+The repository owner requested project cleanup, retention of what is needed for the latest version, and synchronization with Git. Removed obsolete prototype pages, superseded Java/Maven tooling, unused assets, and unreferenced catalog chunks. Kept maintained source, supported viewers, tests, build tools, licenses, and historical evidence. Local IDE settings and private runtime state remain outside version control. Restored a complete packaged data closure from the existing GP/SATCAT sources and retained historical records. Verification is recorded in `release/evidence/v2.3.3-cleanup-checks.json`. This work does not deploy GitHub Pages or promote the development release.

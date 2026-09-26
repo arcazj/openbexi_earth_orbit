@@ -1,21 +1,21 @@
 {
   "schema_version": "2.2.0",
-  "built_at": "2026-08-30T02:13:23.342346Z",
-  "fetched_at": "2026-08-30T02:13:23.342346Z",
-  "last_success_at": "2026-08-30T02:13:23.342346Z",
-  "last_attempt_at": "2026-08-30T02:13:23.342346Z",
+  "built_at": "2026-09-26T19:38:55.614127Z",
+  "fetched_at": "2026-09-26T19:38:55.614127Z",
+  "last_success_at": "2026-09-26T19:38:55.614127Z",
+  "last_attempt_at": "2026-09-26T19:38:55.614127Z",
   "last_status": "ok",
   "mode": "reconcile",
   "source": "json/satcat.csv",
   "satcat_refresh": null,
-  "catalog_revision": "sha256:c3a0edaba721c2a1273cd5f081bfbf386da63d9301b8cf1c6f5be3b0b5738a40",
-  "dataset_hash": "sha256:c3a0edaba721c2a1273cd5f081bfbf386da63d9301b8cf1c6f5be3b0b5738a40",
-  "newest_confirmed_decay_date": "2026-08-28",
+  "catalog_revision": "sha256:a66d03089aa010a60adb49c8022f5b566b5bd23c9dcd56cd8426f0dcc1330e6a",
+  "dataset_hash": "sha256:a66d03089aa010a60adb49c8022f5b566b5bd23c9dcd56cd8426f0dcc1330e6a",
+  "newest_confirmed_decay_date": "2026-09-13",
   "counts": {
-    "objects": 7439,
-    "records": 7595,
+    "objects": 7478,
+    "records": 7636,
     "retained_history": 0
   },
-  "last_reconciled_at": "2026-08-30T02:13:23.342346Z",
-  "last_reconciled_catalog_revision": "sha256:c3a0edaba721c2a1273cd5f081bfbf386da63d9301b8cf1c6f5be3b0b5738a40"
+  "last_reconciled_at": "2026-09-26T19:38:55.614127Z",
+  "last_reconciled_catalog_revision": "sha256:a66d03089aa010a60adb49c8022f5b566b5bd23c9dcd56cd8426f0dcc1330e6a"
 }

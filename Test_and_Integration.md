@@ -1,5 +1,9 @@
 # Test and Integration Plan
 
+## Version 2.3.3 Cleanup Verification (2026-09-26)
+
+Project cleanup removes unused demos, Java/Maven build files, unused assets, and stale data chunks. The current packaged tracked catalog and decay metadata were rebuilt from existing local sources and validated. `npm run check` passes; all 63 JavaScript test files pass; Python reports 166 passes and one skip; both Chromium static-deployment journeys pass. The full browser matrix, including the earlier smoke mismatch, was not repeated. See [cleanup evidence](release/evidence/v2.3.3-cleanup-checks.json). Historical results below retain their original scope.
+
 ## Purpose
 
 This file records Version 2.3.3 integration expectations and preserves earlier regression and manual-test records. Authoritative promotion gates remain the separate release checklists, the scripts selected by `npm run check` and `npm test`, and retained evidence under `release/evidence/` and `validation/`. Historical statements below are not current dependency, version, or publication requirements.

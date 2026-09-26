@@ -67,7 +67,13 @@ npm run build
 node scripts/python.mjs -m http.server 8001 --bind 127.0.0.1 --directory dist
 ```
 
-After a successful build, open [http://127.0.0.1:8001/index.html](http://127.0.0.1:8001/index.html). The published 2.3.3 snapshot currently fails static packaging because decay metadata does not match its data and four referenced tracked chunks are missing. See the recorded checks below. Publish only a verified `dist/` artifact; [Static Deployment](docs/engineering/STATIC_DEPLOYMENT.md) and [Pages Deployment](release/PAGES_DEPLOYMENT.md) describe the manual workflow and its verification requirements.
+After a successful build, open [http://127.0.0.1:8001/index.html](http://127.0.0.1:8001/index.html). The current 2.3.3 checkout includes a complete tracked catalog and matching decay metadata rebuilt from the existing local sources. The original prerelease tag retains its earlier snapshot. Publish only a verified `dist/` artifact; [Static Deployment](docs/engineering/STATIC_DEPLOYMENT.md) and [Pages Deployment](release/PAGES_DEPLOYMENT.md) describe the manual workflow and its verification requirements.
+
+### Project layout
+
+The maintained project contains the browser application, Python API and data tools, required local assets, tests, build scripts, and documentation. The supported standalone viewers are `display_satellite.html`, `Earth_Stars_MilkyWay.html`, and `SolarSystemOverview.html`. Obsolete beamforming demos, Java/Maven exporters, unused textures, and unreferenced catalog chunks have been removed; earlier source versions remain in Git history.
+
+`dist/` is the generated deployment artifact. `node_modules/`, Python caches, test reports, and IDE settings are local files excluded from Git. Keep `runtime/` private: its selected data snapshot, screening database, and signing key support the local server and must survive ordinary cleanup. Work in one primary checkout and synchronize it after publishing from another Git worktree.
 
 ## API
 
@@ -205,7 +211,7 @@ No provider dataset must be freshly downloaded before the HTTP server accepts re
 | `tracked/` manifest, metadata, and referenced chunks | Rebuild from accepted SATCAT and GP when due or when their source revisions change. Validate the complete referenced catalog before serving it. |
 | `launches/` and `decayed/` | Rebuild from accepted SATCAT when due or when SATCAT changes, retaining available historical events. |
 | `tle/satellite_launch_dates.json` | Compatibility enrichment derived locally from SATCAT during TLE maintenance; no additional provider request. |
-| `satellites/`, `display_satellite_models.json`, `stars/`, and legacy `starts/` | Maintainer-controlled model/reference assets; updated with source changes, with no daily remote freshness clock. |
+| `satellites/` and `display_satellite_models.json` | Maintainer-controlled model/reference assets; updated with source changes, with no daily remote freshness clock. The maintained star catalog is under `data/stars/`. |
 | Legacy audit JSON, local `ops/` files, backups, ZIP files, and unreferenced tracked chunks | No configured automatic upstream. These are not active provider datasets and are not overwritten by maintenance. |
 
 Missing core data or metadata makes that dataset due immediately, even when a surviving sidecar has a recent timestamp. Missing core files are rebuilt in a private candidate; unsafe paths or a damaged existing tracked chunk set still fail validation and preserve the selected data. Files without a configured source cannot be declared current or downloaded automatically.
@@ -290,7 +296,7 @@ py tools/generate_jpl_ephemeris.py
 
 This fixed-purpose helper has no CLI options. Passing `--help` starts the fixed network workflow rather than showing help. It performs multiple NASA/JPL Horizons requests for Mercury through Uranus plus the Moon, covering `2020-01-01` through `2035-12-31` at six-hour cadence, and overwrites the bundled ephemeris and reference-sample JSON files. It has no dry-run or backup. The browser never contacts Horizons at runtime.
 
-`tools/save_obj_with_texture.py` is a legacy one-off with hard-coded OneWeb texture paths and undeclared NumPy/Pillow requirements. It has no supported CLI options and is not a maintained project tool.
+The obsolete `save_obj_with_texture.py` helper and Java/Maven exporters have been removed. Use the maintained Python commands above for data and asset preparation.
 
 </details>
 
@@ -326,7 +332,9 @@ Focused commands are `npm run test:unit`, `npm run test:python`, and `npm run te
 
 ### Version 2.3.3 recorded checks
 
-The [2026-09-26 check report](release/evidence/v2.3.3-server-maintenance-checks.json) records 166 Python passes and one skip, 61 of 63 JavaScript test files passing, and one Chromium smoke pass and one failure. Syntax, compilation, version policy, and vendor integrity passed. Open failures cover the published catalog snapshot, static packaging and asset checks, drift from historical 2.3.2 evidence, and a one-object matched/drawn count mismatch in the browser smoke test. These results are specific to the prerelease; they do not establish a successful Pages deployment.
+The [original prerelease check report](release/evidence/v2.3.3-server-maintenance-checks.json) records 166 Python passes and one skip, 61 of 63 JavaScript test files passing, and one Chromium smoke pass and one failure. Syntax, compilation, version policy, and vendor integrity passed. Failures at that publication covered the catalog snapshot, packaging, asset checks, historical evidence drift, and a one-object matched/drawn count mismatch in the browser smoke test.
+
+The [cleanup check report](release/evidence/v2.3.3-cleanup-checks.json) records passing build and integrity checks, all 63 JavaScript test files, 166 Python passes with one skip, and both Chromium static-deployment tests. Packaged startup and Worker screening completed with no missing assets or external requests. The full browser matrix was not repeated, including the earlier smoke-test mismatch. These checks do not establish a Pages deployment or scientific qualification.
 
 ## All Project Documentation
 

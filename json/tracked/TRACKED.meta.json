@@ -12,12 +12,12 @@
   "source_gp_groups": [
     "active"
   ],
-  "catalog_revision": "sha256:6b68f19e083a879369266de2aaac25913979480333a5d7848004847d1c9e19c5",
+  "catalog_revision": "sha256:415f46c1d6375094bceba4a9a8436efa00262ba652517f80eb62aa107b373acc",
   "coverage_revision": "sha256:febe5c1447a72940161f31d13b098d72f3de39127507265877e08a7408a5fcca",
-  "dataset_hash": "sha256:6b68f19e083a879369266de2aaac25913979480333a5d7848004847d1c9e19c5",
-  "fetched_at": "2026-09-14T11:45:01.235928Z",
-  "last_attempt_at": "2026-09-14T11:45:01.235928Z",
-  "last_success_at": "2026-09-14T11:45:01.235928Z",
+  "dataset_hash": "sha256:415f46c1d6375094bceba4a9a8436efa00262ba652517f80eb62aa107b373acc",
+  "fetched_at": "2026-09-26T19:38:40.266022Z",
+  "last_attempt_at": "2026-09-26T19:38:40.266022Z",
+  "last_success_at": "2026-09-26T19:38:40.266022Z",
   "last_status": "ok",
   "counts": {
     "expected": 70661,
@@ -86,6 +86,6 @@
     "invariant_holds": true,
     "expected_matches_received": true
   },
-  "last_reconciled_at": "2026-09-14T11:45:01.235928Z",
-  "last_reconciled_catalog_revision": "sha256:6b68f19e083a879369266de2aaac25913979480333a5d7848004847d1c9e19c5"
+  "last_reconciled_at": "2026-09-26T19:38:40.266022Z",
+  "last_reconciled_catalog_revision": "sha256:415f46c1d6375094bceba4a9a8436efa00262ba652517f80eb62aa107b373acc"
 }

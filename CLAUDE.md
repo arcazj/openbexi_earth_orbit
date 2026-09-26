@@ -33,7 +33,7 @@ Supply-chain and static-artifact commands:
 
 ```powershell
 npm run audit:dependencies
-npm run sbom -- --output release/evidence/openbexi-node-sbom-2.3.2-development.cdx.json
+npm run sbom -- --output release/evidence/openbexi-node-sbom-2.3.3-development.cdx.json
 npm run build
 npm run check:release-tree -- --tree HEAD --require-clean
 npm run rehearse:rollback
@@ -84,13 +84,17 @@ py tools/satellite_data_tools.py validate-candidate <candidate_id>
 py tools/satellite_data_tools.py promote-candidate <candidate_id>
 ```
 
-`export-gp` remains the position source in Version 2.3.2. It requests `active`, `fengyun-1c-debris`, `iridium-33-debris`, and `cosmos-2251-debris`; the event groups are only a partial positioned-debris subset. `build-tracked` derives the searchable SATCAT inventory from local snapshots and makes no provider request. It must record the GP groups that produced the accepted catalog, not merely the configured desired groups. `export-tle` is deprecated compatibility coverage. Numeric and Space-Track Alpha-5 fields are decoded to canonical full NORAD strings, but TLE remains an incomplete subset of current six-digit GP/OMM coverage. Direct maintenance commands above operate on their supplied data root. The opt-in server scheduler instead seeds a private revisioned candidate, runs maintenance only there, validates the complete candidate closure, and atomically promotes a private runtime pointer; it must not rewrite checked-in release data.
+`export-gp` remains the position source in Version 2.3.3. It requests `active`, `fengyun-1c-debris`, `iridium-33-debris`, and `cosmos-2251-debris`; the event groups are only a partial positioned-debris subset. `build-tracked` derives the searchable SATCAT inventory from local snapshots and makes no provider request. It must record the GP groups that produced the accepted catalog, not merely the configured desired groups. `export-tle` is deprecated compatibility coverage. Numeric and Space-Track Alpha-5 fields are decoded to canonical full NORAD strings, but TLE remains an incomplete subset of current six-digit GP/OMM coverage. Direct maintenance commands above operate on their supplied data root. The server scheduler, enabled by default since Version 2.3.3, seeds a private revisioned candidate, runs maintenance only there, validates the complete candidate closure, and atomically promotes a private runtime pointer; it must not rewrite checked-in release data.
 
 For startup performance diagnostics, open `http://127.0.0.1:8000/index.html?perf=1`, then run:
 
 ```javascript
 window.openbexiStartupPerformance.summary()
 ```
+
+## Project cleanup and Git workflow
+
+Use the primary project checkout for ongoing work. After pushing from a separate worktree, synchronize the primary checkout and verify HEAD, origin/master, and tracked-file status agree. Keep IDE settings local. Obsolete Java/Maven tools and unused demo pages were removed in the 2.3.3 cleanup; Python and npm commands above are the maintained workflow. Preserve tests, licenses, required model assets, and historical validation records.
 
 ## Architecture
 
@@ -181,7 +185,7 @@ Version 2.1 full-catalog screening requires UTC and a common TEME frame. OMM is 
 - `release/version.json`: authoritative product version, channel, publication state, maturity, and safety class.
 - `release/feature-flags.json`: auditable feature flags.
 - `release/static-artifact.json`: static publication allowlist and rewrite contract.
-- `json/gp/GP.json` and its metadata: checked-in Version 2.3.2 fallback position catalog, retaining the Version 2.2 mixed GP/OMM and exact-string compatibility-tag contracts while distinguishing configured `source_groups`, accepted-byte `catalog_source_groups`, and `source_scope_verified`.
+- `json/gp/GP.json` and its metadata: checked-in fallback position catalog, retaining the Version 2.2 mixed GP/OMM and exact-string compatibility-tag contracts while distinguishing configured `source_groups`, accepted-byte `catalog_source_groups`, and `source_scope_verified`.
 - `json/tracked/TRACKED.manifest.json`, `TRACKED.meta.json`, and referenced content-addressed chunks: SATCAT-scoped searchable current/history inventory, coverage accounting, quarantine, and exact GP availability joins. Only manifest-referenced chunks are runtime publication state.
 - `json/tle/TLE.json` and `json/tle/TLE.meta.json`: deprecated numeric/Alpha-5 compatibility subset; temporarily used only for exact-NORAD group/tag enrichment and reduced-coverage fallback, never preferred orbital state.
 - SATCAT-backed launch data and `json/decayed/decayed.json`: lifecycle-event datasets independent of orbit availability.
@@ -191,8 +195,8 @@ Version 2.1 full-catalog screening requires UTC and a common TEME frame. OMM is 
 - `validation/v2.1.0/`: development full-catalog executable evidence, checksums, and named-machine benchmark; review remains pending.
 - `validation/v2.2.0/`: archived Version 2.2.0 development evidence and immutable sidecar.
 - `validation/v2.2.1/`: immutable historical Version 2.2.1 development evidence.
-- `validation/v2.3.0/` and `validation/v2.3.1/`: frozen historical tracked-catalog development evidence. The Version 2.3.2 validation inventory and hashes remain pending the final validation/release seal; current aggregate test results are recorded separately and must not be relabeled as a completed checksum-bound corpus.
-- `release/evidence/openbexi-node-sbom-2.1.0-development.cdx.json` through `release/evidence/openbexi-node-sbom-2.3.1-development.cdx.json`: archived dependency evidence; `release/evidence/openbexi-node-sbom-2.3.2-development.cdx.json` is the current generated dependency inventory, while checksum-bound final promotion evidence remains pending.
+- `validation/v2.3.0/`, `validation/v2.3.1/`, and `validation/v2.3.2/`: immutable historical evidence for those versions. Current catalog integrity is checked separately; historical test results do not qualify later source or data changes.
+- `release/evidence/openbexi-node-sbom-2.3.3-development.cdx.json`: current dependency inventory. Earlier SBOMs remain historical evidence.
 - `data/ephemeris/solar_system_jpl_horizons_2020_2035_6h.json`: local JPL-derived visualization ephemeris.
 - `vendor/`: exact browser dependencies, integrity manifests, and license files.
 - `obj/`: local GLB and OBJ/MTL model assets.
@@ -201,7 +205,7 @@ Version 2.1 full-catalog screening requires UTC and a common TEME frame. OMM is 
 
 - Change release identity in `release/version.json`, run `npm run version:sync`, and verify with `npm run check:version`. `PROMPT_History.md` is historical context, not a runtime version source.
 - Treat the v2.0, v2.1, v2.2, v2.3, and v2.3.2 engineering checklists as separate gates. Later development authorization never promotes an earlier version. `Test_and_Integration.md` preserves the historical regression record and current v2.3.2 integration matrix.
-- Keep the current release boundary: Version 2.3.2 is development, Experimental, and non-operational, with null candidate/release dates. Owner `arcazj` approved exactly one publication of the final post-recording Version 2.3.2 repository source bytes to `origin/master` after the warned pre-approval manifest SHA-256 `c456703d12602e83a73233f693cf684315565436d8c08c645a0b7e5d984d8177`. The authenticated GitHub Pages API changed `build_type` from legacy branch-root publishing to `workflow` before push, but the source-only decision does not approve or dispatch the manual Pages artifact. Version 2.3.2 adds persistent coverage presentation, virtualized results, direct Globe/Mercator selection, expanded orbit-scoped debris facets, private validated scheduler candidates, and an artifact-only Pages path. Authoritative local evidence records 63/63 JavaScript unit files; 151 passes plus one intentional Windows symlink-capability skip across 152 Python cases in 83.452 seconds; 49 Playwright declarations with 29 passes, 20 intentional skips, no unexpected/flaky/top-level errors, and one attempt each in 595,996.319 ms; 147 syntax-checked JavaScript files; zero dependency vulnerabilities; passing release engineering; the 976.75 ms/95.89 MiB 120k observation; and a 334-artifact/17-executable/94-evidence validation inventory. Final local rollback passed and local attestation records `localExact=true`, `remoteExact=false`. Remote Pages deployment/attestation, required-reviewer/self-review environment settings, clean committed-tree binding, named profiles, and independent review remain pending. Later changed or refreshed bytes require new approval. Pc/CDM/covariance, alerts, reports, maneuver recommendations, provider-completeness claims, mass/weight inference, candidate/stable promotion, and operational use remain unauthorized.
+- The current Version 2.3.3 remains development, Experimental, and non-operational, with null candidate/release dates. The original prerelease and later cleanup are documented in RELEASE_NOTES.md. Source publication and Pages deployment are separate actions. Preserve historical evidence and record new checks for changed source/data. Do not infer scientific validation, complete provider coverage, or operational qualification from passing development checks.
 - Add or update deterministic tests for every behavioral change. `npm run test:unit` auto-discovers `tests/*.test.js`; Python and browser suites run separately or through `npm test`.
 - Preserve the single-node durable contract: SQLite is the queue/source of truth; all worker mutations require current attempt and worker ownership; result imports are atomic and checksum bound; static mode must remain functional.
 - Namespace persisted event-revision IDs by job/attempt while retaining engine event identity. Completed replay must create distinct immutable rows rather than collide with or overwrite the original job.

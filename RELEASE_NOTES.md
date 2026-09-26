@@ -1,5 +1,11 @@
 # Release Notes
 
+## Version 2.3.3 Project Cleanup (2026-09-26)
+
+Removed unused beamforming and satellite demo pages, superseded Java/Maven exporters and compiled output, duplicate star catalogs, unused textures, and catalog chunks outside the current manifest. IntelliJ settings are now local and ignored by Git. The supported browser viewers, runtime assets, Python services, tests, and historical release evidence remain available.
+
+Rebuilt the packaged tracked catalog and decay data from the existing GP/SATCAT snapshots, retaining available historical records. All referenced chunks are included. This repairs the incomplete snapshot from the original prerelease without claiming a new provider fetch or broader orbital coverage. Later versions now verify the immutable 2.3.2 evidence as a historical record and validate their current catalog independently.
+
 ## Version 2.3.3 Server Maintenance Update (2026-09-26)
 
 Published to `master` at commit `68f80ce1e267be1d95d74ed5c123fd63a483f373` and tagged `v2.3.3` as a [GitHub development prerelease](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/v2.3.3). No Pages deployment accompanied this publication. The application continues to report `publication_state: development` with null release and candidate dates.

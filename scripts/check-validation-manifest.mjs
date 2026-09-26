@@ -1801,6 +1801,29 @@ if (v232Manifest.schemaVersion !== 1 ||
 if (v232ManifestBytes.toString('utf8') !== `${JSON.stringify(v232Manifest, null, 2)}\n`) {
   fail('v2.3.2 manifest must use canonical pretty JSON with one trailing LF');
 }
+if (currentReleaseVersion !== '2.3.2') {
+  // Keep the sealed historical record immutable; later releases have different
+  // source and catalog bytes and must validate their own current data closure.
+  const frozenV232Digest = '6f6172dd24bf12d09582e0b4d9e04606e6349246640d8ffaebf88fc7bce7dcff';
+  if (v232Digest !== frozenV232Digest) {
+    fail('historical v2.3.2 manifest or sidecar bytes changed');
+  }
+  const python = resolvePythonCommand({ cwd: ROOT });
+  if (!python) fail('Python 3 is required to validate the current catalog');
+  const result = spawnSync(python.command, [...python.prefix, '-c',
+    'import json; from pathlib import Path; from tools.satellite_data_plane import validate_data_root; ' +
+    'result = validate_data_root(Path.cwd()); ' +
+    'print(json.dumps({"valid": result["valid"], "artifact_count": result["artifact_count"]}))'
+  ], { cwd: ROOT, encoding: 'utf8', windowsHide: true });
+  if (result.status !== 0) {
+    fail(`current catalog validation failed: ${result.error?.message || result.stderr || result.stdout}`);
+  }
+  const observation = JSON.parse(result.stdout.trim());
+  if (observation.valid !== true) fail('current catalog did not validate');
+  console.log(`Historical validation evidence pinned: ${v232Manifest.corpusVersion}, ${v232Manifest.artifacts.length} recorded hashes`);
+  console.log(`Current ${currentReleaseVersion} catalog validated: ${observation.artifact_count} artifacts; historical results remain specific to their original release.`);
+  process.exit(0);
+}
 requireExactValue(
   Object.keys(v232Manifest).sort(),
   [

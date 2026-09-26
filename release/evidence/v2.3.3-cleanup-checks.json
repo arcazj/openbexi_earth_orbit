@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "applicationVersion": "2.3.3",
+  "recordedAt": "2026-09-26T19:50:13.970Z",
+  "baseCommit": "9eca581e21d0b38ed02cf40154698c85806d957f",
+  "scope": "Project cleanup and restoration of a complete packaged catalog",
+  "checks": {
+    "staticChecks": {
+      "command": "npm run check",
+      "status": "passed"
+    },
+    "javascript": {
+      "command": "npm run test:unit",
+      "files": 63,
+      "passed": 63,
+      "failed": 0
+    },
+    "python": {
+      "command": "npm run test:python",
+      "tests": 167,
+      "passed": 166,
+      "skipped": 1,
+      "failed": 0
+    },
+    "browser": {
+      "command": "npm run test:browser -- --project=chromium tests_browser/staticDeployment.spec.js",
+      "passed": 2,
+      "failed": 0,
+      "externalRequests": 0,
+      "missingAssets": 0,
+      "workerScreening": "passed"
+    },
+    "validationNegativeCases": {
+      "historicalManifestTamperingRejected": true,
+      "currentCatalogCorruptionRejected": true
+    }
+  },
+  "dataRepair": {
+    "providerFetchPerformed": false,
+    "providerSourceBytesChanged": false,
+    "knownHistoryRetained": true,
+    "validatedArtifacts": 24,
+    "candidateRevision": "sha256:a76c7dcd648e617b756538eadc436b7fca5c10a7ecc8bbe71514c306325601f6",
+    "trackedCatalogRevision": "sha256:415f46c1d6375094bceba4a9a8436efa00262ba652517f80eb62aa107b373acc",
+    "counts": {
+      "expected": 70661,
+      "expected_provider_records": null,
+      "received": 70661,
+      "accepted": 70661,
+      "quarantined": 0,
+      "duplicates": 0,
+      "issues": 0,
+      "total": 70661,
+      "current": 35091,
+      "historical": 35570,
+      "history_total": 35570,
+      "absent": 0,
+      "propagatable": 16436,
+      "metadata_only": 54225,
+      "current_propagatable": 16436,
+      "gp_only": 0,
+      "gp_quarantined": 0,
+      "small_rcs_current": 8027,
+      "missing_rcs_current": 20490,
+      "debris_small_rcs_current": 7847,
+      "debris_missing_rcs_current": 3170,
+      "object_types": {
+        "PAYLOAD": 27713,
+        "DEBRIS": 35888,
+        "ROCKET_BODY": 6894,
+        "MISSION_RELATED": 0,
+        "UNKNOWN": 166
+      },
+      "current_object_types": {
+        "PAYLOAD": 20077,
+        "DEBRIS": 12531,
+        "ROCKET_BODY": 2428,
+        "MISSION_RELATED": 0,
+        "UNKNOWN": 55
+      },
+      "current_metadata_only": 18655,
+      "orbit_classes": {
+        "LEO": 61105,
+        "MEO": 3869,
+        "GEO": 1792,
+        "HEO": 47,
+        "OTHER": 187,
+        "DECAYING": 1614,
+        "UNKNOWN": 2047
+      },
+      "lifecycle_statuses": {
+        "ACTIVE": 17070,
+        "INACTIVE": 1500,
+        "DECAYED": 35570,
+        "ABSENT": 0,
+        "UNKNOWN": 16521
+      }
+    }
+  },
+  "cleanup": {
+    "archivedLocalFiles": 678,
+    "archivedLocalBytes": 3179384367,
+    "activePrivateRuntimePreserved": true,
+    "localIdeSettingsRemovedFromGit": true
+  },
+  "limitations": [
+    "Full Playwright matrix was not repeated; the two affected static deployment journeys were run.",
+    "Provider and physical debris completeness are not claimed.",
+    "Historical release evidence remains specific to its original version."
+  ],
+  "publication": {
+    "pagesDeployment": false,
+    "stableQualification": false
+  },
+  "logSha256": {
+    "check.log": "e21f9680253ab537ea155f18ac7f8f05fe515e35e809c7e5b833f15b8de8dae9",
+    "unit-tests.log": "2bcb72acefc8a2bf4ddb255cd78bee6b439c0ca8b5be2dea5dcd2f40d927f089",
+    "python-tests.log": "110f471075db31904fe2c5f0b644acea52e916eba68c859d0c0017549922a258",
+    "browser-static.log": "165d05068de6c156e6931b505594b2fb5c89ed4ef0f6f92cad64f70f562f2945"
+  }
+}
