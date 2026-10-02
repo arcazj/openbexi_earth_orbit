@@ -1,8 +1,8 @@
 {
   "fetched_at": "2026-09-14T11:45:01.235928Z",
   "last_success_at": "2026-09-14T11:45:01.235928Z",
-  "last_attempt_at": "2026-09-14T11:45:01.235928Z",
-  "last_status": "ok",
+  "last_attempt_at": "2026-10-02T15:17:29.107587Z",
+  "last_status": "failed",
   "source_url": "https://celestrak.org/pub/satcat.csv",
   "catalog_revision": "sha256:d9dbe72c138a30ad0c100624e12ea1db0f3b6f16bbaff7c631450e4ccbd63364",
   "dataset_hash": "sha256:d9dbe72c138a30ad0c100624e12ea1db0f3b6f16bbaff7c631450e4ccbd63364",
@@ -19,5 +19,6 @@
     }
   },
   "last_reconciled_at": "2026-09-14T11:45:01.235928Z",
-  "last_reconciled_catalog_revision": "sha256:d9dbe72c138a30ad0c100624e12ea1db0f3b6f16bbaff7c631450e4ccbd63364"
+  "last_reconciled_catalog_revision": "sha256:d9dbe72c138a30ad0c100624e12ea1db0f3b6f16bbaff7c631450e4ccbd63364",
+  "last_error": "HTTP 403 for https://celestrak.org/pub/satcat.csv: <!DOCTYPE html>\r\n<html>\r\n<head>\r\n<meta http-equiv=\"Content-Type\" content=\"text/html; charset=iso-8859-1\"/>\r\n<title>403 - Forbidden: Access is denied</title>\r\n<style type=\"text/css\">\r\n<!--\r\nbody{margin"
 }

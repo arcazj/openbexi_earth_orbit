@@ -1,8 +1,8 @@
 {
   "schema_version": "2.2.0",
-  "built_at": "2026-09-14T11:45:01.235928Z",
-  "last_success_at": "2026-09-14T11:45:01.235928Z",
-  "last_attempt_at": "2026-09-14T11:45:01.235928Z",
+  "built_at": "2026-10-02T15:17:29.107587Z",
+  "last_success_at": "2026-10-02T15:17:29.107587Z",
+  "last_attempt_at": "2026-10-02T15:17:29.107587Z",
   "last_status": "ok",
   "mode": "reconcile",
   "source": "json/satcat.csv",
@@ -16,6 +16,6 @@
     "records": 27713,
     "six_digit_ids": 574
   },
-  "last_reconciled_at": "2026-09-14T11:45:01.235928Z",
+  "last_reconciled_at": "2026-10-02T15:17:29.107587Z",
   "last_reconciled_catalog_revision": "sha256:90f73cab255baaf7a1124a30b887f48813dab71467a281a075ac27e6bb221dd1"
 }

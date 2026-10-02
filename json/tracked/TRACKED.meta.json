@@ -4,7 +4,7 @@
   "dataset_format": "OPENBEXI_TRACKED_OBJECT_CHUNKS",
   "provider": "CelesTrak",
   "mode": "reconcile",
-  "source_status": "VERIFIED_SNAPSHOT",
+  "source_status": "DEGRADED",
   "provider_completeness_claim": false,
   "input_revision": "sha256:84baa3f4e7edfa64439e6d898274f9b044280b9c6d512b579057c22eedd067a6",
   "source_satcat_revision": "sha256:d9dbe72c138a30ad0c100624e12ea1db0f3b6f16bbaff7c631450e4ccbd63364",
@@ -16,9 +16,9 @@
   "coverage_revision": "sha256:febe5c1447a72940161f31d13b098d72f3de39127507265877e08a7408a5fcca",
   "dataset_hash": "sha256:415f46c1d6375094bceba4a9a8436efa00262ba652517f80eb62aa107b373acc",
   "fetched_at": "2026-09-26T19:38:40.266022Z",
-  "last_attempt_at": "2026-09-26T19:38:40.266022Z",
+  "last_attempt_at": "2026-10-02T15:17:29.107587Z",
   "last_success_at": "2026-09-26T19:38:40.266022Z",
-  "last_status": "ok",
+  "last_status": "failed",
   "counts": {
     "expected": 70661,
     "expected_provider_records": null,
@@ -87,5 +87,8 @@
     "expected_matches_received": true
   },
   "last_reconciled_at": "2026-09-26T19:38:40.266022Z",
-  "last_reconciled_catalog_revision": "sha256:415f46c1d6375094bceba4a9a8436efa00262ba652517f80eb62aa107b373acc"
+  "last_reconciled_catalog_revision": "sha256:415f46c1d6375094bceba4a9a8436efa00262ba652517f80eb62aa107b373acc",
+  "last_error": "Tracked reconciliation refused absence transitions because SATCAT is not a verified complete reconciliation snapshot.",
+  "attempted_source_satcat_revision": "sha256:d9dbe72c138a30ad0c100624e12ea1db0f3b6f16bbaff7c631450e4ccbd63364",
+  "attempted_source_gp_revision": "sha256:7e20905d9e159f17811b25cec87a38cb5d9063ea507027e251fdbcd191bb14c9"
 }
