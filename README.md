@@ -69,6 +69,23 @@ node scripts/python.mjs -m http.server 8001 --bind 127.0.0.1 --directory dist
 
 After a successful build, open [http://127.0.0.1:8001/index.html](http://127.0.0.1:8001/index.html). The current 2.3.3 checkout includes a complete tracked catalog and matching decay metadata rebuilt from the existing local sources. The original prerelease tag retains its earlier snapshot. Publish only a verified `dist/` artifact; [Static Deployment](docs/engineering/STATIC_DEPLOYMENT.md) and [Pages Deployment](release/PAGES_DEPLOYMENT.md) describe the manual workflow and its verification requirements.
 
+### Google Cloud Run
+
+The root `Dockerfile` builds the curated `dist/` artifact and serves it with Nginx on `0.0.0.0:$PORT` (default `8080`). It hosts the browser application; the Python API, full-catalog jobs, and background data maintenance require a separately operated server.
+
+For repository deployment, select **Dockerfile** as the Cloud Run build type, use the root `Dockerfile` with the repository root as its build context, and select the branch containing these files. Keep the container command and arguments empty, the container port at `8080`, and **Use HTTP/2 end-to-end** disabled. This Nginx configuration serves HTTP/1 to Cloud Run; Cloud Run terminates browser HTTPS. Re-run the Cloud Build trigger after pushing the configuration. See [Google's repository deployment instructions](https://docs.cloud.google.com/run/docs/continuous-deployment).
+
+If requests return `502` with `reset reason: protocol error`, check the service's Networking settings for an HTTP/2 mismatch. Disable end-to-end HTTP/2 for this container with `gcloud run services update openbexi-earth-orbit --region us-east4 --no-use-http2`. See [Google's HTTP/2 requirements](https://docs.cloud.google.com/run/docs/configuring/http2). A startup log naming `placeholder-1` means that revision runs Google's placeholder image; a successful TCP probe confirms only that its port accepts connections. Confirm that the revision receiving traffic uses the application image from a successful Cloud Build.
+
+To check the container locally:
+
+```powershell
+docker build -t openbexi-earth-orbit .
+docker run --rm -p 8080:8080 -e PORT=8080 openbexi-earth-orbit
+```
+
+Open [http://localhost:8080/index.html](http://localhost:8080/index.html). A failed repository build must be diagnosed using its Cloud Build logs; redeploying a placeholder revision does not build the application.
+
 ### Project layout
 
 The maintained project contains the browser application, Python API and data tools, required local assets, tests, build scripts, and documentation. The supported standalone viewers are `display_satellite.html`, `Earth_Stars_MilkyWay.html`, and `SolarSystemOverview.html`. Obsolete beamforming demos, Java/Maven exporters, unused textures, and unreferenced catalog chunks have been removed; earlier source versions remain in Git history.
