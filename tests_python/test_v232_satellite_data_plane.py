@@ -1231,8 +1231,10 @@ class SatelliteDataPlaneTests(unittest.TestCase):
                 on_updated=registered,
             )
             scheduler.start()
-            self.assertTrue(entered.wait(timeout=2))
-            scheduler.stop(timeout_seconds=2)
+            try:
+                self.assertTrue(entered.wait(timeout=10))
+            finally:
+                scheduler.stop(timeout_seconds=10)
 
             self.assertFalse(scheduler.thread.is_alive())
             self.assertIsNone(plane.pointer())

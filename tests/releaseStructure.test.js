@@ -356,6 +356,8 @@ function run() {
       'build-tracked',
       'maybe-update',
       'stage-update',
+      'plan',
+      'resume-provider',
       'import-candidate',
       'validate-candidate',
       'promote-candidate'

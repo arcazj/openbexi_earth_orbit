@@ -338,7 +338,8 @@ class HttpServerCapacityTests(unittest.TestCase):
         handler.data_root_resolver = None
         handler.send_error = mock.Mock()
         handler.log_error = mock.Mock()
-        with mock.patch.object(server, "_data_update_status_snapshot", side_effect=PermissionError("unreadable metadata")):
+        with mock.patch.object(server, "DATA_STATUS_HTTP_CACHE", {}), \
+             mock.patch.object(server, "_data_update_status_snapshot", side_effect=PermissionError("unreadable metadata")):
             self.assertTrue(handler._handle_api(head_only=False))
         handler.send_error.assert_called_once_with(500, "Unable to read the requested API resource")
 

@@ -898,7 +898,8 @@ class SatelliteDataPlane:
             key=lambda path: path.name,
             reverse=True,
         )
-        keep = {path.name for path in candidates[:CANDIDATE_RETENTION]}
+        retention_count = max(1, min(CANDIDATE_RETENTION, int(os.environ.get("OPENBEXI_CANDIDATE_RETENTION", CANDIDATE_RETENTION))))
+        keep = {path.name for path in candidates[:retention_count]}
         keep.update(retained_ids)
         for candidate in candidates:
             try:
@@ -1059,6 +1060,7 @@ class SatelliteDataPlane:
             base_root = self.current_root()
             base_pointer = self.pointer()
             if updater is data_tools.maybe_update_satellite_data:
+                update_kwargs.setdefault("provider_state_path", self.state_root / "provider-queries.json")
                 plan_keys = {
                     "interval_hours",
                     "gp_interval_hours",
@@ -1069,6 +1071,7 @@ class SatelliteDataPlane:
                     "decayed_interval_hours",
                     "reconciliation_interval_hours",
                     "force",
+                    "only", "changed_only", "provider_state_path",
                 }
                 plan = data_tools.scheduled_data_update_plan(
                     root=base_root,
@@ -1080,12 +1083,12 @@ class SatelliteDataPlane:
                     for name, due in plan["due"].items()
                 ))
                 if plan["any_due"] is not True:
-                    report("current", "All datasets are current; no download or rebuild is needed.")
+                    report("current", "Provider refresh is paused pending investigation." if plan.get("provider_blocked") else "No download or rebuild is necessary.")
                     return {
                         "started_at": data_tools.isoformat_utc(now),
                         "finished_at": data_tools.isoformat_utc(now),
                         "skipped": True,
-                        "degraded": False,
+                        "degraded": bool(plan.get("provider_blocked")),
                         "lock_acquired": False,
                         "intervals_hours": plan["intervals_hours"],
                         "due": {**plan["due"], "reconciliation": plan["reconciliation"]},
@@ -1107,11 +1110,15 @@ class SatelliteDataPlane:
                             "errors": [],
                             "paths": {},
                         },
-                        "message": "All satellite datasets are within their configured freshness windows.",
+                        "message": "Provider refresh is paused pending investigation." if plan.get("provider_blocked") else "No download or rebuild is necessary.",
                         "candidate_id": None,
                         "candidate_state": "not-created",
                         "promoted": False,
                         "promotion": None,
+                        "reasons": plan.get("reasons", {}),
+                        "provider_blocked": plan.get("provider_blocked", False),
+                        "provider_error": plan.get("provider_error"),
+                        "errors": [plan["provider_error"]] if plan.get("provider_blocked") and plan.get("provider_error") else [],
                     }
             candidate_id = self._new_candidate_id(now)
             candidate_root = _candidate_path(self.state_root, candidate_id)

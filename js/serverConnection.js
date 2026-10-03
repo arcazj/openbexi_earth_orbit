@@ -365,6 +365,7 @@ export function createCatalogRevisionWatcher({
     intervalMs = 60_000,
     statusLoader = null,
     onRevisionChange = null,
+    onStatus = null,
     onError = null
 } = {}) {
     let currentRevision = null;
@@ -381,6 +382,7 @@ export function createCatalogRevisionWatcher({
         requestInFlight = Promise.resolve()
             .then(() => loadStatus({ baseUrl, fetchImpl }))
             .then(async status => {
+                if (typeof onStatus === 'function') onStatus(status);
                 const revision = catalogRevisionFromStatus(status);
                 const previous = currentRevision;
                 const previousStatus = currentStatus;
@@ -437,14 +439,38 @@ export function createCatalogRevisionWatcher({
 }
 
 export function createStaticDataRevisionWatcher(options = {}) {
+    const statusUrl = globalThis.document?.querySelector?.('meta[name="openbexi-data-status-url"]')?.content;
     return createCatalogRevisionWatcher({
         ...options,
         baseUrl: '',
-        statusLoader: ({ fetchImpl }) => loadStaticDataUpdateStatus({
-            fetchImpl,
-            timeoutMs: options.timeoutMs ?? 10000
-        })
+        statusLoader: ({ fetchImpl }) => statusUrl === '/api/data-update-status'
+            ? fetchJsonWithTimeout(statusUrl, { fetchImpl, timeoutMs: options.timeoutMs ?? 10000 })
+                .then(status => ({ ...status, source: 'static-metadata' }))
+            : loadStaticDataUpdateStatus({ fetchImpl, timeoutMs: options.timeoutMs ?? 10000 })
     });
+}
+
+export function renderDataRefreshStatus(status, documentObj = globalThis.document) {
+    let label = documentObj?.getElementById('dataRefreshStatus');
+    if (!label) {
+        const parent = documentObj?.getElementById('versionDisplay');
+        if (!parent) return;
+        label = documentObj.createElement('div');
+        label.id = 'dataRefreshStatus';
+        label.style.cssText = 'font-size:11px;color:#b6c8d9;margin-top:4px';
+        parent.appendChild(label);
+    }
+    const blocked = status?.last_result?.provider_blocked;
+    const updating = status?.phase === 'updating' || status?.state === 'checking';
+    const updated = status?.last_finished_at || status?.datasets?.gp?.last_success_at;
+    label.textContent = blocked ? 'Data refresh paused; previous validated data remains available'
+        : updating ? 'Checking for new orbital and timeline data…'
+        : updated ? `Data checked ${new Date(updated).toLocaleString()}` : 'Watching for new orbital and timeline data';
+    label.title = status?.last_error || [
+        status?.newest_launch_date && `Latest launch: ${status.newest_launch_date}`,
+        status?.newest_confirmed_decay_date && `Latest confirmed decay: ${status.newest_confirmed_decay_date}`,
+        status?.newest_orbital_epoch && `Orbital elements: ${status.newest_orbital_epoch}`
+    ].filter(Boolean).join('\n') || 'New launches, confirmed decays and orbital elements appear automatically after validation.';
 }
 
 export function resolveServerDataUrl(originalUrl, baseUrl) {

@@ -27,6 +27,9 @@ from pathlib import Path
 from typing import Callable, Iterable
 from urllib import parse, request
 from urllib.error import HTTPError, URLError
+if not __package__:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from tools.provider_queries import ProviderHTTPError, ProviderQueries
 
 
 EARTH_RADIUS_KM = 6378.137
@@ -736,8 +739,14 @@ def fetch_url(
         },
     )
     try:
-        with request.urlopen(req, timeout=timeout) as response:
-            body = response.read().decode("utf-8", errors="replace")
+        class NoRedirect(request.HTTPRedirectHandler):
+            def redirect_request(self, req, fp, code, msg, headers, newurl):
+                raise ProviderHTTPError(f"Provider redirected HTTP {code}; investigate the configured URL.", status=code)
+        with request.build_opener(NoRedirect()).open(req, timeout=timeout) as response:
+            raw_body = response.read(32 * 1024 * 1024 + 1)
+            if len(raw_body) > 32 * 1024 * 1024:
+                raise SatelliteDataError("Provider response exceeds the 32 MiB ingestion limit.")
+            body = raw_body.decode("utf-8", errors="replace")
             return FetchResponse(
                 url=url,
                 text=body,
@@ -748,9 +757,8 @@ def fetch_url(
         detail = exc.read().decode("utf-8", errors="replace") if exc.fp else ""
         if exc.code == 304:
             return FetchResponse(url=url, text="", status=304, not_modified=True)
-        if exc.code == 403 and "has not updated since your last successful" in detail:
-            return FetchResponse(url=url, text="", status=304, not_modified=True, headers={"x-celestrak-detail": detail.strip()})
-        raise SatelliteDataError(f"HTTP {exc.code} for {url}: {detail[:200]}") from exc
+        raise ProviderHTTPError(f"HTTP {exc.code} for {url}: {detail[:200]}",
+                                status=exc.code, retry_after=exc.headers.get("Retry-After")) from exc
     except URLError as exc:
         raise SatelliteDataError(f"Network error for {url}: {exc.reason}") from exc
     except TimeoutError as exc:
@@ -1691,6 +1699,7 @@ def build_launch_catalog(
         "catalog_revision": revision,
         "dataset_hash": revision,
         "newest_launch_date": newest_launch_date,
+        "source_satcat_revision": catalog_revision_for_text(source_text),
         "counts": {
             "satcat_records": len(records),
             "source_records": len(current_launches),
@@ -2076,10 +2085,13 @@ def export_tle_data(
     celestrak_min_refresh_hours: float = CELESTRAK_MIN_REFRESH_HOURS,
     allow_space_track: bool = False,
     allow_large_reconciliation_shrink: bool = False,
+    local_only: bool = False,
 ) -> UpdateResult:
     now = now or utc_now()
     root_path = Path(root).resolve()
     tle_path = repo_path(root_path, TLE_RELATIVE_PATH)
+    if fetcher is None:
+        fetcher = ProviderQueries(root_path / "runtime" / "provider-queries.json", fetch_url, now=now, dry_run=dry_run)
     meta_path = repo_path(root_path, TLE_META_RELATIVE_PATH)
     launch_dates_path = repo_path(root_path, LAUNCH_DATES_RELATIVE_PATH)
     launch_dates_existed = launch_dates_path.exists()
@@ -2179,9 +2191,9 @@ def export_tle_data(
         atomic_write_json(meta_path, local_meta, dry_run=dry_run, backup=False, indent=2)
         meta = local_meta
 
-    if mode != "all" and not force:
+    if local_only or (mode != "all" and not force):
         latest = latest_success_time(meta, tle_path)
-        if is_recent_enough(latest, celestrak_min_refresh_hours, now=now):
+        if local_only or is_recent_enough(latest, celestrak_min_refresh_hours, now=now):
             return UpdateResult(
                 changed=local_changed and not dry_run,
                 skipped=True,
@@ -2714,10 +2726,13 @@ def export_gp_data(
     now: dt.datetime | None = None,
     celestrak_min_refresh_hours: float = CELESTRAK_MIN_REFRESH_HOURS,
     allow_large_reconciliation_shrink: bool = False,
+    local_only: bool = False,
 ) -> UpdateResult:
     now = now or utc_now()
     root_path = Path(root).resolve()
     gp_path = repo_path(root_path, GP_RELATIVE_PATH)
+    if fetcher is None:
+        fetcher = ProviderQueries(root_path / "runtime" / "provider-queries.json", fetch_url, now=now, dry_run=dry_run)
     meta_path = repo_path(root_path, GP_META_RELATIVE_PATH)
     meta = load_json(meta_path, {})
     if not isinstance(meta, dict):
@@ -2809,9 +2824,9 @@ def export_gp_data(
         atomic_write_json(meta_path, local_meta, dry_run=dry_run, backup=False, indent=2)
         meta = local_meta
 
-    if mode != "all" and not force and source_scope_current_at_start:
+    if local_only or (mode != "all" and not force and source_scope_current_at_start):
         latest = latest_success_time(meta, gp_path)
-        if is_recent_enough(latest, celestrak_min_refresh_hours, now=now):
+        if local_only or is_recent_enough(latest, celestrak_min_refresh_hours, now=now):
             return UpdateResult(
                 changed=local_enrichment_changed and not dry_run,
                 skipped=True,
@@ -3281,9 +3296,9 @@ def refresh_satcat_csv(
     allow_large_reconciliation_shrink: bool = False,
 ) -> UpdateResult:
     now = now or utc_now()
-    fetcher = fetcher or fetch_url
     root_path = Path(root).resolve()
     satcat_path = repo_path(root_path, SATCAT_RELATIVE_PATH)
+    fetcher = fetcher or ProviderQueries(root_path / "runtime" / "provider-queries.json", fetch_url, now=now, dry_run=dry_run)
     meta_path = repo_path(root_path, SATCAT_META_RELATIVE_PATH)
     meta = load_json(meta_path, {})
     if not isinstance(meta, dict):
@@ -4963,6 +4978,7 @@ def build_decayed_db(
         "catalog_revision": revision,
         "dataset_hash": revision,
         "newest_confirmed_decay_date": newest_confirmed_decay_date,
+        "source_satcat_revision": catalog_revision_for_text(input_path.read_text(encoding="utf-8")),
         "counts": {
             "objects": len(grouped),
             "records": record_count,
@@ -5136,6 +5152,9 @@ def scheduled_data_update_plan(
     reconciliation_interval_hours: float | None = None,
     force: bool = False,
     now: dt.datetime | None = None,
+    only: str | Iterable[str] | None = None,
+    changed_only: bool = True,
+    provider_state_path: Path | str | None = None,
 ) -> dict[str, object]:
     """Return the deterministic freshness plan without fetching or writing data."""
 
@@ -5195,11 +5214,72 @@ def scheduled_data_update_plan(
             root_path, DECAYED_META_RELATIVE_PATH, intervals["reconciliation"], now=now
         ),
     }
+    names = set(due)
+    requested = names if only is None else set(only.split(",") if isinstance(only, str) else only)
+    if not requested or requested - names:
+        raise SatelliteDataError("--only must select gp,tle,satcat,tracked,launches,decayed.")
+    selected = set(requested)
+    query_enabled = requested & {"gp", "tle", "satcat"}
+    if requested & {"tracked", "launches", "decayed"}:
+        selected.add("satcat")
+        query_enabled.add("satcat")
+    if "tracked" in requested:
+        selected.add("gp")
+        query_enabled.add("gp")
+    if "gp" in selected:
+        selected.add("tracked")
+    if "satcat" in selected:
+        selected.update({"gp", "tle", "tracked", "launches", "decayed"})
+    reasons = {name: "freshness expired or data missing" if due[name] else "within freshness window" for name in names}
+    satcat_path = root_path / SATCAT_RELATIVE_PATH
+    satcat_revision = catalog_revision_for_text(satcat_path.read_text(encoding="utf-8")) if satcat_path.is_file() else None
+    for name, meta_path, data_path in (
+        ("launches", LAUNCHES_META_RELATIVE_PATH, LAUNCHES_RELATIVE_PATH),
+        ("decayed", DECAYED_META_RELATIVE_PATH, DECAYED_RELATIVE_PATH),
+    ):
+        meta = load_json(root_path / meta_path, {})
+        payload = load_json(root_path / data_path, None)
+        valid = isinstance(meta, dict) and payload is not None and meta.get("catalog_revision") == catalog_revision_for_payload(payload)
+        if changed_only and not force and valid and satcat_revision and meta.get("source_satcat_revision") == satcat_revision:
+            due[name] = reconciliation_due[name] = False
+            reasons[name] = "validated SATCAT input is unchanged"
+        elif not valid or (satcat_revision and meta.get("source_satcat_revision") != satcat_revision):
+            due[name] = True
+            reasons[name] = "derived data missing, invalid, or source revision changed"
+    tracked_meta = load_json(root_path / TRACKED_META_RELATIVE_PATH, {})
+    gp_meta = load_json(root_path / GP_META_RELATIVE_PATH, {})
+    if (changed_only and not force and isinstance(tracked_meta, dict) and isinstance(gp_meta, dict)
+            and tracked_meta.get("source_satcat_revision") == satcat_revision and satcat_revision
+            and tracked_meta.get("source_gp_revision") == gp_meta.get("catalog_revision")
+            and _tracked_manifest_is_complete(root_path, root_path / TRACKED_MANIFEST_RELATIVE_PATH)):
+        due["tracked"] = reconciliation_due["tracked"] = False
+        reasons["tracked"] = "validated GP/SATCAT inputs are unchanged"
+    state = ProviderQueries.read(provider_state_path or root_path / "runtime" / "provider-queries.json")
+    for name in names:
+        if name not in selected or (name in {"gp", "tle", "satcat"} and name not in query_enabled):
+            due[name] = reconciliation_due[name] = False
+            reasons[name] = "not selected for provider refresh"
+        elif name in {"gp", "tle", "satcat"}:
+            urls = gp_source_urls_for_mode("incremental") if name == "gp" else source_urls_for_mode("incremental") if name == "tle" else [CELESTRAK_SATCAT_CSV_URL]
+            deferred = [state["urls"].get(url, {}).get("next_allowed_at") for url in urls]
+            deferred = [value for value in deferred if value and parse_iso_datetime(value) and parse_iso_datetime(value) > now]
+            core_paths = {"gp": (GP_RELATIVE_PATH, GP_META_RELATIVE_PATH), "tle": (TLE_RELATIVE_PATH, TLE_META_RELATIVE_PATH),
+                          "satcat": (SATCAT_RELATIVE_PATH, SATCAT_META_RELATIVE_PATH)}
+            repair_from_cache = any(not (root_path / path).is_file() for path in core_paths[name]) and all(
+                isinstance(state["urls"].get(url, {}).get("response"), dict) for url in urls)
+            if repair_from_cache and not state.get("blocked"):
+                reasons[name] = "missing artifact; repair from cached provider response without a download"
+                continue
+            if state.get("blocked") or deferred:
+                due[name] = reconciliation_due[name] = False
+                reasons[name] = "provider paused: " + str(state.get("error")) if state.get("blocked") else "request cooldown until " + max(deferred)
+            elif reconciliation_due[name]:
+                reasons[name] = "periodic reconciliation due"
     return {
-        "intervals_hours": intervals,
-        "due": due,
-        "reconciliation": reconciliation_due,
+        "intervals_hours": intervals, "due": due, "reconciliation": reconciliation_due,
         "any_due": any(due.values()) or any(reconciliation_due.values()),
+        "requested": sorted(requested), "selected": sorted(selected), "reasons": reasons,
+        "provider_blocked": bool(state.get("blocked")), "provider_error": state.get("error"),
     }
 
 
@@ -5220,9 +5300,15 @@ def maybe_update_satellite_data(
     now: dt.datetime | None = None,
     cancel_requested: Callable[[], bool] | None = None,
     on_progress: Callable[[dict[str, object]], None] | None = None,
+    only: str | Iterable[str] | None = None,
+    changed_only: bool = True,
+    provider_state_path: Path | str | None = None,
+    provider_state_saved: Callable[[Path], None] | None = None,
 ) -> dict[str, object]:
     now = now or utc_now()
     root_path = Path(root).resolve()
+    fetcher = ProviderQueries(provider_state_path or root_path / "runtime" / "provider-queries.json",
+                              fetcher or fetch_url, now=now, dry_run=dry_run, on_saved=provider_state_saved)
 
     def check_cancelled() -> None:
         if cancel_requested is not None and cancel_requested():
@@ -5275,10 +5361,16 @@ def maybe_update_satellite_data(
             reconciliation_interval_hours=reconciliation_interval_hours,
             force=force,
             now=now,
+            only=only,
+            changed_only=changed_only,
+            provider_state_path=provider_state_path,
         )
         due = dict(plan["due"])
         reconciliation_due = dict(plan["reconciliation"])
         results["due"] = {**due, "reconciliation": reconciliation_due}
+        results["reasons"] = plan["reasons"]
+        results["provider_blocked"] = plan["provider_blocked"]
+        results["provider_error"] = plan["provider_error"]
         executed_names: set[str] = set()
 
         def record_result(name: str, operation: Callable[[], UpdateResult]) -> UpdateResult | None:
@@ -5355,7 +5447,7 @@ def maybe_update_satellite_data(
                 lambda: build_decayed_db(
                     root=root_path,
                     mode=RECONCILIATION_MODE if reconciliation_due["decayed"] else "incremental",
-                    force=force or reconciliation_due["decayed"],
+                    force=force or reconciliation_due["decayed"] or satcat_changed,
                     dry_run=dry_run,
                     now=now,
                     interval_hours=intervals["decayed"],
@@ -5374,6 +5466,7 @@ def maybe_update_satellite_data(
                     fetcher=fetcher,
                     now=now,
                     allow_space_track=False,
+                    **({"local_only": True} if not due["tle"] and not reconciliation_due["tle"] else {}),
                 ),
             )
 
@@ -5388,6 +5481,7 @@ def maybe_update_satellite_data(
                     dry_run=dry_run,
                     fetcher=fetcher,
                     now=now,
+                    **({"local_only": True} if not due["gp"] and not reconciliation_due["gp"] else {}),
                 ),
             )
         gp_changed = bool(gp_result and gp_result.changed)
@@ -5479,6 +5573,11 @@ def maybe_update_satellite_data(
             isinstance(item, dict) and bool(item.get("errors"))
             for item in nested_results
         )
+        results["provider_blocked"] = bool(fetcher.state.get("blocked"))
+        results["provider_error"] = fetcher.state.get("error")
+        if results["provider_blocked"]:
+            results["degraded"] = True
+            results["errors"] = [results["provider_error"] or "Provider paused pending operator investigation."]
         check_cancelled()
     results["finished_at"] = isoformat_utc(now)
     return results
@@ -5605,6 +5704,24 @@ def build_parser() -> argparse.ArgumentParser:
     stage_parser.add_argument("--tracked-interval-hours", type=float, default=None)
     stage_parser.add_argument("--reconciliation-interval-hours", type=float, default=None)
 
+    plan_parser = subparsers.add_parser("plan", help="Inspect necessary updates without network access or writes.")
+    plan_parser.add_argument("--data-plane-dir", default="runtime/data-plane")
+    plan_parser.add_argument("--interval-hours", type=float, default=DEFAULT_SERVER_UPDATE_INTERVAL_HOURS)
+    plan_parser.add_argument("--force", action="store_true")
+    for name in ("gp", "tle", "satcat", "tracked", "reconciliation"):
+        plan_parser.add_argument(f"--{name}-interval-hours", type=float, default=None)
+    for update_parser in (maybe_parser, stage_parser, plan_parser):
+        update_parser.add_argument("--only", default=None, help="Comma-separated datasets; necessary dependencies are included.")
+        update_parser.add_argument("--changed-only", action=argparse.BooleanOptionalAction, default=True,
+                                   help="Skip validated derived artifacts whose input revisions match (default: enabled).")
+        update_parser.add_argument("--launches-interval-hours", type=float, default=None)
+        update_parser.add_argument("--decayed-interval-hours", type=float, default=None)
+    for update_parser in (maybe_parser, stage_parser):
+        update_parser.add_argument("--plan", action="store_true", help="Only inspect the plan; no downloads or writes.")
+    resume_parser = subparsers.add_parser("resume-provider", help="Operator-only: resume after investigating an HTTP error; cooldowns remain enforced.")
+    resume_parser.add_argument("--state-file", default="runtime/data-plane/provider-queries.json")
+    resume_parser.add_argument("--reason", required=True, help="Investigation/recovery reason, recorded locally.")
+
     import_parser = subparsers.add_parser(
         "import-candidate",
         help="Byte-snapshot the current local data closure without network access or promotion.",
@@ -5636,6 +5753,17 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     root = Path(args.root).resolve() if args.root else default_repo_root()
     try:
+        if args.command == "resume-provider":
+            from tools.satellite_data_plane import _data_plane_lock
+            state_path = (root / args.state_file).resolve()
+            with _data_plane_lock(state_path.parent / "provider-lock"):
+                queries = ProviderQueries(state_path, fetch_url)
+                queries.state["blocked"] = False
+                queries.state.pop("error", None)
+                queries.state["operator_resume"] = {"at": isoformat_utc(), "reason": args.reason[:2000]}
+                queries.save()
+            _print_result({"resumed": True, "message": "Provider circuit resumed; existing request cooldowns remain enforced."})
+            return 0
         if args.command == "export-gp":
             result = export_gp_data(
                 root=root,
@@ -5695,6 +5823,13 @@ def main(argv: list[str] | None = None) -> int:
             _print_result(result)
             return 0
         if args.command == "maybe-update":
+            if args.plan:
+                _print_result(scheduled_data_update_plan(root=root, only=args.only, changed_only=args.changed_only,
+                    interval_hours=args.interval_hours, gp_interval_hours=args.gp_interval_hours,
+                    tle_interval_hours=args.tle_interval_hours, satcat_interval_hours=args.satcat_interval_hours,
+                    tracked_interval_hours=args.tracked_interval_hours, reconciliation_interval_hours=args.reconciliation_interval_hours,
+                    launches_interval_hours=args.launches_interval_hours, decayed_interval_hours=args.decayed_interval_hours, force=args.force))
+                return 0
             result = maybe_update_satellite_data(
                 root=root,
                 interval_hours=args.interval_hours,
@@ -5705,15 +5840,27 @@ def main(argv: list[str] | None = None) -> int:
                 reconciliation_interval_hours=args.reconciliation_interval_hours,
                 force=args.force,
                 dry_run=args.dry_run,
+                only=args.only,
+                changed_only=args.changed_only,
+                launches_interval_hours=args.launches_interval_hours,
+                decayed_interval_hours=args.decayed_interval_hours,
             )
             _print_result(result)
             return 0
-        if args.command in {"stage-update", "import-candidate", "validate-candidate", "promote-candidate"}:
+        if args.command in {"stage-update", "plan", "import-candidate", "validate-candidate", "promote-candidate"}:
             from tools.satellite_data_plane import SatelliteDataPlane
 
             raw_state_root = Path(args.data_plane_dir)
             state_root = raw_state_root.resolve() if raw_state_root.is_absolute() else (root / raw_state_root).resolve()
             plane = SatelliteDataPlane(repository_root=root, state_root=state_root)
+            if args.command == "plan" or (args.command == "stage-update" and args.plan):
+                _print_result(scheduled_data_update_plan(root=plane.current_root(), only=args.only, changed_only=args.changed_only,
+                    interval_hours=args.interval_hours, gp_interval_hours=args.gp_interval_hours,
+                    tle_interval_hours=args.tle_interval_hours, satcat_interval_hours=args.satcat_interval_hours,
+                    tracked_interval_hours=args.tracked_interval_hours, reconciliation_interval_hours=args.reconciliation_interval_hours,
+                    launches_interval_hours=args.launches_interval_hours, decayed_interval_hours=args.decayed_interval_hours,
+                    force=args.force, provider_state_path=state_root / "provider-queries.json"))
+                return 0
             if args.command == "stage-update":
                 result = plane.stage_update(
                     promote=args.promote,
@@ -5725,6 +5872,10 @@ def main(argv: list[str] | None = None) -> int:
                     reconciliation_interval_hours=args.reconciliation_interval_hours,
                     force=args.force,
                     dry_run=args.dry_run,
+                    only=args.only,
+                    changed_only=args.changed_only,
+                    launches_interval_hours=args.launches_interval_hours,
+                    decayed_interval_hours=args.decayed_interval_hours,
                 )
             elif args.command == "import-candidate":
                 result = plane.import_candidate()

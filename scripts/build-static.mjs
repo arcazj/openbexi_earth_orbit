@@ -1142,7 +1142,8 @@ export function buildStaticArtifact({
   fs.writeFileSync(
     staticIndex,
     indexSource
-      .replace(serverCapableMarker, staticMarker),
+      .replace(serverCapableMarker, staticMarker + (process.env.OPENBEXI_DATA_STATUS_URL === '/api/data-update-status'
+        ? '\n<meta name="openbexi-data-status-url" content="/api/data-update-status">' : '')),
     'utf8'
   );
   for (const runtimeFile of filesUnder(outputRoot, repositoryRoot).filter(file => /\.(?:html|js|mjs)$/i.test(file))) {

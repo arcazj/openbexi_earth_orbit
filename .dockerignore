@@ -1,4 +1,4 @@
-# Only static build inputs enter the Docker context. Private runtime state,
+# Only app and maintenance sources enter the Docker context. Private runtime state,
 # credentials, local dependencies, and source-control metadata stay outside it.
 **
 !Dockerfile
@@ -6,6 +6,12 @@
 !deploy/
 !deploy/cloud-run/
 !deploy/cloud-run/default.conf.template
+!deploy/cloud-run/start.sh
+!server.py
+!services/
+!services/**
+!tools/
+!tools/*.py
 !scripts/
 !scripts/build-static.mjs
 !scripts/check-release-tree.mjs
@@ -31,6 +37,8 @@
 !js/
 !js/**
 !json/
+!json/satcat.csv
+!json/satcat.meta.json
 !json/decayed/
 !json/decayed/**
 !json/gp/
@@ -53,3 +61,5 @@
 **/.env.*
 **/*.bak-*
 **/*.tmp
+**/__pycache__/**
+**/*.pyc
