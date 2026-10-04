@@ -12,11 +12,30 @@ from tools import satellite_data_tools as tools
 from tools.background_updates import IsolatedDataPlane, restore_snapshot
 from tools.provider_queries import ProviderHTTPError, ProviderPaused, ProviderQueries
 from tools.satellite_data_plane import SatelliteDataPlane
-from tests_python.test_v232_satellite_data_plane import seed_repository, NOW
+from tests_python.test_v232_satellite_data_plane import seed_repository, changed_launch_updater, NOW
 from tests_python.test_satellite_data_scheduler import _omm
 
 
 class SmartDataUpdatesTests(unittest.TestCase):
+    def test_restored_snapshot_is_selectable_and_idempotent_after_resealing(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            seed_repository(root)
+            source = SatelliteDataPlane(repository_root=root, state_root=root / "source")
+            self.assertTrue(source.stage_update(promote=True, updater=changed_launch_updater("cloud"))["promoted"])
+            body = io.BytesIO()
+            with tarfile.open(fileobj=body, mode="w") as archive:
+                for path in source.current_root().rglob("*"):
+                    if path.is_file():
+                        archive.add(path, arcname=path.relative_to(source.state_root).as_posix(), recursive=False)
+                archive.add(source.pointer_path, arcname="current.json")
+            destination = SatelliteDataPlane(repository_root=root, state_root=root / "destination")
+            restore_snapshot(body.getvalue(), destination)
+            self.assertEqual(destination.pointer()["candidate_revision"], source.pointer()["candidate_revision"])
+            self.assertNotEqual(destination.current_root(), root)
+            restore_snapshot(body.getvalue(), destination)
+            self.assertIsNotNone(destination.pointer())
+
     def test_formats_share_admission_including_legacy_ledgers(self):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "ledger.json"

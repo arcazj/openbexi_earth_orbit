@@ -135,7 +135,8 @@ def restore_snapshot(body, plane):
                 # Candidate IDs are immutable; refuse to overwrite different bytes.
                 if target.exists() and target.read_bytes() != contents:
                     raise ValueError("Cloud candidate identity conflicts with local bytes.")
-                target.write_bytes(contents)
+                if not target.exists():
+                    target.write_bytes(contents)
         if pointer is None:
             raise ValueError("Cloud snapshot has no current-data pointer.")
         value = json.loads(pointer)
@@ -143,9 +144,13 @@ def restore_snapshot(body, plane):
         from tools.satellite_data_plane import CANDIDATE_ID_PATTERN
         if not CANDIDATE_ID_PATTERN.fullmatch(candidate_id):
             raise ValueError("Invalid Cloud candidate ID.")
-        verification = validate_data_root(root / "candidates" / candidate_id)
+        candidate = root / "candidates" / candidate_id
+        verification = validate_data_root(candidate)
         if verification["candidate_revision"] != value.get("candidate_revision"):
             raise ValueError("Cloud snapshot pointer does not match its candidate.")
+        # Manual extraction creates writable files. Restore the immutable seal
+        # only after full verification, before making the pointer selectable.
+        plane._seal_candidate_artifacts(candidate, verification)
         temporary = root / "current.restore"
         temporary.write_bytes(pointer)
         temporary.replace(root / "current.json")
