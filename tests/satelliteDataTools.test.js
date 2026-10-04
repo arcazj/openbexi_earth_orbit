@@ -36,7 +36,7 @@ function run() {
   assert(promptHistory.includes('Version 1.7.4'), 'prompt history contains the Version 1.7.4 release');
   assert(tool.includes('LEGACY_TLE_SOURCE_URLS'), 'Python tool preserves a legacy source URL list');
   assert(tool.includes('def default_repo_root()'), 'Python tool defaults to the repository root when launched from an IDE');
-  assert(tool.includes('has not updated since your last successful'), 'CelesTrak no-new-data throttles are treated as not modified');
+  assert(tool.includes('raise ProviderHTTPError('), 'provider HTTP errors remain errors for persistent admission control');
   assert(tool.includes('"https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle"'), 'legacy source list starts with Starlink');
   assert(!tool.includes('"http://celestrak.org/'), 'active CelesTrak source configuration contains no HTTP URLs');
   assert(tool.includes('HTTP_USER_AGENT = "OpenBEXI-Earth-Orbit/%s'), 'data fetches derive their client version from release metadata');

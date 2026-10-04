@@ -4,7 +4,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 
 class ProviderHTTPError(RuntimeError):
@@ -22,6 +22,23 @@ def timestamp(value):
     return value.isoformat().replace("+00:00", "Z")
 
 
+def query_scope(url):
+    """CelesTrak admission is shared across formats of the same query."""
+    parsed = urlparse(url)
+    query = sorted((key.upper(), value.lower()) for key, value in parse_qsl(parsed.query)
+                   if key.upper() != "FORMAT")
+    return urlunparse((parsed.scheme, parsed.netloc.lower(), parsed.path, "", urlencode(query), ""))
+
+
+def next_allowed_at(state, url):
+    # Include old URL-only ledgers so an upgrade cannot reset admission.
+    scope = query_scope(url)
+    values = [item.get("next_allowed_at") for key, item in state.get("urls", {}).items()
+              if query_scope(key) == scope and isinstance(item, dict)]
+    values.append(state.get("scopes", {}).get(scope, {}).get("next_allowed_at"))
+    return max((value for value in values if value), default=None)
+
+
 class ProviderQueries:
     """One shared request cache and durable admission ledger per update cycle.
 
@@ -30,12 +47,13 @@ class ProviderQueries:
     bypasses the admission ledger. The ledger survives rejected candidates.
     """
 
-    def __init__(self, path, fetcher, *, now=None, dry_run=False, on_saved=None):
+    def __init__(self, path, fetcher, *, now=None, dry_run=False, on_saved=None, clock=None):
         self.path = Path(path)
         self.fetcher = fetcher
         self.now = now or dt.datetime.now(dt.timezone.utc)
         self.dry_run = dry_run
         self.on_saved = on_saved
+        self.clock = clock
         self.responses = {}
         self.failed = False
         self.state = self.read(self.path)
@@ -71,13 +89,25 @@ class ProviderQueries:
             self.state = self.read(self.path)
             return self._query(url, headers)
 
+    def cached(self, url, headers=None):
+        """Explicit cache-only replay for candidate activation; never query."""
+        if self.failed or self.state.get("blocked"):
+            raise ProviderPaused(self.state.get("error") or "Provider queries are paused pending investigation.")
+        cached = self.state["urls"].get(url, {}).get("response")
+        if not isinstance(cached, dict):
+            raise ProviderPaused(f"No accepted cached response for {url}")
+        from tools.satellite_data_tools import FetchResponse
+        return FetchResponse(**cached)
+
     def _query(self, url, headers=None):
+        if self.clock:
+            self.now = self.clock()
         if url in self.responses:
             return self.responses[url]
         if self.failed or self.state.get("blocked"):
             raise ProviderPaused(self.state.get("error") or "Provider queries are paused pending investigation.")
         item = self.state["urls"].get(url, {})
-        next_allowed = item.get("next_allowed_at")
+        next_allowed = next_allowed_at(self.state, url)
         if next_allowed and dt.datetime.fromisoformat(next_allowed.replace("Z", "+00:00")) > self.now:
             cached = item.get("response")
             if isinstance(cached, dict):
@@ -90,6 +120,8 @@ class ProviderQueries:
         item = {**item, "last_attempt_at": timestamp(self.now),
                 "next_allowed_at": timestamp(self.now + dt.timedelta(hours=hours))}
         self.state["urls"][url] = item
+        scope = query_scope(url)
+        self.state.setdefault("scopes", {})[scope] = {"next_allowed_at": item["next_allowed_at"]}
         # Persist admission before contacting the provider, including across crashes.
         self.save()
         try:
@@ -112,10 +144,14 @@ class ProviderQueries:
                     except (TypeError, ValueError, OverflowError):
                         pass
             item.update(failures=failures, next_allowed_at=timestamp(self.now + dt.timedelta(seconds=delay)))
+            self.state["scopes"][scope]["next_allowed_at"] = item["next_allowed_at"]
             self.state.update(error=str(exc)[:2000], blocked=getattr(exc, "status", None) is not None)
             self.save()
             raise
-        item.update(failures=0, status=response.status, last_success_at=timestamp(self.now))
+        received_at = self.clock() if self.clock else self.now
+        item.update(failures=0, status=response.status, last_success_at=timestamp(received_at),
+                    next_allowed_at=timestamp(received_at + dt.timedelta(hours=hours)))
+        self.state["scopes"][scope]["next_allowed_at"] = item["next_allowed_at"]
         if response.status == 200 and len(response.text.encode("utf-8")) <= 32 * 1024 * 1024:
             item["response"] = {"url": url, "text": response.text, "status": response.status,
                                 "headers": response.headers, "not_modified": False}

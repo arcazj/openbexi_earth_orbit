@@ -1118,6 +1118,7 @@ class SatelliteDataPlane:
                         "reasons": plan.get("reasons", {}),
                         "provider_blocked": plan.get("provider_blocked", False),
                         "provider_error": plan.get("provider_error"),
+                        "next_check_in_seconds": plan.get("next_check_in_seconds"),
                         "errors": [plan["provider_error"]] if plan.get("provider_blocked") and plan.get("provider_error") else [],
                     }
             candidate_id = self._new_candidate_id(now)

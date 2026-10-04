@@ -29,7 +29,7 @@ from urllib import parse, request
 from urllib.error import HTTPError, URLError
 if not __package__:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from tools.provider_queries import ProviderHTTPError, ProviderQueries
+from tools.provider_queries import ProviderHTTPError, ProviderQueries, next_allowed_at
 
 
 EARTH_RADIUS_KM = 6378.137
@@ -2072,6 +2072,107 @@ def update_tle_success_metadata(
         success_meta["source_status"] = "PARTIAL"
         success_meta["partial_update"] = True
     atomic_write_json(meta_path, success_meta, dry_run=dry_run, backup=False, indent=2)
+
+
+def omm_to_tle(omm: dict[str, object]) -> tuple[str, str]:
+    """Encode validated SGP4 OMM as legacy five-digit TLE, with checksums.
+
+    GP remains authoritative: TLE rounds the epoch/elements to its fixed widths
+    and cannot represent six-digit catalog identifiers.
+    """
+    omm = canonicalize_omm_record(omm)
+    norad = int(omm["NORAD_CAT_ID"])
+    epoch = parse_iso_datetime(str(omm["EPOCH"]))
+    if norad > 99999 or not epoch or not 1957 <= epoch.year <= 2056:
+        raise SatelliteDataError("OMM identifier or epoch cannot be represented by legacy TLE.")
+
+    def exponent_field(value):
+        value = float(value)
+        if not value:
+            return " 00000+0"
+        exponent = math.floor(math.log10(abs(value))) + 1
+        mantissa = round(abs(value) * 10 ** (5 - exponent))
+        if mantissa == 100000:
+            mantissa = 10000
+            exponent += 1
+        if abs(exponent) > 9:
+            raise SatelliteDataError("OMM exponent cannot be represented by legacy TLE.")
+        return f"{'-' if value < 0 else ' '}{mantissa:05d}{'+' if exponent >= 0 else '-'}{abs(exponent)}"
+
+    ndot = float(omm["MEAN_MOTION_DOT"])
+    if abs(ndot) >= 1:
+        raise SatelliteDataError("OMM mean-motion derivative exceeds the legacy TLE field.")
+    ndot_magnitude = f"{abs(ndot):.8f}"
+    if not ndot_magnitude.startswith("0."):
+        raise SatelliteDataError("Rounded OMM mean-motion derivative exceeds the legacy TLE field.")
+    ndot_text = ("-" if ndot < 0 else " ") + ndot_magnitude[1:]
+    match = re.fullmatch(r"(\d{4})-(\d{3})([A-Z]{0,3})", str(omm.get("OBJECT_ID", "")))
+    designator = match[1][-2:] + match[2] + match[3] if match else ""
+    days = 1 + (epoch - dt.datetime(epoch.year, 1, 1, tzinfo=dt.timezone.utc)).total_seconds() / 86400
+    line1 = (f"1 {norad:05d}U {designator:<8} {epoch.year % 100:02d}{days:012.8f} "
+             f"{ndot_text} {exponent_field(omm['MEAN_MOTION_DDOT'])} {exponent_field(omm['BSTAR'])} "
+             f"0 {int(omm.get('ELEMENT_SET_NO', 0)) % 10000:4d}")
+    line2 = (f"2 {norad:05d} {omm['INCLINATION']:8.4f} {omm['RA_OF_ASC_NODE']:8.4f} "
+             f"{round(omm['ECCENTRICITY'] * 1e7):07d} {omm['ARG_OF_PERICENTER']:8.4f} "
+             f"{omm['MEAN_ANOMALY']:8.4f} {omm['MEAN_MOTION']:11.8f}{int(omm.get('REV_AT_EPOCH', 0)) % 100000:5d}")
+    if len(line1) != 68 or len(line2) != 68:
+        raise SatelliteDataError("OMM values exceed the legacy TLE field widths.")
+    def checksum(line):
+        return line + str((sum(int(char) for char in line if char.isdigit()) + line.count("-")) % 10)
+    return checksum(line1), checksum(line2)
+
+
+def derive_tle_from_gp(*, root, now=None, dry_run=False, cached_response=None) -> UpdateResult:
+    """Update compatibility TLE locally; never download another GP format."""
+    now = now or utc_now()
+    root = Path(root)
+    source_changed = False
+    if cached_response is not None:
+        cached = FetchResponse(**cached_response)
+        result = export_tle_data(root=root, now=now, dry_run=dry_run, force=True,
+                                 fetcher=lambda url, headers=None: cached)
+        if result.errors:
+            return result
+        source_changed = result.changed
+    local_result = export_tle_data(root=root, now=now, dry_run=dry_run, local_only=True)
+    source_changed = source_changed or local_result.changed
+    existing = load_json(root / TLE_RELATIVE_PATH, [])
+    gp = load_json(root / GP_RELATIVE_PATH, [])
+    meta = load_json(root / TLE_META_RELATIVE_PATH, {})
+    gp_meta = load_json(root / GP_META_RELATIVE_PATH, {})
+    by_id = {str(record["norad_id"]): record for record in existing}
+    counts = {"existing": len(existing), "added": 0, "updated": 0, "retained": len(existing),
+              "pruned": 0, "unrepresentable": 0}
+    for record in gp:
+        try:
+            line1, line2 = omm_to_tle(record["element_set"]["omm"])
+        except (SatelliteDataError, KeyError):
+            counts["unrepresentable"] += 1
+            continue
+        candidate = transform_satellite_tle_object(str(record.get("company") or "CELESTRAK"),
+            str(record.get("satellite_name") or ""), line1, line2,
+            {str(record["norad_id"]): str(record.get("launch_date") or "no data")})
+        norad = str(record["norad_id"])
+        prior = by_id.get(norad)
+        if should_replace_tle(prior, candidate):
+            by_id[norad] = preserve_existing_tags(prior, candidate) if prior else candidate
+            counts["updated" if prior else "added"] += 1
+    counts["retained"] -= counts["updated"]
+    counts["total"] = len(by_id)
+    payload = list(by_id.values())
+    revision = catalog_revision_for_payload(payload)
+    changed = payload != existing or not (root / TLE_RELATIVE_PATH).is_file()
+    if changed:
+        atomic_write_json(root / TLE_RELATIVE_PATH, payload, dry_run=dry_run, backup=True)
+    # Retained records do not prove absence; never claim a complete TLE snapshot.
+    derived_meta = {**meta, "schema_version": "2.2.0", "dataset_format": "TLE_JSON_COMPATIBILITY",
+        "deprecated_compatibility": True, "mode": "derived-gp", "source_status": "PARTIAL",
+        "partial_update": True, "source_gp_revision": gp_meta.get("catalog_revision"),
+        "derived_at": isoformat_utc(now), "last_success_at": isoformat_utc(now), "last_status": "ok",
+        "catalog_revision": revision, "dataset_hash": revision, "counts": counts}
+    atomic_write_json(root / TLE_META_RELATIVE_PATH, derived_meta, dry_run=dry_run, backup=False, indent=2)
+    return UpdateResult(changed or source_changed, not (changed or source_changed), "derived-gp", "Compatibility TLE updated from accepted GP and cached sources.",
+        counts=counts, paths={"tle": str(root / TLE_RELATIVE_PATH), "metadata": str(root / TLE_META_RELATIVE_PATH)})
 
 
 def export_tle_data(
@@ -5219,7 +5320,10 @@ def scheduled_data_update_plan(
     if not requested or requested - names:
         raise SatelliteDataError("--only must select gp,tle,satcat,tracked,launches,decayed.")
     selected = set(requested)
-    query_enabled = requested & {"gp", "tle", "satcat"}
+    query_enabled = requested & {"gp", "satcat"}
+    if "tle" in requested:
+        selected.add("gp")
+        query_enabled.add("gp")
     if requested & {"tracked", "launches", "decayed"}:
         selected.add("satcat")
         query_enabled.add("satcat")
@@ -5227,7 +5331,7 @@ def scheduled_data_update_plan(
         selected.add("gp")
         query_enabled.add("gp")
     if "gp" in selected:
-        selected.add("tracked")
+        selected.update({"tracked", "tle"})
     if "satcat" in selected:
         selected.update({"gp", "tle", "tracked", "launches", "decayed"})
     reasons = {name: "freshness expired or data missing" if due[name] else "within freshness window" for name in names}
@@ -5255,22 +5359,44 @@ def scheduled_data_update_plan(
         due["tracked"] = reconciliation_due["tracked"] = False
         reasons["tracked"] = "validated GP/SATCAT inputs are unchanged"
     state = ProviderQueries.read(provider_state_path or root_path / "runtime" / "provider-queries.json")
+    retry_delays = []
+    cached_sources = []
+    cached_tle = state["urls"].get(source_urls_for_mode("incremental")[0], {})
+    tle_meta = load_json(root_path / TLE_META_RELATIVE_PATH, {})
+    cached_tle_newer = (isinstance(cached_tle.get("response"), dict)
+        and (parse_iso_datetime(cached_tle.get("last_success_at")) or dt.datetime.min.replace(tzinfo=dt.timezone.utc))
+        > (parse_iso_datetime(tle_meta.get("last_success_at")) or dt.datetime.min.replace(tzinfo=dt.timezone.utc)))
     for name in names:
-        if name not in selected or (name in {"gp", "tle", "satcat"} and name not in query_enabled):
+        if name == "tle" and name in selected:
+            # The TLE endpoint shares admission with GP; only use accepted local sources.
+            due[name] = (due[name] and not changed_only) or force or (cached_tle_newer and not state.get("blocked")) or (
+                isinstance(gp_meta, dict) and bool(gp_meta.get("catalog_revision"))
+                and (tle_meta.get("source_gp_revision") != gp_meta["catalog_revision"]
+                     or not (root_path / TLE_RELATIVE_PATH).is_file()))
+            reconciliation_due[name] = False
+            reasons[name] = "derive compatibility TLE from local GP/cache" if due[name] else "accepted GP input is unchanged"
+        elif name not in selected or (name in {"gp", "satcat"} and name not in query_enabled):
             due[name] = reconciliation_due[name] = False
             reasons[name] = "not selected for provider refresh"
-        elif name in {"gp", "tle", "satcat"}:
-            urls = gp_source_urls_for_mode("incremental") if name == "gp" else source_urls_for_mode("incremental") if name == "tle" else [CELESTRAK_SATCAT_CSV_URL]
-            deferred = [state["urls"].get(url, {}).get("next_allowed_at") for url in urls]
+        elif name in {"gp", "satcat"}:
+            urls = gp_source_urls_for_mode("incremental") if name == "gp" else [CELESTRAK_SATCAT_CSV_URL]
+            deferred = [next_allowed_at(state, url) for url in urls]
             deferred = [value for value in deferred if value and parse_iso_datetime(value) and parse_iso_datetime(value) > now]
             core_paths = {"gp": (GP_RELATIVE_PATH, GP_META_RELATIVE_PATH), "tle": (TLE_RELATIVE_PATH, TLE_META_RELATIVE_PATH),
                           "satcat": (SATCAT_RELATIVE_PATH, SATCAT_META_RELATIVE_PATH)}
-            repair_from_cache = any(not (root_path / path).is_file() for path in core_paths[name]) and all(
+            meta = load_json(root_path / core_paths[name][1], {})
+            cache_newer = any((parse_iso_datetime(state["urls"].get(url, {}).get("last_success_at")) or dt.datetime.min.replace(tzinfo=dt.timezone.utc))
+                > (parse_iso_datetime(meta.get("last_success_at")) or dt.datetime.min.replace(tzinfo=dt.timezone.utc)) for url in urls)
+            repair_from_cache = (cache_newer or any(not (root_path / path).is_file() for path in core_paths[name])) and all(
                 isinstance(state["urls"].get(url, {}).get("response"), dict) for url in urls)
             if repair_from_cache and not state.get("blocked"):
-                reasons[name] = "missing artifact; repair from cached provider response without a download"
+                due[name] = True
+                reasons[name] = "activate newer cached source or repair missing artifact without a download"
+                cached_sources.append(name)
                 continue
             if state.get("blocked") or deferred:
+                if deferred and not state.get("blocked") and (due[name] or reconciliation_due[name]):
+                    retry_delays.append(max(1, (parse_iso_datetime(max(deferred)) - now).total_seconds()))
                 due[name] = reconciliation_due[name] = False
                 reasons[name] = "provider paused: " + str(state.get("error")) if state.get("blocked") else "request cooldown until " + max(deferred)
             elif reconciliation_due[name]:
@@ -5280,6 +5406,8 @@ def scheduled_data_update_plan(
         "any_due": any(due.values()) or any(reconciliation_due.values()),
         "requested": sorted(requested), "selected": sorted(selected), "reasons": reasons,
         "provider_blocked": bool(state.get("blocked")), "provider_error": state.get("error"),
+        "next_check_in_seconds": min(retry_delays) if retry_delays else None,
+        "cached_sources": cached_sources,
     }
 
 
@@ -5308,7 +5436,8 @@ def maybe_update_satellite_data(
     now = now or utc_now()
     root_path = Path(root).resolve()
     fetcher = ProviderQueries(provider_state_path or root_path / "runtime" / "provider-queries.json",
-                              fetcher or fetch_url, now=now, dry_run=dry_run, on_saved=provider_state_saved)
+                              fetcher or fetch_url, now=now, dry_run=dry_run, on_saved=provider_state_saved,
+                              clock=utc_now if fetcher is None else None)
 
     def check_cancelled() -> None:
         if cancel_requested is not None and cancel_requested():
@@ -5371,6 +5500,7 @@ def maybe_update_satellite_data(
         results["reasons"] = plan["reasons"]
         results["provider_blocked"] = plan["provider_blocked"]
         results["provider_error"] = plan["provider_error"]
+        results["next_check_in_seconds"] = plan.get("next_check_in_seconds")
         executed_names: set[str] = set()
 
         def record_result(name: str, operation: Callable[[], UpdateResult]) -> UpdateResult | None:
@@ -5415,7 +5545,7 @@ def maybe_update_satellite_data(
                     root=root_path,
                     force=force or reconciliation_due["satcat"],
                     dry_run=dry_run,
-                    fetcher=fetcher,
+                    fetcher=fetcher.cached if "satcat" in plan["cached_sources"] else fetcher,
                     now=now,
                     interval_hours=intervals["satcat"],
                     reconcile=reconciliation_due["satcat"],
@@ -5455,21 +5585,6 @@ def maybe_update_satellite_data(
                 ),
             )
 
-        if due["tle"] or reconciliation_due["tle"] or satcat_changed:
-            record_result(
-                "tle",
-                lambda: export_tle_data(
-                    root=root_path,
-                    mode=RECONCILIATION_MODE if reconciliation_due["tle"] else "incremental",
-                    force=force or reconciliation_due["tle"],
-                    dry_run=dry_run,
-                    fetcher=fetcher,
-                    now=now,
-                    allow_space_track=False,
-                    **({"local_only": True} if not due["tle"] and not reconciliation_due["tle"] else {}),
-                ),
-            )
-
         gp_result: UpdateResult | None = None
         if due["gp"] or reconciliation_due["gp"] or satcat_changed:
             gp_result = record_result(
@@ -5479,12 +5594,20 @@ def maybe_update_satellite_data(
                     mode=RECONCILIATION_MODE if reconciliation_due["gp"] else "incremental",
                     force=force or reconciliation_due["gp"],
                     dry_run=dry_run,
-                    fetcher=fetcher,
+                    fetcher=fetcher.cached if "gp" in plan["cached_sources"] else fetcher,
                     now=now,
                     **({"local_only": True} if not due["gp"] and not reconciliation_due["gp"] else {}),
                 ),
             )
         gp_changed = bool(gp_result and gp_result.changed)
+
+        if due["tle"] or satcat_changed or gp_changed:
+            cached = fetcher.state["urls"].get(source_urls_for_mode("incremental")[0], {})
+            tle_meta = load_json(root_path / TLE_META_RELATIVE_PATH, {})
+            cached_newer = ((parse_iso_datetime(cached.get("last_success_at")) or dt.datetime.min.replace(tzinfo=dt.timezone.utc))
+                > (parse_iso_datetime(tle_meta.get("last_success_at")) or dt.datetime.min.replace(tzinfo=dt.timezone.utc)))
+            record_result("tle", lambda: derive_tle_from_gp(root=root_path, now=now, dry_run=dry_run,
+                cached_response=cached.get("response") if cached_newer and not fetcher.state.get("blocked") else None))
 
         tracked_reconciliation_attempted = False
         if (
