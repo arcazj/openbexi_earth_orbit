@@ -229,6 +229,7 @@
         APP_VERSION,
         checkServerConnectionWithFallback,
         createCatalogRevisionWatcher,
+        renderDataRefreshStatus,
         createStaticDataRevisionWatcher,
         loadGpDataFromServer,
         loadGpMetadataFromServer,
@@ -3019,6 +3020,7 @@
         if (!scene) throw new Error('The orbital scene is not ready for catalog refresh.');
         catalogRefreshInProgress = true;
         const selectedNorad = currentSelectedSatellite?.norad_id?.toString() || null;
+        const savedTrackedFacets = structuredClone(simParams.trackedFacets);
         const staticSource = status?.source === 'static-metadata';
         const currentOrbitalRevision = statusOrbitalRevision(status);
         const previousOrbitalRevision = statusOrbitalRevision(previousStatus);
@@ -3102,6 +3104,8 @@
                 }
             }
             if (orbitalRefreshError) throw orbitalRefreshError;
+            simParams.trackedFacets = normalizeTrackedFacets(savedTrackedFacets);
+            updateSatelliteList();
             if (selectedNorad && refreshOrbitalCatalog) {
                 const restored = buildFilteredSatellitesBySelection()
                     .find(s => s.norad_id?.toString() === selectedNorad);
@@ -3132,6 +3136,8 @@
         catalogRevisionWatcher?.stop?.();
         catalogRevisionWatcher = createCatalogRevisionWatcher({
             baseUrl,
+            intervalMs: 15_000,
+            onStatus: renderDataRefreshStatus,
             onRevisionChange: refreshCatalogForRevision,
             onError: error => console.debug('[catalog] Revision status is temporarily unavailable.', error)
         });
@@ -3141,11 +3147,14 @@
     function startStaticCatalogRevisionWatcher() {
         catalogRevisionWatcher?.stop?.();
         catalogRevisionWatcher = createStaticDataRevisionWatcher({
+            intervalMs: 15_000,
+            onStatus: renderDataRefreshStatus,
             onRevisionChange: refreshCatalogForRevision,
             onError: error => console.debug('[catalog] Static revision metadata is temporarily unavailable.', error)
         });
         void catalogRevisionWatcher.start();
     }
+
 
     async function checkServerConnectionStatusOnly({ dataSource = serverConnectionState.dataSource || 'local files' } = {}) {
         if (!serverConnectionState.baseUrl) {

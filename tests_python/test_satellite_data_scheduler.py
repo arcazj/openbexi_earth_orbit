@@ -587,7 +587,7 @@ class ScheduledDataUpdateTests(unittest.TestCase):
                 if "FORMAT=tle" in url:
                     return data_tools.FetchResponse(url=url, text=TLE_FIXTURE, headers={"etag": "tle-v1"})
                 if "FORMAT=json" in url:
-                    return data_tools.FetchResponse(url=url, text=json.dumps([_omm(100001)]), headers={"etag": "gp-v1"})
+                    return data_tools.FetchResponse(url=url, text=json.dumps([_omm(100001), _omm(25544)]), headers={"etag": "gp-v1"})
                 raise AssertionError(f"unexpected provider URL: {url}")
 
             result = data_tools.maybe_update_satellite_data(
@@ -600,7 +600,7 @@ class ScheduledDataUpdateTests(unittest.TestCase):
             )
 
             self.assertEqual([url for url, _headers in calls].count(data_tools.CELESTRAK_SATCAT_CSV_URL), 1)
-            self.assertEqual(sum("FORMAT=tle" in url for url, _headers in calls), 1)
+            self.assertEqual(sum("FORMAT=tle" in url for url, _headers in calls), 0)
             gp_urls = [url for url, _headers in calls if "FORMAT=json" in url]
             self.assertEqual(
                 [data_tools.extract_group_from_url(url).lower() for url in gp_urls],
@@ -619,36 +619,40 @@ class ScheduledDataUpdateTests(unittest.TestCase):
             self.assertEqual(decayed_ids, {"43", "100002"})
 
             tle = json.loads((root / data_tools.TLE_RELATIVE_PATH).read_text(encoding="utf-8"))
-            self.assertEqual([item["norad_id"] for item in tle], ["25544"])
+            self.assertEqual([item["norad_id"] for item in tle], ["25544", "40967"])
             self.assertEqual(tle[0]["company"], "STATIONS")
             gp = json.loads((root / data_tools.GP_RELATIVE_PATH).read_text(encoding="utf-8"))
-            self.assertEqual([item["norad_id"] for item in gp], ["100001"])
-            self.assertEqual(gp[0]["satellite_name"], "CURRENT PAY")
+            self.assertEqual([item["norad_id"] for item in gp], ["25544", "100001"])
+            self.assertEqual(next(item for item in gp if item["norad_id"] == "100001")["satellite_name"], "CURRENT PAY")
             self.assertEqual(
                 {
                     key: result["tle"]["counts"][key]
                     for key in ("existing", "added", "updated", "retained", "pruned")
                 },
-                {"existing": 2, "added": 0, "updated": 0, "retained": 1, "pruned": 1},
+                {"existing": 2, "added": 0, "updated": 1, "retained": 1, "pruned": 0},
             )
             self.assertEqual(
                 {
                     key: result["gp"]["counts"][key]
                     for key in ("existing", "added", "updated", "retained", "pruned")
                 },
-                {"existing": 1, "added": 1, "updated": 0, "retained": 0, "pruned": 1},
+                {"existing": 1, "added": 2, "updated": 0, "retained": 0, "pruned": 1},
             )
 
             for relative_meta in (
                 data_tools.SATCAT_META_RELATIVE_PATH,
                 data_tools.LAUNCHES_META_RELATIVE_PATH,
                 data_tools.DECAYED_META_RELATIVE_PATH,
-                data_tools.TLE_META_RELATIVE_PATH,
                 data_tools.GP_META_RELATIVE_PATH,
             ):
                 meta = json.loads((root / relative_meta).read_text(encoding="utf-8"))
                 self.assertEqual(meta["last_reconciled_at"], data_tools.isoformat_utc(now))
                 self.assertEqual(meta["last_reconciled_catalog_revision"], meta["catalog_revision"])
+
+            tle_meta = json.loads((root / data_tools.TLE_META_RELATIVE_PATH).read_text())
+            self.assertEqual(tle_meta["source_status"], "PARTIAL")
+            self.assertTrue(tle_meta["partial_update"])
+            self.assertEqual(tle_meta["source_gp_revision"], data_tools.catalog_revision_for_payload(gp))
 
             self.assertTrue(result["reconciliation"]["completed"])
             self.assertEqual(result["reconciliation"]["last_reconciled_at"], data_tools.isoformat_utc(now))

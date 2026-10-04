@@ -20,6 +20,7 @@ import os
 import random
 import re
 import secrets
+import signal
 import sys
 import threading
 import time
@@ -129,6 +130,8 @@ STATIC_BLOCKED_SUFFIXES = frozenset(
 )
 SAFE_HOST_HEADER = re.compile(r"^[A-Za-z0-9.\-:\[\]]+$")
 MAX_CONCURRENT_REQUESTS = 8
+DATA_STATUS_HTTP_LOCK = threading.Lock()
+DATA_STATUS_HTTP_CACHE = {}
 REQUEST_QUEUE_SIZE = 64
 REQUEST_SOCKET_TIMEOUT_SECONDS = 30.0
 
@@ -1952,6 +1955,40 @@ def cache_control_for_path(raw_path: str, status: int = HTTPStatus.OK) -> str:
     return "no-cache"
 
 
+def _cached_data_update_status(root):
+    # All browsers share one bounded status calculation; polling never fetches providers.
+    key = str(root)
+    with DATA_STATUS_HTTP_LOCK:
+        cached = DATA_STATUS_HTTP_CACHE.get(key)
+        if cached and time.monotonic() - cached[0] < 2:
+            return cached[1]
+        value = _read_only_data_status(root) if os.environ.get("OPENBEXI_READ_ONLY_HOST") == "1" else _data_update_status_snapshot(root)
+        DATA_STATUS_HTTP_CACHE.clear()
+        DATA_STATUS_HTTP_CACHE[key] = (time.monotonic(), value)
+        return value
+
+
+def _read_only_data_status(root):
+    # The immutable bundled closure is verified at build time; selected candidates
+    # are verified at activation. Polling reads small sidecars, never whole catalogs.
+    paths = {"gp": "gp/GP.meta.json", "tle": "tle/TLE.meta.json", "satcat": "satcat.meta.json",
+             "tracked": "tracked/TRACKED.meta.json", "launch": "launches/launches.meta.json",
+             "decay": "decayed/decayed.meta.json"}
+    metadata = {name: _load_metadata(Path(root) / "json" / path) for name, path in paths.items()}
+    revisions = {name: _metadata_revision(meta) for name, meta in metadata.items()}
+    with DATA_UPDATE_STATUS_LOCK:
+        status = _public_data_update_result(dict(DATA_UPDATE_STATUS))
+    status.update({f"{name}_revision": revision for name, revision in revisions.items()})
+    status.update(data_revision=_composite_data_revision(**{ "gp": revisions["gp"], "launch": revisions["launch"],
+        "decay": revisions["decay"], "tle": revisions["tle"], "satcat": revisions["satcat"], "tracked": revisions["tracked"] }),
+        catalog_revision=revisions["gp"],
+        datasets={name: {"revision": revisions[name], **_metadata_dataset_history(meta)} for name, meta in metadata.items()},
+        newest_launch_date=metadata["launch"].get("newest_launch_date"),
+        newest_confirmed_decay_date=metadata["decay"].get("newest_confirmed_decay_date"),
+        newest_orbital_epoch=metadata["gp"].get("newest_orbital_epoch"))
+    return status
+
+
 def _metadata_files() -> list[dict[str, object]]:
     metadata_dir = ROOT / "json" / "satellites"
     files = []
@@ -3585,7 +3622,7 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
                 self._send_json_file(self._data_root() / "json" / "decayed" / "decayed.json", head_only=head_only)
                 return True
             if path == "/api/data-update-status":
-                self._send_json(_data_update_status_snapshot(self._data_root()), head_only=head_only)
+                self._send_json(_cached_data_update_status(self._data_root()), head_only=head_only)
                 return True
             if path == "/openapi.json":
                 self._send_json(_openapi_document(host), head_only=head_only)
@@ -3738,6 +3775,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Disable the optional authenticated API v1 screening service.",
     )
+    parser.add_argument("--data-update-process", action=argparse.BooleanOptionalAction, default=True,
+                        help="Isolate background downloads and reconciliation from HTTP threads (default: enabled).")
     args = parser.parse_args(argv)
     if not is_loopback_host(args.host) and not args.allow_public:
         parser.error("non-loopback --host requires --allow-public")
@@ -3834,6 +3873,9 @@ def main() -> None:
     )
     scheduler = None
     if not args.no_data_update:
+        if args.data_update_process and data_plane:
+            from tools.background_updates import IsolatedDataPlane
+            data_plane = IsolatedDataPlane(data_plane)
         on_data_promoted = None
         if v21_service and data_selection:
             def on_data_promoted() -> tuple[str, ...]:
@@ -3904,6 +3946,8 @@ def main() -> None:
     else:
         print("Data updates: disabled")
     try:
+        if threading.current_thread() is threading.main_thread():
+            signal.signal(signal.SIGTERM, lambda *_: threading.Thread(target=server.shutdown, daemon=True).start())
         server.serve_forever()
     except KeyboardInterrupt:
         print("\nStopping OpenBEXI server.")

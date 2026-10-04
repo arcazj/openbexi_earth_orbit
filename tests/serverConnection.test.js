@@ -196,6 +196,7 @@ async function run() {
 
   let revision = 'sha256:first';
   const changes = [];
+  const refreshStatuses = [];
   const watcher = createCatalogRevisionWatcher({
     baseUrl: 'http://127.0.0.1:8000',
     intervalMs: 60_000,
@@ -203,7 +204,8 @@ async function run() {
       data_revision: revision,
       catalog_revision: 'sha256:unchanged-gp'
     }),
-    onRevisionChange: event => changes.push(event)
+    onRevisionChange: event => changes.push(event),
+    onStatus: status => refreshStatuses.push(status)
   });
   await watcher.start();
   revision = 'sha256:second';
@@ -212,6 +214,7 @@ async function run() {
   assert.strictEqual(changed.changed, true);
   assert.strictEqual(changes[0].previous, 'sha256:first');
   assert.strictEqual(changes[0].revision, 'sha256:second');
+  assert.strictEqual(refreshStatuses.length, 2, 'refresh status is delivered on every check');
 
   let retryRevision = 'sha256:retry-first';
   let refreshAttempts = 0;

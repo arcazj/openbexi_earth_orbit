@@ -36,7 +36,7 @@ function run() {
   assert(promptHistory.includes('Version 1.7.4'), 'prompt history contains the Version 1.7.4 release');
   assert(tool.includes('LEGACY_TLE_SOURCE_URLS'), 'Python tool preserves a legacy source URL list');
   assert(tool.includes('def default_repo_root()'), 'Python tool defaults to the repository root when launched from an IDE');
-  assert(tool.includes('has not updated since your last successful'), 'CelesTrak no-new-data throttles are treated as not modified');
+  assert(tool.includes('raise ProviderHTTPError('), 'provider HTTP errors remain errors for persistent admission control');
   assert(tool.includes('"https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle"'), 'legacy source list starts with Starlink');
   assert(!tool.includes('"http://celestrak.org/'), 'active CelesTrak source configuration contains no HTTP URLs');
   assert(tool.includes('HTTP_USER_AGENT = "OpenBEXI-Earth-Orbit/%s'), 'data fetches derive their client version from release metadata');
@@ -181,23 +181,23 @@ captured_request = {}
 class FakeHttpResponse:
     status = 200
     headers = {"ETag": "fixture"}
-    def read(self):
+    def read(self, size=-1):
         return b"fixture"
     def __enter__(self):
         return self
     def __exit__(self, exc_type, exc, traceback):
         return False
 
-original_urlopen = s.request.urlopen
+original_urlopen = s.request.build_opener
 def fake_urlopen(req, timeout=None):
     captured_request["request"] = req
     captured_request["timeout"] = timeout
     return FakeHttpResponse()
-s.request.urlopen = fake_urlopen
+s.request.build_opener = lambda *args: type("FixtureOpener", (), {"open": staticmethod(fake_urlopen)})()
 try:
     fetched = s.fetch_url("https://example.test/catalog")
 finally:
-    s.request.urlopen = original_urlopen
+    s.request.build_opener = original_urlopen
 assert fetched.text == "fixture"
 assert captured_request["request"].get_header("User-agent") == s.HTTP_USER_AGENT
 expected_release_version = json.loads(pathlib.Path("release/version.json").read_text(encoding="utf-8"))["version"]
