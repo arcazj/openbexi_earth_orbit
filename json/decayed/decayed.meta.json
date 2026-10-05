@@ -1,21 +1,22 @@
 {
   "schema_version": "2.2.0",
-  "built_at": "2026-10-02T15:17:29.107587Z",
-  "fetched_at": "2026-10-02T15:17:29.107587Z",
-  "last_success_at": "2026-10-02T15:17:29.107587Z",
-  "last_attempt_at": "2026-10-02T15:17:29.107587Z",
+  "built_at": "2026-10-05T11:58:53.015210Z",
+  "fetched_at": "2026-10-05T11:58:53.015210Z",
+  "last_success_at": "2026-10-05T11:58:53.015210Z",
+  "last_attempt_at": "2026-10-05T11:58:53.015210Z",
   "last_status": "ok",
   "mode": "reconcile",
   "source": "json/satcat.csv",
   "satcat_refresh": null,
-  "catalog_revision": "sha256:a66d03089aa010a60adb49c8022f5b566b5bd23c9dcd56cd8426f0dcc1330e6a",
-  "dataset_hash": "sha256:a66d03089aa010a60adb49c8022f5b566b5bd23c9dcd56cd8426f0dcc1330e6a",
-  "newest_confirmed_decay_date": "2026-09-13",
+  "catalog_revision": "sha256:0cc4b262e7930c754ddb62f0d1504748ff3c88edd86db5e8d09f77ca2d064ef6",
+  "dataset_hash": "sha256:0cc4b262e7930c754ddb62f0d1504748ff3c88edd86db5e8d09f77ca2d064ef6",
+  "newest_confirmed_decay_date": "2026-10-04",
+  "source_satcat_revision": "sha256:ce552cf72924f5c2366b21bdc5fae31c96e464dfea6a5dc2d41238bbe044e5c2",
   "counts": {
-    "objects": 7478,
-    "records": 7636,
-    "retained_history": 0
+    "objects": 7536,
+    "records": 7696,
+    "retained_history": 1
   },
-  "last_reconciled_at": "2026-10-02T15:17:29.107587Z",
-  "last_reconciled_catalog_revision": "sha256:a66d03089aa010a60adb49c8022f5b566b5bd23c9dcd56cd8426f0dcc1330e6a"
+  "last_reconciled_at": "2026-10-05T11:58:53.015210Z",
+  "last_reconciled_catalog_revision": "sha256:0cc4b262e7930c754ddb62f0d1504748ff3c88edd86db5e8d09f77ca2d064ef6"
 }

@@ -1,24 +1,23 @@
 {
-  "fetched_at": "2026-09-14T11:45:01.235928Z",
-  "last_success_at": "2026-09-14T11:45:01.235928Z",
-  "last_attempt_at": "2026-10-02T15:17:29.107587Z",
-  "last_status": "failed",
+  "fetched_at": "2026-10-05T11:58:53.015210Z",
+  "last_success_at": "2026-10-05T11:58:53.015210Z",
+  "last_attempt_at": "2026-10-05T11:58:53.015210Z",
+  "last_status": "ok",
   "source_url": "https://celestrak.org/pub/satcat.csv",
-  "catalog_revision": "sha256:d9dbe72c138a30ad0c100624e12ea1db0f3b6f16bbaff7c631450e4ccbd63364",
-  "dataset_hash": "sha256:d9dbe72c138a30ad0c100624e12ea1db0f3b6f16bbaff7c631450e4ccbd63364",
+  "catalog_revision": "sha256:7100cdfb38a3b37b70b961d62c1e0a61c89071052c2436085a2dd2d6e0d0ef1c",
+  "dataset_hash": "sha256:7100cdfb38a3b37b70b961d62c1e0a61c89071052c2436085a2dd2d6e0d0ef1c",
   "counts": {
-    "bytes": 6737279,
-    "records": 70661
+    "bytes": 6757455,
+    "records": 70882
   },
   "urls": {
     "https://celestrak.org/pub/satcat.csv": {
-      "etag": "\"148f8d7be743dd1:0\"",
-      "last_modified": "Mon, 14 Sep 2026 01:22:18 GMT",
+      "etag": "\"e3188d4bb054dd1:0\"",
+      "last_modified": "Mon, 05 Oct 2026 10:00:04 GMT",
       "status": 200,
-      "last_attempt_at": "2026-09-14T11:45:01.235928Z"
+      "last_attempt_at": "2026-10-05T11:58:53.015210Z"
     }
   },
-  "last_reconciled_at": "2026-09-14T11:45:01.235928Z",
-  "last_reconciled_catalog_revision": "sha256:d9dbe72c138a30ad0c100624e12ea1db0f3b6f16bbaff7c631450e4ccbd63364",
-  "last_error": "HTTP 403 for https://celestrak.org/pub/satcat.csv: <!DOCTYPE html>\r\n<html>\r\n<head>\r\n<meta http-equiv=\"Content-Type\" content=\"text/html; charset=iso-8859-1\"/>\r\n<title>403 - Forbidden: Access is denied</title>\r\n<style type=\"text/css\">\r\n<!--\r\nbody{margin"
+  "last_reconciled_at": "2026-10-05T11:58:53.015210Z",
+  "last_reconciled_catalog_revision": "sha256:7100cdfb38a3b37b70b961d62c1e0a61c89071052c2436085a2dd2d6e0d0ef1c"
 }

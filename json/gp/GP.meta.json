@@ -4,12 +4,13 @@
   "dataset_format": "CCSDS_OMM_JSON",
   "source_format": "CCSDS_OMM_JSON",
   "provider": "CelesTrak",
-  "fetched_at": "2026-08-29T23:55:59.461499Z",
-  "retrieval_timestamp": "2026-08-29T23:55:59.461499Z",
-  "last_success_at": "2026-08-30T02:15:33.809525Z",
-  "last_attempt_at": "2026-10-02T15:17:29.107587Z",
-  "last_status": "failed",
-  "source_status": "DEGRADED",
+  "fetched_at": "2026-10-05T11:58:53.015210Z",
+  "retrieval_timestamp": "2026-10-05T11:58:53.015210Z",
+  "last_success_at": "2026-10-05T11:58:53.015210Z",
+  "last_attempt_at": "2026-10-05T11:58:53.015210Z",
+  "last_status": "ok",
+  "last_error": null,
+  "source_status": "COMPLETE",
   "partial_update": false,
   "mode": "reconcile",
   "source_urls": [
@@ -18,62 +19,19 @@
     "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-33-debris&FORMAT=json",
     "https://celestrak.org/NORAD/elements/gp.php?GROUP=cosmos-2251-debris&FORMAT=json"
   ],
-  "celestrak_min_refresh_hours": 2.0,
-  "catalog_revision": "sha256:7e20905d9e159f17811b25cec87a38cb5d9063ea507027e251fdbcd191bb14c9",
-  "dataset_hash": "sha256:7e20905d9e159f17811b25cec87a38cb5d9063ea507027e251fdbcd191bb14c9",
-  "newest_orbital_epoch": "2026-09-07T15:41:18.581Z",
-  "newest_launch_date": "2026-08-27",
-  "counts": {
-    "existing": 16400,
-    "fetched": 16470,
-    "added": 93,
-    "updated": 16361,
-    "retained": 16,
-    "pruned": 23,
-    "duplicates": 0,
-    "quarantined": 0,
-    "total": 16470,
-    "omm": 16470,
-    "tle": 0,
-    "six_digit_ids": 421,
-    "nine_digit_ids": 0,
-    "tag_enriched": 0,
-    "tag_source_matches": 13501,
-    "tagged": 13533,
-    "tag_unmatched": 2937,
-    "orbit_reclassified": 0,
-    "satcat_enriched": 43
-  },
-  "tag_enrichment": {
-    "source": "json/tle/TLE.json",
-    "source_catalog_revision": "sha256:58b3a6299bc22682165be28eaa09567e42c09d1df187458cfafbebfee6735d5d",
-    "tag_map_revision": "sha256:6b2126b217e1173a47dec3086632d127058a7689fad71607c84d70a47b8050bd",
-    "available_tags": 13501,
-    "matched_records": 13501,
-    "tagged_records": 13533,
-    "unmatched_records": 2937
-  },
-  "quarantine": [],
-  "quarantine_truncated": 0,
-  "urls": {
-    "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=json": {
-      "status": 304,
-      "last_attempt_at": "2026-08-30T02:15:33.809525Z"
-    }
-  },
-  "last_tag_metadata_refresh_at": "2026-08-30T02:13:23.342346Z",
-  "revalidated_at": "2026-08-30T02:15:33.809525Z",
-  "last_error": "Cannot establish the configured GP source scope from 304 responses; a full response from every configured source is required.",
+  "catalog_source_groups": [
+    "active",
+    "fengyun-1c-debris",
+    "iridium-33-debris",
+    "cosmos-2251-debris"
+  ],
   "source_groups": [
     "active",
     "fengyun-1c-debris",
     "iridium-33-debris",
     "cosmos-2251-debris"
   ],
-  "source_scope_verified": false,
-  "catalog_source_groups": [
-    "active"
-  ],
+  "source_scope_verified": true,
   "source_scope": {
     "kind": "configured-current-gp-collections",
     "active_group": "active",
@@ -85,5 +43,60 @@
     "all_debris": false
   },
   "provider_completeness_claim": false,
-  "last_local_enrichment_at": "2026-09-14T11:45:01.235928Z"
+  "celestrak_min_refresh_hours": 2.0,
+  "catalog_revision": "sha256:1339c9ce13d34802952a5b0eab4483d7123ea17ae65eb53bc79d90e43f0191d3",
+  "dataset_hash": "sha256:1339c9ce13d34802952a5b0eab4483d7123ea17ae65eb53bc79d90e43f0191d3",
+  "newest_orbital_epoch": "2026-10-07T10:41:14.682Z",
+  "newest_launch_date": "2026-10-02",
+  "counts": {
+    "existing": 16470,
+    "fetched": 19307,
+    "added": 2935,
+    "updated": 16372,
+    "retained": 0,
+    "pruned": 98,
+    "duplicates": 0,
+    "quarantined": 0,
+    "total": 19307,
+    "omm": 19307,
+    "tle": 0,
+    "six_digit_ids": 671,
+    "nine_digit_ids": 0,
+    "tag_enriched": 0,
+    "tag_source_matches": 13453,
+    "tagged": 16131,
+    "tag_unmatched": 3176,
+    "orbit_reclassified": 0
+  },
+  "tag_enrichment": {
+    "source": "json/tle/TLE.json",
+    "source_catalog_revision": "sha256:58b3a6299bc22682165be28eaa09567e42c09d1df187458cfafbebfee6735d5d",
+    "tag_map_revision": "sha256:6b2126b217e1173a47dec3086632d127058a7689fad71607c84d70a47b8050bd",
+    "available_tags": 13501,
+    "matched_records": 13453,
+    "tagged_records": 16131,
+    "unmatched_records": 3176
+  },
+  "quarantine": [],
+  "quarantine_truncated": 0,
+  "urls": {
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=json": {
+      "status": 200,
+      "last_attempt_at": "2026-10-05T11:58:53.015210Z"
+    },
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=fengyun-1c-debris&FORMAT=json": {
+      "status": 200,
+      "last_attempt_at": "2026-10-05T11:58:53.015210Z"
+    },
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-33-debris&FORMAT=json": {
+      "status": 200,
+      "last_attempt_at": "2026-10-05T11:58:53.015210Z"
+    },
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=cosmos-2251-debris&FORMAT=json": {
+      "status": 200,
+      "last_attempt_at": "2026-10-05T11:58:53.015210Z"
+    }
+  },
+  "last_reconciled_at": "2026-10-05T11:58:53.015210Z",
+  "last_reconciled_catalog_revision": "sha256:1339c9ce13d34802952a5b0eab4483d7123ea17ae65eb53bc79d90e43f0191d3"
 }

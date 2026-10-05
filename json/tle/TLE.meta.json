@@ -3,29 +3,25 @@
   "dataset_format": "TLE_JSON_COMPATIBILITY",
   "deprecated_compatibility": true,
   "fetched_at": "2026-09-14T11:45:01.235928Z",
-  "last_success_at": "2026-10-02T15:17:29.107587Z",
+  "last_success_at": "2026-10-05T11:58:53.015210Z",
   "last_attempt_at": "2026-10-02T15:17:29.107587Z",
-  "last_status": "not-modified",
-  "mode": "reconcile",
+  "last_status": "ok",
+  "mode": "derived-gp",
   "source_urls": [
     "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle"
   ],
   "celestrak_min_refresh_hours": 2.0,
   "counts": {
-    "existing": 16049,
-    "fetched": 16015,
-    "added": 3,
-    "updated": 16009,
-    "retained": 3,
-    "rejected": 0,
-    "total": 16015,
-    "pruned": 37,
-    "sidecar_added": 0,
-    "sidecar_updated": 0,
-    "satellite_launch_dates_updated": 0
+    "existing": 16015,
+    "added": 2682,
+    "updated": 15952,
+    "retained": 63,
+    "pruned": 0,
+    "unrepresentable": 671,
+    "total": 18697
   },
-  "catalog_revision": "sha256:58b3a6299bc22682165be28eaa09567e42c09d1df187458cfafbebfee6735d5d",
-  "dataset_hash": "sha256:58b3a6299bc22682165be28eaa09567e42c09d1df187458cfafbebfee6735d5d",
+  "catalog_revision": "sha256:3323b0c7f9d817d6b3934e57dc409c8dd3f4101041fce15acc8c6b22d6275c36",
+  "dataset_hash": "sha256:3323b0c7f9d817d6b3934e57dc409c8dd3f4101041fce15acc8c6b22d6275c36",
   "urls": {
     "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle": {
       "status": 304,
@@ -34,7 +30,9 @@
   },
   "last_reconciled_at": "2026-10-02T15:17:29.107587Z",
   "last_reconciled_catalog_revision": "sha256:58b3a6299bc22682165be28eaa09567e42c09d1df187458cfafbebfee6735d5d",
-  "source_status": "COMPLETE",
-  "partial_update": false,
-  "revalidated_at": "2026-10-02T15:17:29.107587Z"
+  "source_status": "PARTIAL",
+  "partial_update": true,
+  "revalidated_at": "2026-10-02T15:17:29.107587Z",
+  "source_gp_revision": "sha256:1339c9ce13d34802952a5b0eab4483d7123ea17ae65eb53bc79d90e43f0191d3",
+  "derived_at": "2026-10-05T11:58:53.015210Z"
 }
