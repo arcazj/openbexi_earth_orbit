@@ -270,12 +270,13 @@ try {
       '<meta name="openbexi-dependency-policy" content="packaged-first-with-cdn-fallback">\n'
   );
   write(strictRepository, 'css/tracked.css', 'body { color: black; }\n');
+  write(strictRepository, 'README.md', 'Committed mixed-case release input.\n');
   write(strictRepository, 'release/version.json', '{"version":"fixture"}\n');
   write(strictRepository, 'release/static-artifact.json', `${JSON.stringify({
     schemaVersion: 1,
     outputDirectory: 'dist',
     entrypoint: 'index.html',
-    files: ['index.html'],
+    files: ['index.html', 'README.md'],
     trees: [{ path: 'css', extensions: ['.css'] }],
     vendorManifests: []
   }, null, 2)}\n`);
@@ -290,6 +291,11 @@ try {
     releaseTree: strictCommit,
     requiredRuntimePaths: ['index.html']
   });
+  assert.strictEqual(
+    fs.readFileSync(path.join(strictBuild.outputRoot, 'README.md'), 'utf8'),
+    'Committed mixed-case release input.\n',
+    'strict snapshot closure accepts mixed-case paths regardless of locale collation'
+  );
   assert(
     strictBuild.artifactManifest.files.some(file => file.path === 'css/tracked.css'),
     'strict build includes a committed recursively collected CSS input'
