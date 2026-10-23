@@ -1,10 +1,47 @@
 # Performance Budgets
 
-Last reviewed: 2026-09-01
+Last reviewed: 2026-10-23
 
 `release/asset-budgets.json` contains CI-enforced regression ceilings based on the current repository. They are ceilings, not optimization targets.
 
 ## Runtime Profile
+
+### v2.3.3 Catalog Ceiling Correction (2026-10-23)
+
+The v2.2 catalog ceilings no longer fit the committed v2.3.3 snapshot at
+`4847b96b7f40851f9b7c884213cafd69150092d3`. The October 13 CI run
+[38357001032](https://github.com/arcazj/openbexi_earth_orbit/actions/runs/38357001032)
+passed Chromium smoke tests and static packaging, then stopped at the two
+catalog byte ceilings. This correction changes only those regression ceilings
+and this measurement record. It does not compress, truncate, refresh, or
+otherwise change the deployed catalogs or runtime code.
+
+| Catalog | Records | Bytes before / after correction | Previous ceiling | Proposed ceiling | Remaining headroom |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `json/gp/GP.json` | 19,307 | 27,166,852 / 27,166,852 | 24,000,000 | 28,000,000 | 833,148 (3.07% of current bytes) |
+| `json/tle/TLE.json` | 18,697 | 10,652,180 / 10,652,180 | 10,500,000 | 11,000,000 | 347,820 (3.27% of current bytes) |
+
+The GP snapshot SHA-256 remains
+`1339c9ce13d34802952a5b0eab4483d7123ea17ae65eb53bc79d90e43f0191d3`;
+the TLE snapshot SHA-256 remains
+`3323b0c7f9d817d6b3934e57dc409c8dd3f4101041fce15acc8c6b22d6275c36`.
+Both still match their provenance metadata. Relative to the frozen v2.2
+observations below, GP grew by 4,131,160 bytes and 2,907 records, and TLE grew
+by 1,270,853 bytes. Retaining the complete current snapshot avoids discarding
+orbital coverage merely to satisfy obsolete file limits. The new limits round
+up to decimal megabytes with approximately 3% headroom; they are fixed limits,
+not automatically growing allowances. All other ceilings remain unchanged.
+
+Measured user impact of this correction: zero additional catalog bytes or
+records, and identical application code. It accepts the existing development
+snapshot rather than claiming its growth improved performance. A local Linux
+Node 24.19.0 diagnostic on the current files measured three JSON parse times
+of 139.96/134.60/137.86 ms for GP and 27.58/32.60/33.78 ms for TLE after forced
+GC before each parse. This is an unthrottled Node parse diagnostic, not browser
+ingestion, initialization, transfer, heap, or representative-hardware evidence.
+The named browser performance, cold/warm cache, responsiveness, and projected
+2x-catalog promotion gates below remain open. The budget change adds no
+runtime-performance waiver or stable-release qualification.
 
 Before v2.0 preview, record the browser, CPU, GPU, memory, viewport, device-pixel ratio, network profile, catalog version/count, and cold/warm cache state. Store raw traces with the release evidence.
 

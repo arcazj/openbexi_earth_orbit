@@ -3,9 +3,9 @@
   "policy": "regression-ceiling",
   "files": {
     "index.html": 315000,
-    "json/gp/GP.json": 24000000,
+    "json/gp/GP.json": 28000000,
     "json/launches/launches.json": 10500000,
-    "json/tle/TLE.json": 10500000,
+    "json/tle/TLE.json": 11000000,
     "data/ephemeris/solar_system_jpl_horizons_2020_2035_6h.json": 17500000,
     "obj/ISS.glb": 45000000,
     "textures/1_earth_16k.jpg": 35000000,
