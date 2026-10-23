@@ -1102,7 +1102,9 @@ export function buildStaticArtifact({
   if (!inputs.some(([relative]) => relative === manifest.entrypoint)) {
     throw new Error(`Static artifact entrypoint is not included: ${manifest.entrypoint}`);
   }
-  if (snapshot && JSON.stringify(inputs.map(([relative]) => relative)) !== JSON.stringify(snapshot.outputs)) {
+  // Snapshot paths use code-unit ordering; collectInputs uses locale collation.
+  // Compare the closure in one canonical order without changing artifact order.
+  if (snapshot && JSON.stringify(inputs.map(([relative]) => relative).sort()) !== JSON.stringify(snapshot.outputs)) {
     throw new Error('Strict static input selection differs from the immutable commit snapshot closure.');
   }
 
