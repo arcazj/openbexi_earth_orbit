@@ -158,6 +158,8 @@ test('curated static artifact boots offline and screens the full catalog in its 
   expect(network.requests.some(url => url.includes('/ephemeris/orbits/'))).toBe(false);
   await page.locator('#viewAccordionHeader').click();
   await page.locator('#solarSystemOverviewToggle').check();
+  await expect(page.locator('#solarEducational')).toBeChecked();
+  await page.locator('#solarEducational').uncheck();
   await expect(page.locator('#solarOrbitGuideStatus')).toContainText('one revolution', { timeout: 60_000 });
   expect(await page.evaluate(() => window.openbexiSimulation.orbitGuides().filter(guide => guide.completeRevolution).length)).toBe(8);
   await page.locator('#solarSystemExitButton').click();
