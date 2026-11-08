@@ -8,8 +8,10 @@ async function boot(page) {
     await expect(page.locator('#satelliteSearchInput')).toBeEnabled({ timeout: 60000 });
 }
 
-test('core journey: lazy playback, search, keyboard health, views, dates and restoration', async ({ page }) => {
-    test.setTimeout(150000);
+test('core journey: lazy playback, search, keyboard health, views, dates and restoration', async ({ page }, testInfo) => {
+    // Full-density mobile software rendering can exhaust the shared journey
+    // budget before Solar System opens. Performance targets are measured separately.
+    test.setTimeout(testInfo.project.name === 'mobile-chromium' ? 240000 : 150000);
     const requests = [], errors = [];
     page.on('pageerror', error => errors.push(error.message));
     page.on('request', request => { if (request.url().includes('_2020_2035_6h.json')) requests.push(request.url()); });
@@ -31,7 +33,9 @@ test('core journey: lazy playback, search, keyboard health, views, dates and res
     await page.keyboard.press('Tab');
     await expect(page.locator('.data-health-panel')).toBeFocused();
     await page.keyboard.press('PageDown');
-    await expect.poll(() => page.locator('.data-health-panel').evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+    // Trace capture on software-rendered mobile can delay the response even
+    // after the keyboard scroll has visibly completed; retain the actual assertion.
+    await expect.poll(() => page.locator('.data-health-panel').evaluate(element => element.scrollTop), { timeout: 60000 }).toBeGreaterThan(0);
     await page.screenshot({ path: `runtime/v25-health-${test.info().project.name}.png` });
     const scan = await new AxeBuilder({ page }).include('#dataRefreshStatus').withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
     expect(scan.violations).toEqual([]);
