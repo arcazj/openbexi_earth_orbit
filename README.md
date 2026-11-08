@@ -1,6 +1,6 @@
 # OpenBEXI Earth Orbit
 
-Interactive Earth-orbit visualization, tracked-object search and Solar System time exploration. **2.5.0 is a development prerelease, experimental and non-operational.** Public source remains available; new owner-controlled 2.5 material uses commercial licensing.
+Interactive Earth-orbit visualization, tracked-object search and Solar System time exploration. **2.5.1 is a development prerelease, experimental and non-operational.** Public source remains available; new owner-controlled 2.5 material uses commercial licensing.
 
 ## Live Demo
 
@@ -12,7 +12,7 @@ Interactive Earth-orbit visualization, tracked-object search and Solar System ti
 - Tracked inventory separates matches, positioned objects and metadata-only records; missing elements never imply decay.
 - One expanded menu section at a time; startup opens **Tracked Objects - Matches**.
 - Precise mode uses a bounded JPL-derived Solar System ephemeris and complete orbit guides. An educational checkbox enables approximate visualization. Playback stays inside its validated dataset; guide coverage does not extend playback.
-- Satellite and Solar System views start **Live at 1×**: one simulated second per real second, following system UTC. Pause, reverse and explicitly labeled faster units remain available. Live follows the clock; data freshness is reported separately.
+- Satellite and Solar System views start **Live at 1 sec/s**: one simulated second per real second, following system UTC. Solar System units sit beside Play/Pause: sec/s, min/s, hour/s and day/s, with year/s under Advanced. Pause and reverse remain available. Live follows the clock; data freshness is reported separately.
 - A bottom data-health disclosure shows source checks, content ages, partial coverage and update failures. The Python server checks for updates in the background; static hosting uses packaged snapshots.
 - Experimental browser and authenticated server close-approach screening. No operational collision-risk or collision-probability claim.
 

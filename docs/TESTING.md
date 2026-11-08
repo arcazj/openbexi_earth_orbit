@@ -16,7 +16,7 @@ Browser coverage uses Chromium, mobile emulation, Firefox and Playwright WebKit.
 
 ## 2.5 evidence
 
-The [delivery checks](../release/evidence/v2.5.0-delivery-1-checks.json) preserve the pre-publication implementation record and earlier failures. Their old branch names, pending approvals and private local paths are historical evidence, not current publication instructions. The [publication record](../release/publication-v2.5.json) defines the new authorized scope; final exact-commit CI and source/artifact checks are linked in the GitHub release.
+The [delivery checks](../release/evidence/v2.5.0-delivery-1-checks.json) preserve the pre-publication implementation record and earlier failures. Their old branch names, pending approvals and private local paths are historical evidence, not current publication instructions. The [publication record](../release/publication-v2.5.1.json) defines the new authorized scope; final exact-commit CI and source/artifact checks are linked in the GitHub release.
 
 | Check | Recorded delivery result |
 | --- | --- |
@@ -33,7 +33,7 @@ The [delivery checks](../release/evidence/v2.5.0-delivery-1-checks.json) preserv
 
 Validate first MEO render; Globe/Mercator switching; canonical search/selection; tracked matches/positioned/unavailable counts; filters and virtualized results; direct map picking; shared URLs; orbit display; launch and confirmed-decay timelines; models; stars and Mars; Solar System precise/educational modes and bounded playback. Startup opens Tracked Objects - Matches and only one menu section expands at a time. Check clock, selection, camera and filters survive coherent data revision changes.
 
-For 2.5.0 Live playback, check true 1× against elapsed frame time, UTC resynchronization, pause/resume, explicit accelerated units, reverse playback, restored Live/historical state and JPL boundary stops. `liveTime.spec.js` covers integrated and standalone controls in all four profiles. Nominal spin tests cover periods/direction only; absolute body attitude is not qualified.
+For 2.5.0 Live playback, check true 1× against elapsed frame time, UTC resynchronization, pause/resume, explicit accelerated units, reverse playback, restored Live/historical state and JPL boundary stops. `liveTime.spec.js` covers integrated and standalone controls in all four profiles, including all five units, no-seek unit changes, signed rate and pause preservation, native keyboard selection, readable announcements, scoped automated accessibility and a 320 px viewport. Physical touch/assistive-technology qualification remains pending. Nominal spin tests cover periods/direction only; absolute body attitude is not qualified.
 
 README and Releases History open rendered Markdown in `markdown_viewer.html`. Verify `swagger.html`, the rendered API reference, required notices, keyboard focus and narrow layout from the built artifact as well as the source server. Only explicitly allowlisted Markdown is publicly served; roadmap, prompt history, credentials and private storage stay unavailable through the application server.
 

@@ -1,5 +1,13 @@
 # Release notes
 
+## v2.5.1 — development prerelease
+
+Solar System playback units now sit beside Play/Pause and Live in both integrated and standalone views. Choose sec/s (default), min/s, hour/s or day/s; year/s remains under Advanced. Readouts show explicit rates such as `-2 hour/s`. Changing units preserves the UTC instant, signed multiplier and paused/running state. Live resets to current UTC at `1 sec/s`; historical playback never claims Live.
+
+Native keyboard selection, readable rate announcements and narrow-screen controls accompany the change. Precise mode, JPL boundaries, orbit guides and legacy satellite playback remain intact. Version metadata, API examples and the runtime dependency inventory are updated. Prior v2.5 and v2.5.0 tags/downloads remain unchanged.
+
+This remains an experimental, non-operational development prerelease under the existing commercial notice and retained MIT/upstream rights. Qualification limits below still apply. Exact-commit verification is attached to the GitHub release.
+
 ## v2.5.0 — development prerelease
 
 Application version **2.5.0**, experimental, non-operational. Source is public; new owner-controlled material is commercially licensed by Jean-Christophe Arcaz ([contact](mailto:arcazj@gmail.com)). Earlier MIT and upstream rights remain.

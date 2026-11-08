@@ -1,0 +1,159 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.5.schema.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:40937e98-dafc-4f86-8947-3e5067c3147a",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-11-08T15:03:35.407Z",
+    "lifecycles": [
+      {
+        "phase": "build"
+      }
+    ],
+    "tools": [
+      {
+        "vendor": "npm",
+        "name": "cli",
+        "version": "11.17.0"
+      }
+    ],
+    "component": {
+      "bom-ref": "openbexi_orbit@2.5.1",
+      "type": "library",
+      "name": "openbexi_earth_orbit",
+      "version": "2.5.1",
+      "scope": "required",
+      "purl": "pkg:npm/openbexi_orbit@2.5.1",
+      "properties": [
+        {
+          "name": "cdx:npm:package:private",
+          "value": "true"
+        },
+        {
+          "name": "openbexi:publication-scope",
+          "value": "Owner-authorized public source and GitHub development prerelease; third-party terms retained"
+        },
+        {
+          "name": "openbexi:licensor",
+          "value": "Jean-Christophe Arcaz / arcazj@gmail.com"
+        }
+      ],
+      "externalReferences": [],
+      "licenses": [
+        {
+          "license": {
+            "name": "OpenBEXI 2.5 commercial notice; prior MIT rights retained",
+            "text": {
+              "contentType": "text/plain",
+              "content": "OpenBEXI Earth Orbit 2.5 — commercial licensing notice\n\nCopyright (c) 2026 Jean-Christophe Arcaz. All rights reserved for new\nowner-controlled material first introduced after the version 2.4 baseline.\nLicensor: Jean-Christophe Arcaz\nLicensing contact: arcazj@gmail.com\n\nNew owner-controlled 2.5 material is offered under a separate written commercial\nagreement with the licensor. Except for rights granted by that agreement,\napplicable law, or GitHub's terms for viewing and forking public repositories,\nno permission to use, reproduce, modify, distribute, sublicense or sell that\nnew material is granted by publication of this repository. Public source\navailability does not make the new material open source.\n\nThis policy applies prospectively to new owner-controlled material after\nversion 2.4.0, commit f7724f5918349fbc972958f53b01732b9ea1bc2f.\nIt does not revoke, replace or restrict MIT rights already granted for earlier\ndistributions or MIT-covered material retained here. The complete historical\nMIT notice is reproduced below and retained in licenses/LEGACY_MIT.txt.\n\nThird-party software, data, images, models and reference fixtures retain their\nown terms; this notice grants no additional rights to them. See\ndocs/THIRD_PARTY_NOTICES.md and docs/governance/LICENSING_TRANSITION_V2_5.md\nfor scope and provenance limitations. No upstream ownership is claimed.\n\nAccuracy, reliance and limitation of liability\n---------------------------------------------\n\nThe software, datasets, visualizations, predictions and other results are\nprovided AS IS and AS AVAILABLE. To the fullest extent permitted by applicable\nlaw, Jean-Christophe Arcaz and the authors, contributors and distributors of\nthe OpenBEXI project disclaim all express or implied warranties, including\naccuracy, completeness, timeliness, availability, non-infringement,\nmerchantability and fitness for a particular purpose. Results may be\nincorrect, incomplete, outdated or interrupted, including because of source\ndata, numerical approximations, software defects or third-party services.\n\nThe application is experimental and non-operational. Results must be\nindependently verified before reliance and must not be used as the sole basis\nfor navigation, collision avoidance, spacecraft control, safety-critical\ndecisions or other decisions that could cause injury, property damage or\nfinancial loss. No scientific certification or service level is promised.\n\nTo the fullest extent permitted by applicable law, and unless expressly agreed\notherwise in a signed written agreement, Jean-Christophe Arcaz and the other\nauthors, contributors and distributors of the OpenBEXI project shall not be\nliable for loss, damage or claims arising from use of, inability to use, or\nreliance on the software, data or results, including inaccurate or missing\nresults, loss of data or profits, business interruption, and direct, indirect,\nincidental, special or consequential damages, whether in contract, tort\n(including negligence) or otherwise, even if advised of their possibility.\n\nNothing in this notice excludes or limits liability that cannot lawfully be\nexcluded or limited, or waives mandatory statutory or consumer rights. Any\nunenforceable exclusion applies only to the extent permitted by applicable\nlaw. OpenBEXI names the project; the identified licensor is Jean-Christophe\nArcaz. Existing MIT and third-party notices remain unchanged.\n\nRetained historical MIT notice\n-----------------------------\n\nMIT License\n\nCopyright (c) 2025\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "bom-ref": "satellite.js@6.0.2",
+      "type": "library",
+      "name": "satellite.js",
+      "version": "6.0.2",
+      "scope": "required",
+      "author": "Shashwat Kandadai <shashwatak@gmail.com> (https://github.com/shashwatak)",
+      "description": "SGP4/SDP4 calculation library",
+      "purl": "pkg:npm/satellite.js@6.0.2",
+      "properties": [],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/satellite.js/-/satellite.js-6.0.2.tgz"
+        },
+        {
+          "type": "vcs",
+          "url": "git://github.com/shashwatak/satellite-js"
+        },
+        {
+          "type": "website",
+          "url": "https://github.com/shashwatak/satellite-js"
+        },
+        {
+          "type": "issue-tracker",
+          "url": "https://github.com/shashwatak/satellite-js/issues"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "5d62b1b6a545e71889d7101e898793fe8492cecba4a022d6be4ea73bf585cb8ba7d0cde0e1d8c053d4c0b4e0aa24bb585bdbf1c7da643c9d4bf484ce73ad3b18"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "bom-ref": "three@0.184.0",
+      "type": "library",
+      "name": "three",
+      "version": "0.184.0",
+      "scope": "required",
+      "author": "mrdoob",
+      "description": "JavaScript 3D library",
+      "purl": "pkg:npm/three@0.184.0",
+      "properties": [],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/three/-/three-0.184.0.tgz"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/mrdoob/three.js"
+        },
+        {
+          "type": "website",
+          "url": "https://threejs.org/"
+        },
+        {
+          "type": "issue-tracker",
+          "url": "https://github.com/mrdoob/three.js/issues"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "c2d4d18c6f76a4ce5e520fcab949c7b2a48094f336f7a6eb4ce70b80c46a11eca561387f09db6f294bc2cb20904f316e4ad89e5b1bd96fc9954ccbdd3f2529c6"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "openbexi_orbit@2.5.1",
+      "dependsOn": [
+        "satellite.js@6.0.2",
+        "three@0.184.0"
+      ]
+    },
+    {
+      "ref": "satellite.js@6.0.2",
+      "dependsOn": []
+    },
+    {
+      "ref": "three@0.184.0",
+      "dependsOn": []
+    }
+  ]
+}

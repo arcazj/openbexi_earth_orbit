@@ -395,7 +395,7 @@ function run() {
   assert(css.includes('body:has(#mercatorContainer.fullscreen) #controlsContainer'), 'fixed menu and server controls remain above full-screen Mercator');
   assert(css.includes('#mercatorContainer.fullscreen .mercator-fullscreen-exit'), 'full-screen Mercator reveals its in-map exit');
   assert(css.includes('top: 50px !important'), 'narrow viewport time slider is moved away from top controls');
-  assert(css.includes('grid-template-columns: auto minmax(0, 1fr) auto auto 28px 42px'), 'narrow viewport time controls stay on one stable row');
+  assert(css.includes('grid-template-columns: minmax(48px, 1fr) 70px minmax(0, 84px) 28px 42px'), 'narrow viewport time controls stay on one stable row');
   assert(css.includes('top: 190px') && css.includes('top: 180px'), 'narrow viewport menu toggle and panel start below the Time x and coverage bands');
   assert(css.includes('.menu-accordion-heading-satellite { border-left-color: #35b9a9; }'), 'Satellite keeps the legacy teal accent');
   assert(css.includes('.menu-accordion-heading-view { border-left-color: #f0b429; }'), 'View keeps the legacy yellow accent');

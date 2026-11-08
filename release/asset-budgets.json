@@ -26,7 +26,8 @@
         "js/domain/index.js",
         "js/satelliteCategoryFilter.js"
       ],
-      "maxBytes": 960000
+      "maxBytes": 962000,
+      "note": "2.5.1 adds shared accessible rate descriptions and standalone version metadata; 2 kB allowance for the new controls."
     },
     "vendoredBrowserRuntime": {
       "roots": ["vendor"],

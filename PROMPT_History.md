@@ -2,6 +2,10 @@
 
 This is a concise record of user intent and decisions. Full historical requests remain in published Git history; private agreements and internal implementation prompts are excluded from the public 2.5 history.
 
+## Version 2.5.1 — visible playback units
+
+The user requested sec/s by default, plus min/s, hour/s and day/s for Solar System playback, then accepted all recommendations for v2.5.1. Both integrated and standalone views expose units beside Play/Pause and Live; year/s remains under Advanced. Unit changes preserve UTC, signed multiplier and paused/running state; Live resets to 1 sec/s. Keyboard, narrow-screen and legacy behavior checks accompany concise documentation. Existing v2.5/v2.5.0 tags and downloads remain intact; the authorized public development-prerelease scope is unchanged.
+
 ## Version 2.5 — public commercial source
 
 The user requested a first delivery toward professional quality: source freshness, independent reference checks, performance measurement, security/recovery work and concise documentation. Initial implementation was kept local pending publication approval. Performance targets and independent qualification were explicitly left open rather than declared complete.

@@ -1,6 +1,6 @@
 import assert from 'assert';
 import fs from 'fs';
-import { createSimulationClock, SIMULATION_CLOCK_DEFAULTS, simulationRateLabel } from '../js/simulationClock.js';
+import { createSimulationClock, SIMULATION_CLOCK_DEFAULTS, simulationRateLabel, simulationRateDescription } from '../js/simulationClock.js';
 
 function run() {
   const start = Date.parse('2026-08-23T00:00:00Z');
@@ -52,7 +52,8 @@ function run() {
   const live = createSimulationClock({ initialLive: true, now: () => wallTime });
   assert.equal(live.state().timeMs, start);
   assert.equal(live.state().rate, 1);
-  assert.equal(simulationRateLabel(live), 'Live · 1×');
+  assert.equal(simulationRateLabel(live), 'Live · 1 sec/s');
+  assert.equal(simulationRateDescription(live), 'Live, 1 simulated second per real second');
   wallTime += 120000;
   live.tick(0.016);
   assert.equal(live.state().timeMs, wallTime, 'Live resynchronizes after sleep or a system clock correction');
@@ -63,10 +64,21 @@ function run() {
   assert.equal(live.state().live, false);
   live.setRate(1); live.tick(60);
   assert.equal(live.state().timeMs, start + 180000, 'manual 1× retains full elapsed time');
-  assert.equal(simulationRateLabel(live), '1×');
+  assert.equal(simulationRateLabel(live), '1 sec/s');
+  assert.equal(simulationRateDescription(live), 'Forward, 1 simulated second per real second');
   live.setTimeScale(86400000); live.tick(1);
   assert.equal(live.state().timeMs, start + 180000 + 86400000);
   assert.equal(simulationRateLabel(live, 'day'), '1 day/s');
+  live.setRate(-2);
+  const unchangedTime = live.state().timeMs;
+  live.setTimeScale(3600000);
+  assert.equal(live.state().timeMs, unchangedTime, 'changing units does not seek');
+  assert.equal(live.state().rate, -2, 'changing units preserves signed multiplier');
+  assert.equal(simulationRateLabel(live, 'hour'), '-2 hour/s');
+  assert.equal(simulationRateDescription(live, 'hour'), 'Reverse, 2 simulated hours per real second');
+  live.setRate(0); live.setTimeScale(60000); live.tick(10);
+  assert.equal(live.state().timeMs, unchangedTime, 'changing units while paused keeps the clock frozen');
+  assert.equal(simulationRateDescription(live, 'minute'), 'Paused, minutes per second selected');
   live.goLive();
   assert.equal(live.timeScale(), 1000, 'Live resets accelerated units');
   assert.equal(live.state().timeMs, wallTime);

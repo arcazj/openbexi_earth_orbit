@@ -158,7 +158,16 @@ export const SIMULATION_CLOCK_DEFAULTS = Object.freeze({
 
 export function simulationRateLabel(clock, unit = 'second') {
     const { rate, live } = clock.state();
-    if (live) return 'Live · 1×';
+    if (live) return 'Live · 1 sec/s';
     if (!rate) return 'Paused';
-    return clock.timeScale() === 1000 ? `${rate}×` : `${rate} ${unit}/s`;
+    const label = clock.timeScale() === 1000 ? 'sec' : ({ minute: 'min', second: 'sec' }[unit] || unit);
+    return `${rate} ${label}/s`;
+}
+
+export function simulationRateDescription(clock, unit = 'second') {
+    const { rate, live } = clock.state();
+    if (live) return 'Live, 1 simulated second per real second';
+    const name = clock.timeScale() === 1000 ? 'second' : unit === 'min' ? 'minute' : unit;
+    if (!rate) return `Paused, ${name}s per second selected`;
+    return `${rate < 0 ? 'Reverse' : 'Forward'}, ${Math.abs(rate)} simulated ${name}${Math.abs(rate) === 1 ? '' : 's'} per real second`;
 }

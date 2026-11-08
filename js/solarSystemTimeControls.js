@@ -16,17 +16,16 @@ export function solarTimeWindow(time, spanDays, bounds) {
 const utcInput = time => new Date(time).toISOString().slice(0, 19);
 const dateInput = time => new Date(time).toISOString().slice(0, 10);
 
-export function createSolarSystemTimeControls({ container, overview, clock, onChange = () => {}, onFocus = () => {} }) {
+export function createSolarSystemTimeControls({ container, unitSelect, overview, clock, onChange = () => {}, onFocus = () => {} }) {
+    unitSelect.innerHTML = `<option value="second">sec/s</option><option value="minute">min/s</option><option value="hour">hour/s</option><option value="day">day/s</option><optgroup label="Advanced"><option value="year">year/s</option></optgroup>`;
+    unitSelect.value = 'second';
     container.innerHTML = `
       <label class="solar-mode-toggle"><input id="solarEducational" type="checkbox"> Educational mode <span>(approximate, wider dates)</span></label>
       <div id="solarCoverage" class="solar-time-note"></div>
       <div id="solarOrbitGuideStatus" class="solar-time-note" role="status"></div>
       <label for="solarDate">Simulation date and time (UTC)</label>
       <input id="solarDate" type="datetime-local" step="1">
-      <div class="solar-time-grid">
-        <label for="solarTimeUnit">Playback unit<select id="solarTimeUnit"><option value="second" selected>Seconds / second (1×)</option><option value="minute">Minutes / second</option><option value="hour">Hours / second</option><option value="day">Days / second</option><option value="year">Years / second</option></select></label>
-        <label for="solarRange">Timeline window<select id="solarRange"><option value="30">1 month</option><option value="365.25" selected>1 year</option><option value="3652.5">10 years</option><option value="36525">100 years</option><option value="all">Full coverage</option><option value="custom">Custom dates</option></select></label>
-      </div>
+      <label for="solarRange">Timeline window<select id="solarRange"><option value="30">1 month</option><option value="365.25" selected>1 year</option><option value="3652.5">10 years</option><option value="36525">100 years</option><option value="all">Full coverage</option><option value="custom">Custom dates</option></select></label>
       <div id="solarCustomRange" class="solar-time-grid" hidden>
         <label for="solarRangeStart">From (UTC)<input id="solarRangeStart" type="date"></label>
         <label for="solarRangeEnd">To (UTC)<input id="solarRangeEnd" type="date"></label>
@@ -37,7 +36,7 @@ export function createSolarSystemTimeControls({ container, overview, clock, onCh
       <div class="solar-time-actions"><button type="button" id="solarFitAll">Fit Solar System</button><button type="button" id="solarFitInner">Inner planets</button></div>
       <label for="solarPlanetFocus">Follow a planet<select id="solarPlanetFocus"><option value="">Sun-centered overview</option>${SOLAR_SYSTEM_PLANETS.map(planet => `<option>${planet.name}</option>`).join('')}</select></label>
       <label class="solar-mode-toggle"><input id="solarEnlarged" type="checkbox" checked> Enlarge planet symbols</label>
-      <div class="solar-time-note">Live follows current UTC at 1×; planetary motion is slow at this scale. Choose days or years per second to explore. Planet symbols use nominal spin rates; axis orientation and texture alignment are illustrative. The educational Moon orbit is schematic.</div>
+      <div class="solar-time-note">Live follows current UTC at 1 sec/s; planetary motion is slow at this scale. Choose playback units beside Play/Pause; year/s is under Advanced. Planet symbols use nominal spin rates; axis orientation and texture alignment are illustrative. The educational Moon orbit is schematic.</div>
       <button type="button" id="solarDataRetry" hidden>Retry Solar System data</button>
       <div id="solarTimeMessage" class="solar-time-note" role="status" aria-live="polite"></div>`;
     const el = id => container.querySelector(`#${id}`);
@@ -78,7 +77,7 @@ export function createSolarSystemTimeControls({ container, overview, clock, onCh
         changed();
     });
     el('solarDate').addEventListener('change', event => setTime(Date.parse(`${event.target.value}Z`)));
-    el('solarTimeUnit').addEventListener('change', event => { clock.setTimeScale(SOLAR_TIME_UNITS[event.target.value]); changed(); });
+    unitSelect.addEventListener('change', event => { clock.setTimeScale(SOLAR_TIME_UNITS[event.target.value]); changed(); });
     el('solarRange').addEventListener('change', () => { resetWindow(); changed(); });
     for (const id of ['solarRangeStart', 'solarRangeEnd']) el(id).addEventListener('change', () => {
         const bounds = solarSystemTimeBounds(overview);
@@ -108,7 +107,8 @@ export function createSolarSystemTimeControls({ container, overview, clock, onCh
         el('solarDataRetry').disabled = overview.ephemerisState?.status === 'loading' || overview.orbitGuideState?.status === 'loading';
         const bounds = solarSystemTimeBounds(overview);
         const state = clock.state();
-        el('solarTimeUnit').value = Object.keys(SOLAR_TIME_UNITS).find(unit => SOLAR_TIME_UNITS[unit] === clock.timeScale()) || 'second';
+        const unit = Object.keys(SOLAR_TIME_UNITS).find(key => SOLAR_TIME_UNITS[key] === clock.timeScale()) || 'second';
+        if (unitSelect.value !== unit && container.ownerDocument.activeElement !== unitSelect) unitSelect.value = unit;
         const signature = bounds ? `${bounds.minTimeMs}:${bounds.maxTimeMs}` : '';
         if (signature !== lastBounds || lastMode !== overview.options.educational) {
             lastBounds = signature; lastMode = overview.options.educational; resetWindow();
@@ -140,6 +140,6 @@ export function createSolarSystemTimeControls({ container, overview, clock, onCh
             }
         }
     }
-    return { sync, bounds: () => solarSystemTimeBounds(overview), unit: () => el('solarTimeUnit').value,
-        activate() { if (!clock.state().live) clock.setTimeScale(SOLAR_TIME_UNITS[el('solarTimeUnit').value]); sync(); } };
+    return { sync, bounds: () => solarSystemTimeBounds(overview), unit: () => unitSelect.value,
+        activate() { if (!clock.state().live) clock.setTimeScale(SOLAR_TIME_UNITS[unitSelect.value]); sync(); } };
 }

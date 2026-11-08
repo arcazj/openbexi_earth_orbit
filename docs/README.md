@@ -1,6 +1,6 @@
 # Documentation
 
-Current guides for **2.5.0 development / experimental / non-operational**. Historical architecture decisions and frozen validation records are retained where they still explain implemented contracts. Old per-release checklists and duplicated prompt logs were consolidated.
+Current guides for **2.5.1 development / experimental / non-operational**. Historical architecture decisions and frozen validation records are retained where they still explain implemented contracts. Old per-release checklists and duplicated prompt logs were consolidated.
 
 - [Contributing](CONTRIBUTING.md)
 - [Release notes](RELEASE_NOTES.md)

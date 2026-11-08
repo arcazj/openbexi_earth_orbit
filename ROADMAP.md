@@ -1,8 +1,10 @@
 # OpenBEXI Earth Orbit Roadmap
 
-Current version: **2.5.0 development / experimental / non-operational**. The GitHub prerelease label does not qualify the app for operational decisions.
+Current version: **2.5.1 development / experimental / non-operational**. The GitHub prerelease label does not qualify the app for operational decisions.
 
 ## Delivered in 2.5
+
+- 2.5.1: visible Solar System unit selectors beside Play/Pause and Live in both views, explicit rate labels, Advanced year/s, keyboard operation and narrow-screen checks. Unit changes preserve UTC, multiplier and playback state.
 
 - Six-source health reporting with UTC content/check/attempt times, lineage, provider delays, failure retention and a quiet bottom disclosure.
 - Lazy Solar System playback loading, shared requests/cache and retry; precise mode and complete JPL guides retained from 2.4.

@@ -202,7 +202,7 @@
         scheduleDeferredWork
     } from './js/startupPerformance.js';
     import { createAnimationTimer } from './js/animationTimer.js';
-    import { createSimulationClock, simulationRateLabel } from './js/simulationClock.js';
+    import { createSimulationClock, simulationRateLabel, simulationRateDescription } from './js/simulationClock.js';
     import {
         createSatelliteMotionController,
         satelliteMarkerDiagnostics,
@@ -3550,17 +3550,19 @@
   <div id="timeWarpBox">
     <label for="timeWarpSlider">Time</label>
     <input type="range" id="timeWarpSlider" min="-60" max="60" step="1" value="1"
-           aria-label="Simulation time rate" aria-valuetext="Live at 1 times">
+           aria-label="Simulation time rate" aria-valuetext="Live, 1 simulated second per real second">
     <select id="timeWarpUnit" aria-label="Satellite playback unit"><option value="1000">sec/s</option><option value="60000">min/s</option></select>
-    <span id="timeWarpVal">Live · 1×</span>
+    <select id="solarTimeUnit" aria-label="Solar System playback unit" hidden></select>
+    <span id="timeWarpVal">Live · 1 sec/s</span>
     <button type="button" id="timeWarpPause" aria-label="Pause simulation" title="Pause or resume">||</button>
-    <button type="button" id="timeWarpNow" aria-pressed="true" title="Follow current UTC at 1×">Live</button>
+    <button type="button" id="timeWarpNow" aria-pressed="true" title="Follow current UTC at 1 sec/s">Live</button>
     <span id="timeWarpStatus" role="status" aria-live="polite"></span>
   </div>`;
     document.body.insertAdjacentHTML('beforeend', twHTML);
     const timeWarpSlider = document.getElementById('timeWarpSlider');
     const timeWarpVal = document.getElementById('timeWarpVal');
     const timeWarpUnit = document.getElementById('timeWarpUnit');
+    const solarTimeUnit = document.getElementById('solarTimeUnit');
     const timeWarpPause = document.getElementById('timeWarpPause');
     const timeWarpNow = document.getElementById('timeWarpNow');
     const timeWarpStatus = document.getElementById('timeWarpStatus');
@@ -3582,13 +3584,13 @@
             : simulationClock.timeScale() === 60000 ? 'min' : 'second';
         const labelValue = simulationRateLabel(simulationClock, unit);
         timeWarpUnit.hidden = !!simParams.solarSystemOverview;
+        solarTimeUnit.hidden = !simParams.solarSystemOverview;
         timeWarpUnit.value = String(simulationClock.timeScale());
         timeWarpNow.setAttribute('aria-pressed', String(clockState.live));
         if (timeWarpSlider) timeWarpSlider.value = sliderValue;
         if (timeWarpVal) timeWarpVal.textContent = labelValue;
         if (timeWarpSlider) {
-            const direction = simParams.timeWarp < 0 ? 'reverse' : simParams.timeWarp > 0 ? 'forward' : 'paused';
-            timeWarpSlider.setAttribute('aria-valuetext', `${labelValue}, ${direction}`);
+            timeWarpSlider.setAttribute('aria-valuetext', simulationRateDescription(simulationClock, unit));
         }
         if (timeWarpPause) {
             const paused = simParams.timeWarp === 0;
@@ -4625,7 +4627,7 @@
         solarSystemExitButtonElement = document.getElementById('solarSystemExitButton');
         solarSystemSelectionSummaryElement = document.getElementById('solarSystemSelectionSummary');
         solarSystemTimeControls = createSolarSystemTimeControls({
-            container: document.getElementById('solarSystemTimeControls'), overview: solarSystemOverview, clock: simulationClock,
+            container: document.getElementById('solarSystemTimeControls'), unitSelect: solarTimeUnit, overview: solarSystemOverview, clock: simulationClock,
             onChange: () => {
                 SIM_DATE.setTime(simulationClock.state().timeMs);
                 simParams.simDate = SIM_DATE;

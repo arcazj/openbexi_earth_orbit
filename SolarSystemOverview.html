@@ -142,6 +142,32 @@
       font-weight: 800;
     }
 
+    .solar-playback-toolbar {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      align-items: center;
+      gap: 8px;
+      margin: 8px 0;
+    }
+
+    .solar-playback-toolbar select,
+    .solar-playback-toolbar button {
+      width: 100%;
+      min-width: 0;
+      min-height: 36px;
+      margin: 0;
+    }
+
+    .solar-playback-toolbar select {
+      color: #edf7ff;
+      background: #152a43;
+      border: 1px solid rgba(143, 208, 255, 0.5);
+      border-radius: 8px;
+      font: inherit;
+    }
+
+    #timeNow[aria-pressed="true"] { border-color: #87d6b0; }
+
     .data-grid {
       display: grid;
       grid-template-columns: 1fr auto;
@@ -246,11 +272,15 @@
 
     <div class="range-row">
       <label for="timeSpeed">Playback speed</label>
-      <span id="timeSpeedValue">0</span>
+      <span id="timeSpeedValue">Live · 1 sec/s</span>
     </div>
-    <input id="timeSpeed" type="range" min="-120" max="120" step="1" value="0" aria-label="Simulation time multiplier">
+    <input id="timeSpeed" type="range" min="-120" max="120" step="1" value="1" aria-label="Simulation time multiplier">
 
-    <div class="solar-time-actions"><button id="timePause" type="button">Pause</button><button id="timeNow" type="button" aria-pressed="true" title="Follow current UTC at 1×">Live</button></div>
+    <div class="solar-playback-toolbar" role="group" aria-label="Solar System playback">
+      <select id="solarTimeUnit" aria-label="Solar System playback unit"></select>
+      <button id="timePause" type="button">Pause</button>
+      <button id="timeNow" type="button" aria-pressed="true" title="Follow current UTC at 1 sec/s">Live</button>
+    </div>
     <div id="solarSystemTimeControls" class="solar-time-controls"></div>
     <button id="resetCamera" type="button">Reset Overview Camera</button>
 
@@ -267,7 +297,7 @@
     </p>
   </aside>
 
-  <div class="footer-note">Shared Solar System engine ? OpenBEXI 2.4</div>
+  <div class="footer-note">Shared Solar System engine · <span id="appVersion">OpenBEXI</span></div>
 
   <script type="module" src="./js/solarSystemStandalone.js"></script>
 </body>

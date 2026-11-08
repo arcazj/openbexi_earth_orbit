@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createAnimationTimer } from './animationTimer.js';
-import { createSimulationClock, simulationRateLabel } from './simulationClock.js';
+import { APP_VERSION } from './releaseVersion.js';
+import { createSimulationClock, simulationRateLabel, simulationRateDescription } from './simulationClock.js';
 import { createSolarSystemTimeControls } from './solarSystemTimeControls.js';
 import { SOLAR_SYSTEM_PLANETS, createSolarSystemOverview, updateSolarSystemOverview,
     setSolarSystemOverviewVisible, setSolarSystemOverviewOptions, solarSystemEphemerisSummary, solarSystemOrbitGuideDiagnostics,
@@ -21,9 +22,10 @@ const overview = createSolarSystemOverview(scene, { renderer, camera, controls, 
 setSolarSystemOverviewVisible(overview, true);
 resetSolarSystemOverviewCamera(overview);
 const el = id => document.getElementById(id);
+el('appVersion').textContent = `OpenBEXI ${APP_VERSION}`;
 let runningRate = 1;
 const timeControls = createSolarSystemTimeControls({
-    container: el('solarSystemTimeControls'), overview, clock,
+    container: el('solarSystemTimeControls'), unitSelect: el('solarTimeUnit'), overview, clock,
     onChange: sync,
     onFocus: name => name ? focusSolarSystemPlanet(overview, name) : resetSolarSystemOverviewCamera(overview)
 });
@@ -52,7 +54,7 @@ function sync() {
     el('timeSpeed').value = String(clock.state().rate);
     const label = simulationRateLabel(clock, timeControls.unit());
     el('timeSpeedValue').textContent = label;
-    el('timeSpeed').setAttribute('aria-valuetext', label);
+    el('timeSpeed').setAttribute('aria-valuetext', simulationRateDescription(clock, timeControls.unit()));
     el('timeNow').setAttribute('aria-pressed', String(clock.state().live));
     el('timePause').textContent = clock.state().rate ? 'Pause' : 'Play';
     el('ephemerisStatus').textContent = `${solarSystemEphemerisSummary(overview)}${clock.state().boundary ? ' • Boundary reached; paused' : ''}`;

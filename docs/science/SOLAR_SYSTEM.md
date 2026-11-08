@@ -1,4 +1,4 @@
-# Solar System ephemeris (2.5)
+# Solar System ephemeris (2.5.1)
 
 2.5 preserves the playback/guide bytes and adds [544 untuned holdout comparisons](../validation/V2_5_ACCEPTANCE.md). The worst sampled playback position error is 69.54 m; the worst guide position error is 70.993 km. Position and velocity max/p95 results are recorded per body in the delivery evidence. These same-provider samples do not constitute independent physical-model or human validation. Playback now loads on first Solar System activation, with a cached pending request and retry control; standalone activation remains immediate.
 
@@ -16,7 +16,7 @@ Guide cadences are refined separately for each planet against 17 independent off
 
 Educational mode uses [JPL approximate Keplerian elements, Tables 2a/2b](https://ssd.jpl.nasa.gov/planets/approx_pos.html), restricted in this UI to **1000-3000 CE**. It uses UTC as a sufficient approximate time argument, represents Earth by the Earth-Moon barycenter, and shows a schematic, enlarged lunar orbit. It is always labeled approximate. It must not be interpreted as precise ephemeris data.
 
-Both views start **Live at 1×**, following system UTC and resynchronizing after background/sleep delays. Manual 1× advances one simulated second per elapsed real second; faster units explicitly show minutes, hours, days or years per second. Planetary motion at 1× is slow at full-system scale. Pause freezes the date; Play resumes from that date, while Live returns to current UTC and seconds/second. Manual dates, scrubbing and steps pause. The window controls scrubbing; dataset coverage controls playback boundaries, including Live. Switching precise/educational modes pauses. On exit the main app restores its prior Live or historical clock and view. Live updates the simulation instant, not provider data freshness.
+Both views start **Live at 1 sec/s**, following system UTC and resynchronizing after background/sleep delays. Manual 1 sec/s advances one simulated second per elapsed real second. The unit selector beside Play/Pause and Live offers sec/s, min/s, hour/s and day/s; year/s is grouped under Advanced. Changing units preserves the selected UTC instant, signed multiplier and paused/running state, while leaving Live. Readouts show explicit rates such as `5 min/s` or `-2 hour/s`. Planetary motion at 1× is slow at full-system scale. Pause freezes the date; Play resumes from that date, while Live returns to current UTC and seconds/second. Manual dates, scrubbing and steps pause. The window controls scrubbing; dataset coverage controls playback boundaries, including Live. Switching precise/educational modes pauses. On exit the main app restores its prior Live or historical clock and view. Live updates the simulation instant, not provider data freshness.
 
 ## Regeneration / extended precise coverage
 

@@ -1649,7 +1649,8 @@ body:has(#mercatorContainer.fullscreen) #menuToggleBtn {
 
 #timeWarpPause,
 #timeWarpNow,
-#timeWarpUnit {
+#timeWarpUnit,
+#timeWarpBox #solarTimeUnit {
     height: 24px;
     box-sizing: border-box;
 }
@@ -1669,9 +1670,16 @@ body:has(#mercatorContainer.fullscreen) #menuToggleBtn {
     font-weight: 700;
 }
 
-#timeWarpUnit { max-width: 68px; font: inherit; }
+#timeWarpUnit,
+#timeWarpBox #solarTimeUnit { max-width: 70px; font: inherit; }
 
-#timeWarpUnit[hidden] { display: none; }
+#timeWarpBox select[hidden] { display: none; }
+
+#timeWarpBox :is(select, button, input):focus-visible,
+.solar-playback-toolbar :is(select, button):focus-visible {
+    outline: 2px solid #b8e8ff;
+    outline-offset: 2px;
+}
 
 #timeWarpStatus {
     flex: 0 0 100%;
@@ -2982,7 +2990,7 @@ body:has(#controlsContainer.menu-hidden) #menuToggleBtn {
         left: 10px !important;
         right: 10px !important;
         display: grid;
-        grid-template-columns: auto minmax(0, 1fr) auto auto 28px 42px;
+        grid-template-columns: minmax(48px, 1fr) 70px minmax(0, 84px) 28px 42px;
         column-gap: 4px;
         row-gap: 4px;
         width: calc(100vw - 20px);
@@ -3003,9 +3011,15 @@ body:has(#controlsContainer.menu-hidden) #menuToggleBtn {
         grid-column: 1 / -1;
     }
 
-    .solar-system-active #timeWarpBox {
-        grid-template-columns: auto minmax(0, 1fr) auto 28px 42px;
+    #timeWarpBox > label {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
     }
+
+    #timeWarpVal { min-width: 0; line-height: 1.15; }
 
     #utcClockDisplay {
         right: 8px;
