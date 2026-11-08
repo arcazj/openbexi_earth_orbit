@@ -11,6 +11,7 @@ The [license](../LICENSE.md) expressly disclaims accuracy, completeness and time
 - Added 544 JPL interpolation and 48 synthetic SGP4 holdouts without relaxing tolerances.
 - Fixed bounded server admission under browser connection bursts and idle preconnections; preserved legacy UI, filters, clocks and revision continuity.
 - Consolidated docs under `docs/` and updated Help, packaging and notice paths. Private review materials are absent from public 2.5 commits and release assets.
+- Corrected exact-commit verification for Windows short temporary paths and directory aliases while retaining root and byte-integrity checks.
 
 Recorded delivery evidence: 67 JavaScript files passed; 197 Python tests passed with one Windows privilege skip; four browser profiles reported 60 passed and 20 profile skips, no failures/flakes/retries. These are implementation-baseline results; the publication checks record the final source separately.
 

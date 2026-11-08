@@ -10,6 +10,7 @@ import { attestStaticDeployment } from '../scripts/attest-static-deployment.mjs'
 import { buildStaticArtifact } from '../scripts/build-static.mjs';
 import { rehearseStaticRollback } from '../scripts/rehearse-static-rollback.mjs';
 import { verifyPagesArtifactArchive } from '../scripts/verify-pages-artifact.mjs';
+import { resolveCommitTree, verifyCommitTreeInputs, verifyReleaseTree } from '../scripts/check-release-tree.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TREE_SCRIPT = path.join(ROOT, 'scripts', 'check-release-tree.mjs');
@@ -246,6 +247,15 @@ try {
   const parsedTreeReport = JSON.parse(fs.readFileSync(treeReport, 'utf8'));
   assert.strictEqual(parsedTreeReport.rawWorktreeMatches, true);
   assert.strictEqual(parsedTreeReport.resolvedCommitOid, run('git', ['rev-parse', 'HEAD'], { cwd: repository }).stdout.trim());
+
+  const alias = path.join(temporary, 'repository-alias');
+  fs.symlinkSync(repository, alias, process.platform === 'win32' ? 'junction' : 'dir');
+  assert.strictEqual(verifyReleaseTree({ root: alias, requireClean: true }).sourceId, parsedTreeReport.sourceId);
+  assert.strictEqual(resolveCommitTree({ root: alias }).sourceId, parsedTreeReport.sourceId);
+  assert.strictEqual(verifyCommitTreeInputs({ root: alias, paths: ['sample.txt'] }).rawWorktreeMatches, true);
+  const nestedRoot = path.join(alias, 'nested');
+  fs.mkdirSync(nestedRoot);
+  assert.throws(() => verifyReleaseTree({ root: nestedRoot }), /Release root must be the Git worktree root/);
 
   write(repository, 'sample.txt', Buffer.from('exact bytes\r\n'));
   const lineEndingFailure = run(process.execPath, [TREE_SCRIPT, '--root', repository, '--tree', 'HEAD'], { expectFailure: true });

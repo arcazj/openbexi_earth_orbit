@@ -6,6 +6,19 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
+function assertWorktreeRoot(root) {
+  const repositoryRoot = path.resolve(runGit(root, ['rev-parse', '--show-toplevel']).trim());
+  const canonical = value => {
+    const resolved = fs.realpathSync.native(path.resolve(value));
+    return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+  };
+  // Git expands Windows 8.3 paths; callers may use that alias or a directory junction.
+  // Compare physical roots, retaining case sensitivity on case-sensitive platforms.
+  if (canonical(repositoryRoot) !== canonical(root)) {
+    throw new Error(`Release root must be the Git worktree root: ${repositoryRoot}`);
+  }
+}
+
 function runGit(root, args, { input = undefined } = {}) {
   const result = spawnSync('git', ['-C', root, ...args], {
     encoding: 'utf8',
@@ -110,10 +123,7 @@ function normalizeInputPath(value) {
 }
 
 export function resolveCommitTree({ root = PROJECT_ROOT, treeish = 'HEAD' } = {}) {
-  const repositoryRoot = path.resolve(runGit(root, ['rev-parse', '--show-toplevel']).trim());
-  if (repositoryRoot.toLowerCase() !== path.resolve(root).toLowerCase()) {
-    throw new Error(`Release root must be the Git worktree root: ${repositoryRoot}`);
-  }
+  assertWorktreeRoot(root);
   if (!treeish) throw new Error('Commit-tree resolution requires a Git tree-ish.');
   const selected = commitEntries(root, treeish);
   return Object.freeze({
@@ -125,10 +135,7 @@ export function resolveCommitTree({ root = PROJECT_ROOT, treeish = 'HEAD' } = {}
 }
 
 export function verifyCommitTreeInputs({ root = PROJECT_ROOT, treeish = 'HEAD', paths = [] } = {}) {
-  const repositoryRoot = path.resolve(runGit(root, ['rev-parse', '--show-toplevel']).trim());
-  if (repositoryRoot.toLowerCase() !== path.resolve(root).toLowerCase()) {
-    throw new Error(`Release root must be the Git worktree root: ${repositoryRoot}`);
-  }
+  assertWorktreeRoot(root);
   if (!treeish) throw new Error('Release input verification requires a Git tree-ish.');
 
   const selected = resolveCommitTree({ root, treeish });
@@ -203,10 +210,7 @@ export function verifyReleaseTree({
   requireClean = false,
   output = null
 } = {}) {
-  const repositoryRoot = path.resolve(runGit(root, ['rev-parse', '--show-toplevel']).trim());
-  if (repositoryRoot.toLowerCase() !== path.resolve(root).toLowerCase()) {
-    throw new Error(`Release root must be the Git worktree root: ${repositoryRoot}`);
-  }
+  assertWorktreeRoot(root);
   const selected = source === 'index' ? indexEntries(root) : commitEntries(root, treeish);
   const actual = rawWorktreeOids(root, selected.entries);
   const mismatches = selected.entries.flatMap(entry => {

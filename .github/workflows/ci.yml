@@ -17,6 +17,7 @@ jobs:
   quality:
     name: Unit, API, and dependency checks
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
