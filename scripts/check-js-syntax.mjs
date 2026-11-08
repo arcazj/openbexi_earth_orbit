@@ -2,8 +2,8 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const roots = ['js', 'scripts', 'tests', 'tests_browser'];
-const files = ['playwright.config.js'].filter(fs.existsSync);
+const roots = ['js', 'scripts', 'tests', 'tests_browser', 'benchmarks'];
+const files = ['playwright.config.js', 'playwright.performance.config.js'].filter(fs.existsSync);
 
 function collect(directory) {
   if (!fs.existsSync(directory)) return;

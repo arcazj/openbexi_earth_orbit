@@ -22,7 +22,7 @@ const webServerCommand = [
   '127.0.0.1',
   '--port',
   String(port),
-  '--no-data-update'
+  '--no-data-update', '--runtime-dir', 'runtime/browser-tests-direct'
 ].map(quoteShellArgument).join(' ');
 
 export default defineConfig({
@@ -51,8 +51,18 @@ export default defineConfig({
     },
     {
       name: 'mobile-chromium',
-      testMatch: ['**/conjunction.spec.js', '**/timelines.spec.js', '**/satelliteFilters.spec.js'],
+      testMatch: ['**/conjunction.spec.js', '**/timelines.spec.js', '**/satelliteFilters.spec.js', '**/v25Core.spec.js', '**/documentation.spec.js'],
       use: { ...devices['Pixel 7'] }
+    },
+    {
+      name: 'firefox',
+      testMatch: ['**/v25Core.spec.js', '**/solarSystemTime.spec.js', '**/documentation.spec.js'],
+      use: { ...devices['Desktop Firefox'] }
+    },
+    {
+      name: 'webkit',
+      testMatch: ['**/v25Core.spec.js', '**/solarSystemTime.spec.js', '**/documentation.spec.js'],
+      use: { ...devices['Desktop Safari'] }
     }
   ],
   webServer: externalTestServer ? undefined : {

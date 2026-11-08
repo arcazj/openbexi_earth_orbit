@@ -1,0 +1,674 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-11-08T06:00:06.261Z",
+  "network": "unthrottled loopback; no provider requests",
+  "hardware": {
+    "os": "Windows_NT",
+    "release": "10.0.26200",
+    "arch": "x64",
+    "cpu": "Intel(R) Core(TM) i7-9700 CPU @ 3.00GHz",
+    "logicalCpus": 8,
+    "ramBytes": 34155577344
+  },
+  "duration": "60-second prolonged-use sample after each startup; cold/warm current and doubled catalog",
+  "definitions": {
+    "coreInteractiveMs": "Navigation to first-interactive-ui using native browser performance timestamps; compared per run with 4000 ms, not a qualified p75 sample.",
+    "startupMs": "Navigation to default-meo-visible using native browser performance timestamps.",
+    "readinessObservedMs": "Independent Node elapsed time until both readiness marks are observed; bounds-checks browser measurements.",
+    "interactionMs": "Data-details click response after default MEO becomes visible; separate from startup readiness.",
+    "p95GlobeFrameMs": "Frames while Mercator is disabled; compared with 33 ms.",
+    "p95FrameMs": "All frames including view transitions.",
+    "heap": "CDP V8 used heap before/after and after explicit GC; not RSS, peak process memory or GPU memory."
+  },
+  "limitations": "Software rendering reported separately; no representative GPU/device or production performance qualification. Cold disables HTTP caching; OS cache is uncontrolled. Doubled fixture routes disable HTTP caching; warm means a reused browser/session and OS cache. Four 60-second samples do not qualify long-term memory retention.",
+  "reports": [
+    {
+      "catalog": "current",
+      "temperature": "cold",
+      "browser": "chromium",
+      "browserVersion": "149.0.7827.55",
+      "startupMs": 5927.299999952316,
+      "coreInteractiveMs": 7988.799999952316,
+      "readinessObservedMs": 7996.499400000001,
+      "interactionMs": 4856.192300000001,
+      "p95FrameMs": 66.69999999999709,
+      "p95GlobeFrameMs": 50.10000000000582,
+      "maxFrameMs": 166.70000000000437,
+      "frames": 1273,
+      "globeFrames": 699,
+      "heapBefore": 166256052,
+      "heapAfter": 116980576,
+      "heapAfterGc": 117156408,
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "devicePixelRatio": 1
+      },
+      "startupMarks": [
+        {
+          "name": "module-loaded",
+          "timestamp": 386.7000000476837,
+          "durationMs": 0.10000014305114746,
+          "detail": null
+        },
+        {
+          "name": "menu-rendered",
+          "timestamp": 388.7999999523163,
+          "durationMs": 2.200000047683716,
+          "detail": null
+        },
+        {
+          "name": "startup-start",
+          "timestamp": 390.40000009536743,
+          "durationMs": 3.8000001907348633,
+          "detail": null
+        },
+        {
+          "name": "scene-ready",
+          "timestamp": 459,
+          "durationMs": 72.40000009536743,
+          "detail": null
+        },
+        {
+          "name": "controls-ready",
+          "timestamp": 517.4000000953674,
+          "durationMs": 130.80000019073486,
+          "detail": null
+        },
+        {
+          "name": "animation-loop-started",
+          "timestamp": 517.5,
+          "durationMs": 130.90000009536743,
+          "detail": null
+        },
+        {
+          "name": "first-visible-globe-render",
+          "timestamp": 618,
+          "durationMs": 231.40000009536743,
+          "detail": null
+        },
+        {
+          "name": "tle-load-start",
+          "timestamp": 618.2000000476837,
+          "durationMs": 231.60000014305115,
+          "detail": null
+        },
+        {
+          "name": "default-meo-visible",
+          "timestamp": 5927.299999952316,
+          "durationMs": 5540.700000047684,
+          "detail": {
+            "count": 189
+          }
+        },
+        {
+          "name": "satellite-data-ready",
+          "timestamp": 7555.900000095367,
+          "durationMs": 7169.300000190735,
+          "detail": {
+            "count": 19307
+          }
+        },
+        {
+          "name": "first-interactive-ui",
+          "timestamp": 7988.799999952316,
+          "durationMs": 7602.200000047684,
+          "detail": {
+            "count": 19307
+          }
+        },
+        {
+          "name": "launch-timeline-init-start",
+          "timestamp": 9035,
+          "durationMs": 8648.400000095367,
+          "detail": null
+        },
+        {
+          "name": "launch-timeline-ready",
+          "timestamp": 9727.299999952316,
+          "durationMs": 9340.700000047684,
+          "detail": {
+            "count": 28306
+          }
+        },
+        {
+          "name": "decay-data-load-start",
+          "timestamp": 10028.599999904633,
+          "durationMs": 9642,
+          "detail": null
+        },
+        {
+          "name": "decay-data-ready",
+          "timestamp": 10443.299999952316,
+          "durationMs": 10056.700000047684,
+          "detail": {
+            "confirmed": 7784
+          }
+        },
+        {
+          "name": "reentry-timeline-ready",
+          "timestamp": 10476.200000047684,
+          "durationMs": 10089.600000143051,
+          "detail": {
+            "count": 19307,
+            "confirmed": 7784,
+            "activeConfirmed": 76
+          }
+        },
+        {
+          "name": "decay-estimates-start",
+          "timestamp": 10488.900000095367,
+          "durationMs": 10102.300000190735,
+          "detail": {
+            "count": 0,
+            "candidates": 0,
+            "cached": 0
+          }
+        },
+        {
+          "name": "decay-estimates-ready",
+          "timestamp": 10488.900000095367,
+          "durationMs": 10102.300000190735,
+          "detail": {
+            "count": 0,
+            "candidates": 0,
+            "cached": 0
+          }
+        }
+      ],
+      "drawnObjects": 189,
+      "coreInteractiveTarget": "failed",
+      "frameTarget": "failed"
+    },
+    {
+      "catalog": "current",
+      "temperature": "warm",
+      "browser": "chromium",
+      "browserVersion": "149.0.7827.55",
+      "startupMs": 5946.299999952316,
+      "coreInteractiveMs": 8049.399999856949,
+      "readinessObservedMs": 8057.544599999994,
+      "interactionMs": 693.7130999999936,
+      "p95FrameMs": 50.10000000000582,
+      "p95GlobeFrameMs": 50.099999999998545,
+      "maxFrameMs": 150,
+      "frames": 1310,
+      "globeFrames": 707,
+      "heapBefore": 165145316,
+      "heapAfter": 117557488,
+      "heapAfterGc": 117214592,
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "devicePixelRatio": 1
+      },
+      "startupMarks": [
+        {
+          "name": "module-loaded",
+          "timestamp": 274.5,
+          "durationMs": 0,
+          "detail": null
+        },
+        {
+          "name": "menu-rendered",
+          "timestamp": 276.09999990463257,
+          "durationMs": 1.5999999046325684,
+          "detail": null
+        },
+        {
+          "name": "startup-start",
+          "timestamp": 277.5,
+          "durationMs": 3,
+          "detail": null
+        },
+        {
+          "name": "scene-ready",
+          "timestamp": 343.59999990463257,
+          "durationMs": 69.09999990463257,
+          "detail": null
+        },
+        {
+          "name": "controls-ready",
+          "timestamp": 358.59999990463257,
+          "durationMs": 84.09999990463257,
+          "detail": null
+        },
+        {
+          "name": "animation-loop-started",
+          "timestamp": 358.7999999523163,
+          "durationMs": 84.29999995231628,
+          "detail": null
+        },
+        {
+          "name": "first-visible-globe-render",
+          "timestamp": 441.2000000476837,
+          "durationMs": 166.70000004768372,
+          "detail": null
+        },
+        {
+          "name": "tle-load-start",
+          "timestamp": 441.2999999523163,
+          "durationMs": 166.79999995231628,
+          "detail": null
+        },
+        {
+          "name": "window-load",
+          "timestamp": 715.7999999523163,
+          "durationMs": 441.2999999523163,
+          "detail": null
+        },
+        {
+          "name": "default-meo-visible",
+          "timestamp": 5946.299999952316,
+          "durationMs": 5671.799999952316,
+          "detail": {
+            "count": 189
+          }
+        },
+        {
+          "name": "satellite-data-ready",
+          "timestamp": 7789.299999952316,
+          "durationMs": 7514.799999952316,
+          "detail": {
+            "count": 19307
+          }
+        },
+        {
+          "name": "first-interactive-ui",
+          "timestamp": 8049.399999856949,
+          "durationMs": 7774.899999856949,
+          "detail": {
+            "count": 19307
+          }
+        },
+        {
+          "name": "launch-timeline-init-start",
+          "timestamp": 9157,
+          "durationMs": 8882.5,
+          "detail": null
+        },
+        {
+          "name": "launch-timeline-ready",
+          "timestamp": 9623.700000047684,
+          "durationMs": 9349.200000047684,
+          "detail": {
+            "count": 28306
+          }
+        },
+        {
+          "name": "decay-data-load-start",
+          "timestamp": 10128.5,
+          "durationMs": 9854,
+          "detail": null
+        },
+        {
+          "name": "decay-data-ready",
+          "timestamp": 10288,
+          "durationMs": 10013.5,
+          "detail": {
+            "confirmed": 7784
+          }
+        },
+        {
+          "name": "reentry-timeline-ready",
+          "timestamp": 10322.599999904633,
+          "durationMs": 10048.099999904633,
+          "detail": {
+            "count": 19307,
+            "confirmed": 7784,
+            "activeConfirmed": 76
+          }
+        },
+        {
+          "name": "decay-estimates-start",
+          "timestamp": 10334.299999952316,
+          "durationMs": 10059.799999952316,
+          "detail": {
+            "count": 0,
+            "candidates": 0,
+            "cached": 0
+          }
+        },
+        {
+          "name": "decay-estimates-ready",
+          "timestamp": 10334.299999952316,
+          "durationMs": 10059.799999952316,
+          "detail": {
+            "count": 0,
+            "candidates": 0,
+            "cached": 0
+          }
+        }
+      ],
+      "drawnObjects": 189,
+      "coreInteractiveTarget": "failed",
+      "frameTarget": "failed"
+    },
+    {
+      "catalog": "doubled-synthetic",
+      "temperature": "cold",
+      "browser": "chromium",
+      "browserVersion": "149.0.7827.55",
+      "startupMs": 8801.700000047684,
+      "coreInteractiveMs": 14213.900000095367,
+      "readinessObservedMs": 14219.347700000013,
+      "interactionMs": 2357.8358999999764,
+      "p95FrameMs": 66.80000000000291,
+      "p95GlobeFrameMs": 66.70000000000073,
+      "maxFrameMs": 299.8999999999942,
+      "frames": 1094,
+      "globeFrames": 606,
+      "heapBefore": 284159528,
+      "heapAfter": 214296408,
+      "heapAfterGc": 214567648,
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "devicePixelRatio": 1
+      },
+      "startupMarks": [
+        {
+          "name": "module-loaded",
+          "timestamp": 275.30000019073486,
+          "durationMs": 0.10000014305114746,
+          "detail": null
+        },
+        {
+          "name": "menu-rendered",
+          "timestamp": 277.40000009536743,
+          "durationMs": 2.200000047683716,
+          "detail": null
+        },
+        {
+          "name": "startup-start",
+          "timestamp": 279.30000019073486,
+          "durationMs": 4.1000001430511475,
+          "detail": null
+        },
+        {
+          "name": "scene-ready",
+          "timestamp": 348.90000009536743,
+          "durationMs": 73.70000004768372,
+          "detail": null
+        },
+        {
+          "name": "controls-ready",
+          "timestamp": 406.90000009536743,
+          "durationMs": 131.70000004768372,
+          "detail": null
+        },
+        {
+          "name": "animation-loop-started",
+          "timestamp": 407,
+          "durationMs": 131.79999995231628,
+          "detail": null
+        },
+        {
+          "name": "first-visible-globe-render",
+          "timestamp": 494.7000000476837,
+          "durationMs": 219.5,
+          "detail": null
+        },
+        {
+          "name": "tle-load-start",
+          "timestamp": 494.90000009536743,
+          "durationMs": 219.70000004768372,
+          "detail": null
+        },
+        {
+          "name": "window-load",
+          "timestamp": 1743,
+          "durationMs": 1467.7999999523163,
+          "detail": null
+        },
+        {
+          "name": "default-meo-visible",
+          "timestamp": 8801.700000047684,
+          "durationMs": 8526.5,
+          "detail": {
+            "count": 378
+          }
+        },
+        {
+          "name": "satellite-data-ready",
+          "timestamp": 13518.700000047684,
+          "durationMs": 13243.5,
+          "detail": {
+            "count": 38614
+          }
+        },
+        {
+          "name": "first-interactive-ui",
+          "timestamp": 14213.900000095367,
+          "durationMs": 13938.700000047684,
+          "detail": {
+            "count": 38614
+          }
+        },
+        {
+          "name": "launch-timeline-init-start",
+          "timestamp": 15274.5,
+          "durationMs": 14999.299999952316,
+          "detail": null
+        },
+        {
+          "name": "launch-timeline-ready",
+          "timestamp": 16367.300000190735,
+          "durationMs": 16092.100000143051,
+          "detail": {
+            "count": 28306
+          }
+        },
+        {
+          "name": "decay-data-load-start",
+          "timestamp": 16420.800000190735,
+          "durationMs": 16145.600000143051,
+          "detail": null
+        },
+        {
+          "name": "decay-data-ready",
+          "timestamp": 16717.400000095367,
+          "durationMs": 16442.200000047684,
+          "detail": {
+            "confirmed": 7784
+          }
+        },
+        {
+          "name": "reentry-timeline-ready",
+          "timestamp": 16778.800000190735,
+          "durationMs": 16503.60000014305,
+          "detail": {
+            "count": 38614,
+            "confirmed": 7784,
+            "activeConfirmed": 76
+          }
+        },
+        {
+          "name": "decay-estimates-start",
+          "timestamp": 16804.800000190735,
+          "durationMs": 16529.60000014305,
+          "detail": {
+            "count": 0,
+            "candidates": 0,
+            "cached": 0
+          }
+        },
+        {
+          "name": "decay-estimates-ready",
+          "timestamp": 16804.800000190735,
+          "durationMs": 16529.60000014305,
+          "detail": {
+            "count": 0,
+            "candidates": 0,
+            "cached": 0
+          }
+        }
+      ],
+      "drawnObjects": 378,
+      "coreInteractiveTarget": "failed",
+      "frameTarget": "failed"
+    },
+    {
+      "catalog": "doubled-synthetic",
+      "temperature": "warm",
+      "browser": "chromium",
+      "browserVersion": "149.0.7827.55",
+      "startupMs": 8713.100000143051,
+      "coreInteractiveMs": 12232,
+      "readinessObservedMs": 12238.270999999979,
+      "interactionMs": 835.2016000000003,
+      "p95FrameMs": 66.79999999999563,
+      "p95GlobeFrameMs": 66.69999999999709,
+      "maxFrameMs": 266.8000000000029,
+      "frames": 1107,
+      "globeFrames": 624,
+      "heapBefore": 342093624,
+      "heapAfter": 214286548,
+      "heapAfterGc": 214566304,
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "devicePixelRatio": 1
+      },
+      "startupMarks": [
+        {
+          "name": "module-loaded",
+          "timestamp": 357.40000009536743,
+          "durationMs": 0.10000014305114746,
+          "detail": null
+        },
+        {
+          "name": "menu-rendered",
+          "timestamp": 358.90000009536743,
+          "durationMs": 1.6000001430511475,
+          "detail": null
+        },
+        {
+          "name": "startup-start",
+          "timestamp": 360.2999999523163,
+          "durationMs": 3,
+          "detail": null
+        },
+        {
+          "name": "scene-ready",
+          "timestamp": 419.40000009536743,
+          "durationMs": 62.10000014305115,
+          "detail": null
+        },
+        {
+          "name": "controls-ready",
+          "timestamp": 437.40000009536743,
+          "durationMs": 80.10000014305115,
+          "detail": null
+        },
+        {
+          "name": "animation-loop-started",
+          "timestamp": 437.5,
+          "durationMs": 80.20000004768372,
+          "detail": null
+        },
+        {
+          "name": "first-visible-globe-render",
+          "timestamp": 521,
+          "durationMs": 163.70000004768372,
+          "detail": null
+        },
+        {
+          "name": "tle-load-start",
+          "timestamp": 521.1000001430511,
+          "durationMs": 163.80000019073486,
+          "detail": null
+        },
+        {
+          "name": "default-meo-visible",
+          "timestamp": 8713.100000143051,
+          "durationMs": 8355.800000190735,
+          "detail": {
+            "count": 378
+          }
+        },
+        {
+          "name": "satellite-data-ready",
+          "timestamp": 11869.299999952316,
+          "durationMs": 11512,
+          "detail": {
+            "count": 38614
+          }
+        },
+        {
+          "name": "first-interactive-ui",
+          "timestamp": 12232,
+          "durationMs": 11874.700000047684,
+          "detail": {
+            "count": 38614
+          }
+        },
+        {
+          "name": "launch-timeline-init-start",
+          "timestamp": 13283.100000143051,
+          "durationMs": 12925.800000190735,
+          "detail": null
+        },
+        {
+          "name": "launch-timeline-ready",
+          "timestamp": 13853.900000095367,
+          "durationMs": 13496.600000143051,
+          "detail": {
+            "count": 28306
+          }
+        },
+        {
+          "name": "decay-data-load-start",
+          "timestamp": 14284.299999952316,
+          "durationMs": 13927,
+          "detail": null
+        },
+        {
+          "name": "decay-data-ready",
+          "timestamp": 14442.100000143051,
+          "durationMs": 14084.800000190735,
+          "detail": {
+            "confirmed": 7784
+          }
+        },
+        {
+          "name": "reentry-timeline-ready",
+          "timestamp": 14477.5,
+          "durationMs": 14120.200000047684,
+          "detail": {
+            "count": 38614,
+            "confirmed": 7784,
+            "activeConfirmed": 76
+          }
+        },
+        {
+          "name": "decay-estimates-start",
+          "timestamp": 14500.600000143051,
+          "durationMs": 14143.300000190735,
+          "detail": {
+            "count": 0,
+            "candidates": 0,
+            "cached": 0
+          }
+        },
+        {
+          "name": "decay-estimates-ready",
+          "timestamp": 14500.600000143051,
+          "durationMs": 14143.300000190735,
+          "detail": {
+            "count": 0,
+            "candidates": 0,
+            "cached": 0
+          }
+        }
+      ],
+      "drawnObjects": 378,
+      "coreInteractiveTarget": "failed",
+      "frameTarget": "failed"
+    }
+  ]
+}

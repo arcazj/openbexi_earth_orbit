@@ -53,7 +53,8 @@ const FORBIDDEN_TOP_LEVEL = new Set([
   'tests',
   'tests_browser',
   'tests_python',
-  'validation'
+  'validation',
+  'runtime', '.openbexi-runtime', 'commercial'
 ]);
 export const REQUIRED_STATIC_RUNTIME_PATHS = Object.freeze([
   'index.html',
@@ -477,6 +478,7 @@ function isForbidden(relative) {
   const base = segments.at(-1).toLowerCase();
   return FORBIDDEN_TOP_LEVEL.has(segments[0].toLowerCase())
     || normalized.toLowerCase().startsWith('json/ops/')
+    || normalized.toLowerCase().startsWith('commercial/')
     || base === 'roadmap.md'
     || base.startsWith('prompt')
     || base.includes('.bak-')

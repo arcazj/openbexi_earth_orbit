@@ -1,3 +1,5 @@
 * text=auto eol=lf
 vendor/satellite.js/6.0.2/LICENSE.md -text -diff
 json/satcat.csv -text -diff
+validation/v2.5.0/PYTHON_SGP4_LICENSE.txt -text -diff
+validation/v2.5.0/*.sha256 -text

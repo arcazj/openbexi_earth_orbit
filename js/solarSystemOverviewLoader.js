@@ -228,11 +228,6 @@ export function createSolarSystemOverview(scene, {
     createSelectedHighlight(overview);
     controls?.addEventListener?.('start', () => { overview.fitMode = null; });
     if (initialDate) updateSolarSystemOverview(overview, initialDate);
-    if (autoLoadEphemeris) {
-        loadSolarSystemEphemeris(overview.ephemerisState)
-            .then(() => { overview.forceOrbitUpdate = true; })
-            .catch(() => {});
-    }
     setSolarSystemOverviewOptions(overview, overview.options);
     return overview;
 }
@@ -295,7 +290,15 @@ export function updateSolarSystemOverview(overview, simDate, { clockBoundary = n
 export function setSolarSystemOverviewVisible(overview, visible) {
     if (!overview?.root) return;
     overview.root.visible = !!visible;
-    if (visible && overview.autoLoadEphemeris) loadOrbitGuides(overview.orbitGuideState);
+    if (visible && overview.autoLoadEphemeris) {
+        // Hidden satellite views do not need the 17.5 MB playback table.
+        // The state shares an in-flight request and caches accepted data. Opening
+        // the view again retries a failed request without resetting the clock.
+        loadSolarSystemEphemeris(overview.ephemerisState)
+            .then(() => { overview.forceOrbitUpdate = true; })
+            .catch(() => {});
+        loadOrbitGuides(overview.orbitGuideState);
+    }
 }
 
 export function setSolarSystemOverviewOptions(overview, options = {}) {

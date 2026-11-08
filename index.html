@@ -20,10 +20,18 @@
     </div>
 </div>
 <div id="ob_menu"></div>
-<aside id="dataRefreshStatus" class="data-refresh-banner" role="status" aria-live="polite" aria-atomic="true" hidden>
+<aside id="dataRefreshStatus" class="data-refresh-banner" aria-label="Satellite data status" hidden>
     <span class="data-refresh-indicator" aria-hidden="true"></span>
-    <span id="dataRefreshSummary"></span>
+    <span id="dataRefreshSummary" role="status" aria-live="polite" aria-atomic="true"></span>
     <span id="dataRefreshDates" class="data-refresh-dates"></span>
+    <details id="dataHealthDetails">
+        <summary>Data details</summary>
+        <div class="data-health-panel" role="region" tabindex="0" aria-label="Source freshness and coverage">
+            <h2>Source freshness and coverage</h2>
+            <p>Times use UTC wall time. Simulation time does not change source freshness. Event dates describe admitted records, not every event. Missing elements do not confirm decay.</p>
+            <div id="dataHealthRows"></div>
+        </div>
+    </details>
 </aside>
 <div id="mercatorContainer">
     <div class="mapBackground">
@@ -2800,7 +2808,7 @@
     function updateApiDocsState() {
         const connected = serverConnectionState.state === 'connected';
         const swaggerUiUrl = 'swagger.html';
-        const swaggerMarkdownUrl = 'markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API';
+        const swaggerMarkdownUrl = 'markdown_viewer.html?source=docs/SWAGGER.md&title=Swagger%20API';
         const openApiUrl = `${serverConnectionState.baseUrl}/openapi.json`;
         if (apiDocsStatus) {
             apiDocsStatus.textContent = connected
@@ -5442,6 +5450,7 @@
                 millisecondsPerWarpSecond: simulationClock.timeScale(),
                 cameraPosition: camera?.position.toArray(),
                 cameraTarget: controls?.target.toArray(),
+                cameraTransitionActive: cameraMove !== null,
                 ephemerisWarning: solarSystemOverview?.ephemerisWarning || null
             };
         },

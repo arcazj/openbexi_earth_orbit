@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "clock": "wall-utc",
+  "thresholdHours": { "gp": 48, "tle": 48, "satcat": 48, "tracked": 48, "launch": 48, "decay": 48 },
+  "minimumThresholdHours": 2,
+  "maximumThresholdHours": 8760,
+  "dependencies": { "tracked": ["gp", "satcat"], "launch": ["satcat"], "decay": ["satcat"] }
+}

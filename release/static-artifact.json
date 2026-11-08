@@ -7,9 +7,12 @@
     "markdown_viewer.html",
     "swagger.html",
     "README.md",
-    "RELEASE_NOTES.md",
+    "docs/RELEASE_NOTES.md",
     "LICENSE.md",
-    "SWAGGER.md",
+    "LICENSE",
+    "docs/THIRD_PARTY_NOTICES.md",
+    "data/health/policy.json",
+    "docs/SWAGGER.md",
     "json/decayed/decayed.json",
     "json/decayed/decayed.meta.json",
     "json/gp/GP.json",
@@ -35,25 +38,35 @@
     "textures/planets/saturn.jpg",
     "textures/planets/saturn_ring.png",
     "textures/planets/sun.jpg",
-    "textures/planets/uranus.jpg"
+    "textures/planets/uranus.jpg",
+    "licenses/LEGACY_MIT.txt"
   ],
   "optionalFiles": [],
   "trees": [
     {
       "path": "css",
-      "extensions": [".css"]
+      "extensions": [
+        ".css"
+      ]
     },
     {
       "path": "data/ephemeris",
-      "extensions": [".json"]
+      "extensions": [
+        ".json"
+      ]
     },
     {
       "path": "data/stars",
-      "extensions": [".js"]
+      "extensions": [
+        ".js"
+      ]
     },
     {
       "path": "js",
-      "extensions": [".js", ".mjs"],
+      "extensions": [
+        ".js",
+        ".mjs"
+      ],
       "exclude": [
         "conjunction/fullCatalogScreening.js",
         "domain/catalogLifecycle.js",
@@ -63,11 +76,22 @@
     },
     {
       "path": "json/satellites",
-      "extensions": [".json"]
+      "extensions": [
+        ".json"
+      ]
     },
     {
       "path": "obj",
-      "extensions": [".glb", ".gltf", ".jpg", ".jpeg", ".mtl", ".obj", ".png", ".webp"]
+      "extensions": [
+        ".glb",
+        ".gltf",
+        ".jpg",
+        ".jpeg",
+        ".mtl",
+        ".obj",
+        ".png",
+        ".webp"
+      ]
     }
   ],
   "vendorManifests": [

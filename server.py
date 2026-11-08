@@ -34,6 +34,7 @@ from services.v21.feature_flags import load_server_feature_flag
 from services.v21.http_api import V21HttpRouter
 from services.v21.job_manager import ScreeningJobManager
 from services.v21.job_store import JobStore
+from services.data_health import health_from_root
 
 
 ROOT = Path(__file__).resolve().parent
@@ -53,17 +54,27 @@ STATIC_ROOT_FILE_ALLOWLIST = frozenset(
         "earth_stars_milkyway.html",
         "index.html",
         "license.md",
+        "license",
         "markdown_viewer.html",
         "readme.md",
-        "release_notes.md",
         "swagger.html",
-        "swagger.md",
         "solarsystemoverview.html",
+    }
+)
+STATIC_DOCUMENT_FILE_ALLOWLIST = frozenset(
+    {
+        ("docs", "release_notes.md"),
+        ("docs", "swagger.md"),
+        ("docs", "third_party_notices.md"),
+        ("vendor", "three", "0.184.0", "license"),
+        ("vendor", "satellite.js", "6.0.2", "license.md"),
     }
 )
 STATIC_PREFIX_SUFFIX_ALLOWLIST = (
     (("css",), frozenset({".css"})),
     (("data", "ephemeris"), frozenset({".json"})),
+    (("data", "health"), frozenset({".json"})),
+    (("licenses",), frozenset({".txt"})),
     (("data", "stars"), frozenset({".js"})),
     (("icons",), frozenset({".png", ".svg"})),
     (("js",), frozenset({".js", ".mjs"})),
@@ -132,8 +143,11 @@ SAFE_HOST_HEADER = re.compile(r"^[A-Za-z0-9.\-:\[\]]+$")
 MAX_CONCURRENT_REQUESTS = 8
 DATA_STATUS_HTTP_LOCK = threading.Lock()
 DATA_STATUS_HTTP_CACHE = {}
+DATA_HEALTH_LOG_STATE = {}
 REQUEST_QUEUE_SIZE = 64
+REQUEST_INITIAL_TIMEOUT_SECONDS = 1.0
 REQUEST_SOCKET_TIMEOUT_SECONDS = 30.0
+REQUEST_ADMISSION_TIMEOUT_SECONDS = 2.0
 
 
 class ThreadingHTTPServer(_ThreadingHTTPServer):
@@ -148,11 +162,16 @@ class ThreadingHTTPServer(_ThreadingHTTPServer):
 
     def get_request(self):
         request, client_address = super().get_request()
-        request.settimeout(REQUEST_SOCKET_TIMEOUT_SECONDS)
+        request.settimeout(REQUEST_INITIAL_TIMEOUT_SECONDS)
         return request, client_address
 
     def process_request(self, request, client_address) -> None:
-        if not self._request_slots.acquire(blocking=False):
+        # A browser can open its next module connection before the previous
+        # handler releases its slot. Apply bounded backpressure on the accept
+        # loop instead of resetting an otherwise healthy module-graph request.
+        # There are still at most eight handlers, one admitted socket waiting
+        # here, and the finite kernel listen backlog; no queued worker threads.
+        if not self._request_slots.acquire(timeout=REQUEST_ADMISSION_TIMEOUT_SECONDS):
             request.close()
             return
         try:
@@ -371,6 +390,7 @@ def _data_update_status_snapshot(root: Path | None = None) -> dict[str, object]:
     snapshot.update({key: value for key, value in health.items() if key != "last_error"})
     snapshot["dataset_status"] = _merged_dataset_status(snapshot, health)
     snapshot["last_result"] = _public_data_update_result(snapshot.get("last_result"))
+    snapshot["health"] = health_from_root(root or ROOT, snapshot)
     return snapshot
 
 
@@ -1858,6 +1878,8 @@ def _static_path_parts_are_allowed(parts: tuple[str, ...]) -> bool:
 
     if len(parts) == 1:
         return lowered[0] in STATIC_ROOT_FILE_ALLOWLIST
+    if lowered in STATIC_DOCUMENT_FILE_ALLOWLIST:
+        return True
     if lowered in STATIC_JSON_FILE_ALLOWLIST:
         return True
     if lowered in STATIC_VENDOR_FILE_ALLOWLIST:
@@ -1963,6 +1985,18 @@ def _cached_data_update_status(root):
         if cached and time.monotonic() - cached[0] < 2:
             return cached[1]
         value = _read_only_data_status(root) if os.environ.get("OPENBEXI_READ_ONLY_HOST") == "1" else _data_update_status_snapshot(root)
+        diagnostics = value.get("health", {}).get("diagnostics", [])
+        signature = json.dumps(diagnostics, sort_keys=True)
+        previous = DATA_HEALTH_LOG_STATE.get(key, {})
+        observations = previous.get("observations", 0) + 1
+        if signature != previous.get("signature") or time.monotonic() - previous.get("logged_at", 0) >= 3600:
+            DATA_UPDATE_LOGGER.info("Source health: %s", json.dumps({"schemaVersion": 1,
+                "observedAt": value.get("health", {}).get("observedAt"), "observations": observations,
+                "diagnostics": diagnostics}, ensure_ascii=True))
+            previous = {"signature": signature, "logged_at": time.monotonic()}
+        if len(DATA_HEALTH_LOG_STATE) >= 16 and key not in DATA_HEALTH_LOG_STATE:
+            DATA_HEALTH_LOG_STATE.pop(next(iter(DATA_HEALTH_LOG_STATE)))
+        DATA_HEALTH_LOG_STATE[key] = {**previous, "observations": observations}
         DATA_STATUS_HTTP_CACHE.clear()
         DATA_STATUS_HTTP_CACHE[key] = (time.monotonic(), value)
         return value
@@ -1986,6 +2020,7 @@ def _read_only_data_status(root):
         newest_launch_date=metadata["launch"].get("newest_launch_date"),
         newest_confirmed_decay_date=metadata["decay"].get("newest_confirmed_decay_date"),
         newest_orbital_epoch=metadata["gp"].get("newest_orbital_epoch"))
+    status["health"] = health_from_root(root, status, snapshot=True)
     return status
 
 
@@ -2700,6 +2735,8 @@ class DataUpdateScheduler:
             }
             if checked_at:
                 status["last_checked_at"] = checked_at
+            if isinstance(result, dict):
+                status["next_allowed_at"] = _metadata_timestamp(result.get("next_allowed_at") or {}, name)
             reason = result.get("reasons", {}).get(name) if isinstance(result, dict) else None
             if reason:
                 status["message"] = reason
@@ -3078,10 +3115,10 @@ def _openapi_document(host: str) -> dict[str, object]:
             },
             "/api/data-update-status": {
                 "get": {
-                    "summary": "Get optional scheduled data-update status",
+                    "summary": "Get scheduled update status and versioned wall-UTC source health",
                     "responses": {
                         "200": {
-                            "description": "Data update scheduler status",
+                            "description": "Scheduler status plus health schemaVersion 1: revision, content/check/attempt times, admission and schedule times, freshness threshold, coverage, dependencies and bounded diagnostic codes. See docs/engineering/DATA_HEALTH_V1.md.",
                             "content": {"application/json": {"schema": json_object_schema}},
                         }
                     },
@@ -3264,6 +3301,19 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
         self.data_root_resolver = data_root_resolver
         self._response_status = HTTPStatus.OK
         super().__init__(*args, directory=str(ROOT), **kwargs)
+
+    def handle_one_request(self) -> None:
+        # Browsers speculatively open sockets without sending a request. Free
+        # those slots before the bounded admission wait expires, including
+        # between requests if a handler later enables HTTP keep-alive.
+        self.connection.settimeout(REQUEST_INITIAL_TIMEOUT_SECONDS)
+        super().handle_one_request()
+
+    def parse_request(self) -> bool:
+        # The request line has arrived. Preserve the normal transfer timeout
+        # for headers, bodies and responses instead of penalizing real work.
+        self.connection.settimeout(REQUEST_SOCKET_TIMEOUT_SECONDS)
+        return super().parse_request()
 
     def handle(self) -> None:
         try:
@@ -3545,6 +3595,7 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
                     {
                         "status": "ok",
                         "app": "openbexi_earth_orbit",
+                        "data_health": {"schemaVersion": 1, "url": "/api/data-update-status", "clock": "wall-utc"},
                         "version": APP_VERSION,
                         "release_date": RELEASE_DATE,
                         "candidate_date": CANDIDATE_DATE,

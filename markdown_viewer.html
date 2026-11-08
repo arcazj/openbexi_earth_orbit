@@ -215,9 +215,10 @@
 <script>
     const ALLOWED_MARKDOWN_SOURCES = new Map([
         ['README.md', 'README'],
-        ['RELEASE_NOTES.md', 'Releases History'],
+        ['docs/RELEASE_NOTES.md', 'Releases History'],
         ['LICENSE.md', 'Licenses'],
-        ['SWAGGER.md', 'Swagger API']
+        ['docs/THIRD_PARTY_NOTICES.md', 'Third-party notices'],
+        ['docs/SWAGGER.md', 'Swagger API']
     ]);
 
     const params = new URLSearchParams(window.location.search);
@@ -247,8 +248,23 @@
         const href = String(rawHref).trim();
         if (!href || /^(javascript|data|vbscript|file):/i.test(href)) return '';
         try {
-            const url = new URL(href, window.location.href);
+            const root = new URL('./', window.location.href);
+            const url = new URL(href, new URL(source, root));
             if (!['http:', 'https:', 'mailto:'].includes(url.protocol)) return '';
+            if (url.origin === root.origin && url.pathname.startsWith(root.pathname)) {
+                const relative = decodeURIComponent(url.pathname.slice(root.pathname.length));
+                if (ALLOWED_MARKDOWN_SOURCES.has(relative)) {
+                    const viewer = new URL('markdown_viewer.html', root);
+                    viewer.searchParams.set('source', relative);
+                    viewer.hash = url.hash;
+                    return viewer.href;
+                }
+                // Only the four Help pages and third-party notice are packaged.
+                // Source documentation/evidence remains available in the public repository.
+                if (/\.md$/i.test(relative) || /^(docs|release|validation)\//.test(relative)) {
+                    return `https://github.com/arcazj/openbexi_earth_orbit/blob/master/${relative}${url.hash}`;
+                }
+            }
             return url.href;
         } catch (err) {
             return '';

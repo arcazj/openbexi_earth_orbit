@@ -438,13 +438,16 @@ export function satelliteMenuLoader() {
               <strong>README</strong>
               <span>Open rendered project guide</span>
             </a>
-            <a id="releasesHistoryMarkdownLink" class="help-doc-card" href="markdown_viewer.html?source=RELEASE_NOTES.md&amp;title=Releases%20History" title="Open Releases History Markdown in a separate page" target="_blank" rel="noopener noreferrer">
+            <a id="releasesHistoryMarkdownLink" class="help-doc-card" href="markdown_viewer.html?source=docs/RELEASE_NOTES.md&amp;title=Releases%20History" title="Open Releases History Markdown in a separate page" target="_blank" rel="noopener noreferrer">
               <strong>Releases History</strong>
               <span>Open rendered release prompts</span>
             </a>
             <a id="licenseMarkdownLink" class="help-doc-card" href="LICENSE.md" title="LICENSE.md" target="_blank" rel="noopener noreferrer">
               <strong>Licenses</strong>
-              <span>Open license Markdown page</span>
+              <span>Commercial draft and retained notices</span>
+            </a>
+            <a class="help-doc-card" href="markdown_viewer.html?source=docs/THIRD_PARTY_NOTICES.md&amp;title=Third-party%20notices" target="_blank" rel="noopener noreferrer">
+              <strong>Third-party notices</strong><span>Component and asset terms</span>
             </a>
           </div>
           <div class="api-docs-panel" aria-label="Developer documentation links">
@@ -452,7 +455,7 @@ export function satelliteMenuLoader() {
             <div id="apiDocsStatus" class="menu-helper">Swagger UI opens from local static files. Live OpenAPI JSON requires the optional Python server.</div>
             <div class="api-docs-link-list">
               <a id="swaggerDocsLink" class="api-docs-link" href="swagger.html" target="_blank" rel="noopener noreferrer" title="Open local Swagger UI documentation">Swagger</a>
-              <a id="swaggerMarkdownLink" class="api-docs-link" href="markdown_viewer.html?source=SWAGGER.md&amp;title=Swagger%20API" target="_blank" rel="noopener noreferrer" title="Open local Swagger API Markdown companion">Swagger MD</a>
+              <a id="swaggerMarkdownLink" class="api-docs-link" href="markdown_viewer.html?source=docs/SWAGGER.md&amp;title=Swagger%20API" target="_blank" rel="noopener noreferrer" title="Open local Swagger API Markdown companion">Swagger MD</a>
               <a id="openApiSchemaLink" class="api-docs-link" href="http://127.0.0.1:8000/openapi.json" target="_blank" rel="noopener noreferrer" title="Open live OpenAPI schema from the optional Python server">Live API</a>
             </div>
           </div>

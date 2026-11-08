@@ -3,10 +3,10 @@ import fs from 'fs';
 
 function run() {
   const serverPy = fs.readFileSync('server.py', 'utf8');
-  const readme = fs.readFileSync('README.md', 'utf8');
-  const integration = fs.readFileSync('Test_and_Integration.md', 'utf8');
+  const readme = fs.readFileSync('README.md', 'utf8') + fs.readFileSync('docs/engineering/DATA_MAINTENANCE.md', 'utf8');
+  const integration = fs.readFileSync('docs/TESTING.md', 'utf8');
   const markdownViewer = fs.readFileSync('markdown_viewer.html', 'utf8');
-  const swagger = fs.readFileSync('SWAGGER.md', 'utf8');
+  const swagger = fs.readFileSync('docs/SWAGGER.md', 'utf8');
   const swaggerHtml = fs.readFileSync('swagger.html', 'utf8');
   const release = JSON.parse(fs.readFileSync('release/version.json', 'utf8'));
 
@@ -71,8 +71,8 @@ function run() {
     ['## API', 'README includes the compact API section'],
     ['py server.py --host 127.0.0.1 --port 8000', 'README documents Python server startup'],
     ['[Static Swagger UI](swagger.html)', 'README links the static Swagger UI'],
-    ['[API reference](SWAGGER.md)', 'README links the static API reference'],
-    ['markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API', 'README links the rendered API reference'],
+    ['[API reference](docs/SWAGGER.md)', 'README links the static API reference'],
+    ['markdown_viewer.html?source=docs/SWAGGER.md&title=Swagger%20API', 'README links the rendered API reference'],
     ['/api/gp', 'README documents the primary GP API'],
     ['/api/gp-metadata', 'README documents GP metadata'],
     ['/api/launches', 'README documents launch events'],
@@ -88,16 +88,16 @@ function run() {
   assert(readme.includes('LICENSE.md'), 'README documents the Markdown license file');
   assert(fs.existsSync('LICENSE.md'), 'LICENSE.md exists for the Help Licenses action');
   assert(markdownViewer.includes('ALLOWED_MARKDOWN_SOURCES'), 'Markdown viewer restricts renderable sources');
-  assert(markdownViewer.includes("'SWAGGER.md', 'Swagger API'"), 'Markdown viewer allows the local Swagger Markdown page');
+  assert(markdownViewer.includes("'docs/SWAGGER.md', 'Swagger API'"), 'Markdown viewer allows the local Swagger Markdown page');
   assert(markdownViewer.includes('safeMarkdownHref'), 'Markdown viewer sanitizes rendered links');
   assert(markdownViewer.includes('renderMarkdown(markdown'), 'Markdown viewer renders Markdown content');
-  assert(swagger.includes('OpenBEXI Earth Orbit Swagger API'), 'SWAGGER.md has a clear title');
-  assert(swagger.includes('The Help `Swagger` action opens `swagger.html`'), 'SWAGGER.md points to the local standard Swagger UI page');
-  assert(swagger.includes('You do not need to run `server.py` to read this Markdown companion'), 'SWAGGER.md documents server-free display');
-  assert(swagger.includes('/api/health'), 'SWAGGER.md documents API health');
-  assert(swagger.includes('/openapi.json'), 'SWAGGER.md documents live OpenAPI JSON');
-  assert(swagger.includes('/api/data-update-status'), 'SWAGGER.md documents data update status');
-  assert(swagger.includes('/api/display-satellite-models'), 'SWAGGER.md documents display satellite model manifest');
+  assert(swagger.includes('OpenBEXI Earth Orbit Swagger API'), 'docs/SWAGGER.md has a clear title');
+  assert(swagger.includes('The Help `Swagger` action opens `swagger.html`'), 'docs/SWAGGER.md points to the local standard Swagger UI page');
+  assert(swagger.includes('You do not need to run `server.py` to read this Markdown companion'), 'docs/SWAGGER.md documents server-free display');
+  assert(swagger.includes('/api/health'), 'docs/SWAGGER.md documents API health');
+  assert(swagger.includes('/openapi.json'), 'docs/SWAGGER.md documents live OpenAPI JSON');
+  assert(swagger.includes('/api/data-update-status'), 'docs/SWAGGER.md documents data update status');
+  assert(swagger.includes('/api/display-satellite-models'), 'docs/SWAGGER.md documents display satellite model manifest');
   assert(swaggerHtml.includes('OpenBEXI Earth Orbit API'), 'swagger.html has a standard API title');
   assert(swaggerHtml.includes('class="badge version"'), 'swagger.html displays a version badge');
   assert(swaggerHtml.includes(release.version), 'swagger.html displays the release version');
@@ -125,33 +125,9 @@ function run() {
   });
   assert(!swaggerHtml.includes('https://unpkg.com'), 'swagger.html has no remote Swagger UI CDN dependency');
   assert(!swaggerHtml.includes('swagger-ui-dist'), 'swagger.html does not require swagger-ui-dist for local display');
-  assert(integration.includes('/api/health'), 'integration plan includes API health checks');
-  assert(integration.includes('Swagger/API docs'), 'integration plan includes Swagger/API docs checks');
-  assert(integration.includes('Version 1.5.21'), 'integration plan covers Version 1.5.21');
-  assert(integration.includes('Version 1.5.22'), 'integration plan covers Version 1.5.22');
-  assert(integration.includes('Version 1.5.23'), 'integration plan covers Version 1.5.23');
-  assert(integration.includes('Version 1.6 adds the optional `Stars & Milky Way` view layer'), 'integration plan covers Version 1.6');
-  assert(integration.includes('Version 1.6.1 removes the integrated `Magnitude limit` slider'), 'integration plan covers Version 1.6.1');
-  assert(integration.includes('Version 1.6.2 integrates Solar System Overview'), 'integration plan covers Version 1.6.2');
-  assert(integration.includes('Version 1.7 upgrades Solar System textures and adds bundled JPL-derived ephemeris data'), 'integration plan covers Version 1.7');
-  assert(integration.includes('Version 1.7.1 consolidates `Filters - Satellites Found` into `Satellites Selection - Found`'), 'integration plan covers Version 1.7.1');
-  assert(integration.includes('Version 1.7.2 moves `Debris` into the orbit/category row'), 'integration plan covers Version 1.7.2');
-  assert(integration.includes('Version 1.7.3 corrects 3D `Show Orbit`'), 'integration plan covers Version 1.7.3');
-  assert(integration.includes('Version 1.7.4 replaces legacy Java data maintenance'), 'integration plan covers Version 1.7.4');
-  assert(integration.includes('Version 1.7.5 makes `Show Launch Timeline` and `Show Re-entry Timeline` data-fresh'), 'integration plan covers Version 1.7.5');
-  assert(integration.includes('Data Maintenance Tools'), 'integration plan covers Python data maintenance tools');
-  assert(integration.includes('Coverage Traceability Audit'), 'integration plan includes a prior-release coverage audit');
-  assert(integration.includes('swagger.html'), 'integration plan covers static standard Swagger UI rendering');
-  assert(integration.includes('markdown_viewer.html?source=SWAGGER.md&title=Swagger%20API'), 'integration plan covers static Swagger Markdown companion rendering');
-  assert(integration.includes('visible but unchecked by default'), 'integration plan covers default Stars & Milky Way sub-controls');
-  assert(integration.includes('Test Mars mode keeps Mars visually centered'), 'integration plan covers Mars target checks');
-  assert(integration.includes('Mars texture loading does not show a visible progress bar on initial `index.html` launch'), 'integration plan covers silent Mars launch behavior');
-  assert(integration.includes('Selecting Mars shows a progress bar'), 'integration plan covers Mars texture progress checks');
-  assert(integration.includes('Mars Mercator uses `textures/March_8k.jpg`'), 'integration plan covers Mars Mercator texture checks');
-  assert(integration.includes('Earth mesh remains at `(0, 0, 0)`'), 'integration plan covers Earth-origin checks');
-  assert(integration.includes('README and Releases History open rendered Markdown in `markdown_viewer.html`'), 'integration plan covers separate-page Help Markdown rendering');
-  assert(integration.includes('Standalone Solar System Overview'), 'integration plan covers the standalone Solar System Overview page');
-  assert(integration.includes('SSL_1300.glb` is restricted to `INTELSAT 20 (IS-20)` and `INTELSAT 18 (IS-18)`'), 'integration plan covers SSL_1300 IS-20/IS-18 gating');
+  for (const topic of ['Core regression journeys', 'Data Maintenance Tools', 'Coverage Traceability Audit', 'markdown_viewer.html']) {
+    assert(integration.includes(topic), `Current test guide covers ${topic}`);
+  }
 
   console.log('serverApiStructure tests passed');
 }

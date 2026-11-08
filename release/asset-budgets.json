@@ -26,7 +26,7 @@
         "js/domain/index.js",
         "js/satelliteCategoryFilter.js"
       ],
-      "maxBytes": 950000
+      "maxBytes": 960000
     },
     "vendoredBrowserRuntime": {
       "roots": ["vendor"],

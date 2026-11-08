@@ -154,7 +154,7 @@ assert(
 );
 const outputFiles = filesUnder(outputRoot).map(file => normalized(path.relative(outputRoot, file))).sort();
 const forbiddenTopLevel = new Set([
-  '.git', '.github', 'node_modules', 'release', 'scripts', 'tests', 'tests_browser', 'tests_python', 'validation'
+  '.git', '.github', 'node_modules', 'release', 'scripts', 'tests', 'tests_browser', 'tests_python', 'validation', 'runtime', '.openbexi-runtime', 'commercial'
 ]);
 for (const relative of outputFiles) {
   const segments = relative.split('/');
@@ -170,13 +170,18 @@ for (const forbiddenFile of [
   'package-lock.json',
   'server.py',
   'ROADMAP.md',
-  'PROMPT_IMPLEMENT_ROADMAP_V2.md',
+  'ROADMAP.md',
   'release/version.json',
   'json/ops/example.json',
   'tests/runAll.js'
 ]) {
   assert(!outputFiles.includes(forbiddenFile), `artifact exposes source-only file: ${forbiddenFile}`);
 }
+
+for (const notice of ['LICENSE', 'LICENSE.md', 'docs/THIRD_PARTY_NOTICES.md', 'licenses/LEGACY_MIT.txt', 'data/health/policy.json']) {
+  assert(outputFiles.includes(notice), `artifact retains required 2.5 notice/contract: ${notice}`);
+}
+assert(fs.readFileSync(path.join(outputRoot, 'LICENSE')).equals(fs.readFileSync(path.join(outputRoot, 'LICENSE.md'))));
 
 const artifactManifest = JSON.parse(secondManifestText);
 assert.strictEqual(artifactManifest.version, JSON.parse(fs.readFileSync('release/version.json', 'utf8')).version);

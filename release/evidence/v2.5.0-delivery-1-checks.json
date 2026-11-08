@@ -1,0 +1,680 @@
+{
+  "schemaVersion": 1,
+  "version": "2.5.0",
+  "delivery": 1,
+  "recordedAt": "2026-11-08T06:02:31.934Z",
+  "releaseChannel": "development",
+  "publicationState": "development",
+  "scientificMaturity": "experimental",
+  "safetyClass": "non-operational",
+  "candidateDate": null,
+  "releaseDate": null,
+  "source": {
+    "baseline": "f7724f5918349fbc972958f53b01732b9ea1bc2f",
+    "initialDirtyPaths": [
+      "PROMPT_IMPLEMENT_V2_5_DELIVERY_1.md (untracked user implementation prompt)"
+    ],
+    "branch": "work/v2.5-delivery-1",
+    "implementationCommit": "c2aa79cb3b8b63c7db58b319139789e915e5e500",
+    "implementationTree": "351b81fb572081480a01ecc0f239ddb5d5d0176a",
+    "implementationCommits": [
+      "0bf76436e9aae8b43b29dce3416fd4820bde01fe",
+      "1561853a2f4922a069508c04e8810a9144e65f42",
+      "08c3c31ed5d0e188522b5150f16eeda28ab8d955",
+      "d4129f4f105a21dbecd8df257062233631d603ec",
+      "f22245e5549bd16ef9d1202ab14a74b002537162",
+      "4bbd85d2ffdf52809cc8b8a4b4ec7a75e7b450e9",
+      "c2aa79cb3b8b63c7db58b319139789e915e5e500"
+    ],
+    "finalReviewCommit": "Pinned by REVIEW_MANIFEST.json in the local review package; later evidence-only commit does not change deployed bytes."
+  },
+  "environment": {
+    "node": "v24.19.0",
+    "lockfileVersion": 3,
+    "npmCli": "11.17.0",
+    "python": "3.9.13",
+    "playwright": "1.61.1",
+    "os": "Windows_NT",
+    "release": "10.0.26200",
+    "arch": "x64",
+    "cpu": "Intel(R) Core(TM) i7-9700 CPU @ 3.00GHz",
+    "logicalCpus": 8,
+    "ramBytes": 34155577344,
+    "engines": {
+      "chromium": "149.0.7827.55",
+      "firefox": "151.0 (Playwright build 1532)",
+      "webkit": "26.5 (Playwright build 2311)"
+    },
+    "network": "Unthrottled loopback for tests; provider updates disabled. Reference generation used serial cached JPL queries."
+  },
+  "commands": [
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "log": {
+        "path": "runtime/v25-check-final-verified.log",
+        "bytes": 4430,
+        "sha256": "5373571fcaac8122005bfbe6a657fda4e67bab219788024d9a0c6b06b08eb5da"
+      }
+    },
+    {
+      "command": "npm run test:unit",
+      "status": "passed",
+      "testFiles": 67,
+      "passed": 67,
+      "failed": 0,
+      "log": {
+        "path": "runtime/v25-unit-final-verified.log",
+        "bytes": 13384,
+        "sha256": "ae244592273b95a93fc2046c9846b084974331ad61ae702bf97e82ecc4c01cbb"
+      }
+    },
+    {
+      "command": "npm run test:python",
+      "status": "passed-with-skip",
+      "tests": 198,
+      "passed": 197,
+      "skipped": 1,
+      "failed": 0,
+      "skipReason": "Windows WinError 1314 prevents the directory-symlink escape test; Linux execution remains pending.",
+      "log": {
+        "path": "runtime/v25-python-final-verified.log",
+        "bytes": 192404,
+        "sha256": "115eda449041fc8c44f455719c262ce570c251c6e3b817cf2ee745ecd3adca70"
+      }
+    },
+    {
+      "command": "npm run test:browser -- --reporter=list,json",
+      "status": "passed-with-profile-skips",
+      "startTime": "2026-11-08T05:29:02.465Z",
+      "duration": 1192631.62,
+      "expected": 60,
+      "skipped": 20,
+      "unexpected": 0,
+      "flaky": 0,
+      "perProject": {
+        "chromium": {
+          "passed": 37,
+          "failed": 0,
+          "skipped": 2,
+          "flaky": 0,
+          "retries": 0
+        },
+        "mobile-chromium": {
+          "passed": 7,
+          "failed": 0,
+          "skipped": 18,
+          "flaky": 0,
+          "retries": 0
+        },
+        "firefox": {
+          "passed": 8,
+          "failed": 0,
+          "skipped": 0,
+          "flaky": 0,
+          "retries": 0
+        },
+        "webkit": {
+          "passed": 8,
+          "failed": 0,
+          "skipped": 0,
+          "flaky": 0,
+          "retries": 0
+        }
+      },
+      "retriesConfigured": 0,
+      "providerUpdates": "disabled",
+      "runtime": "fresh isolated runtime/browser-tests-* directory",
+      "sourceCommit": "4bbd85d2ffdf52809cc8b8a4b4ec7a75e7b450e9",
+      "subsequentChange": "Benchmark instrumentation only; application, server and browser-test bytes unchanged.",
+      "log": {
+        "path": "runtime/v25-browser-final-verified.log",
+        "bytes": 960054,
+        "sha256": "2dd26e6c6748129725369e84de1dd23ea5838fdba47803c32ac60bd5b307611c"
+      }
+    },
+    {
+      "command": "npm run test:release",
+      "status": "passed",
+      "testFiles": 1,
+      "passed": 1,
+      "failed": 0,
+      "log": {
+        "path": "runtime/v25-release-accepted.log",
+        "bytes": 430,
+        "sha256": "09b13368032768879e30a64cdf0e88feac72d70c0a8419df88b78f1d6bcb56d2"
+      }
+    },
+    {
+      "command": "npm run audit:dependencies",
+      "status": "passed",
+      "vulnerabilities": 0,
+      "log": {
+        "path": "runtime/v25-audit.log",
+        "bytes": 210,
+        "sha256": "2ea0acf96908d7b96fe7544aa0ddee53b82c9b6e84797bcbd97fe2c0b60a3eed"
+      }
+    },
+    {
+      "command": "npm run sbom -- --output release/evidence/openbexi-node-sbom-2.5.0-development.cdx.json",
+      "status": "passed",
+      "output": {
+        "path": "release/evidence/openbexi-node-sbom-2.5.0-development.cdx.json",
+        "bytes": 6615,
+        "sha256": "1ff27975b99b1fcfcd127409b05afe2c4aa394c6141e681b752f39495f46357c"
+      }
+    },
+    {
+      "command": "npm run inventory:v25",
+      "status": "passed",
+      "output": {
+        "path": "release/evidence/v2.5.0-rights-inventory.json",
+        "bytes": 14308,
+        "sha256": "8cb84bbf6b338eae8f79bb3bbb86919059933763fa67ea8dbf7f65f3e16a9a3e"
+      },
+      "legalApproval": "pending"
+    },
+    {
+      "command": "node scripts/python.mjs tools/rehearse_v25_recovery.py",
+      "status": "passed",
+      "userRuntimeTouched": false,
+      "log": {
+        "path": "runtime/v25-recovery.json",
+        "bytes": 570,
+        "sha256": "ab3df5c4b03c77363ea927a80651a3c6c4f4f6a2ec4e33b0e1c430887e9ad1b2"
+      }
+    },
+    {
+      "command": "npm run benchmark:v25-browser",
+      "status": "completed",
+      "targetResults": [
+        {
+          "catalog": "current",
+          "temperature": "cold",
+          "coreInteractive": "failed",
+          "globeFrame": "failed"
+        },
+        {
+          "catalog": "current",
+          "temperature": "warm",
+          "coreInteractive": "failed",
+          "globeFrame": "failed"
+        },
+        {
+          "catalog": "doubled-synthetic",
+          "temperature": "cold",
+          "coreInteractive": "failed",
+          "globeFrame": "failed"
+        },
+        {
+          "catalog": "doubled-synthetic",
+          "temperature": "warm",
+          "coreInteractive": "failed",
+          "globeFrame": "failed"
+        }
+      ],
+      "log": {
+        "path": "runtime/v25-performance-final.log",
+        "bytes": 87828,
+        "sha256": "eb0949f2225b56dc9a8767ada8dd1064e403a0387d302454d1a0aa0fe287c387"
+      }
+    },
+    {
+      "command": "npm run check:release-tree -- --tree HEAD --require-clean",
+      "status": "passed",
+      "commit": "c2aa79cb3b8b63c7db58b319139789e915e5e500",
+      "log": {
+        "path": "runtime/v25-release-tree-implementation.log",
+        "bytes": 434,
+        "sha256": "0316d8ad4744a18468192cebcc41ebab8aefcf1b059fc833dddcdcbfbccac9e1"
+      }
+    },
+    {
+      "command": "npm run build -- --release-tree HEAD",
+      "status": "passed",
+      "commit": "c2aa79cb3b8b63c7db58b319139789e915e5e500",
+      "log": {
+        "path": "runtime/v25-build-implementation.log",
+        "bytes": 258,
+        "sha256": "20f7e4cc1f9cccbf7e02288f496f21dac78821e343ac7e1aa420c8fe910e2a5a"
+      }
+    },
+    {
+      "command": "npm run rehearse:rollback -- --output runtime/v25-static-rollback.json",
+      "status": "passed",
+      "log": {
+        "path": "runtime/v25-static-rollback.log",
+        "bytes": 530,
+        "sha256": "ecc79faf407d8b0892e32ed22ab992df21af5f4628a192c936d98972e0200d94"
+      }
+    }
+  ],
+  "earlierAttempts": [
+    {
+      "name": "Initial JavaScript run",
+      "counts": {
+        "passed": 64,
+        "failed": 3
+      },
+      "resolution": "Updated stale 2.4 release/SBOM assertions and scoped new notice requirements to 2.5 artifacts.",
+      "log": {
+        "path": "runtime/v25-unit-first.log",
+        "bytes": 17524,
+        "sha256": "7be7f7f85684461f4ad03495675a8cce27fa5e54492498270503061ec1d2e179"
+      }
+    },
+    {
+      "name": "Initial Python run",
+      "counts": {
+        "tests": 190,
+        "errors": 11,
+        "skipped": 1
+      },
+      "resolution": "Corrected scheduler metadata timestamp helper call signature.",
+      "log": {
+        "path": "runtime/v25-python-first.log",
+        "bytes": 212058,
+        "sha256": "33421b6cfa047fd3076775ca64106361963538e592bdc426e84846873046a447"
+      }
+    },
+    {
+      "name": "First core Chromium run",
+      "counts": {
+        "passed": 0,
+        "failed": 2
+      },
+      "resolution": "Corrected default MEO search setup and ephemeris snapshot field expectations.",
+      "log": {
+        "path": "runtime/v25-core-first.log",
+        "bytes": 44944,
+        "sha256": "a7f7bf44c36acae63f15ba1ca5f2b10bbc7c760a1222f9e68c1c0d2227f4aed8"
+      }
+    },
+    {
+      "name": "Second core Chromium run",
+      "counts": {
+        "passed": 1,
+        "failed": 1
+      },
+      "resolution": "Made the health disclosure scroll region focusable.",
+      "log": {
+        "path": "runtime/v25-core-second.log",
+        "bytes": 46770,
+        "sha256": "63b7320a856734db84f2985873e57abd101c0689df316d4a72bee62f0d50015a"
+      }
+    },
+    {
+      "name": "First four-profile core run",
+      "counts": {
+        "passed": 4,
+        "failed": 4
+      },
+      "resolution": "Assert selected display name after selection rather than the original numeric query.",
+      "log": {
+        "path": "runtime/v25-core-engines.log",
+        "bytes": 186466,
+        "sha256": "8d4c25cfb18edbaa61c044ca0598b966f2545041a084304d944dc8f3d8e7edfa"
+      }
+    },
+    {
+      "name": "Second four-profile core run",
+      "counts": {
+        "passed": 7,
+        "failed": 1
+      },
+      "resolution": "Added explicit keyboard scrolling for mobile emulation.",
+      "log": {
+        "path": "runtime/v25-core-final.log",
+        "bytes": 169680,
+        "sha256": "5c0d1085adc6d81dbe6acdb1fda75e1fa9b765786bd4a8b4a66e489718c1482e"
+      }
+    },
+    {
+      "name": "First complete browser run",
+      "counts": {
+        "startTime": "2026-11-08T04:08:33.170Z",
+        "duration": 1279614.192,
+        "expected": 54,
+        "skipped": 20,
+        "unexpected": 5,
+        "flaky": 0
+      },
+      "resolution": "One module startup failure; three camera-animation comparisons and one uninitialized revision watcher. Added bounded server admission, an animation-completion signal, and synchronization with the live revision watcher.",
+      "log": {
+        "path": "runtime/v25-browser-first.log",
+        "bytes": 916490,
+        "sha256": "8cd439f69e083127f761f94a289d8a8b79605f62631d422ab8ae17ddb675e65f"
+      }
+    },
+    {
+      "name": "Second complete browser run",
+      "counts": {
+        "startTime": "2026-11-08T04:40:35.345Z",
+        "duration": 1168562.8739999998,
+        "expected": 59,
+        "skipped": 20,
+        "unexpected": 1,
+        "flaky": 0
+      },
+      "resolution": "All new journeys passed; an older timeline test forced a checkbox click during a 300 ms accordion layout transition. Removed force from both timeline checkbox interactions so Playwright waits for stable layout and hit testing.",
+      "log": {
+        "path": "runtime/v25-browser-second.log",
+        "bytes": 960600,
+        "sha256": "012c6804c6ca0b2df666d09ae7f8320a860569d5bf3aafa0c6c2a2ca670b5897"
+      }
+    },
+    {
+      "name": "Third complete browser run",
+      "counts": {
+        "startTime": "2026-11-08T05:07:03.141Z",
+        "duration": 1261961.243,
+        "expected": 59,
+        "skipped": 20,
+        "unexpected": 1,
+        "flaky": 0
+      },
+      "resolution": "A module startup failure persisted after short-burst admission was fixed. Real sockets reproduced all eight slots held by unused preconnections and a valid request reset after two seconds. Idle connections now have one second to send a request line; actual transfers retain 30 seconds. A fresh complete matrix follows this fix.",
+      "log": {
+        "path": "runtime/v25-browser-third.log",
+        "bytes": 953464,
+        "sha256": "1c496684bc8cbb305e55570860a66a97e213f2acd6296a3084f705ffa8caf71b"
+      }
+    },
+    {
+      "name": "Repeated timeline stability run",
+      "counts": {
+        "startTime": "2026-11-08T05:00:35.279Z",
+        "duration": 188670.41799999998,
+        "expected": 9,
+        "skipped": 3,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "resolution": "Three repeats of each timeline journey, then a separate fresh full-suite run; no retry-only success claim.",
+      "log": {
+        "path": "runtime/v25-timeline-stability.log",
+        "bytes": 154848,
+        "sha256": "14d2877350562f025d6ba0c91f92143e5014ceaa9a6af46778c3b55d1f824c98"
+      }
+    },
+    {
+      "name": "Corrected focused refresh/burst run",
+      "counts": {
+        "passed": 4,
+        "failed": 1
+      },
+      "resolution": "WebKit recomputed a stationary camera component by 2e-15; use a 10-decimal geometry allowance after actual animation completion.",
+      "log": {
+        "path": "runtime/v25-browser-focus-corrected.log",
+        "bytes": 120984,
+        "sha256": "6db67cdf536038733de25994379f9ae4dcf80f5be618557cf54367e017364477"
+      }
+    },
+    {
+      "name": "WebKit final focused rerun",
+      "counts": {
+        "passed": 1,
+        "failed": 0
+      },
+      "resolution": "Passed; followed by a separate fresh complete browser run.",
+      "log": {
+        "path": "runtime/v25-webkit-refresh-final.log",
+        "bytes": 21062,
+        "sha256": "aa0ce2ea965fd3a249a8af14785bac609581a85d2b2193daf7796d6446fad7b1"
+      }
+    },
+    {
+      "name": "Initial performance run",
+      "counts": {
+        "profiles": 4
+      },
+      "resolution": "Superseded: current-catalog server used the private selected pointer; fixtures are now isolated and heap metrics use CDP. Corrected the four-second target to navigation-to-interactive readiness, separate from subsequent click latency, and separated globe-only frame gaps. The private pointer was not modified.",
+      "log": {
+        "path": "runtime/v25-performance.log",
+        "bytes": 81482,
+        "sha256": "016bbe3e37f1e9103384ea71ea10bae99c1b18349eaef4e0d6d67818b5d09193"
+      }
+    },
+    {
+      "name": "Synthetic-clock performance run",
+      "counts": {
+        "profiles": 4,
+        "status": "superseded; metrics not accepted"
+      },
+      "resolution": "Playwright Clock wrapped performance and animation APIs and retained cumulative timestamps across navigations. Replaced it with a Date-only fixed-epoch fixture, leaving native timers/performance/animation intact, and bound native readiness marks against independent Node elapsed time. All four measurements were rerun.",
+      "log": {
+        "path": "runtime/v25-performance-clock-superseded.log",
+        "bytes": 83924,
+        "sha256": "2264e0202326b0735d816593f2c38fb6348321646af89fbdde332e96410aeac0"
+      }
+    },
+    {
+      "name": "Startup burst diagnosis before fix",
+      "counts": {
+        "booted": 1,
+        "failed": 2
+      },
+      "resolution": "Three tabs plus a status request reproduced module socket resets while all eight handlers were occupied.",
+      "log": {
+        "path": "runtime/v25-startup-burst-first.log",
+        "bytes": 18890,
+        "sha256": "db179cff23abb6fc693c8dbc264b317d8bd5498209cb8a105dfe3d6df2e64a84"
+      }
+    },
+    {
+      "name": "Startup burst diagnosis after fix",
+      "counts": {
+        "booted": 3,
+        "failed": 0
+      },
+      "resolution": "At most two seconds of admission backpressure; still eight handlers, a finite backlog and bounded idle sockets.",
+      "log": {
+        "path": "runtime/v25-startup-burst-fixed.log",
+        "bytes": 482,
+        "sha256": "39a42b656b502c8a2a33d4f3ec04ad867a2d5439c7790537e436e90f2d171813"
+      }
+    },
+    {
+      "name": "Idle preconnection regression before fix",
+      "counts": {
+        "tests": 1,
+        "errors": 1
+      },
+      "resolution": "Eight idle real sockets caused the next valid request to receive ConnectionResetError; reproduced before changing the timeout.",
+      "log": {
+        "path": "runtime/v25-idle-capacity-before.log",
+        "bytes": 3592,
+        "sha256": "63e2d81b4b64eb4475a04f49d4fffe936f28ca564b3d63a0bcd558d7223b81c5"
+      }
+    },
+    {
+      "name": "Idle preconnection and capacity tests after fix",
+      "counts": {
+        "tests": 6,
+        "passed": 6
+      },
+      "resolution": "Idle sockets release capacity before admission expires; real requests keep the 30-second transfer timeout, with at most eight handlers.",
+      "log": {
+        "path": "runtime/v25-idle-capacity-after.log",
+        "bytes": 2440,
+        "sha256": "53bd910fd2ac0ce248516df192893941beaeb9cc3e6142758f18da5c8af5aee4"
+      }
+    },
+    {
+      "name": "Focused Python capacity/health checks",
+      "counts": {
+        "tests": 35,
+        "passed": 35,
+        "shellExitCode": 1
+      },
+      "resolution": "All unittest cases passed; Windows PowerShell classified redirected stderr as NativeCommandError. The final npm Python suite separately exited 0.",
+      "log": {
+        "path": "runtime/v25-server-health-corrected.log",
+        "bytes": 24932,
+        "sha256": "bab54e5d576176d2ebf537e04b5bb70b7007ca2f26024957c1d7d0aaf39b6838"
+      }
+    }
+  ],
+  "scientificAcceptance": {
+    "status": "passed",
+    "samples": {
+      "horizons": 544,
+      "sgp4": 48
+    },
+    "corpus": {
+      "path": "validation/v2.5.0/manifest.json",
+      "bytes": 1798,
+      "sha256": "002317298fd2abdb9e54ad19add097b81d6eec75b81edc1dfb312807fac96b42"
+    },
+    "results": {
+      "path": "release/evidence/v2.5.0-scientific-results.json",
+      "bytes": 6134,
+      "sha256": "90f03e7c24425bf84dfa2a6b15896f4f676080500e6e6f6052709ff9d5119e4f"
+    },
+    "sgp4MaxPositionKm": 7.159635644354476e-10,
+    "sgp4MaxVelocityKmS": 5.0218419990860144e-14,
+    "note": "Unchanged limits; sampled interpolation/implementation checks, not global guarantees or independent physical-model or human approval."
+  },
+  "artifact": {
+    "sourceCommit": "c2aa79cb3b8b63c7db58b319139789e915e5e500",
+    "sourceTree": "351b81fb572081480a01ecc0f239ddb5d5d0176a",
+    "manifest": {
+      "path": "dist/asset-manifest.json",
+      "bytes": 26785,
+      "sha256": "a1686e2ce5b7b6e7e94e6c741afda57193f52c0cd23954635ab00dd36e472d6e"
+    },
+    "fileCount": 156,
+    "totalBytes": 295050503,
+    "publicationApproval": "absent"
+  },
+  "performance": {
+    "report": {
+      "path": "release/evidence/v2.5.0-browser-performance.json",
+      "bytes": 19525,
+      "sha256": "9353c07fb77d0c45208e8686bcd2c98eb3f3b4c5ef9f93ac6d8d30afc72a1a75"
+    },
+    "softwareProfile": true,
+    "calculationEpochUtc": "2026-10-07T10:41:14.682Z",
+    "startupDefinition": "Native browser navigation-to-default-meo-visible mark; coreInteractiveMs separately records first-interactive-ui for the four-second readiness target. Both are bounded against independent Node elapsed time.",
+    "interactionDefinition": "Open the Data details disclosure after both readiness marks; separate click latency, not the four-second startup target.",
+    "clockDefinition": "Only Date is fixed to the source epoch; browser performance, timers and animation callbacks are native. Playwright Clock must not be used for these measurements.",
+    "clockReference": "https://playwright.dev/docs/clock",
+    "cacheDefinition": "Cold disables HTTP caching; OS file cache is uncontrolled. Doubled-catalog routes disable HTTP caching for both runs.",
+    "memoryScope": "Default MEO with globe/Mercator switches; Solar System memory and long-duration retention remain unqualified.",
+    "catalogFixture": {
+      "path": "runtime/v25-doubled-catalog/profile.json",
+      "bytes": 1464,
+      "sha256": "50bb77d496ff0c0119b1b8ddad6276c344f7ca60ff65149a3d8cf699e122f0c8"
+    },
+    "fixtureInputs": [
+      {
+        "path": "json/gp/GP.json",
+        "bytes": 27166852,
+        "sha256": "1339c9ce13d34802952a5b0eab4483d7123ea17ae65eb53bc79d90e43f0191d3"
+      },
+      {
+        "path": "json/gp/GP.meta.json",
+        "bytes": 3449,
+        "sha256": "fe4c3fecdcc465f4a0899befbf44d4e7f718572e344628086c105d8861364bfa"
+      },
+      {
+        "path": "json/satcat.csv",
+        "bytes": 6795531,
+        "sha256": "7957672ce4b7a23f85c31765be032086858683a7f88d30bfc2aa4b4c8888ccc6"
+      },
+      {
+        "path": "json/satcat.meta.json",
+        "bytes": 892,
+        "sha256": "93d9e8292258b2ea1064d2cb86da51637f994e6418dee67d4869ac582fee05c6"
+      }
+    ],
+    "representativeGpuQualification": "pending",
+    "longDurationQualification": "pending; four bounded 60-second samples only"
+  },
+  "recovery": {
+    "report": {
+      "path": "release/evidence/v2.5.0-isolated-recovery.json",
+      "bytes": 1475,
+      "sha256": "9f4f96ad73378d68ed91cb8324cc1789f3ae9bc3c8fa173a6820e2d33305f026"
+    },
+    "userRuntimeTouched": false,
+    "hostedRecovery": "pending"
+  },
+  "accessibility": {
+    "automatedKeyboardAndAxe": "passed in all four browser profiles for the changed health controls",
+    "visualReview": "Desktop and narrow viewport screenshots inspected; readable details, wrapped revisions and visible focus outline.",
+    "screenshots": [
+      {
+        "path": "runtime/v25-health-chromium.png",
+        "bytes": 192868,
+        "sha256": "d19bac3bbc6ddba57c4526845f49c84a151897de478bae0cab312cfd5e3d2760"
+      },
+      {
+        "path": "runtime/v25-health-mobile-chromium.png",
+        "bytes": 231520,
+        "sha256": "8c57ce39561e20ae500211df4f39686f3a6d3d41fa8758eecfa2f4da8173a5c3"
+      },
+      {
+        "path": "runtime/v25-health-firefox.png",
+        "bytes": 188622,
+        "sha256": "f83154291fab11c3b3fc82c6162b95fd01655298f2855a0d4c3a342784934825"
+      },
+      {
+        "path": "runtime/v25-health-webkit.png",
+        "bytes": 594139,
+        "sha256": "b60e9aab2da87c91857ff05cf5417abc82b28d06d51077863f60dea5d6ea1fc4"
+      }
+    ],
+    "interactiveWindowsKeyboard": {
+      "status": "pending",
+      "reason": "Computer Use stopped: it could not determine the current Windows browser URL confidently enough to enforce policy. No further UI inputs were issued."
+    },
+    "applicationWideWcag22AA": "pending; no conformance claim"
+  },
+  "licensing": {
+    "status": "pending owner and legal review",
+    "proposedModel": "Separate written proprietary commercial agreement for new owner-controlled 2.5 material; retained MIT permissions and third-party terms preserved.",
+    "notice": {
+      "path": "LICENSE",
+      "bytes": 2691,
+      "sha256": "7e41cd57a9f68e335eee519f0a59f739ff635802e84602a30dbd9ce9d55d468e"
+    },
+    "draft": {
+      "path": "commercial/COMMERCIAL_AGREEMENT_DRAFT.md",
+      "bytes": 3180,
+      "sha256": "b2a328cae89781c9dd5206e7ec90c06ea051e215adaa1c32eb64792f0a3c514d"
+    },
+    "inventory": {
+      "path": "release/evidence/v2.5.0-rights-inventory.json",
+      "bytes": 14308,
+      "sha256": "8cb84bbf6b338eae8f79bb3bbb86919059933763fa67ea8dbf7f65f3e16a9a3e"
+    },
+    "decisions": [
+      "Licensor legal identity and contact",
+      "Commercial model and ownership/contributor authority",
+      "Exact-scope data and visual-asset redistribution rights",
+      "Historical AGPL reference-fixture applicability/compatibility",
+      "Agreement terms and legal approval"
+    ]
+  },
+  "pendingQualification": [
+    "Four-second startup and 33 ms globe-frame targets: see actual per-run failures in the software-rendering report; no representative-device qualification",
+    "Linux execution and Windows remote CI (configured, not dispatched)",
+    "Windows symlink-privilege test",
+    "Interactive keyboard inspection blocked by tooling",
+    "Representative GPU and physical Safari/iOS/device testing",
+    "Independent scientific and security review",
+    "Application-wide accessibility assessment",
+    "Hosted TLS/identity, operational pilot and service commitments outside Delivery 1"
+  ],
+  "publication": {
+    "authorized": false,
+    "performed": false,
+    "destination": null,
+    "actions": [],
+    "blockers": [
+      "Outstanding licensing and rights decisions",
+      "No exact destination/commit/artifact publication approval"
+    ]
+  }
+}

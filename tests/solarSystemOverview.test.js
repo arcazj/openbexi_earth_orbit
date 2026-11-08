@@ -51,7 +51,7 @@ function run() {
   const loader = fs.readFileSync('js/solarSystemOverviewLoader.js', 'utf8');
   const standalone = fs.readFileSync('js/solarSystemStandalone.js', 'utf8');
   const readme = fs.readFileSync('README.md', 'utf8');
-  const integration = fs.readFileSync('Test_and_Integration.md', 'utf8');
+  const integration = fs.readFileSync('docs/TESTING.md', 'utf8');
 
   assert(html.includes('<title>OpenBEXI Solar System Overview</title>'), 'SolarSystemOverview.html has the expected title');
   assert(html.includes('"three": "./vendor/three/0.184.0/build/three.module.js"'), 'SolarSystemOverview uses Three.js 0.184.0');
@@ -195,18 +195,18 @@ function run() {
 
   const release = JSON.parse(fs.readFileSync('release/version.json', 'utf8'));
   assert(indexHtml.includes('const versionNumber = APP_VERSION;'), 'index.html uses authoritative browser release metadata');
-  assert.strictEqual(release.version, '2.4.0', 'Solar System release is Version 2.4.0');
+  assert.strictEqual(release.version, '2.5.0', 'Solar System remains available in Version 2.5.0');
 
   assert(
     readme.includes('bounded JPL-derived Solar System ephemeris'),
     'README lists the current bounded Solar System ephemeris feature'
   );
   assert(
-    readme.includes('[Solar System Ephemeris](data/ephemeris/README.md)'),
+    readme.includes('[Solar System Ephemeris](docs/science/SOLAR_SYSTEM.md)'),
     'README links the Solar System ephemeris documentation'
   );
-  assert(integration.includes('### Standalone Solar System Overview'), 'integration plan documents standalone Solar System Overview checks');
-  assert(integration.includes('Solar System Overview Integration'), 'integration plan documents integrated Solar System Overview checks');
+  assert(integration.includes('Solar System precise/educational modes'), 'integration plan documents standalone Solar System Overview checks');
+  assert(integration.includes('bounded playback'), 'integration plan documents integrated Solar System Overview checks');
   assert(indexHtml.includes('activateMoonFromSolarSystemSelection'), 'integrated Solar System maps Moon selection to the existing Moon mode');
   assert(fs.readFileSync('PROMPT_History.md', 'utf8').includes('Version 1.6.2'), 'prompt history records SolarSystemOverview as a release integration');
   assert(fs.readFileSync('PROMPT_History.md', 'utf8').includes('Version 1.7'), 'prompt history records the ephemeris release');

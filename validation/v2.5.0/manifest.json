@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "corpusVersion": "2.5.0",
+  "releaseVersion": "2.5.0",
+  "publicationState": "development",
+  "scientificMaturity": "experimental",
+  "safetyClass": "non-operational",
+  "independentReview": "pending",
+  "acceptanceRound": 1,
+  "samples": {
+    "playback": 288,
+    "guides": 256,
+    "sgp4": 48
+  },
+  "thresholds": {
+    "playbackPositionKm": 0.1,
+    "playbackVelocityKmS": 0.0001,
+    "guidePositionKm": 100,
+    "sgp4PositionKm": 0.005,
+    "sgp4VelocityKmS": 0.000005
+  },
+  "samplingPolicy": "32 stratified off-grid epochs/body/purpose; original guide midpoint tuning samples excluded; no acceptance-driven tuning was needed.",
+  "sourceRights": {
+    "horizons": "NASA/JPL attribution, exact-scope commercial redistribution review pending",
+    "sgp4": "MIT implementation; original synthetic OMM inputs",
+    "historicalReferences": "Retained unchanged; upstream AGPL applicability remains pending"
+  },
+  "artifacts": [
+    {
+      "path": "horizons-round-1.json",
+      "bytes": 230004,
+      "sha256": "fd6b078606f4bbd240f9bc41684bb632f6d88157e97130b38d52bc4d5d5fb41a"
+    },
+    {
+      "path": "sgp4-holdouts.json",
+      "bytes": 20303,
+      "sha256": "c75e230a2e1d69276d526217e2605e6935252c35b1ba3aa2a7be441368d53529"
+    },
+    {
+      "path": "PYTHON_SGP4_LICENSE.txt",
+      "bytes": 1094,
+      "sha256": "bef1d2d6e24eca3db2345fadcbd0f454d1b9a2632f266d97c20fd0db4a813ad5"
+    }
+  ],
+  "generators": [
+    {
+      "path": "tools/generate_v25_acceptance.py",
+      "sha256": "1f47aa2881790ba8a05c19b6bfcb1a0999924f0fd2f25c85edaed093a9d3c7c8"
+    },
+    {
+      "path": "tools/generate_v25_sgp4.py",
+      "sha256": "376a01f4852e92cd4873a6b507ea727402cd0ec3c08256e5e41767a80d2f1502"
+    }
+  ],
+  "command": "node tests/v25ScientificAcceptance.test.js"
+}

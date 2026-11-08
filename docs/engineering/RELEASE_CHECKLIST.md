@@ -1,38 +1,14 @@
-# v2.0 Release Checklist
+# Release checklist
 
-This checklist remains the independent v2.0 preview promotion gate. Authorization and implementation of later development versions did not mark any unchecked v2.0 item complete. Version 2.1 and Version 2.2 evidence are tracked separately in their dedicated checklists.
+Current target: **2.5.0 development prerelease**, experimental and non-operational. Public source/commercial model is owner-authorized in [the publication record](../../release/publication-v2.5.json). Qualification and deployment remain distinct.
 
-## Evidence
+1. Verify version/feature metadata, final license/contact, retained upstream notices and concise current docs. Keep frozen corpus bytes unchanged.
+2. Inspect every incoming commit for credentials, private agreements, internal prompts and unintended runtime data. Build the public history from v2.4; never push the private review branch or bundle.
+3. Run `npm run check`, JavaScript/Python/browser suites, dependency audit and release tests. Record failures and profile/privilege skips honestly. Wait for final Windows/Linux and browser CI.
+4. Commit the final tree and run `npm run check:release-tree -- --tree HEAD --require-clean`. Build from that exact commit using the strict release builder, verify asset hashes/notices, and rehearse static rollback.
+5. Push only the sanitized source ref. Fast-forward master without overwriting concurrent work, then create annotated v2.5 at the verified commit. Publish a GitHub prerelease with the exact commit, results and known limits. Never upload the private review package.
+6. Read back master, tag, release, visibility and CI. Delete only branches whose work is merged or safely retained in a verified backup. Keep unmerged dependency PR branches.
 
-- [x] The retained v2.0 candidate evidence and release history identify its preview/Experimental/non-operational state. `release/version.json` has since advanced to Version 2.2 development and does not represent a v2.0 promotion.
-- [x] Package, browser, server, API-documentation, and feature-flag drift is enforced by `npm run check:version`.
-- [x] Scope, known limitations, assumptions, and unsupported uses are published in `docs/science/EXPERIMENTAL_CONJUNCTION_SCREENING_V2.md`.
-- [ ] CI passes from a clean clone using only locked dependencies.
-- [ ] Machine-readable unit, Python API/security, browser, accessibility, and scientific validation reports are archived and bound to the exact source, lockfile, catalog, and artifact hashes. `release/evidence/v2.0-local-verification.md` is a local narrative summary only.
-- [x] Validation corpus version, source package checksum, fixture checksums, expected values, and tolerances are recorded in `validation/v2.0.0/manifest.json`.
-- [ ] An independent reviewer approves the validation corpus and scientific evidence.
-- [ ] Performance budgets pass on the named reference profiles.
-- [x] `npm run audit:dependencies` passes locally and the CycloneDX SBOM is archived under `release/evidence/`.
-- [ ] Data and visual assets have source, license, attribution, and redistribution records.
-- [x] Domain request/result/data schemas and v2.0 compatibility boundaries are versioned and documented.
-- [x] Exact browser dependencies are vendored with integrity manifests, and the curated static artifact has deterministic checksum and negative-exposure tests.
-- [x] Local browser startup prefers vendored dependencies, makes zero routine CDN requests, and shows a tested retry state when the module graph fails.
+Current limitations: software-rendered startup/frame targets fail; physical GPU/Safari/iOS, interactive Windows keyboard, full accessibility, independent scientific/security approval and comprehensive legacy asset provenance remain open. Passing release automation does not remove these limits.
 
-Current gate state: **local v2.0 preview verification retained; external and human promotion gates open**. Separate human authorizations allowed Version 2.1 and the scoped Version 2.2 development work without marking these v2.0 items complete. Checked local artifacts do not prove clean external CI, `Validated` maturity, public/stable promotion, or operational use. Unchecked evidence remains release-blocking unless a named owner records a waiver.
-
-## Security and Deployment
-
-- [x] The local server and generated static artifact enforce explicit runtime allowlists with negative-exposure regression tests.
-- [ ] The threat model and allowlists receive independent security review for the target deployment.
-- [ ] Public hosting uses an immutable artifact, TLS, explicit CORS, security headers, and no repository metadata.
-- [ ] Secrets scan is clean and deployment credentials are external.
-- [ ] Health/readiness reports data age and last-known-good state without leaking internal errors.
-- [ ] Monitoring, ownership, and incident contacts are active.
-
-## Rollout and Rollback
-
-- [ ] Previous application and data artifacts remain available by checksum.
-- [ ] Migration is backward compatible or has a rehearsed downgrade procedure.
-- [ ] Canary scope, observation window, abort thresholds, and decision owner are recorded.
-- [ ] Rollback procedure in `ROLLBACK.md` has been rehearsed in the target environment.
-- [ ] Post-release verification and review dates are scheduled.
+Pages is manual and has not been authorized by this publication. Use [Pages deployment](PAGES_DEPLOYMENT.md) only for a separately authorized deployment. Source release and a GitHub prerelease do not mark scientific maturity validated.

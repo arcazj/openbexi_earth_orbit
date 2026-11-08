@@ -126,11 +126,18 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
 }
 
 try {
-  if (!await serverAvailable()) {
+  const available = await serverAvailable();
+  if (available && process.env.OPENBEXI_EXTERNAL_TEST_SERVER !== '1') {
+    throw new Error(`Port ${PORT} is already serving the app. Choose OPENBEXI_TEST_PORT for an isolated test server, or explicitly set OPENBEXI_EXTERNAL_TEST_SERVER=1 to test that server.`);
+  }
+  if (!available) {
     const python = resolvePython();
+    const runtimeBase = path.join(ROOT, 'runtime');
+    fs.mkdirSync(runtimeBase, { recursive: true });
+    const testRuntime = fs.mkdtempSync(path.join(runtimeBase, 'browser-tests-'));
     managedServer = spawn(
       python.command,
-      [...python.prefix, 'server.py', '--host', '127.0.0.1', '--port', String(PORT), '--no-data-update'],
+      [...python.prefix, 'server.py', '--host', '127.0.0.1', '--port', String(PORT), '--no-data-update', '--runtime-dir', path.relative(ROOT, testRuntime)],
       {
         cwd: ROOT,
         stdio: 'inherit',

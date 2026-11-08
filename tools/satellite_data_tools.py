@@ -5360,6 +5360,7 @@ def scheduled_data_update_plan(
         reasons["tracked"] = "validated GP/SATCAT inputs are unchanged"
     state = ProviderQueries.read(provider_state_path or root_path / "runtime" / "data-plane" / "provider-queries.json")
     retry_delays = []
+    admission_times = {}
     cached_sources = []
     cached_tle = state["urls"].get(source_urls_for_mode("incremental")[0], {})
     tle_meta = load_json(root_path / TLE_META_RELATIVE_PATH, {})
@@ -5382,6 +5383,7 @@ def scheduled_data_update_plan(
             urls = gp_source_urls_for_mode("incremental") if name == "gp" else [CELESTRAK_SATCAT_CSV_URL]
             deferred = [next_allowed_at(state, url) for url in urls]
             deferred = [value for value in deferred if value and parse_iso_datetime(value) and parse_iso_datetime(value) > now]
+            admission_times[name] = None if state.get("blocked") else max(deferred, default=isoformat_utc(now))
             core_paths = {"gp": (GP_RELATIVE_PATH, GP_META_RELATIVE_PATH), "tle": (TLE_RELATIVE_PATH, TLE_META_RELATIVE_PATH),
                           "satcat": (SATCAT_RELATIVE_PATH, SATCAT_META_RELATIVE_PATH)}
             meta = load_json(root_path / core_paths[name][1], {})
@@ -5408,6 +5410,7 @@ def scheduled_data_update_plan(
         "provider_blocked": bool(state.get("blocked")), "provider_error": state.get("error"),
         "next_check_in_seconds": min(retry_delays) if retry_delays else None,
         "cached_sources": cached_sources,
+        "next_allowed_at": admission_times,
     }
 
 
@@ -5498,6 +5501,7 @@ def maybe_update_satellite_data(
         reconciliation_due = dict(plan["reconciliation"])
         results["due"] = {**due, "reconciliation": reconciliation_due}
         results["reasons"] = plan["reasons"]
+        results["next_allowed_at"] = plan.get("next_allowed_at", {})
         results["provider_blocked"] = plan["provider_blocked"]
         results["provider_error"] = plan["provider_error"]
         results["next_check_in_seconds"] = plan.get("next_check_in_seconds")
@@ -5697,6 +5701,11 @@ def maybe_update_satellite_data(
             for item in nested_results
         )
         results["provider_blocked"] = bool(fetcher.state.get("blocked"))
+        results["next_allowed_at"] = {
+            name: None if results["provider_blocked"] else max(
+                (value for url in urls if (value := next_allowed_at(fetcher.state, url))), default=None)
+            for name, urls in {"gp": gp_source_urls_for_mode("incremental"), "satcat": [CELESTRAK_SATCAT_CSV_URL]}.items()
+        }
         results["provider_error"] = fetcher.state.get("error")
         if results["provider_blocked"]:
             results["degraded"] = True

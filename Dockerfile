@@ -18,6 +18,7 @@ COPY --from=build /app/dist/ /usr/share/nginx/html/
 WORKDIR /app
 COPY server.py /app/server.py
 COPY services /app/services
+COPY data/health /app/data/health
 COPY tools /app/tools
 COPY release/version.json /app/release/version.json
 COPY --from=build /app/dist/json/ /app/json/

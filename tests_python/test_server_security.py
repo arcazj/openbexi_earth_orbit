@@ -2,6 +2,7 @@ import contextlib
 import hashlib
 import http.client
 import json
+import socket
 import tempfile
 import threading
 import unittest
@@ -14,10 +15,15 @@ import server
 HELP_ROOT_PATHS = (
     "/markdown_viewer.html",
     "/README.md",
-    "/RELEASE_NOTES.md",
+    "/docs/RELEASE_NOTES.md",
     "/LICENSE.md",
+    "/LICENSE",
+    "/docs/THIRD_PARTY_NOTICES.md",
+    "/licenses/LEGACY_MIT.txt",
+    "/vendor/three/0.184.0/LICENSE",
+    "/vendor/satellite.js/6.0.2/LICENSE.md",
     "/swagger.html",
-    "/SWAGGER.md",
+    "/docs/SWAGGER.md",
 )
 SUPPORTED_STANDALONE_PATHS = (
     "/display_satellite.html",
@@ -38,12 +44,10 @@ VENDORED_RUNTIME_PATHS = (
     "/vendor/three/0.184.0/examples/jsm/utils/SkeletonUtils.js",
 )
 DENIED_VENDOR_PATHS = (
-    "/vendor/satellite.js/6.0.2/LICENSE.md",
     "/vendor/satellite.js/6.0.2/manifest.json",
     "/vendor/satellite.js/6.0.2/unlisted.js",
     "/vendor/satellite.js/6.0.1/satellite.es.js",
     "/vendor/other/6.0.2/satellite.es.js",
-    "/vendor/three/0.184.0/LICENSE",
     "/vendor/three/0.184.0/manifest.json",
     "/vendor/three/0.184.0/build/three.min.js",
     "/vendor/three/0.184.0/examples/jsm/loaders/FBXLoader.js",
@@ -113,7 +117,8 @@ class StaticPathPolicyTests(unittest.TestCase):
             "/tests/runAll.js",
             "/target/classes/Example.class",
             "/ROADMAP.md",
-            "/PROMPT_IMPLEMENT_ROADMAP_V2.md",
+            "/docs/engineering/THREAT_MODEL.md",
+            "/docs/governance/LICENSING_TRANSITION_V2_5.md",
             "/PROMPT_History.md",
             "/SatOps.html",
             "/openbexi_Earth_Orbit_logo.png",
@@ -144,18 +149,18 @@ class StaticPathPolicyTests(unittest.TestCase):
 
         for href in (
             "markdown_viewer.html?source=README.md&amp;title=README",
-            "markdown_viewer.html?source=RELEASE_NOTES.md&amp;title=Releases%20History",
+            "markdown_viewer.html?source=docs/RELEASE_NOTES.md&amp;title=Releases%20History",
             'href="LICENSE.md"',
             'href="swagger.html"',
-            "markdown_viewer.html?source=SWAGGER.md&amp;title=Swagger%20API",
+            "markdown_viewer.html?source=docs/SWAGGER.md&amp;title=Swagger%20API",
         ):
             with self.subTest(href=href):
                 self.assertIn(href, menu_source)
 
-        for source in ("README.md", "RELEASE_NOTES.md", "LICENSE.md", "SWAGGER.md"):
+        for source in ("README.md", "docs/RELEASE_NOTES.md", "LICENSE.md", "docs/SWAGGER.md"):
             with self.subTest(source=source):
                 self.assertIn(f"['{source}'", viewer_source)
-        for denied_source in ("ROADMAP.md", "PROMPT_History.md", "PROMPT_IMPLEMENT_ROADMAP_V2.md"):
+        for denied_source in ("ROADMAP.md", "PROMPT_History.md", "ROADMAP.md"):
             with self.subTest(denied_source=denied_source):
                 self.assertNotIn(f"['{denied_source}'", viewer_source)
 
@@ -305,6 +310,60 @@ class StaticPathPolicyTests(unittest.TestCase):
 
 
 class HttpServerCapacityTests(unittest.TestCase):
+    def test_idle_preconnections_release_capacity_for_a_real_request(self):
+        capacity = server.MAX_CONCURRENT_REQUESTS
+        occupied = threading.Event()
+        lock = threading.Lock()
+        counts = {"active": 0, "peak": 0}
+        active_timeouts = []
+
+        class ObservedHandler(server.OpenBexiHandler):
+            def handle(self):
+                with lock:
+                    counts["active"] += 1
+                    counts["peak"] = max(counts["peak"], counts["active"])
+                    if counts["active"] == capacity:
+                        occupied.set()
+                try:
+                    super().handle()
+                finally:
+                    with lock:
+                        counts["active"] -= 1
+
+            def do_GET(self):
+                active_timeouts.append(self.connection.gettimeout())
+                self.send_response(204)
+                self.end_headers()
+
+            def log_message(self, *_):
+                pass
+
+        httpd = server.ThreadingHTTPServer(("127.0.0.1", 0), ObservedHandler)
+        worker = threading.Thread(target=httpd.serve_forever, daemon=True)
+        idle = []
+        connection = http.client.HTTPConnection(*httpd.server_address, timeout=5)
+        worker.start()
+        try:
+            # Real unused TCP connections fill every slot, as browser
+            # preconnections can do. A subsequent valid request must survive.
+            for _ in range(capacity):
+                idle.append(socket.create_connection(httpd.server_address, timeout=5))
+            self.assertTrue(occupied.wait(5), "idle connections did not occupy all slots")
+            connection.request("GET", "/api/health")
+            response = connection.getresponse()
+            self.assertEqual(response.status, 204)
+            response.read()
+            self.assertEqual(active_timeouts, [server.REQUEST_SOCKET_TIMEOUT_SECONDS])
+            self.assertEqual(counts["peak"], capacity)
+        finally:
+            connection.close()
+            for connection in idle:
+                connection.close()
+            httpd.shutdown()
+            httpd.server_close()
+            worker.join(5)
+        self.assertFalse(worker.is_alive())
+
     def test_disconnected_status_client_does_not_receive_a_second_error_response(self):
         for error in (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
             with self.subTest(error=error.__name__):
@@ -368,7 +427,7 @@ class HttpServerCapacityTests(unittest.TestCase):
             server._ThreadingHTTPServer,
             "process_request",
             side_effect=lambda request, address: accepted.append((request, address)),
-        ):
+        ), mock.patch.object(server, "REQUEST_ADMISSION_TIMEOUT_SECONDS", 0.01):
             for index, request in enumerate(requests):
                 httpd.process_request(request, ("127.0.0.1", index))
         self.assertEqual(len(accepted), 2)
@@ -387,6 +446,33 @@ class HttpServerCapacityTests(unittest.TestCase):
                 httpd.process_request(self.FakeRequest(), ("127.0.0.1", 4))
         self.assertTrue(httpd._request_slots.acquire(blocking=False))
         httpd._request_slots.release()
+
+    def test_request_burst_waits_for_a_slot_without_starting_extra_handlers(self):
+        httpd = object.__new__(server.ThreadingHTTPServer)
+        httpd._request_slots = threading.BoundedSemaphore(1)
+        httpd._request_slots.acquire()
+        waiting, accepted = threading.Event(), threading.Event()
+        request = self.FakeRequest()
+        original_acquire = httpd._request_slots.acquire
+
+        def observe_acquire(*args, **kwargs):
+            waiting.set()
+            return original_acquire(*args, **kwargs)
+
+        with mock.patch.object(httpd._request_slots, "acquire", side_effect=observe_acquire), \
+             mock.patch.object(server._ThreadingHTTPServer, "process_request", side_effect=lambda *_: accepted.set()):
+            worker = threading.Thread(target=httpd.process_request, args=(request, ("127.0.0.1", 1)))
+            worker.start()
+            try:
+                self.assertTrue(waiting.wait(1))
+                self.assertFalse(accepted.is_set())
+            finally:
+                httpd._request_slots.release()
+                worker.join(3)
+            self.assertFalse(worker.is_alive())
+            self.assertTrue(accepted.is_set())
+            self.assertFalse(request.closed)
+            httpd._request_slots.release()
 
         self.assertTrue(httpd._request_slots.acquire(blocking=False))
         with mock.patch.object(
@@ -511,7 +597,7 @@ class HttpSecurityIntegrationTests(unittest.TestCase):
                 "/tools/",
                 "/js/",
                 "/ROADMAP.md",
-                "/PROMPT_IMPLEMENT_ROADMAP_V2.md",
+                "/ROADMAP.md",
                 "/PROMPT_History.md",
                 "/SatOps.html",
                 "/ISS.html",
@@ -549,7 +635,7 @@ class HttpSecurityIntegrationTests(unittest.TestCase):
             self.assertIn(b"ALLOWED_MARKDOWN_SOURCES", viewer_body)
             self.assertNotIn(b"['ROADMAP.md'", viewer_body)
 
-            for path in ("/ROADMAP.md", "/PROMPT_History.md", "/PROMPT_IMPLEMENT_ROADMAP_V2.md"):
+            for path in ("/ROADMAP.md", "/PROMPT_History.md", "/ROADMAP.md"):
                 with self.subTest(path=path):
                     denied_status, _, _ = request(port, "GET", path)
                     self.assertEqual(denied_status, 404)

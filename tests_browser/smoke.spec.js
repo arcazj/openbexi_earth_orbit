@@ -1,5 +1,27 @@
 import { expect, test } from '@playwright/test';
 
+test('concurrent tab module requests queue within the bounded local server', async ({ browser, request, baseURL }) => {
+  const contexts = [];
+  const status = request.get('/api/data-update-status');
+  try {
+    await Promise.all(Array.from({ length: 3 }, async () => {
+      const context = await browser.newContext();
+      contexts.push(context);
+      const page = await context.newPage();
+      const failures = [];
+      page.on('requestfailed', value => failures.push(`${value.url()}: ${value.failure()?.errorText}`));
+      page.on('pageerror', error => failures.push(error.message));
+      await page.goto(`${baseURL}/index.html`, { waitUntil: 'domcontentloaded' });
+      await page.waitForFunction(() => window.openbexiStartupState?.phase === 'error' || !!window.openbexiSimulation);
+      expect(await page.evaluate(() => window.openbexiStartupState?.phase), failures.join('\n')).not.toBe('error');
+      expect(failures).toEqual([]);
+    }));
+    expect((await status).ok()).toBe(true);
+  } finally {
+    await Promise.all(contexts.map(context => context.close()));
+  }
+});
+
 const ENFORCE_TIMING_BUDGETS = process.env.OPENBEXI_ENFORCE_TIMING_BUDGETS === '1';
 
 test('main application boots with local dependencies and a rendered WebGL canvas', async ({ page, request }, testInfo) => {

@@ -28,9 +28,9 @@ function run() {
   const dataPlane = read('tools/satellite_data_plane.py');
   const server = read('server.py');
   const promptHistory = read('PROMPT_History.md');
-  const readme = read('README.md');
-  const integration = read('Test_and_Integration.md');
-  const swagger = read('SWAGGER.md');
+  const readme = read('README.md') + read('docs/engineering/DATA_MAINTENANCE.md');
+  const integration = read('docs/TESTING.md');
+  const swagger = read('docs/SWAGGER.md');
   const swaggerHtml = read('swagger.html');
 
   assert(promptHistory.includes('Version 1.7.4'), 'prompt history contains the Version 1.7.4 release');
@@ -123,7 +123,7 @@ function run() {
   assert(readme.includes('--update-data-on-schedule'), 'README documents scheduled server updates');
   assert(readme.includes('npm run serve:update'), 'README documents the daily update server command');
   assert(integration.includes('Data Maintenance Tools'), 'integration plan includes data maintenance tests');
-  assert(swagger.includes('/api/data-update-status'), 'SWAGGER.md documents data update status');
+  assert(swagger.includes('/api/data-update-status'), 'docs/SWAGGER.md documents data update status');
   assert(swaggerHtml.includes('/api/data-update-status'), 'swagger.html documents data update status');
 
   const python = resolvePythonCommand();

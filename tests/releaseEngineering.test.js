@@ -621,9 +621,9 @@ try {
   assert.strictEqual(deploymentPolicy.controls.postDeployExactVerification, true);
   assert.strictEqual(deploymentPolicy.rollbackStrategy, 'reviewed-master-revert');
 
-  const rollbackGuide = fs.readFileSync(path.join(ROOT, 'docs', 'engineering', 'ROLLBACK_V2_3_2.md'), 'utf8');
-  assert.match(rollbackGuide, /reviewed Git revert|Review and test the complete revert/);
-  assert.match(rollbackGuide, /does not retain or accept an older `dist\/` artifact/);
+  const rollbackGuide = fs.readFileSync(path.join(ROOT, 'docs', 'engineering', 'ROLLBACK.md'), 'utf8');
+  assert.match(rollbackGuide, /reviewed revert as a new master commit/);
+  assert.match(rollbackGuide, /archived dist uploads/);
   assert(!/redeploy a previously archived verified `dist\/` artifact/.test(rollbackGuide));
 } finally {
   fs.rmSync(temporary, { recursive: true, force: true });

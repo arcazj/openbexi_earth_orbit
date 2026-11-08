@@ -10,7 +10,7 @@ const serverConnectionSource = fs.readFileSync('js/serverConnection.js', 'utf8')
 const menuSource = fs.readFileSync('js/SatelliteMenuLoader.js', 'utf8');
 const indexSource = fs.readFileSync('index.html', 'utf8');
 const swaggerSource = fs.readFileSync('swagger.html', 'utf8');
-const swaggerMarkdown = fs.readFileSync('SWAGGER.md', 'utf8');
+const swaggerMarkdown = fs.readFileSync('docs/SWAGGER.md', 'utf8');
 
 const allowedChannels = new Set(['development', 'preview', 'stable']);
 const allowedPublicationStates = new Set(['development', 'candidate', 'released']);

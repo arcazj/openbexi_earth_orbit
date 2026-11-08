@@ -1,0 +1,427 @@
+{
+  "schemaVersion": 1,
+  "release": "2.5.0",
+  "status": "public-source-authorized; legacy provenance limitations retained",
+  "baseline": "f7724f5918349fbc972958f53b01732b9ea1bc2f",
+  "firstPartyScope": "Diff from baseline to implementation commit; earlier MIT rights retained; author identity is not proof of ownership",
+  "contributorNames": [
+    "arcazj",
+    "ARCAZJ"
+  ],
+  "applicationLicense": {
+    "value": "SEE LICENSE IN LICENSE",
+    "sha256": "67a9f154dae4db96a7c0e8e9a3893b630e8792c43f4fcc6fa39ad3a088537b79",
+    "licensor": "Jean-Christophe Arcaz",
+    "contact": "arcazj@gmail.com",
+    "ownerDecision": "Public GitHub source and development prerelease authorized 2026-11-08",
+    "independentLegalReview": "not claimed",
+    "scope": "New owner-controlled material only; prior MIT and upstream terms retained"
+  },
+  "dependencies": [
+    {
+      "path": "node_modules/@axe-core/playwright",
+      "version": "4.12.1",
+      "license": "MPL-2.0",
+      "role": "development-only",
+      "integrity": "sha512-rMd7xriptqKpP+w5265i4Hdkv2X5kbu6uiBi/B2I7uf3hieRBM3qDCfaKPtxfiYb2mKXfF+yLODJwIx+Jv1GDw=="
+    },
+    {
+      "path": "node_modules/@playwright/test",
+      "version": "1.61.1",
+      "license": "Apache-2.0",
+      "role": "development-only",
+      "integrity": "sha512-8nKv6+0RJSL9FE4jYOEGXnPeM/Hg12qZpmqzZjRh3qM0Y7c3z1mrOTfFLids72RDQYVh9WpLEfR5WdpNX4fkig=="
+    },
+    {
+      "path": "node_modules/axe-core",
+      "version": "4.12.1",
+      "license": "MPL-2.0",
+      "role": "development-only",
+      "integrity": "sha512-s7iGf5GaVMxEG0ENN9x+xTr7GFZCb1ZP/1uATUpCEK2X78nDB3RwbtFCo9pGAf9ru+VwoQ464DkaLEeRM08wJA=="
+    },
+    {
+      "path": "node_modules/fsevents",
+      "version": "2.3.2",
+      "license": "MIT",
+      "role": "development-only",
+      "integrity": "sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA=="
+    },
+    {
+      "path": "node_modules/playwright",
+      "version": "1.61.1",
+      "license": "Apache-2.0",
+      "role": "development-only",
+      "integrity": "sha512-DWnY5o3YbLWK4GovuAVwpqL+1VwGNdUGrRr++8j8PtQQzvAVZUIMjKQ90fY689sEJZJBbZVw1rXaOKSTitkzPQ=="
+    },
+    {
+      "path": "node_modules/playwright-core",
+      "version": "1.61.1",
+      "license": "Apache-2.0",
+      "role": "development-only",
+      "integrity": "sha512-h7Qlt6m4REp25qvIdvbDtVmD4LqVXfpRxhORv9L0jzETM05p4fuPJ3dKyuSXQxDSbXnmS79HAgi9589lGSpLkg=="
+    },
+    {
+      "path": "node_modules/satellite.js",
+      "version": "6.0.2",
+      "license": "MIT",
+      "role": "browser-runtime",
+      "integrity": "sha512-XWKxtqVF5xiJ1xAeiYeT/oSSzsukoCLWvk6nO/WFy4un0M3g4djAU9TAtOCqJLtYW9vxx9pkPJ1L9ITOc607GA=="
+    },
+    {
+      "path": "node_modules/three",
+      "version": "0.184.0",
+      "license": "MIT",
+      "role": "browser-runtime",
+      "integrity": "sha512-wtTRjG92pM5eUg/KuUnHsqSAlPM296brTOcLgMRqEeylYTh/CdtvKUvCyyCQTzFuStieWxvZb8mVTMvdPyUpxg=="
+    }
+  ],
+  "python": {
+    "version": "3.9.13",
+    "license": "PSF-2.0",
+    "runtimeDependencies": "standard library only for local server",
+    "optionalReferenceGenerator": {
+      "name": "sgp4",
+      "version": "2.25",
+      "license": "MIT",
+      "scope": "development only; frozen outputs used offline"
+    },
+    "optionalHostedRuntime": {
+      "source": "Dockerfile",
+      "name": "google-cloud-storage",
+      "version": "3.16.0",
+      "license": "Apache-2.0",
+      "containerAndTransitiveAudit": "pending; no hosted deployment authorized"
+    }
+  },
+  "historicalReference": {
+    "manifest": "validation/v2.0.0/manifest.json",
+    "copiedMaterial": "TLE inputs and numerical expected vectors in test literals; no upstream source imported by runtime",
+    "upstreamLicense": "AGPL-3.0-only",
+    "applicability": "Historical attribution preserved; outside proprietary claim; no blanket legal clearance inferred",
+    "staticArtifact": "excluded"
+  },
+  "datasets": [
+    {
+      "name": "GP",
+      "rightsStatus": "Existing public v2.4 snapshots retained; provider terms unchanged; broader redistribution not cleared by this notice"
+    },
+    {
+      "name": "TLE",
+      "rightsStatus": "Existing public v2.4 snapshots retained; provider terms unchanged; broader redistribution not cleared by this notice"
+    },
+    {
+      "name": "SATCAT",
+      "rightsStatus": "Existing public v2.4 snapshots retained; provider terms unchanged; broader redistribution not cleared by this notice"
+    },
+    {
+      "name": "launches",
+      "rightsStatus": "Existing public v2.4 snapshots retained; provider terms unchanged; broader redistribution not cleared by this notice"
+    },
+    {
+      "name": "confirmed decays",
+      "rightsStatus": "Existing public v2.4 snapshots retained; provider terms unchanged; broader redistribution not cleared by this notice"
+    },
+    {
+      "name": "tracked objects",
+      "rightsStatus": "Existing public v2.4 snapshots retained; provider terms unchanged; broader redistribution not cleared by this notice"
+    },
+    {
+      "name": "JPL playback/guides and holdouts",
+      "rightsStatus": "NASA/JPL SSD identifies its data as public domain; source metadata and attribution retained",
+      "source": "https://ssd.jpl.nasa.gov/faq.html#gen2"
+    },
+    {
+      "name": "v2.5 synthetic SGP4 holdouts",
+      "rightsStatus": "Original synthetic OMM inputs; MIT python-sgp4 numerical output and upstream notice retained"
+    }
+  ],
+  "assets": [
+    {
+      "path": "textures/1_earth_16k.jpg",
+      "bytes": 31389863,
+      "sha256": "5dc637d77d49d7b0e57c3abe63a196f3666dc73e86c1fbbbe41e76bf6e945fba",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "textures/earthmap1k.jpg",
+      "bytes": 344080,
+      "sha256": "9a94a536c44524a555a0a1a7f26702edc9db6cb9a9e5e1f7479f996b4ca9ea39",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "textures/jupiter.jpg",
+      "bytes": 81283,
+      "sha256": "febf7474c36bcbed61322b0b8cdd3d0af4b5a7fc07dd8fcc28bb3ccc4a633800",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "textures/March.jpg",
+      "bytes": 36708552,
+      "sha256": "fdfcd335559c3dc67052b7e8a9565d850e336ac0d1f3ea7f5eb7826ffb44ecb2",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "textures/March_8k.jpg",
+      "bytes": 10241970,
+      "sha256": "726e008e36e016e20cb72a7068be7d20b70f4f182ad814c297e44dd4653a6614",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "textures/mercury.png",
+      "bytes": 23124,
+      "sha256": "35881e8c257877c1125323eb50fb894396728304b413d12be55304eb97ccc566",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "textures/moon_map2.jpg",
+      "bytes": 687073,
+      "sha256": "a01587e8ade349608255e9a870b3088471cc13cd3e82087893d33a0cff6b0cbe",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "textures/planets/jupiter.jpg",
+      "bytes": 189648,
+      "sha256": "96105df9b07066bf9309c7c75f3763e9bc9ce2feca7d65d667e540ac54210019",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "textures/planets/saturn.jpg",
+      "bytes": 120664,
+      "sha256": "ef2a528661c217cbb4df9a403dd61fc4a336796ee02169a8549dfbac9de85f55",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "textures/planets/saturn_ring.png",
+      "bytes": 7314,
+      "sha256": "ea327015959f9e278b0c0e26cc57fde8c2a6cf08e1ab130e473d03797a34da42",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "textures/planets/sun.jpg",
+      "bytes": 48239,
+      "sha256": "44a9444eccd624ce4f07c6b760ea44e7704f0e2f1873347016f9bf0053e6bd15",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "textures/planets/uranus.jpg",
+      "bytes": 75001,
+      "sha256": "37d241766d2f28951c728e14c04af7b32a7cdf10b6dfa140a5b0c0e1d50c7f52",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "textures/venus.png",
+      "bytes": 24121,
+      "sha256": "6828efab2e59203a2557a9887d536da1a264db9781fcd9bfbf6341cefec5310d",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "icons/ob_satellite.png",
+      "bytes": 25316,
+      "sha256": "34fbdde639c3fc698146302e6881af560d15e1aaa4ea397324aa160a5c6ee08f",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "icons/server_checking.svg",
+      "bytes": 336,
+      "sha256": "ed16c269846d26a1130d3a5e99c3ce41b4726fbd054687601ef59299cd6fc539",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "icons/server_connected.svg",
+      "bytes": 655,
+      "sha256": "dbc63fcb9ed2a214fc2f1d6e8e94af7304ddabc6c592dc3a8edc4c76a1eb62ef",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "icons/server_error.svg",
+      "bytes": 614,
+      "sha256": "4fe45776a384ffc55d9a01d90204222415fd9dd4df0d3fcd72363ca7d70dc79c",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "icons/server_offline.svg",
+      "bytes": 607,
+      "sha256": "0320e17e6b1b8536ea964ee658102f4d37fba1b4f8753dfc63525b30a367add8",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "obj/ISS.glb",
+      "bytes": 41144692,
+      "sha256": "bffef43f87638f89e7333a3fb5bd9e937f8c6e8c3a1b5a30b26114869830d0e9",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "obj/o3b.glb",
+      "bytes": 800340,
+      "sha256": "7443fad30fba473bb553bebeb18bf00c68976b4a8afccbdac505b6be416f1c3a",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "obj/oneweb.glb",
+      "bytes": 535800,
+      "sha256": "aff6121b6532efd77a2d5be1d9605aa641aac1c1f2ebe17f46c6c89d370d5eef",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "obj/SSL_1300.glb",
+      "bytes": 8517244,
+      "sha256": "651b30cebf57bd08fedcfb34c31127f7a466b7897ccac2aafa8ea9908cccfcf0",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "obj/starlink_V1.mtl",
+      "bytes": 365,
+      "sha256": "73296fa5bd5d5226e38c36cbbd7a4e08a8476ccea63192506d535b3f86d37be8",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "obj/starlink_V1.obj",
+      "bytes": 1822427,
+      "sha256": "ab579bdc20c904d1c142f19647b8a34aed78c4e7afa27537feba3eb98a894607",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "obj/starlink_v2.glb",
+      "bytes": 399208,
+      "sha256": "dfcf6d7a368935e8e46cb9886125141d16cf9ff1d66bb022cd72a169e7751a1b",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "obj/Textures/oneweb_antenna_texture.png",
+      "bytes": 5868,
+      "sha256": "15ed08df5fced3e79dd62ec1019ecb8a02b76fb24b7168b0dac0d9e15c2374c1",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "obj/Textures/oneweb_bus_texture.png",
+      "bytes": 557190,
+      "sha256": "7330460a1d2e5fdf4622327a4519b88f5c15070b84607d85d9ab0997d08c6173",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "obj/Textures/oneweb_solar_texture.png",
+      "bytes": 9240,
+      "sha256": "4a9aaadcec2181504f4dacaf27d60e3813e16fa5f5d3c2da158cc1862878e7b7",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "obj/Textures/starlink_BaseColor.png",
+      "bytes": 6669167,
+      "sha256": "e0d1008c2351b4b22e204e6b15f037c337e5f764cafeec2527ca4eaf0653fa39",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "obj/Textures/starlink_Checker_Roughness.png",
+      "bytes": 2990728,
+      "sha256": "40197c24bb0cbd2c7edcfb935ae58fdf3c66b503de4c7fdaea6ecf0d15af727d",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "obj/Textures/starlink_Metallic.png",
+      "bytes": 430880,
+      "sha256": "3afac5494e50cb4e50008f645f56c3281d3aa92d3e3ffda5cd756fb7dfd38b38",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "obj/Textures/starlink_Normal.png",
+      "bytes": 28643867,
+      "sha256": "1ced5ad9f8f8e64cc8d008aad6205de00553c9b2de2eee2b02453a14d5d698cb",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "obj/Textures/starmap-4k.jpg",
+      "bytes": 6535622,
+      "sha256": "56d1b186549e60709c6357a798d671db846abfab088919be94e308c590865220",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "data/stars/bright-stars-demo.js",
+      "bytes": 5809,
+      "sha256": "168c39e02c4c7b0b533e7a1f22df6be434189b9a101c34f73468ec1dca6c7e1a",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "json/satellites/0.json",
+      "bytes": 328,
+      "sha256": "8fc2cf1edfcc2e44ecfe519b5a1ad17fa2f2f1c587f376fee855d2ea1496970e",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "json/satellites/ISS.json",
+      "bytes": 284,
+      "sha256": "2764eacf0f31707d6953f1ed168b8d0351399700031bb3a28109f25fe0397cf5",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "json/satellites/O3b.json",
+      "bytes": 2050,
+      "sha256": "fd200f095efdb7d67da379dd32e34421e4ee787eeb9221b4b11216fa29023ed9",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "json/satellites/oneweb.json",
+      "bytes": 2247,
+      "sha256": "89ee0843a4609a2b286ebe2dc21e49bd4dcd01acb3b1825ac4a525e6d4b15579",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "json/satellites/satellite_template.json",
+      "bytes": 1682,
+      "sha256": "a399af4343017aa494d7fae9df4884832c6db630e1bc4f33fe4e751b7d35d4f3",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "json/satellites/starlink_V1.json",
+      "bytes": 2217,
+      "sha256": "eb5eb79e0b961b9f77feaa55071565041aa90e744c21bd3be86ed22bff4cc086",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    },
+    {
+      "path": "json/satellites/starlink_v2.json",
+      "bytes": 2230,
+      "sha256": "c31dcd7a89f9cc61db27bdec23975739c6c72aca349810932ec76fe376a2e312",
+      "unchangedFromPublicV24": true,
+      "rightsStatus": "Legacy public asset; outside new commercial claim; asset-specific provenance/customer redistribution review incomplete"
+    }
+  ]
+}

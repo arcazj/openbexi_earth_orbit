@@ -361,7 +361,8 @@ test('OMM selection and static catalog revisions refresh both timelines without 
   const launchToggle = page.locator('#launchTimelineToggle');
   const reentryToggle = page.locator('#reentryTimelineToggle');
 
-  await launchToggle.check({ force: true });
+  // Wait for the accordion's layout transition and normal hit testing.
+  await launchToggle.check();
   const launchStatus = page.locator('.timeline-status-launch');
   await expect(launchStatus).toBeVisible();
   await expect(launchStatus).toContainText('Latest launch: 2026-08-20');
@@ -495,7 +496,7 @@ test('unavailable GP falls back to TLE and auxiliary-only revisions avoid anothe
   const reentryToggle = page.locator('#reentryTimelineToggle');
   await expect(launchToggle).toBeEnabled();
   await expect(reentryToggle).toBeEnabled();
-  await launchToggle.check({ force: true });
+  await launchToggle.check();
   const launchStatus = page.locator('.timeline-status-launch');
   await expect(launchStatus).toContainText('QPS-SAR-18');
   await setTimelineToggle(launchToggle, false);

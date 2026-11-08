@@ -1,6 +1,6 @@
 import { solarSystemEphemerisBounds } from './solarSystemEphemeris.js';
 import { EDUCATIONAL_BOUNDS } from './solarSystemEducation.js';
-import { SOLAR_SYSTEM_PLANETS, setSolarSystemOverviewOptions, fitSolarSystemOverviewCamera, solarSystemOrbitGuideSummary } from './solarSystemOverviewLoader.js';
+import { SOLAR_SYSTEM_PLANETS, setSolarSystemOverviewOptions, setSolarSystemOverviewVisible, fitSolarSystemOverviewCamera, solarSystemOrbitGuideSummary } from './solarSystemOverviewLoader.js';
 
 export const SOLAR_TIME_UNITS = Object.freeze({ minute: 60000, hour: 3600000, day: 86400000, year: 31557600000 });
 const DAY = 86400000;
@@ -38,11 +38,13 @@ export function createSolarSystemTimeControls({ container, overview, clock, onCh
       <label for="solarPlanetFocus">Follow a planet<select id="solarPlanetFocus"><option value="">Sun-centered overview</option>${SOLAR_SYSTEM_PLANETS.map(planet => `<option>${planet.name}</option>`).join('')}</select></label>
       <label class="solar-mode-toggle"><input id="solarEnlarged" type="checkbox" checked> Enlarge planet symbols</label>
       <div class="solar-time-note">Planetary distances remain to scale; the educational Moon orbit is schematic. Use Time x above to play, pause or reverse; Now returns to today.</div>
+      <button type="button" id="solarDataRetry" hidden>Retry Solar System data</button>
       <div id="solarTimeMessage" class="solar-time-note" role="status" aria-live="polite"></div>`;
     const el = id => container.querySelector(`#${id}`);
     let range = null, lastBounds = '', lastMode = null;
     const changed = () => { overview.forceOrbitUpdate = true; onChange(); sync(); };
     const message = text => { el('solarTimeMessage').textContent = text; };
+    el('solarDataRetry').addEventListener('click', () => { setSolarSystemOverviewVisible(overview, true); sync(); });
     function resetWindow() {
         const bounds = solarSystemTimeBounds(overview);
         const value = el('solarRange').value;
@@ -102,6 +104,8 @@ export function createSolarSystemTimeControls({ container, overview, clock, onCh
         setSolarSystemOverviewOptions(overview, { enlargedPlanets: event.target.checked }); changed();
     });
     function sync() {
+        el('solarDataRetry').hidden = overview.ephemerisState?.status !== 'error' && !['partial', 'error'].includes(overview.orbitGuideState?.status);
+        el('solarDataRetry').disabled = overview.ephemerisState?.status === 'loading' || overview.orbitGuideState?.status === 'loading';
         const bounds = solarSystemTimeBounds(overview);
         const state = clock.state();
         const signature = bounds ? `${bounds.minTimeMs}:${bounds.maxTimeMs}` : '';

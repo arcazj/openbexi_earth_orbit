@@ -16,7 +16,10 @@ concurrency:
 jobs:
   quality:
     name: Unit, API, and dependency checks
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -55,12 +58,12 @@ jobs:
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: node-sbom
+          name: node-sbom-${{ matrix.os }}
           path: openbexi-node-sbom.cdx.json
           if-no-files-found: error
 
   browser-smoke:
-    name: Chromium smoke test
+    name: Browser engines and core journeys
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -80,8 +83,8 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Install browser engines
+        run: npx playwright install --with-deps chromium firefox webkit
 
       - name: Run browser smoke test
         run: npm run test:browser

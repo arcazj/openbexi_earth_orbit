@@ -1,4 +1,5 @@
 export { APP_VERSION, RELEASE_DATE, RELEASE_METADATA } from './releaseVersion.js';
+import { staticDataHealth, renderDataHealth } from './dataHealth.js';
 export const DEFAULT_SERVER_TIMEOUT_MS = 800;
 export const DEFAULT_API_BASE_URL = 'http://127.0.0.1:8000';
 export const API_BASE_STORAGE_KEY = 'openbexi.apiBaseUrl';
@@ -315,11 +316,14 @@ export async function loadStaticDataUpdateStatus({
         .then(metadata => ({ kind: 'GP', metadata }))
         .catch(() => fetchJsonWithTimeout('json/tle/TLE.meta.json', { fetchImpl, timeoutMs })
             .then(metadata => ({ kind: 'TLE', metadata })));
-    const [orbital, launch, decay, tracked] = await Promise.all([
+    const [orbital, launch, decay, tracked, tle, trackedMeta, policy] = await Promise.all([
         orbitalMetadataPromise,
         fetchJsonWithTimeout('json/launches/launches.meta.json', { fetchImpl, timeoutMs }),
         fetchJsonWithTimeout('json/decayed/decayed.meta.json', { fetchImpl, timeoutMs }),
-        fetchJsonWithTimeout('json/tracked/TRACKED.manifest.json', { fetchImpl, timeoutMs })
+        fetchJsonWithTimeout('json/tracked/TRACKED.manifest.json', { fetchImpl, timeoutMs }),
+        fetchJsonWithTimeout('json/tle/TLE.meta.json', { fetchImpl, timeoutMs }).catch(() => null),
+        fetchJsonWithTimeout('json/tracked/TRACKED.meta.json', { fetchImpl, timeoutMs }).catch(() => null),
+        fetchJsonWithTimeout('data/health/policy.json', { fetchImpl, timeoutMs }).catch(() => null)
     ]);
     const orbitalRevision = metadataRevision(orbital.metadata);
     const launchRevision = metadataRevision(launch);
@@ -330,6 +334,7 @@ export async function loadStaticDataUpdateStatus({
     }
     return {
         source: 'static-metadata',
+        health: staticDataHealth({ [orbital.kind.toLowerCase()]: orbital.metadata, tle: tle || (orbital.kind === 'TLE' ? orbital.metadata : null), launch, decay, tracked: trackedMeta || tracked }, policy),
         catalog_kind: orbital.kind,
         data_revision: `static:${[orbitalRevision, launchRevision, decayRevision, trackedRevision].map(encodeURIComponent).join('|')}`,
         orbital_revision: orbitalRevision,
@@ -455,6 +460,7 @@ export function renderDataRefreshStatus(status, documentObj = globalThis.documen
     const summaryLabel = documentObj?.getElementById('dataRefreshSummary');
     const datesLabel = documentObj?.getElementById('dataRefreshDates');
     if (!label || !summaryLabel || !datesLabel) return;
+    const healthView = renderDataHealth(status?.health, documentObj);
     const blocked = status?.last_result?.provider_blocked;
     const updating = status?.phase === 'updating' || status?.state === 'checking';
     const degraded = blocked || status?.state === 'degraded' || status?.catalog_state === 'degraded';
@@ -468,19 +474,19 @@ export function renderDataRefreshStatus(status, documentObj = globalThis.documen
     const sourceTime = status?.datasets?.satcat?.last_success_at;
     const stale = sourceTime && Date.now() - Date.parse(sourceTime) > 48 * 3600 * 1000;
     const timelineIssue = stale || ['satcat', 'launch', 'decay'].some(key => hasIssue(status?.datasets?.[key]));
-    const summary = blocked ? 'Provider has paused updates; saved data is in use.'
+    const summary = healthView?.summary || (blocked ? 'Provider has paused updates; saved data is in use.'
         : updating ? 'Checking for new satellite data...'
         : orbitalIssue && timelineIssue ? 'Orbital and timeline data await refresh.'
         : orbitalIssue ? 'Orbital data awaits refresh.'
         : timelineIssue ? 'Launch and decay data await refresh.'
         : degraded ? 'Some data awaits refresh; saved data is in use.'
         : status?.last_finished_at ? `Satellite data last checked: ${new Date(status.last_finished_at).toLocaleString()}`
-        : 'Showing saved satellite data.';
+        : 'Showing saved satellite data.');
     // Update only changed text so routine polling does not repeat live announcements.
     if (summaryLabel.textContent !== summary) summaryLabel.textContent = summary;
     if (datesLabel.textContent !== latest) datesLabel.textContent = latest;
     datesLabel.hidden = !latest;
-    label.dataset.tone = degraded || orbitalIssue || timelineIssue ? 'warning' : 'neutral';
+    label.dataset.tone = (healthView ? healthView.warning : degraded || orbitalIssue || timelineIssue) ? 'warning' : 'neutral';
     label.hidden = false;
     label.title = [
         sourceTime && `Launch and decay source last retrieved: ${new Date(sourceTime).toLocaleString()}`,

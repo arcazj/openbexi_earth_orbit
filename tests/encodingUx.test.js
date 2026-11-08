@@ -21,7 +21,7 @@ const filesToScan = [
   'markdown_viewer.html',
   'LICENSE.md',
   'README.md',
-  'Test_and_Integration.md'
+  'docs/TESTING.md'
 ];
 
 function assertCleanText(label, text) {

@@ -17,6 +17,16 @@ const raw = execFileSync(
   { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 }
 );
 const sbom = JSON.parse(raw);
+const applicationLicense = JSON.parse(fs.readFileSync('package.json', 'utf8')).license;
+if (applicationLicense === 'SEE LICENSE IN LICENSE' && sbom.metadata?.component) {
+  sbom.metadata.component.licenses = [{ license: {
+    name: 'OpenBEXI 2.5 commercial notice; prior MIT rights retained',
+    text: { contentType: 'text/plain', content: fs.readFileSync('LICENSE', 'utf8') }
+  } }];
+  sbom.metadata.component.properties = [...(sbom.metadata.component.properties || []),
+    { name: 'openbexi:publication-scope', value: 'Owner-authorized public source and GitHub development prerelease; third-party terms retained' },
+    { name: 'openbexi:licensor', value: 'Jean-Christophe Arcaz / arcazj@gmail.com' }];
+}
 const cyclonedxSerialPattern = /^urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 if (!cyclonedxSerialPattern.test(sbom.serialNumber ?? '')) {
   sbom.serialNumber = `urn:uuid:${randomUUID()}`;

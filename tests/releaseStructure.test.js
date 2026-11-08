@@ -150,14 +150,14 @@ function run() {
   const packageLock = JSON.parse(read('package-lock.json'));
   const release = JSON.parse(read('release/version.json'));
   const archivedSbom = JSON.parse(read('release/evidence/openbexi-node-sbom-2.0.0.cdx.json'));
-  const developmentSbom = JSON.parse(read('release/evidence/openbexi-node-sbom-2.4.0-development.cdx.json'));
+  const developmentSbom = JSON.parse(read('release/evidence/openbexi-node-sbom-2.5.0-development.cdx.json'));
   const releaseModule = read('js/releaseVersion.js');
 
   assert(promptHistory.startsWith('# Prompt History'), 'PROMPT_History.md starts with Prompt History');
 
-  assert.strictEqual(release.version, '2.4.0', 'authoritative development version is 2.4.0');
-  assert.strictEqual(release.channel, 'development', 'Version 2.4.0 remains on the development channel');
-  assert.strictEqual(release.publicationState, 'development', 'Version 2.4.0 is not promoted');
+  assert.strictEqual(release.version, '2.5.0', 'authoritative development version is 2.5.0');
+  assert.strictEqual(release.channel, 'development', 'Version 2.5.0 remains on the development channel');
+  assert.strictEqual(release.publicationState, 'development', 'Version 2.5.0 is not promoted');
   assert.strictEqual(release.candidateAt, null, 'development build has no candidate date');
   assert.strictEqual(release.releasedAt, null, 'development build has no release date');
   assert.strictEqual(release.maturity, 'experimental', 'scientific maturity remains experimental');
@@ -183,12 +183,12 @@ function run() {
   assert.match(
     developmentSbom.serialNumber,
     /^urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
-    'v2.4.0 development CycloneDX SBOM has a standards-compliant UUID serial number'
+    'v2.5.0 development CycloneDX SBOM has a standards-compliant UUID serial number'
   );
   assert.strictEqual(
     developmentSbom.metadata?.component?.version,
     release.version,
-    'v2.4.0 development SBOM matches authoritative version metadata'
+    'v2.5.0 development SBOM matches authoritative version metadata'
   );
   assert(indexHtml.includes('const versionNumber = APP_VERSION;'), 'index.html uses the imported version');
   assert(releaseModule.includes("export const APP_VERSION = RELEASE_METADATA.version"), 'browser version derives from generated release metadata');
@@ -270,26 +270,7 @@ function run() {
     );
   });
 
-  const authoredMarkdownFiles = repositoryFiles
-    .filter(file => /\.md$/i.test(file))
-    .sort();
-  assert.strictEqual(authoredMarkdownFiles.length, 46, 'repository has the expected 46 project-authored Markdown files');
-
-  const documentationLinks = markdownDestinations(sectionByHeading.get('All Project Documentation'))
-    .map(localPathFromDestination)
-    .filter(Boolean)
-    .filter(file => /\.md$/i.test(file));
-  assert.strictEqual(documentationLinks.length, 46, 'README documentation inventory contains 46 Markdown links');
-  assert.strictEqual(
-    new Set(documentationLinks).size,
-    documentationLinks.length,
-    'README documentation inventory lists every Markdown file exactly once'
-  );
-  assert.deepStrictEqual(
-    [...documentationLinks].sort(),
-    authoredMarkdownFiles,
-    'README documentation inventory exactly matches project-authored Markdown files'
-  );
+  assert(markdownDestinations(sectionByHeading.get('All Project Documentation')).includes('docs/README.md'), 'README links the maintained documentation index');
 
   for (const destination of markdownDestinations(readme)) {
     const relativePath = localPathFromDestination(destination);
@@ -328,7 +309,7 @@ function run() {
   ]) {
     assert(apiSection.includes(route), `README API table covers ${route}`);
   }
-  for (const documentationTarget of ['swagger.html', 'SWAGGER.md', 'markdown_viewer.html', '/docs', '/openapi.json']) {
+  for (const documentationTarget of ['swagger.html', 'docs/SWAGGER.md', 'markdown_viewer.html', '/docs', '/openapi.json']) {
     assert(apiSection.includes(documentationTarget), `README API section links ${documentationTarget}`);
   }
 

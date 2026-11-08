@@ -2,7 +2,7 @@
 export const RELEASE_METADATA = Object.freeze({
   schemaVersion: 1,
   product: "openbexi-earth-orbit",
-  version: "2.4.0",
+  version: "2.5.0",
   baselineRuntimeVersion: "1.7.6",
   channel: "development",
   publicationState: "development",

@@ -138,6 +138,22 @@ body:has(#dataRefreshStatus:not([hidden])) {
     color: #9cabb9;
 }
 
+#dataHealthDetails > summary { cursor: pointer; white-space: nowrap; padding: 4px; }
+#dataHealthDetails > summary:focus-visible { outline: 2px solid #b9dcff; outline-offset: 2px; }
+.data-health-panel {
+    position: fixed; right: 12px; bottom: calc(var(--data-status-height) + 8px);
+    width: min(680px, calc(100vw - 24px)); max-height: min(70vh, 650px);
+    box-sizing: border-box; overflow: auto; padding: 16px;
+    text-align: left; background: #111d2a; color: #dae5ef;
+    border: 1px solid #647b91; border-radius: 8px; font-size: 13px;
+}
+.data-health-panel h2 { font-size: 17px; margin-top: 0; }
+.data-health-panel h3 { font-size: 14px; margin-bottom: 8px; }
+.data-health-panel dl { display: grid; grid-template-columns: 155px 1fr; gap: 4px 12px; }
+.data-health-panel dd { margin: 0; overflow-wrap: anywhere; }
+.data-health-panel section + section { border-top: 1px solid #405365; margin-top: 14px; }
+@media (max-width: 560px) { .data-health-panel dl { grid-template-columns: 1fr; } .data-health-panel dd { margin-bottom: 8px; } }
+
 body:has(#dataRefreshStatus:not([hidden])) #controlsContainer {
     max-height: calc(100vh - var(--data-status-height) - 20px);
 }

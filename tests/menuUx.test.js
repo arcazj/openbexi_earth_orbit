@@ -292,7 +292,7 @@ function run() {
   assert(html.includes('id="readmeMarkdownLink"'), 'Help includes README Markdown action');
   assert(html.includes('href="markdown_viewer.html?source=README.md&amp;title=README"'), 'README Markdown action opens the Markdown viewer');
   assert(html.includes('id="releasesHistoryMarkdownLink"'), 'Help includes Releases History Markdown action');
-  assert(html.includes('href="markdown_viewer.html?source=RELEASE_NOTES.md&amp;title=Releases%20History"'), 'Releases History action opens deployable release notes');
+  assert(html.includes('href="markdown_viewer.html?source=docs/RELEASE_NOTES.md&amp;title=Releases%20History"'), 'Releases History action opens deployable release notes');
   assert(html.includes('>Releases History</strong>'), 'Prompt History action is renamed to Releases History');
   assert(!html.includes('>Prompt History</a>'), 'Prompt History is not the visible Help action text');
   assert(!html.includes('id="helpMarkdownPanel"'), 'Help no longer renders Markdown inline in the menu');
@@ -308,9 +308,9 @@ function run() {
   assert(html.includes('id="swaggerMarkdownLink"'), 'Help includes Swagger Markdown companion link hook');
   assert(html.includes('id="openApiSchemaLink"'), 'Help includes OpenAPI schema link hook');
   assert(html.includes('href="swagger.html"'), 'Swagger link opens local standard Swagger UI page');
-  assert(html.includes('href="markdown_viewer.html?source=SWAGGER.md&amp;title=Swagger%20API"'), 'Swagger MD link opens local Markdown documentation');
+  assert(html.includes('href="markdown_viewer.html?source=docs/SWAGGER.md&amp;title=Swagger%20API"'), 'Swagger MD link opens local Markdown documentation');
   assert(html.includes('href="http://127.0.0.1:8000/openapi.json"'), 'API link opens the default OpenAPI page');
-  assert(markdownViewerHtml.includes("'SWAGGER.md', 'Swagger API'"), 'Markdown viewer can render local Swagger Markdown');
+  assert(markdownViewerHtml.includes("'docs/SWAGGER.md', 'Swagger API'"), 'Markdown viewer can render local Swagger Markdown');
   assert(swaggerHtml.includes('OpenBEXI Earth Orbit API'), 'local Swagger page has the API title');
   assert(swaggerHtml.includes(release.version), 'local Swagger page displays the release version');
   assert(swaggerHtml.includes('OAS 3.0.3'), 'local Swagger page displays the OpenAPI version badge');

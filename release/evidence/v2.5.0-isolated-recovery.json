@@ -1,0 +1,42 @@
+{
+  "runtime": {
+    "schemaVersion": 1,
+    "status": "passed",
+    "scope": "synthetic isolated runtime archive; no network/cloud",
+    "artifacts": 23,
+    "archiveBytes": 71680,
+    "restart": "passed",
+    "idempotence": "passed",
+    "sourcePointerPreserved": true,
+    "userRuntimeTouched": false
+  },
+  "static": {
+    "schemaVersion": 1,
+    "kind": "openbexi-static-rollback-rehearsal",
+    "baselineManifestSha256": "a1686e2ce5b7b6e7e94e6c741afda57193f52c0cd23954635ab00dd36e472d6e",
+    "baselineTrackedRevision": "sha256:f35261ffefa19a55c5b538ff44fa7744cca782e33b3a637c6ca88085b1ad6aad",
+    "corruptCandidate": {
+      "chunk": "json/tracked/chunks/07c3abd1ae97799c986c8602edb6976400653126fe6e3f6578c9f7dedfd3d994-current-payload.json",
+      "liveStatus": 200,
+      "readyStatus": 503,
+      "trackedStatus": 503
+    },
+    "gpOnly": {
+      "readyStatus": 200,
+      "trackedStatus": 404,
+      "featureEnabled": false,
+      "manifestSha256": "3363195394e6cafc8eea57ae79c98f6b407da6aa04d3adbfb77e9b25fee94f85"
+    },
+    "restoredTracked": {
+      "readyStatus": 200,
+      "trackedRevision": "sha256:f35261ffefa19a55c5b538ff44fa7744cca782e33b3a637c6ca88085b1ad6aad",
+      "pointerCacheControl": "no-cache",
+      "chunkCacheControl": "public, max-age=31536000, immutable",
+      "conditionalChunkStatus": 304,
+      "staleFeatureEtagInvalidated": true
+    },
+    "disposable": true,
+    "passed": true,
+    "rehearsedAt": "2026-11-08T06:02:00.493Z"
+  }
+}

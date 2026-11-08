@@ -81,6 +81,10 @@ function expectNoBrowserErrors(browserErrors) {
 }
 
 async function bootWithLocalDependencies(page, options = {}) {
+  const bootstrapErrors = [];
+  page.on('pageerror', error => bootstrapErrors.push(error.message));
+  page.on('console', message => { if (message.type() === 'error') bootstrapErrors.push(message.text()); });
+  page.on('requestfailed', request => bootstrapErrors.push(`${request.url()}: ${request.failure()?.errorText}`));
   const {
     catalogFixture = null,
     emptyCatalog = false,
@@ -121,15 +125,16 @@ async function bootWithLocalDependencies(page, options = {}) {
   await page.goto(startupUrl, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => {
     const sources = window.openbexiDependencySources;
-    return sources?.three === 'local' && sources?.satellite === 'local';
+    return window.openbexiStartupState?.phase === 'error' || (sources?.three === 'local' && sources?.satellite === 'local');
   });
   if (waitForInteractive) {
     await page.waitForFunction(() => (
-      window.openbexiStartupPerformance
+      window.openbexiStartupState?.phase === 'error' || window.openbexiStartupPerformance
         ?.summary()
         .some(entry => entry.name === 'first-interactive-ui')
     ));
   }
+  expect(await page.evaluate(() => window.openbexiStartupState?.phase), bootstrapErrors.join('\n')).not.toBe('error');
 }
 
 async function expectIssShortcutForInitialLeoSelection(page) {

@@ -1,5 +1,7 @@
 # ADR 0001: v2.0 Quality Gates and Local-First Server
 
+> Historical architecture decision. Its version-specific release/approval observations remain historical; current publication scope is in the [release policy](../governance/RELEASE_POLICY.md).
+
 - Status: Accepted
 - Date: 2026-07-19
 - Owners: Project maintainers

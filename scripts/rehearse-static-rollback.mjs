@@ -89,6 +89,20 @@ function trackedFlag(root) {
 export function validateRollbackArtifact(root) {
   const manifestRecord = readArtifactManifest(path.join(root, 'asset-manifest.json'));
   verifyLocalArtifact(root, manifestRecord);
+  // New notice requirements do not retroactively change older artifacts.
+  const [major, minor] = String(manifestRecord.manifest.version).split('.').map(Number);
+  if (major > 2 || (major === 2 && minor >= 5)) {
+    const thirdPartyNotice = manifestRecord.paths.has('docs/THIRD_PARTY_NOTICES.md') ? 'docs/THIRD_PARTY_NOTICES.md' : 'THIRD_PARTY_NOTICES.md';
+    for (const name of ['LICENSE', 'LICENSE.md', thirdPartyNotice, 'licenses/LEGACY_MIT.txt']) {
+      if (!manifestRecord.paths.has(name)) throw new Error(`Rollback artifact is missing ${name}.`);
+    }
+    if (!fs.readFileSync(path.join(root, 'LICENSE')).equals(fs.readFileSync(path.join(root, 'LICENSE.md')))) {
+      throw new Error('Rollback license notices disagree.');
+    }
+  }
+  if ([...manifestRecord.paths].some(name => /^(commercial|runtime|validation|tests)\//i.test(name))) {
+    throw new Error('Rollback artifact exposes private or restricted review content.');
+  }
   const gpPath = path.join(root, 'json', 'gp', 'GP.json');
   const gpMetadataPath = path.join(root, 'json', 'gp', 'GP.meta.json');
   if (!fs.existsSync(gpPath) || !fs.existsSync(gpMetadataPath)) throw new Error('Rollback artifact is missing the GP fallback.');

@@ -1,5 +1,7 @@
 # ADR 0002: Browser Selected-Object Conjunction Screening
 
+> Historical architecture decision. Its version-specific release/approval observations remain historical; current publication scope is in the [release policy](../governance/RELEASE_POLICY.md).
+
 - Status: Accepted for v2.0 preview
 - Date: 2026-07-19
 - Owners: Project maintainers

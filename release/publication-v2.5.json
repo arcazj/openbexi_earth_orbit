@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "version": "2.5.0",
+  "tag": "v2.5",
+  "kind": "development-prerelease",
+  "repository": "arcazj/openbexi_earth_orbit",
+  "visibility": "public",
+  "authorizedAt": "2026-11-08",
+  "licensor": {
+    "legalName": "Jean-Christophe Arcaz",
+    "contact": "arcazj@gmail.com"
+  },
+  "authorization": {
+    "publicSource": true,
+    "commercialNotice": true,
+    "githubPrerelease": true,
+    "safeBranchCleanup": true,
+    "pagesDeployment": false,
+    "containerPublication": false,
+    "packagePublication": false
+  },
+  "publicBaseline": "f7724f5918349fbc972958f53b01732b9ea1bc2f",
+  "privateHistory": "Original unpublished work retained in a verified private local bundle; omitted from public ancestry",
+  "limitations": [
+    "experimental and non-operational",
+    "software-rendered startup/frame targets unmet",
+    "independent scientific/security review pending",
+    "physical GPU/Safari/iOS and full accessibility pending",
+    "legacy asset provenance and customer redistribution review incomplete"
+  ],
+  "rootMarkdownExceptions": {
+    "CLAUDE.md": "Fixed coding-tool discovery path"
+  },
+  "retainedUpstreamMarkdown": [
+    "vendor/satellite.js/6.0.2/LICENSE.md"
+  ]
+}
