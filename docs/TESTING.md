@@ -12,7 +12,7 @@ npm run audit:dependencies
 npm run rehearse:rollback
 ```
 
-Browser coverage uses Chromium, mobile emulation, Firefox and Playwright WebKit. Install engines with `npx playwright install chromium firefox webkit`. CI installs platform dependencies. Profile skips are explicit; mobile emulation and Playwright WebKit do not qualify physical iOS/Safari.
+Browser coverage uses Chromium, mobile emulation, Firefox and Playwright WebKit. Install engines with `npx playwright install chromium firefox webkit`. CI installs platform dependencies. Linux Firefox runs under Xvfb with software WebGL explicitly enabled in its isolated test profile; a rendered-pixel preflight fails immediately if WebGL 2 is unavailable. This is functional coverage, not physical-GPU qualification. Profile skips are explicit; mobile emulation and Playwright WebKit do not qualify physical iOS/Safari.
 
 ## 2.5 evidence
 

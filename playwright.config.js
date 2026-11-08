@@ -2,6 +2,8 @@ import { defineConfig, devices } from '@playwright/test';
 
 const port = Number(process.env.OPENBEXI_TEST_PORT || 4173);
 const externalTestServer = process.env.OPENBEXI_EXTERNAL_TEST_SERVER === '1';
+// Linux CI has no physical GPU. Keep software WebGL confined to its virtual display.
+const firefoxSoftwareWebgl = process.env.OPENBEXI_FIREFOX_SOFTWARE_WEBGL === '1';
 
 function quoteShellArgument(value) {
   const text = String(value);
@@ -57,7 +59,13 @@ export default defineConfig({
     {
       name: 'firefox',
       testMatch: ['**/v25Core.spec.js', '**/solarSystemTime.spec.js', '**/documentation.spec.js'],
-      use: { ...devices['Desktop Firefox'] }
+      use: {
+        ...devices['Desktop Firefox'],
+        ...(firefoxSoftwareWebgl ? {
+          headless: false,
+          launchOptions: { firefoxUserPrefs: { 'webgl.force-enabled': true } }
+        } : {})
+      }
     },
     {
       name: 'webkit',
