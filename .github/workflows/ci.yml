@@ -70,9 +70,13 @@ jobs:
           if-no-files-found: error
 
   browser-smoke:
-    name: Browser engines and core journeys
+    name: Browser engines and core journeys (${{ matrix.browser }})
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, mobile-chromium, firefox, webkit]
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -97,12 +101,12 @@ jobs:
         run: node scripts/python.mjs -c "import sys; assert sys.version_info[:2] == (3, 12), sys.version; print(sys.version)"
 
       - name: Run browser smoke test
-        run: npm run test:browser
+        run: npm run test:browser -- --project=${{ matrix.browser }}
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.browser }}
           path: playwright-report/
           if-no-files-found: ignore
           retention-days: 14
