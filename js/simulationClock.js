@@ -20,7 +20,7 @@ export function createSimulationClock(options = {}) {
     const maxRate = finiteOr(options.maxRate, DEFAULT_MAX_RATE);
     if (minRate > maxRate) throw new RangeError('Simulation clock minimum rate cannot exceed maximum rate.');
 
-    const millisecondsPerWarpSecond = Math.max(
+    let millisecondsPerWarpSecond = Math.max(
         0,
         finiteOr(options.millisecondsPerWarpSecond, DEFAULT_MILLISECONDS_PER_WARP_SECOND)
     );
@@ -92,6 +92,13 @@ export function createSimulationClock(options = {}) {
             }
             return state;
         },
+        setTimeScale(value) {
+            if (!Number.isFinite(value) || value <= 0) throw new RangeError('Time scale must be positive.');
+            if (value !== millisecondsPerWarpSecond) state.generation += 1;
+            millisecondsPerWarpSecond = value;
+            return state;
+        },
+        timeScale() { return millisecondsPerWarpSecond; },
         setBounds(bounds) {
             const normalized = normalizeBounds(bounds);
             if (normalized.minTimeMs === minTimeMs && normalized.maxTimeMs === maxTimeMs) return state;

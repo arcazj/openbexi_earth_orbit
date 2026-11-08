@@ -154,7 +154,7 @@ Outputs produced with this optional scraper must be labeled Experimental and non
 
 | Source | Purpose | Governance state |
 | --- | --- | --- |
-| JPL Horizons-derived ephemeris | Solar-system visualization only; never a conjunction input | Exact Version 2.2.1 bundled bytes are covered by the scoped 2026-08-29 data-owner redistribution approval; generation method and frame/units are documented, while independent validation remains open |
+| JPL Horizons-derived ephemeris | Solar-system visualization only; never a conjunction input | Version 2.4 regenerates all eight planets and the Moon with explicit UTC queries; see `data/ephemeris/README.md` for sampled error checks and approximate-mode provenance. Earlier exact-byte redistribution approvals remain historical and do not cover these new bytes; independent validation remains open |
 | Local textures and 3D models | Visual presentation only; never a screening input | Known attribution is shown where available; unresolved texture provenance remains explicitly documented and blocks a complete asset-governance sign-off |
 | Vallado/CelesTrak SGP4 verification subset | Executable propagation validation | Source, tolerances, checksums, and license status are tracked by the v2.0 validation corpus manifest |
 

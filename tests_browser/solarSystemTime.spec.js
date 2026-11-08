@@ -1,0 +1,101 @@
+import { expect, test } from '@playwright/test';
+
+async function openSolar(page) {
+    await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => !!window.openbexiSimulation);
+    await page.locator('#viewAccordionHeader').click();
+    await page.locator('#solarSystemOverviewToggle').check();
+    await expect(page.locator('#solarDate')).toBeEnabled({ timeout: 60000 });
+}
+const snapshot = page => page.evaluate(() => window.openbexiSimulation.snapshot());
+const distance = (a, b) => Math.hypot(...a.map((value, i) => value - b[i]));
+
+test('Solar System modes, UTC scrubber, following and legacy restoration', async ({ page }) => {
+    test.setTimeout(120000);
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await openSolar(page);
+    await expect(page.locator('#solarEducational')).not.toBeChecked();
+    await expect(page.locator('#solarCoverage')).toContainText('Precise');
+    await page.locator('#solarDate').fill('2026-06-07T09:00');
+    await page.locator('#solarDate').press('Tab');
+    await expect.poll(async () => (await snapshot(page)).dateUtc).toBe('2026-06-07T09:00:00.000Z');
+    const neptune = await page.evaluate(() => window.openbexiSimulation.planetPosition('Neptune'));
+    expect(neptune.every(Number.isFinite)).toBe(true);
+    await page.locator('#solarPlanetFocus').selectOption('Earth');
+    const before = await snapshot(page);
+    await page.locator('#solarStepForward').click();
+    const after = await snapshot(page);
+    expect(after.timeMs - before.timeMs).toBe(86400000);
+    const offsetBefore = before.cameraPosition.map((value, i) => value - before.cameraTarget[i]);
+    const offsetAfter = after.cameraPosition.map((value, i) => value - after.cameraTarget[i]);
+    expect(distance(offsetBefore, offsetAfter)).toBeLessThan(1e-6);
+    expect(distance(before.cameraTarget, after.cameraTarget)).toBeGreaterThan(0.01);
+    await page.locator('#solarRange').selectOption('custom');
+    await page.locator('#solarRangeStart').fill('2026-01-01');
+    await page.locator('#solarRangeEnd').fill('2027-01-01');
+    await page.locator('#solarRangeEnd').press('Tab');
+    await page.locator('#solarScrubber').fill('0');
+    await expect.poll(async () => (await snapshot(page)).dateUtc).toBe('2026-01-01T00:00:00.000Z');
+    await page.locator('#solarScrubber').fill('10000');
+    await expect.poll(async () => (await snapshot(page)).dateUtc).toBe('2027-01-01T00:00:00.000Z');
+    await page.locator('#solarEducational').check();
+    await page.locator('#solarDate').fill('2500-01-01T00:00');
+    await page.locator('#solarDate').press('Tab');
+    await expect.poll(async () => (await snapshot(page)).educational).toBe(true);
+    expect((await snapshot(page)).dateUtc).toBe('2500-01-01T00:00:00.000Z');
+    await page.locator('#solarTimeUnit').selectOption('year');
+    await page.locator('#timeWarpSlider').fill('-1');
+    await expect.poll(async () => (await snapshot(page)).timeMs).toBeLessThan(Date.parse('2500-01-01'));
+    await page.locator('#timeWarpPause').click();
+    expect((await snapshot(page)).rate).toBe(0);
+    await page.locator('#solarEducational').uncheck();
+    await expect.poll(async () => (await snapshot(page)).dateUtc).toBe('2035-12-31T00:00:00.000Z');
+    expect((await snapshot(page)).rate).toBe(0);
+    await page.locator('#timeWarpNow').click();
+    expect(Math.abs((await snapshot(page)).timeMs - Date.now())).toBeLessThan(3000);
+    await expect(page.locator('#solarRangeStart')).toHaveValue('2026-01-01');
+    await expect(page.locator('#solarRangeEnd')).toHaveValue('2027-01-01');
+    await expect(page.locator('#solarRangeLabel')).toContainText('2026-01-01');
+    await page.setViewportSize({ width: 390, height: 844 });
+    const inputBounds = await page.locator('#solarDate').boundingBox();
+    expect(inputBounds.x).toBeGreaterThanOrEqual(0);
+    expect(inputBounds.x + inputBounds.width).toBeLessThanOrEqual(390);
+    await page.screenshot({ path: 'runtime/solar-system-mobile.png' });
+    await page.locator('#solarSystemExitButton').click();
+    await expect.poll(async () => (await snapshot(page)).solarSystemActive).toBe(false);
+    expect((await snapshot(page)).millisecondsPerWarpSecond).toBe(60000);
+    expect(errors).toEqual([]);
+});
+
+test('standalone shares precise and educational playback', async ({ page }) => {
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await page.goto('/SolarSystemOverview.html');
+    await expect(page.locator('#solarDate')).toBeEnabled({ timeout: 60000 });
+    await expect(page.locator('#planetCount')).toHaveText('8 + Moon');
+    await page.locator('#solarPlanetFocus').selectOption('Neptune');
+    await page.locator('#timePause').click();
+    await expect.poll(() => page.evaluate(() => window.openbexiSolarSystem.snapshot().rate)).toBe(1);
+    await page.locator('#timePause').click();
+    await page.locator('#solarEducational').check();
+    await page.locator('#solarDate').fill('1800-01-01T00:00');
+    await page.locator('#solarDate').press('Tab');
+    await expect.poll(() => page.evaluate(() => window.openbexiSolarSystem.snapshot().educational)).toBe(true);
+    await page.screenshot({ path: 'runtime/solar-system-standalone.png' });
+    await page.setViewportSize({ width: 390, height: 844 });
+    const panel = await page.locator('#hud').boundingBox();
+    expect(panel.y).toBeGreaterThanOrEqual(56);
+    expect(panel.x + panel.width).toBeLessThanOrEqual(390);
+    expect(errors).toEqual([]);
+});
+
+test('missing precise data stays explicit and educational mode remains usable', async ({ page }) => {
+    await page.route('**/data/ephemeris/*6h.json', route => route.abort());
+    await page.goto('/SolarSystemOverview.html');
+    await expect(page.locator('#solarCoverage')).toContainText('unavailable');
+    await expect(page.locator('#solarDate')).toBeDisabled();
+    await page.locator('#solarEducational').check();
+    await expect(page.locator('#solarDate')).toBeEnabled();
+    await expect.poll(() => page.evaluate(() => window.openbexiSolarSystem.snapshot().mode)).toBe('Educational approximation');
+});

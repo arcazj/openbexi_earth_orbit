@@ -16,11 +16,24 @@ test('main application boots with local dependencies and a rendered WebGL canvas
     if (request.url().startsWith('https://unpkg.com/')) externalDependencyRequests.push(request.url());
   });
   page.on('requestfailed', request => {
+    // A successful fast health check replaces the loading icon before its
+    // image download finishes; Chromium cancels that superseded request.
+    if (request.failure()?.errorText === 'net::ERR_ABORTED' &&
+        new URL(request.url()).pathname === '/icons/server_checking.svg') return;
     requestFailures.push({
       url: request.url(),
       errorText: request.failure()?.errorText || 'unknown network error'
     });
   });
+
+  // A density-rendering regression must not depend on months of SGP4 aging as
+  // wall-clock time advances beyond the checked-in catalog's element epoch.
+  const metadataResponse = await request.get('/api/gp-metadata');
+  expect(metadataResponse.ok()).toBe(true);
+  const catalogMetadata = await metadataResponse.json();
+  const catalogEpoch = Date.parse(catalogMetadata.newest_orbital_epoch);
+  expect(Number.isFinite(catalogEpoch)).toBe(true);
+  await page.clock.setFixedTime(new Date(catalogEpoch));
 
   const response = await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
   expect(response?.ok()).toBeTruthy();
@@ -153,6 +166,7 @@ test('main application boots with local dependencies and a rendered WebGL canvas
   expect(pointCloud.uploadedNoradIds.toSorted()).toEqual(pointCloud.expectedNoradIds);
   expect(pointCloud.markerMode).toBe('density');
   expect(pointCloud.pointSize).toBe(0.025);
+  await page.locator('#viewAccordionHeader').click();
   await page.locator('#viewMercatorToggle').check();
   await page.waitForFunction(() => {
     const canvas = document.querySelector('#mercatorCanvas');

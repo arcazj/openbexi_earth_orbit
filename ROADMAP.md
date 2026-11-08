@@ -2,6 +2,8 @@
 
 Last reviewed: 2026-09-01
 
+Version 2.4 adds precise JPL-based Solar System time exploration, optional educational approximations, flexible date windows and planet following. It preserves the separate, experimental scope of satellite screening described below.
+
 ## Purpose
 
 This roadmap is based on the repository as it exists at the review date. It prioritizes **Conjunction Detection and Collision-Risk Assessment**, while preserving the project's current value as an educational satellite visualization tool.

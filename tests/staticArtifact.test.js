@@ -742,6 +742,8 @@ assert.throws(
 {
   const falseCompleteManifest = structuredClone(trackedManifest);
   const falseCompleteMetadata = structuredClone(trackedMetadata);
+  // Exercise a false completeness claim even when the real bundle is partial.
+  falseCompleteManifest.coverage.complete_source_snapshot = true;
   falseCompleteManifest.counts.expected = null;
   falseCompleteMetadata.counts.expected = null;
   falseCompleteManifest.coverage.expected = null;
@@ -759,11 +761,16 @@ assert.throws(
     'the static build rejects a complete-snapshot claim without a verified expected-record match'
   );
 }
+const unverifiedCompleteManifest = structuredClone(trackedManifest);
+const unverifiedCompleteMetadata = structuredClone(trackedMetadata);
+unverifiedCompleteManifest.coverage.complete_source_snapshot = true;
+unverifiedCompleteMetadata.coverage = structuredClone(unverifiedCompleteManifest.coverage);
+rebindTrackedRevisions(unverifiedCompleteManifest, unverifiedCompleteMetadata);
 assert.throws(
   () => validateTrackedStaticLineage({
-    trackedManifest,
+    trackedManifest: unverifiedCompleteManifest,
     trackedMetadata: {
-      ...trackedMetadata,
+      ...unverifiedCompleteMetadata,
       source_status: 'PARTIAL',
       last_reconciled_catalog_revision: null
     },
@@ -778,7 +785,11 @@ for (const [label, value] of [
   ['non-ISO numeric', '0'],
   ['impossible-date', '2026-02-31T12:00:00Z']
 ]) {
-  const metadata = { ...trackedMetadata };
+  const metadata = {
+    ...unverifiedCompleteMetadata,
+    source_status: 'VERIFIED_SNAPSHOT',
+    last_reconciled_catalog_revision: unverifiedCompleteManifest.catalog_revision
+  };
   if (value === undefined) {
     delete metadata.last_reconciled_at;
   } else {
@@ -786,7 +797,7 @@ for (const [label, value] of [
   }
   assert.throws(
     () => validateTrackedStaticLineage({
-      trackedManifest,
+      trackedManifest: unverifiedCompleteManifest,
       trackedMetadata: metadata,
       gpMetadata,
       gpCatalogPath

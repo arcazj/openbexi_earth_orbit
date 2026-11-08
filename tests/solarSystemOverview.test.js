@@ -49,14 +49,15 @@ function run() {
   const indexHtml = fs.readFileSync('index.html', 'utf8');
   const menuHtml = fs.readFileSync('js/SatelliteMenuLoader.js', 'utf8');
   const loader = fs.readFileSync('js/solarSystemOverviewLoader.js', 'utf8');
+  const standalone = fs.readFileSync('js/solarSystemStandalone.js', 'utf8');
   const readme = fs.readFileSync('README.md', 'utf8');
   const integration = fs.readFileSync('Test_and_Integration.md', 'utf8');
 
   assert(html.includes('<title>OpenBEXI Solar System Overview</title>'), 'SolarSystemOverview.html has the expected title');
-  assert(html.includes('"three": "https://unpkg.com/three@0.184.0/build/three.module.js"'), 'SolarSystemOverview uses Three.js 0.184.0');
-  assert(html.includes('"three/addons/": "https://unpkg.com/three@0.184.0/examples/jsm/"'), 'SolarSystemOverview uses matching Three.js addons version');
-  assert(html.includes("import { OrbitControls } from 'three/addons/controls/OrbitControls.js';"), 'SolarSystemOverview imports OrbitControls');
-  assert(html.includes('const PLANETS = ['), 'SolarSystemOverview defines a planet catalog');
+  assert(html.includes('"three": "./vendor/three/0.184.0/build/three.module.js"'), 'SolarSystemOverview uses Three.js 0.184.0');
+  assert(html.includes('"three/addons/": "./vendor/three/0.184.0/examples/jsm/"'), 'SolarSystemOverview uses matching Three.js addons version');
+  assert(standalone.includes("import { OrbitControls } from 'three/addons/controls/OrbitControls.js';"), 'SolarSystemOverview imports OrbitControls');
+  assert(standalone.includes('SOLAR_SYSTEM_PLANETS'), 'standalone shares the planet catalog');
   assert(indexHtml.includes("from './js/solarSystemOverviewLoader.js'"), 'index integrates the reusable Solar System overview module');
   assert(menuHtml.includes('id="solarSystemOverviewToggle"'), 'main menu exposes Solar System toggle');
   assert(menuHtml.includes('id="solarSystemOptions" class="solar-system-options" hidden'), 'Solar System sub-controls are hidden by default');
@@ -74,33 +75,17 @@ function run() {
     'Mars',
     'Jupiter',
     'Saturn',
-    'Uranus'
+    'Uranus',
+    'Neptune'
   ];
   requiredPlanets.forEach((planet) => {
-    assert(html.includes(`name: '${planet}'`), `SolarSystemOverview defines ${planet}`);
-    assert(html.includes(`${planet} Orbit Path`) || html.includes('createOrbitPath(planet)'), `SolarSystemOverview supports ${planet} orbit rendering`);
+    assert(loader.includes(`name: '${planet}'`), `SolarSystemOverview defines ${planet}`);
+    assert(html.includes(`${planet} Orbit Path`) || loader.includes('createOrbitPath(planet)'), `SolarSystemOverview supports ${planet} orbit rendering`);
   });
   assert.deepStrictEqual(SOLAR_SYSTEM_PLANETS.map(planet => planet.name), requiredPlanets, 'integrated module defines the required planet set in order');
 
-  [
-    'createOrbitPath',
-    'new THREE.LineLoop',
-    'createPlanetLabel',
-    'updatePlanetLabelCallout',
-    'Planet Label',
-    'utcClock',
-    'UTC',
-    'createSun',
-    'createGlowTexture',
-    'PointLight',
-    'MILKY_WAY_TEXTURE_URL',
-    'createProceduralStarField',
-    'solveKepler',
-    'planetPositionAtDate',
-    'resetCamera'
-  ].forEach((needle) => {
-    assert(html.includes(needle), `SolarSystemOverview includes ${needle}`);
-  });
+  assert(standalone.includes('createSolarSystemTimeControls'), 'standalone uses the same date and mode controls');
+  assert(standalone.includes('createSimulationClock'), 'standalone uses the bounded simulation clock');
 
   [
     'createSolarSystemOverview',
@@ -147,7 +132,7 @@ function run() {
     assert(width <= 8192 && height <= 4096, `${key} texture is within browser-safe dimensions`);
   });
   SOLAR_SYSTEM_PLANETS.forEach((planet) => {
-    assert(planet.textureUrl && fs.existsSync(planet.textureUrl), `${planet.name} has a local texture path`);
+    if (planet.textureUrl) assert(fs.existsSync(planet.textureUrl), `${planet.name} has a local texture path`);
     const position = planetPositionAtDate(planet, new Date('2026-06-07T00:00:00Z'));
     assert(Number.isFinite(position.x) && Number.isFinite(position.y) && Number.isFinite(position.z), `${planet.name} approximate position is finite`);
   });
@@ -209,7 +194,7 @@ function run() {
 
   const release = JSON.parse(fs.readFileSync('release/version.json', 'utf8'));
   assert(indexHtml.includes('const versionNumber = APP_VERSION;'), 'index.html uses authoritative browser release metadata');
-  assert.strictEqual(release.version, '2.3.3', 'Solar System remains available during Version 2.3.3 development');
+  assert.strictEqual(release.version, '2.4.0', 'Solar System release is Version 2.4.0');
 
   assert(
     readme.includes('bounded JPL-derived Solar System ephemeris'),

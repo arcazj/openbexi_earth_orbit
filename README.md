@@ -2,7 +2,7 @@
 
 OpenBEXI Earth Orbit is an interactive browser application for exploring Earth-orbiting objects, launch and re-entry events, propagated trajectories, and experimental conjunction-screening results. It uses CelesTrak GP/OMM for propagated positions, a SATCAT-derived tracked-object inventory for searchable metadata coverage, and a reduced-coverage TLE compatibility path.
 
-> **Status:** Version `2.3.3` is published as a [GitHub development prerelease](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/v2.3.3). Application metadata remains in the `development` channel with **Experimental** scientific maturity and a **non-operational** safety class. Do not use it for navigation, mission planning, collision avoidance, or safety decisions; collision probability is unavailable.
+> **Status:** Version `2.4.0` is the current development build. Scientific maturity remains **Experimental** and the safety class **non-operational**. Precise Solar System mode uses JPL-derived geometric positions within its published coverage; this is not a navigation or mission-analysis certification.
 
 ## Live Demo
 
@@ -47,6 +47,12 @@ The live demo is a separately deployed Pages artifact. Version 2.3.3 was pushed 
 
 The public Live Demo requires no local installation. Do not open the source application with `file://`; modules, JSON, textures, and models require HTTP serving.
 
+### Solar System time exploration (2.4)
+
+Open **Views & Time > Solar System**. Precise mode is the default, with Sun-centered JPL positions for all eight planets and the Moon. Enter a UTC date, scrub a month/year/custom window, choose minutes/hours/days/years per second, and use the shared Time x slider, Play/Pause and Now controls. Negative speeds run backward. Playback pauses at the available data boundary.
+
+**Educational mode** enables approximate planetary motion from 1000-3000 CE; changing back pauses and adjusts dates to precise coverage when needed. The default precise table covers 2020-2035, and the generator can replace it with another complete range. Follow any planet using the selector; enlarged symbols are optional and orbital distances remain to scale. Exiting restores the prior satellite date, playback scale, filters and view. The standalone `SolarSystemOverview.html` shares the same engine and controls. See [ephemeris accuracy and limits](data/ephemeris/README.md).
+
 ## Quick Start
 
 Install the locked dependencies and start the loopback application/API server:
@@ -67,7 +73,7 @@ npm run build
 node scripts/python.mjs -m http.server 8001 --bind 127.0.0.1 --directory dist
 ```
 
-After a successful build, open [http://127.0.0.1:8001/index.html](http://127.0.0.1:8001/index.html). The current 2.3.3 checkout includes a complete tracked catalog and matching decay metadata rebuilt from the existing local sources. The original prerelease tag retains its earlier snapshot. Publish only a verified `dist/` artifact; [Static Deployment](docs/engineering/STATIC_DEPLOYMENT.md) and [Pages Deployment](release/PAGES_DEPLOYMENT.md) describe the manual workflow and its verification requirements.
+After a successful build, open [http://127.0.0.1:8001/index.html](http://127.0.0.1:8001/index.html). The current checkout includes a validated tracked catalog and matching decay metadata rebuilt from local sources; catalog coverage remains explicitly partial. The original prerelease tag retains its earlier snapshot. Publish only a verified `dist/` artifact; [Static Deployment](docs/engineering/STATIC_DEPLOYMENT.md) and [Pages Deployment](release/PAGES_DEPLOYMENT.md) describe the manual workflow and its verification requirements.
 
 ### Google Cloud Run
 
@@ -183,7 +189,9 @@ py tools/satellite_data_tools.py promote-candidate <candidate_id>
 
 `plan` and `--plan` inspect freshness, reconciliation, selection and dependency reasons without network access or writes. `--only` accepts `gp,tle,satcat,tracked,launches,decayed` and includes necessary local dependencies. `--changed-only` is enabled by default; validated launch, decay and tracked artifacts whose input revisions match are not rebuilt just because their build timestamps are old. Use `--no-changed-only` for an explicit periodic rebuild. `--launches-interval-hours` and `--decayed-interval-hours` are available alongside the existing interval overrides. SATCAT changes enrich GP/TLE locally without forcing another orbital-provider download. Scheduled TLE updates request GP JSON once, then derive fixed-width compatibility records locally with checksums. Six-digit identifiers stay in GP; derived TLE preserves older accepted records and makes no complete-provider or absence-pruning claim. Direct `export-tle` remains available for legacy workflows.
 
-The shared provider ledger persists request admission before contacting CelesTrak and caches successful source responses for missing-artifact repair and activation of newer downloaded sources. Admission is shared across formats of the same CelesTrak query, including old URL-only ledgers. Deferred work is checked again when its cooldown expires. It survives rejected candidates; neither `--force` nor a restart bypasses its cooldowns. A provider HTTP error immediately stops further provider queries and opens a persistent circuit for operator investigation; network failures use bounded exponential cooldowns, and `Retry-After` is honored. After investigating the cause, use `resume-provider --reason "investigation completed"`; direct commands use `--state-file runtime/provider-queries.json`, while staged/server updates use the default `runtime/data-plane/provider-queries.json`. For Cloud Run, an operator must acquire the bucket's generation-checked refresh lease, download its `provider-queries.json`, resume that local ledger, upload it back, then release the lease. This does not clear existing cooldowns. The [CelesTrak usage policy](https://celestrak.org/usage-policy.php) requires clients to stop on HTTP errors; automatic retries must not hammer a rejected endpoint. Conditional 304 responses are treated as successful revalidation.
+For the running server and its timelines, use `python tools/satellite_data_tools.py stage-update --promote`. This refreshes the dependent catalogs, validates them together, and publishes the revision the server actually serves. Use `--force` for a full check; it still respects provider admission limits. Direct `export-tle` (with or without `--all`) only writes the legacy compatibility files and cannot supply six-digit orbital elements or publish a new server revision. In IntelliJ, the incremental, all, and decayed shortcuts use `stage-update --promote`, respectively with no extra flag, `--force`, and `--only decayed`. The local server configuration checks GP every two hours and SATCAT every 24 hours. Keep the server running for automatic checks. Latest event dates and source retrieval dates describe different things: rebuilding a catalog from cached input does not retrieve newer observations.
+
+The shared provider ledger persists request admission before contacting CelesTrak and caches successful source responses for missing-artifact repair and activation of newer downloaded sources. Admission is shared across formats of the same CelesTrak query, including old URL-only ledgers. Deferred work is checked again when its cooldown expires. It survives rejected candidates; neither `--force` nor a restart bypasses its cooldowns. A provider HTTP error immediately stops further provider queries and opens a persistent circuit for operator investigation; network failures use bounded exponential cooldowns, and `Retry-After` is honored. After investigating the cause, use `resume-provider --reason "investigation completed"`; all direct commands and staged/server updates now share `runtime/data-plane/provider-queries.json`. Older standalone caches and cooldowns in `runtime/provider-queries.json` are imported automatically, preventing duplicate cross-format downloads. For Cloud Run, an operator must acquire the bucket's generation-checked refresh lease, download its `provider-queries.json`, resume that local ledger, upload it back, then release the lease. This does not clear existing cooldowns. The [CelesTrak usage policy](https://celestrak.org/usage-policy.php) requires clients to stop on HTTP errors; automatic retries must not hammer a rejected endpoint. Conditional 304 responses are treated as successful revalidation.
 
 The tool uses HTTPS-only provider URLs, conditional ETag and Last-Modified requests, validation and per-record quarantine, a stale-owner-aware update lock inside a writable data root, atomic promotion, content-aware data writes, and last-known-good preservation. The outer private data-plane boundary is stricter: its persistent OS-advisory lock file is never unlinked or reclaimed, and stale text does not supersede a live holder. For an established GP, TLE, or SATCAT catalog with at least 1,000 records, every reconciliation or full replacement must contain at least 75% as many candidate records **and** retain at least 75% of the prior canonical NORAD identities. `--force` bypasses freshness only and never bypasses this guard. Only the direct `export-gp`, `export-tle`, and `refresh-satcat` commands expose the explicit `--allow-large-catalog-shrink` recovery override; `maybe-update`, `stage-update`, and the server scheduler never expose or pass it. Changed fixed-name data promotions create collision-safe timestamped backups and retain the newest seven backups per artifact. Tracked chunks are content addressed and verified before the manifest is promoted; unchanged input retains the pointer without backup churn. Unchanged provider data creates no backup; an accepted `304 Not Modified`/conditional revalidation records a successful revalidation time and resets the applicable daily due age without changing data bytes or revisions. A private candidate is not release data until it receives a separate exact-byte decision. Direct-command `--dry-run` writes no data, metadata, temporary files, locks, or backups; `stage-update --dry-run` may create its private candidate envelope but does not change candidate data artifacts, the selected pointer, or checked-in data.
 
@@ -322,7 +330,7 @@ Solar System ephemeris regeneration:
 py tools/generate_jpl_ephemeris.py
 ```
 
-This fixed-purpose helper has no CLI options. Passing `--help` starts the fixed network workflow rather than showing help. It performs multiple NASA/JPL Horizons requests for Mercury through Uranus plus the Moon, covering `2020-01-01` through `2035-12-31` at six-hour cadence, and overwrites the bundled ephemeris and reference-sample JSON files. It has no dry-run or backup. The browser never contacts Horizons at runtime.
+This helper downloads Mercury through Neptune plus the Moon from NASA/JPL Horizons, with explicit UTC times and six-hour position/velocity samples. `--help` lists options; `--start YYYY-MM-DD --stop YYYY-MM-DD` changes coverage (up to 100 years per file), and `--output` / `--reference-output` select output files. Defaults regenerate the bundled 2020-2035 table and independent validation samples. Files are replaced only after all queries succeed. The browser never contacts Horizons at runtime.
 
 The obsolete `save_obj_with_texture.py` helper and Java/Maven exporters have been removed. Use the maintained Python commands above for data and asset preparation.
 
@@ -357,6 +365,10 @@ npm test
 ```
 
 Focused commands are `npm run test:unit`, `npm run test:python`, and `npm run test:browser`. Python-backed npm commands honor `OPENBEXI_PYTHON_COMMAND` and otherwise discover a Python 3 interpreter. See [Test and Integration Plan](Test_and_Integration.md), [Performance Budgets](docs/engineering/PERFORMANCE_BUDGETS.md), and the versioned release checklists for scope and evidence.
+
+### Version 2.4 recorded checks
+
+The [2.4 development check report](release/evidence/v2.4.0-development-checks.json) records 64 passing JavaScript files, 180 Python passes with one skip, and 35 applicable browser journeys passing across the full matrix and focused reruns (20 profile-specific skips). Coverage includes satellite regressions, both Solar System modes, startup recovery, and static packaging. These are local development checks.
 
 ### Version 2.3.3 recorded checks
 
@@ -432,7 +444,7 @@ This index covers all 46 project-authored Markdown files in the source tree. His
 <details>
 <summary><strong>Validation and evidence (3)</strong></summary>
 
-- [Test and Integration Plan](Test_and_Integration.md) - Version 2.3.3 maintenance coverage, recorded checks, and retained historical regression procedures and logs.
+- [Test and Integration Plan](Test_and_Integration.md) - Version 2.4 coverage, recorded checks, and retained historical regression procedures and logs.
 - [Validation Corpus Policy](docs/validation/VALIDATION_CORPUS.md) - Corpus tiers, checksum-manifest requirements, existing fixtures, and independent-review requirements.
 - [v2.0 Local Verification](release/evidence/v2.0-local-verification.md) - Historical local environment, checks, artifact hashes, browser measurements, screenshots, and unresolved v2.0 gates.
 
@@ -450,7 +462,7 @@ This index covers all 46 project-authored Markdown files in the source tree. His
 <details>
 <summary><strong>Release and rollback (11)</strong></summary>
 
-- [Release Notes](RELEASE_NOTES.md) - Current Version 2.3.3 development changes and concise summaries of earlier versions.
+- [Release Notes](RELEASE_NOTES.md) - Current Version 2.4 development changes and concise summaries of earlier versions.
 - [v2.0 Release Checklist](docs/engineering/RELEASE_CHECKLIST.md) - Version-specific v2.0 promotion evidence, open security/deployment gates, and rollout requirements.
 - [v2.1 Release Checklist](docs/engineering/RELEASE_CHECKLIST_V2_1.md) - Version-specific v2.1 implementation evidence and remaining validation, data, security, and operations gates.
 - [v2.2 Release Checklist](docs/engineering/RELEASE_CHECKLIST_V2_2.md) - Historical Version 2.2 scope, automated evidence, controlled-data checks, rollback readiness, and candidate decision.

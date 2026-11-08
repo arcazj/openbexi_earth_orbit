@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "policy": "regression-ceiling",
   "files": {
-    "index.html": 315000,
+    "index.html": 325000,
     "json/gp/GP.json": 28000000,
     "json/launches/launches.json": 10500000,
     "json/tle/TLE.json": 11000000,
-    "data/ephemeris/solar_system_jpl_horizons_2020_2035_6h.json": 17500000,
+    "data/ephemeris/solar_system_jpl_horizons_2020_2035_6h.json": 18000000,
     "obj/ISS.glb": 45000000,
     "textures/1_earth_16k.jpg": 35000000,
     "textures/March_8k.jpg": 12000000
@@ -21,7 +21,7 @@
         "js/domain/index.js",
         "js/satelliteCategoryFilter.js"
       ],
-      "maxBytes": 915000
+      "maxBytes": 950000
     },
     "vendoredBrowserRuntime": {
       "roots": ["vendor"],

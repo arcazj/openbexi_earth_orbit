@@ -17,6 +17,35 @@ from tests_python.test_satellite_data_scheduler import _omm
 
 
 class SmartDataUpdatesTests(unittest.TestCase):
+    def test_server_imports_standalone_cache_and_cross_format_cooldown(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            legacy = root / "runtime" / "provider-queries.json"
+            shared = root / "runtime" / "data-plane" / "provider-queries.json"
+            tle = tools.source_urls_for_mode("incremental")[0]
+            gp = tools.gp_source_urls_for_mode("incremental")[0]
+            upstream = mock.Mock(return_value=tools.FetchResponse(url=tle, text="cached"))
+            ProviderQueries(legacy, upstream, now=NOW)(tle)
+            queries = ProviderQueries(shared, upstream, now=NOW + dt.timedelta(minutes=1))
+            self.assertEqual(queries.cached(tle).text, "cached")
+            with self.assertRaises(ProviderPaused):
+                queries(gp)
+            self.assertEqual(upstream.call_count, 1)
+
+    def test_legacy_block_requires_recorded_operator_resume(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            legacy = root / "runtime" / "provider-queries.json"
+            shared = root / "runtime" / "data-plane" / "provider-queries.json"
+            legacy.parent.mkdir()
+            legacy.write_text(json.dumps({"urls": {"https://celestrak.org/pub/satcat.csv": {
+                "last_attempt_at": tools.isoformat_utc(NOW)}}, "blocked": True, "error": "HTTP 403"}))
+            self.assertTrue(ProviderQueries.read(shared)["blocked"])
+            shared.parent.mkdir()
+            shared.write_text(json.dumps({"urls": {}, "blocked": False,
+                "operator_resume": {"at": tools.isoformat_utc(NOW + dt.timedelta(days=1))}}))
+            self.assertFalse(ProviderQueries.read(shared)["blocked"])
+
     def test_restored_snapshot_is_selectable_and_idempotent_after_resealing(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -89,7 +118,7 @@ class SmartDataUpdatesTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             seed_repository(root)
-            ledger = root / "runtime" / "provider-queries.json"
+            ledger = root / "runtime" / "data-plane" / "provider-queries.json"
             upstream = mock.Mock(return_value=tools.FetchResponse(url=tools.CELESTRAK_SATCAT_CSV_URL,
                 text=(root / tools.SATCAT_RELATIVE_PATH).read_text()))
             ProviderQueries(ledger, upstream, now=NOW + dt.timedelta(days=3))(tools.CELESTRAK_SATCAT_CSV_URL)

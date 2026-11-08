@@ -2700,6 +2700,13 @@ class DataUpdateScheduler:
             }
             if checked_at:
                 status["last_checked_at"] = checked_at
+            reason = result.get("reasons", {}).get(name) if isinstance(result, dict) else None
+            if reason:
+                status["message"] = reason
+                if reason.startswith("provider paused:"):
+                    status["state"] = "blocked"
+                elif reason.startswith("request cooldown"):
+                    status["state"] = "deferred"
             if item is not None:
                 errors = self._result_errors(item)
                 status["state"] = (
@@ -2720,6 +2727,9 @@ class DataUpdateScheduler:
                         status[key] = item[key]
                 if errors:
                     status["errors"] = errors
+                elif item.get("changed") and result.get("promoted") is False:
+                    status["state"] = "not-published"
+                    status["message"] = "Changes were staged but not published; previous data remains active."
             statuses[name] = status
         return statuses
 

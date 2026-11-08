@@ -1,12 +1,18 @@
 # Test and Integration Plan
 
+## Version 2.4 Solar System verification
+
+Run `npm run check`, `npm run test:unit`, `npm run test:python`, and the browser matrix. Solar tests compare interpolated positions and velocities with independent UTC Horizons samples, exercise precise/educational bounds, and check forward/reverse/pause, scrubbing, following, standalone startup, and restoration of the satellite clock. The sampled positional regression ceiling is 100 m; it is not a global error guarantee. Historical records below retain their original scope.
+
+Local verification on November 7, 2026: 64 JavaScript files passed; Python had 180 passes and one skip; all 35 applicable browser journeys passed across the full matrix and focused reruns, with 20 profile-specific skips. The reruns resolved menu-animation assumptions, catalog-age-dependent counts, and startup retry cancellation. See the concise [2.4 check report](release/evidence/v2.4.0-development-checks.json).
+
 ## Version 2.3.3 Cleanup Verification (2026-09-26)
 
 Project cleanup removes unused demos, Java/Maven build files, unused assets, and stale data chunks. The current packaged tracked catalog and decay metadata were rebuilt from existing local sources and validated. `npm run check` passes; all 63 JavaScript test files pass; Python reports 166 passes and one skip; both Chromium static-deployment journeys pass. The full browser matrix, including the earlier smoke mismatch, was not repeated. See [cleanup evidence](release/evidence/v2.3.3-cleanup-checks.json). Historical results below retain their original scope.
 
 ## Purpose
 
-This file records Version 2.3.3 integration expectations and preserves earlier regression and manual-test records. Authoritative promotion gates remain the separate release checklists, the scripts selected by `npm run check` and `npm test`, and retained evidence under `release/evidence/` and `validation/`. Historical statements below are not current dependency, version, or publication requirements.
+This file records Version 2.4 integration expectations and preserves earlier regression and manual-test records. Authoritative promotion gates remain the separate release checklists, the scripts selected by `npm run check` and `npm test`, and retained evidence under `release/evidence/` and `validation/`. Historical statements below are not current dependency, version, or publication requirements.
 
 ## Version 2.3.3 Server Maintenance Verification
 

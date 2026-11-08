@@ -109,7 +109,11 @@
             moduleScript.type = 'module';
             moduleScript.textContent = `${template.textContent}\nwindow.__openbexiModuleLoaded();\n//# sourceURL=${moduleLabel || `${templateId}.js`}`;
             moduleScript.onerror = () => {
+                moduleScript.onerror = null;
                 delete global.__openbexiModuleLoaded;
+                // Cancel the rest of the failed graph before Retry opens new
+                // connections to the bounded local server.
+                global.stop?.();
                 reject(new Error('Application module graph failed to load.'));
             };
             template.after(moduleScript);

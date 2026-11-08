@@ -71,7 +71,7 @@ function run() {
     assert(fs.existsSync(texturePath), `${key} texture file exists`);
     const { width, height } = imageDimensions(texturePath);
     assert(width <= 8192 && height <= 4096, `${key} texture dimensions are browser-safe`);
-    assert(standalone.includes(`textureUrl: SOLAR_SYSTEM_TEXTURE_PATHS.${key}`), `standalone page uses shared ${key} texture constant`);
+    assert(standalone.includes('solarSystemStandalone.js'), 'standalone loads the shared rendering engine');
   });
 
   assert.strictEqual(ephemerisRaw.metadata.source, 'NASA/JPL Horizons API', 'ephemeris source is documented');

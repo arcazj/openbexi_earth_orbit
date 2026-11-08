@@ -92,7 +92,122 @@ canvas {
     text-decoration: underline;
 }
 
+/* A quiet status strip, separate from the menu and the map controls. */
+body:has(#dataRefreshStatus:not([hidden])) {
+    --data-status-height: calc(34px + env(safe-area-inset-bottom, 0px));
+}
+
+.data-refresh-banner {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 3200;
+    box-sizing: border-box;
+    height: var(--data-status-height);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px 16px;
+    padding: 6px 14px calc(6px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid rgba(151, 172, 192, 0.18);
+    background: rgba(13, 20, 29, 0.96);
+    color: #c0cbd6;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.data-refresh-banner[hidden] {
+    display: none;
+}
+
+.data-refresh-indicator {
+    flex: 0 0 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #91a6ba;
+}
+
+.data-refresh-banner[data-tone="warning"] .data-refresh-indicator {
+    background: #d7ad6a;
+}
+
+.data-refresh-dates {
+    color: #9cabb9;
+}
+
+body:has(#dataRefreshStatus:not([hidden])) #controlsContainer {
+    max-height: calc(100vh - var(--data-status-height) - 20px);
+}
+
+body:has(#dataRefreshStatus:not([hidden])) .timeline-hud {
+    bottom: var(--data-status-height);
+}
+
+body:has(#dataRefreshStatus:not([hidden])) #mercatorContainer.globe-overlay {
+    bottom: calc(var(--data-status-height) + 10px);
+}
+
+body:has(#dataRefreshStatus:not([hidden])) .tracked-results-drawer {
+    bottom: calc(var(--data-status-height) + 12px);
+    max-height: calc(100vh - var(--data-status-height) - 24px);
+}
+
+@media (max-width: 1100px) {
+    body:has(#dataRefreshStatus:not([hidden])) {
+        --data-status-height: calc(64px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .data-refresh-banner {
+        flex-wrap: wrap;
+        align-content: center;
+        gap: 3px 8px;
+        text-align: center;
+    }
+
+    #dataRefreshSummary {
+        max-width: calc(100% - 16px);
+    }
+
+    .data-refresh-dates {
+        flex-basis: 100%;
+    }
+}
+
+@media (max-width: 560px) {
+    body:has(#dataRefreshStatus:not([hidden])) #controlsContainer {
+        max-height: calc(100vh - var(--data-status-height) - 190px);
+    }
+}
+
 /* Control Groups within Menu */
+.solar-time-controls {
+    display: grid;
+    gap: 8px;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(140, 170, 205, 0.25);
+    margin-bottom: 10px;
+}
+.solar-time-grid, .solar-time-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+.solar-time-grid[hidden] { display: none; }
+.solar-time-controls label { min-width: 0; font-size: 12px; }
+.solar-time-controls input:not([type="checkbox"]), .solar-time-controls select {
+    width: 100%; min-width: 0; box-sizing: border-box;
+    padding: 6px; border: 1px solid #4a6077; border-radius: 5px;
+    background: #142131; color: #e2ecf6; color-scheme: dark;
+}
+.solar-time-controls input[type="range"] { padding: 0; accent-color: #6ac6d0; }
+.solar-time-controls button {
+    border: 1px solid #4a6077; border-radius: 5px; padding: 6px;
+    color: #e2ecf6; background: #203348; cursor: pointer;
+}
+.solar-time-controls .solar-mode-toggle { line-height: 1.5; }
+.solar-mode-toggle span, .solar-time-note { color: #aebdcd; font-size: 11px; line-height: 1.4; }
+.solar-time-controls :focus-visible { outline: 2px solid #7ecbd9; outline-offset: 2px; }
+.solar-time-controls :disabled { opacity: 0.55; }
+
 .control-group {
     margin-bottom: 1em;
     padding-bottom: 10px;

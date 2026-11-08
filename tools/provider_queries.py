@@ -60,6 +60,33 @@ class ProviderQueries:
 
     @staticmethod
     def read(path):
+        value = ProviderQueries._read(path)
+        path = Path(path)
+        # Older standalone exporters wrote a separate ledger. Import its cache
+        # and admission limits without redownloading data in another format.
+        if path.parent.name == "data-plane":
+            legacy = ProviderQueries._read(path.parent.parent / path.name)
+            for scope, old in legacy.get("scopes", {}).items():
+                current = value.setdefault("scopes", {}).get(scope, {})
+                value["scopes"][scope] = {"next_allowed_at": max(
+                    old.get("next_allowed_at", ""), current.get("next_allowed_at", ""))}
+            for url, old in legacy.get("urls", {}).items():
+                current = value["urls"].get(url, {})
+                merged = dict(old if old.get("last_attempt_at", "") > current.get("last_attempt_at", "") else current)
+                cached = max((old, current), key=lambda item: item.get("last_success_at", ""))
+                for key in ("response", "last_success_at"):
+                    if key in cached:
+                        merged[key] = cached[key]
+                merged["next_allowed_at"] = max(old.get("next_allowed_at", ""), current.get("next_allowed_at", ""))
+                value["urls"][url] = merged
+            resumed_at = value.get("operator_resume", {}).get("at", "")
+            legacy_attempt = max((item.get("last_attempt_at", "") for item in legacy["urls"].values()), default="")
+            if legacy.get("blocked") and resumed_at <= legacy_attempt:
+                value.update(blocked=True, error=legacy.get("error"))
+        return value
+
+    @staticmethod
+    def _read(path):
         try:
             value = json.loads(Path(path).read_text(encoding="utf-8"))
             if isinstance(value, dict) and isinstance(value.get("urls", {}), dict):

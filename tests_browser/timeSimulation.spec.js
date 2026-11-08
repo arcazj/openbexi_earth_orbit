@@ -279,10 +279,11 @@ test('Time x keeps selected satellite fluid and drives bounded Solar System ephe
   const returnedPosition = (await page.evaluate(() => window.openbexiSimulation.snapshot())).selectedPosition;
   expect(vectorDistance(originalPosition, returnedPosition)).toBeLessThan(1e-9);
 
+  if (await page.locator('#viewAccordionHeader').getAttribute('aria-expanded') !== 'true') await page.locator('#viewAccordionHeader').click();
   await page.locator('#solarSystemOverviewToggle').check();
   await page.waitForFunction(() => window.openbexiSimulation.snapshot().ephemerisMode === 'JPL-derived ephemeris');
   await page.evaluate(() => window.openbexiSimulation.setTime('2026-08-23T00:00:00Z'));
-  const planets = ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars', 'Jupiter', 'Saturn', 'Uranus'];
+  const planets = ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune'];
   const planetPositionsBefore = await page.evaluate(names => Object.fromEntries(
     names.map(name => [name, window.openbexiSimulation.planetPosition(name)])
   ), planets);
@@ -305,6 +306,7 @@ test('Time x keeps selected satellite fluid and drives bounded Solar System ephe
     const snapshot = window.openbexiSimulation.snapshot();
     return snapshot.drawnNoradIds.includes('100011') && window.openbexiSimulation.markerState('100011')?.visible === true;
   });
+  if (await page.locator('#viewAccordionHeader').getAttribute('aria-expanded') !== 'true') await page.locator('#viewAccordionHeader').click();
   await page.locator('#solarSystemOverviewToggle').check();
   await page.waitForFunction(() => window.openbexiSimulation.snapshot().ephemerisMode === 'JPL-derived ephemeris');
 

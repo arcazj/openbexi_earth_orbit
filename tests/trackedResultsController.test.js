@@ -266,6 +266,6 @@ assert(indexSource.includes('trackedResultsController = createTrackedResultsCont
 assert(indexSource.includes('trackedResultsController?.isOpen()) trackedResultsController.refresh(filteredTLEs)'));
 assert(!indexSource.includes('trackedResultsDrawerElement'), 'index has no stale drawer-global integration');
 assert(!indexSource.includes('refreshTrackedResults'), 'index delegates result refreshes to the controller');
-assert(Buffer.byteLength(indexSource) <= 315_000, 'index remains within its existing release budget');
+assert(Buffer.byteLength(indexSource) <= JSON.parse(fs.readFileSync('release/asset-budgets.json', 'utf8')).files['index.html'], 'index remains within its declared release budget');
 
 console.log('tracked results controller tests passed');

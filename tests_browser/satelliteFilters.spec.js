@@ -981,7 +981,17 @@ async function selectSatellite(page, noradId) {
 }
 
 async function setCheckbox(page, selector, checked) {
+  const menuWasHidden = await page.locator('#controlsContainer').evaluate(element => element.classList.contains('menu-hidden'));
+  if (menuWasHidden) {
+    await page.locator('#menuToggleBtn').click();
+  }
   const checkbox = page.locator(selector);
+  const sectionHeader = await checkbox.evaluate(element =>
+    element.closest('.menu-accordion-section')?.querySelector('h3[data-collapsible-target]')?.id || null);
+  const previousHeader = await page.locator('#controlsContainer h3[aria-expanded="true"]').evaluateAll(headers => headers[0]?.id || null);
+  if (sectionHeader && await page.locator(`#${sectionHeader}`).getAttribute('aria-expanded') !== 'true') {
+    await page.locator(`#${sectionHeader}`).click();
+  }
   if (await checkbox.isChecked() !== checked) {
     const label = checkbox.locator('xpath=ancestor::label[1]');
     const labelIsInViewport = await label.evaluate(element => {
@@ -995,6 +1005,12 @@ async function setCheckbox(page, selector, checked) {
   }
   if (checked) await expect(page.locator(selector)).toBeChecked();
   else await expect(page.locator(selector)).not.toBeChecked();
+  if (previousHeader && previousHeader !== sectionHeader) await page.locator(`#${previousHeader}`).click();
+  if (menuWasHidden) {
+    await page.locator('#menuToggleBtn').click();
+    await expect.poll(() => page.locator('#controlsContainer').evaluate(element => element.getBoundingClientRect().right))
+      .toBeLessThanOrEqual(0);
+  }
 }
 
 async function openDetails(page, selector) {

@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 
 test('night map stays on the correct hemisphere through seasons, time changes and resizing', async ({ page }) => {
   await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => !!window.openbexiSimulation);
   const results = await page.evaluate(async () => {
     const { drawDayNightMercator, sunECI, gmstFromJD } = await import('/js/drawDayNight.js');
     const { mercatorPixelFromLonLat } = await import('/js/orbit/orbitLinkGeometry.js');
@@ -93,6 +94,7 @@ test('globe renders a smooth day/night boundary and the toggle restores full ill
   expect(enabled.colorSpace).toBe('srgb');
   expect(enabled.max - enabled.min).toBeGreaterThan(100);
   expect(Math.max(...enabled.steps)).toBeLessThan(30);
+  await page.locator('#viewAccordionHeader').click();
   await page.locator('#viewMercatorToggle').check();
   await page.screenshot({ path: testInfo.outputPath('day-night-enabled.png') });
   await page.locator('#showDayNightToggle').uncheck();

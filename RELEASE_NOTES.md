@@ -1,5 +1,13 @@
 # Release Notes
 
+## Version 2.4.0 - Solar System time exploration
+
+Precise JPL mode is now the default, with all eight planets and the existing Moon. UTC date entry, timeline scrubbing, custom windows, signed playback speeds and planet following share one simulation clock. Optional educational mode extends exploration to 1000-3000 CE with labeled approximations. Precise playback follows actual table bounds and pauses at either edge; exiting restores the previous satellite time and view. The standalone page shares the same implementation.
+
+The Horizons generator now requests UTC explicitly, includes Neptune, accepts configurable dates, and collects independent validation samples. Cubic Hermite interpolation uses positions and velocities. Planet symbols can be enlarged without altering planetary distances; precise mode does not silently substitute an approximate model.
+
+Also includes the shared provider request ledger, clearer refresh status in a bottom banner, and single-open menu sections with Tracked Objects expanded at startup. Startup Retry cancels the failed module load and performs one reload. Provider cooldowns remain enforced. The derived tracked catalog was rebuilt incrementally from local sources to repair stale lineage; its coverage remains explicitly partial. Version 2.4.0 remains a development build; this commit does not publish or deploy it.
+
 ## Version 2.3.3 Project Cleanup (2026-09-26)
 
 Removed unused beamforming and satellite demo pages, superseded Java/Maven exporters and compiled output, duplicate star catalogs, unused textures, and catalog chunks outside the current manifest. IntelliJ settings are now local and ignored by Git. The supported browser viewers, runtime assets, Python services, tests, and historical release evidence remain available.

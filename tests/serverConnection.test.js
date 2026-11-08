@@ -1,6 +1,7 @@
 import assert from 'assert';
 import {
   APP_VERSION,
+  renderDataRefreshStatus,
   apiEndpoint,
   checkServerConnection,
   checkServerConnectionWithFallback,
@@ -293,6 +294,41 @@ async function run() {
   assert.strictEqual(serverStatusViewModel({ state: 'error' }).icon, 'icons/server_error.svg', 'error state uses error server icon');
   assert.strictEqual(serverStatusViewModel({ state: 'disconnected' }).tooltip, 'Offline mode - using local data');
   assert.strictEqual(serverStatusViewModel({ state: 'disconnected' }).icon, 'icons/server_offline.svg', 'offline state uses offline server icon');
+
+  const refreshLabel = { dataset: {}, hidden: true };
+  const refreshSummary = {};
+  const refreshDates = {};
+  const documentObj = { getElementById: id => ({
+    dataRefreshStatus: refreshLabel, dataRefreshSummary: refreshSummary, dataRefreshDates: refreshDates
+  })[id] };
+  renderDataRefreshStatus({ state: 'degraded', last_finished_at: new Date().toISOString(),
+    newest_launch_date: '2026-09-11', newest_confirmed_decay_date: '2026-09-10' }, documentObj);
+  assert.match(refreshSummary.textContent, /Some data awaits refresh/);
+  assert.match(refreshDates.textContent, /2026-09-11/);
+  assert.match(refreshDates.textContent, /2026-09-10/);
+  assert.strictEqual(refreshLabel.hidden, false);
+  renderDataRefreshStatus({ datasets: { satcat: { last_success_at: '2000-01-01T00:00:00Z' } } }, documentObj);
+  assert.match(refreshSummary.textContent, /Launch and decay data await refresh/);
+
+  const retainedOrbitalFailure = { state: 'skipped', catalog_state: 'degraded',
+    next_check_at: '2026-11-08T01:22:58Z',
+    datasets: { gp: { last_status: 'failed' }, satcat: { last_success_at: new Date().toISOString() } },
+    newest_launch_date: '2026-11-06', newest_confirmed_decay_date: '2026-11-07' };
+  renderDataRefreshStatus(retainedOrbitalFailure, documentObj);
+  assert.strictEqual(refreshSummary.textContent, 'Orbital data awaits refresh.',
+    'a retained orbital failure does not label the latest check or refreshed timeline as failed');
+  assert.match(refreshDates.textContent, /Latest launch: 2026-11-06/);
+  assert.match(refreshDates.textContent, /Confirmed decay: 2026-11-07/);
+  assert.match(refreshLabel.title, /Next scheduled check:/);
+  assert.strictEqual(refreshLabel.dataset.tone, 'warning');
+  renderDataRefreshStatus({ ...retainedOrbitalFailure, state: 'checking' }, documentObj);
+  assert.match(refreshSummary.textContent, /Checking for new satellite data/);
+  renderDataRefreshStatus({ last_result: { provider_blocked: true } }, documentObj);
+  assert.match(refreshSummary.textContent, /Provider has paused updates/);
+  renderDataRefreshStatus({ state: 'skipped', catalog_state: 'current', last_finished_at: new Date().toISOString() }, documentObj);
+  assert.match(refreshSummary.textContent, /Satellite data last checked/);
+  assert.strictEqual(refreshLabel.dataset.tone, 'neutral');
+  assert.strictEqual(refreshDates.hidden, true);
 
   console.log('serverConnection tests passed');
 }

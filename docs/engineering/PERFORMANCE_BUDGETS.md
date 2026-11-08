@@ -1,10 +1,14 @@
 # Performance Budgets
 
-Last reviewed: 2026-10-23
+Last reviewed: 2026-11-07
 
 `release/asset-budgets.json` contains CI-enforced regression ceilings based on the current repository. They are ceilings, not optimization targets.
 
 ## Runtime Profile
+
+### v2.4 Solar System controls and Neptune
+
+The 2.4 implementation measures 318,802 bytes for `index.html`, 934,656 bytes for the budgeted JavaScript group, and 17,504,236 bytes for the regenerated nine-body ephemeris. Fixed ceilings are now 325,000 / 950,000 / 18,000,000 bytes respectively. The standalone page reuses the shared renderer instead of duplicating it. These are size ceilings, not measured frame-rate guarantees.
 
 ### v2.3.3 Catalog Ceiling Correction (2026-10-23)
 

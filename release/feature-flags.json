@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "releaseVersion": "2.3.3",
+  "releaseVersion": "2.4.0",
   "flags": [
     {
       "id": "experimental_conjunction_screening",

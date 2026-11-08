@@ -24,11 +24,11 @@ function run() {
   assertNearlyEqual(timer.getDelta(), 0.3, 'reset restarts delta measurement from reset time');
 
   const indexHtml = fs.readFileSync('index.html', 'utf8');
-  const standalone = fs.readFileSync('SolarSystemOverview.html', 'utf8');
+  const standalone = fs.readFileSync('js/solarSystemStandalone.js', 'utf8');
   assert(!indexHtml.includes('THREE.Clock'), 'index.html does not use deprecated THREE.Clock');
   assert(!standalone.includes('THREE.Clock'), 'SolarSystemOverview.html does not use deprecated THREE.Clock');
   assert(indexHtml.includes("import { createAnimationTimer } from './js/animationTimer.js';"), 'index imports local animation timer');
-  assert(standalone.includes("import { createAnimationTimer } from './js/animationTimer.js';"), 'standalone Solar System page imports local animation timer');
+  assert(standalone.includes("import { createAnimationTimer } from './animationTimer.js';"), 'standalone Solar System page imports local animation timer');
 
   console.log('animationTimer tests passed');
 }

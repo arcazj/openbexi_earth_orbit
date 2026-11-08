@@ -1,20 +1,36 @@
 {
   "schema_version": "2.2.0",
-  "built_at": "2026-10-05T11:58:53.015210Z",
-  "fetched_at": "2026-10-05T11:58:53.015210Z",
-  "last_success_at": "2026-10-05T11:58:53.015210Z",
-  "last_attempt_at": "2026-10-05T11:58:53.015210Z",
+  "built_at": "2026-11-07T23:09:09.753706Z",
+  "fetched_at": "2026-11-07T23:09:09.753706Z",
+  "last_success_at": "2026-11-07T23:09:09.753706Z",
+  "last_attempt_at": "2026-11-07T23:09:09.753706Z",
   "last_status": "ok",
-  "mode": "reconcile",
+  "mode": "incremental",
   "source": "json/satcat.csv",
-  "satcat_refresh": null,
-  "catalog_revision": "sha256:0cc4b262e7930c754ddb62f0d1504748ff3c88edd86db5e8d09f77ca2d064ef6",
-  "dataset_hash": "sha256:0cc4b262e7930c754ddb62f0d1504748ff3c88edd86db5e8d09f77ca2d064ef6",
-  "newest_confirmed_decay_date": "2026-10-04",
-  "source_satcat_revision": "sha256:ce552cf72924f5c2366b21bdc5fae31c96e464dfea6a5dc2d41238bbe044e5c2",
+  "satcat_refresh": {
+    "changed": true,
+    "skipped": false,
+    "mode": "refresh-satcat",
+    "message": "SATCAT refresh completed.",
+    "counts": {
+      "bytes": 6795531,
+      "records": 71293,
+      "launch_records": 28306
+    },
+    "errors": [],
+    "paths": {
+      "satcat": "json/satcat.csv",
+      "metadata": "json/satcat.meta.json",
+      "launches": "json/launches/launches.json"
+    }
+  },
+  "catalog_revision": "sha256:cf63546f2321f717c16275161591d2a4c59e8992a4573d9c9330d1b4acf3d4d8",
+  "dataset_hash": "sha256:cf63546f2321f717c16275161591d2a4c59e8992a4573d9c9330d1b4acf3d4d8",
+  "newest_confirmed_decay_date": "2026-11-07",
+  "source_satcat_revision": "sha256:eadba2f4b6db1399c6d992ce6ba1fb6fdfa1727760630df928d22f04e4011dde",
   "counts": {
-    "objects": 7536,
-    "records": 7696,
+    "objects": 7618,
+    "records": 7784,
     "retained_history": 1
   },
   "last_reconciled_at": "2026-10-05T11:58:53.015210Z",

@@ -1,21 +1,21 @@
 {
-  "fetched_at": "2026-10-05T11:58:53.015210Z",
-  "last_success_at": "2026-10-05T11:58:53.015210Z",
-  "last_attempt_at": "2026-10-05T11:58:53.015210Z",
+  "fetched_at": "2026-11-07T23:09:09.753706Z",
+  "last_success_at": "2026-11-07T23:09:09.753706Z",
+  "last_attempt_at": "2026-11-07T23:09:09.753706Z",
   "last_status": "ok",
   "source_url": "https://celestrak.org/pub/satcat.csv",
-  "catalog_revision": "sha256:7100cdfb38a3b37b70b961d62c1e0a61c89071052c2436085a2dd2d6e0d0ef1c",
-  "dataset_hash": "sha256:7100cdfb38a3b37b70b961d62c1e0a61c89071052c2436085a2dd2d6e0d0ef1c",
+  "catalog_revision": "sha256:7957672ce4b7a23f85c31765be032086858683a7f88d30bfc2aa4b4c8888ccc6",
+  "dataset_hash": "sha256:7957672ce4b7a23f85c31765be032086858683a7f88d30bfc2aa4b4c8888ccc6",
   "counts": {
-    "bytes": 6757455,
-    "records": 70882
+    "bytes": 6795531,
+    "records": 71293
   },
   "urls": {
     "https://celestrak.org/pub/satcat.csv": {
-      "etag": "\"e3188d4bb054dd1:0\"",
-      "last_modified": "Mon, 05 Oct 2026 10:00:04 GMT",
+      "etag": "\"36b18f81b6fdd1:0\"",
+      "last_modified": "Sat, 07 Nov 2026 22:58:29 GMT",
       "status": 200,
-      "last_attempt_at": "2026-10-05T11:58:53.015210Z"
+      "last_attempt_at": "2026-11-07T23:09:09.753706Z"
     }
   },
   "last_reconciled_at": "2026-10-05T11:58:53.015210Z",

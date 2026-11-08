@@ -1,5 +1,10 @@
 # Prompt History
 
+## Version 2.4 - Solar System time exploration
+
+User requested precise astronomical mode by default, an educational checkbox, flexible time ranges, Sun-centered and planet-following views, legacy compatibility, concise documentation updates, and a local version 2.4 commit. Implemented as 2.4.0 with explicit data coverage and labeled approximations; publication was not requested.
+
+
 ## Version 2.3.3 Project Cleanup (2026-09-26)
 
 The repository owner requested project cleanup, retention of what is needed for the latest version, and synchronization with Git. Removed obsolete prototype pages, superseded Java/Maven tooling, unused assets, and unreferenced catalog chunks. Kept maintained source, supported viewers, tests, build tools, licenses, and historical evidence. Local IDE settings and private runtime state remain outside version control. Restored a complete packaged data closure from the existing GP/SATCAT sources and retained historical records. Verification is recorded in `release/evidence/v2.3.3-cleanup-checks.json`. This work does not deploy GitHub Pages or promote the development release.

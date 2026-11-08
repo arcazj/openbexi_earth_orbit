@@ -1060,6 +1060,8 @@ class SatelliteDataPlane:
             base_root = self.current_root()
             base_pointer = self.pointer()
             if updater is data_tools.maybe_update_satellite_data:
+                # CLI exporters and the server must share admission across formats.
+                # Separate ledgers cause duplicate downloads and provider blocks.
                 update_kwargs.setdefault("provider_state_path", self.state_root / "provider-queries.json")
                 plan_keys = {
                     "interval_hours",
@@ -1079,7 +1081,7 @@ class SatelliteDataPlane:
                     **{key: value for key, value in update_kwargs.items() if key in plan_keys},
                 )
                 report("checking", "Freshness: " + ", ".join(
-                    f"{name.upper()}={'due' if due or plan['reconciliation'].get(name) else 'current'}"
+                    f"{name.upper()}={'due' if due or plan['reconciliation'].get(name) else plan.get('reasons', {}).get(name, 'not due')}"
                     for name, due in plan["due"].items()
                 ))
                 if plan["any_due"] is not True:

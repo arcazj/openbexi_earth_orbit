@@ -146,15 +146,23 @@ export function interpolateBodyVectorKm(ephemerisData, bodyKey, simDate) {
     const fraction = (time - timeMs[i0]) / (timeMs[i1] - timeMs[i0]);
     const v0 = ephemerisData.bodies[bodyKey].vectors[i0];
     const v1 = ephemerisData.bodies[bodyKey].vectors[i1];
+    const seconds = (timeMs[i1] - timeMs[i0]) / 1000;
+    const t = fraction, t2 = t * t, t3 = t2 * t;
+    const position = [0, 1, 2].map(axis =>
+        (2 * t3 - 3 * t2 + 1) * v0[axis] + (t3 - 2 * t2 + t) * seconds * v0[axis + 3] +
+        (-2 * t3 + 3 * t2) * v1[axis] + (t3 - t2) * seconds * v1[axis + 3]);
+    const velocity = [0, 1, 2].map(axis =>
+        (6 * t2 - 6 * t) / seconds * v0[axis] + (3 * t2 - 4 * t + 1) * v0[axis + 3] +
+        (-6 * t2 + 6 * t) / seconds * v1[axis] + (3 * t2 - 2 * t) * v1[axis + 3]);
     return {
         status: 'ok',
-        vector: v0.map((value, index) => value + (v1[index] - value) * fraction),
+        vector: [...position, ...velocity],
         index: i0,
         fraction
     };
 }
 
-export function solarSystemScenePositionForBody(ephemerisData, bodyKey, simDate) {
+export function solarSystemScenePositionForBody(ephemerisData, bodyKey, simDate, { moonDistanceMultiplier = 1 } = {}) {
     const clampedDate = clampSolarSystemEphemerisDate(ephemerisData, simDate);
     if (!clampedDate.date) return clampedDate;
     const effectiveDate = clampedDate.date;
@@ -170,7 +178,7 @@ export function solarSystemScenePositionForBody(ephemerisData, bodyKey, simDate)
             moon.vector[2] - earth.vector[2]
         ];
         const relativeScene = heliocentricVectorKmToScene(relativeKm)
-            .multiplyScalar(MOON_DISTANCE_VISUAL_MULTIPLIER);
+            .multiplyScalar(moonDistanceMultiplier);
         return {
             status: 'ok',
             position: earthPosition.add(relativeScene),

@@ -2192,7 +2192,7 @@ def export_tle_data(
     root_path = Path(root).resolve()
     tle_path = repo_path(root_path, TLE_RELATIVE_PATH)
     if fetcher is None:
-        fetcher = ProviderQueries(root_path / "runtime" / "provider-queries.json", fetch_url, now=now, dry_run=dry_run)
+        fetcher = ProviderQueries(root_path / "runtime" / "data-plane" / "provider-queries.json", fetch_url, now=now, dry_run=dry_run)
     meta_path = repo_path(root_path, TLE_META_RELATIVE_PATH)
     launch_dates_path = repo_path(root_path, LAUNCH_DATES_RELATIVE_PATH)
     launch_dates_existed = launch_dates_path.exists()
@@ -2833,7 +2833,7 @@ def export_gp_data(
     root_path = Path(root).resolve()
     gp_path = repo_path(root_path, GP_RELATIVE_PATH)
     if fetcher is None:
-        fetcher = ProviderQueries(root_path / "runtime" / "provider-queries.json", fetch_url, now=now, dry_run=dry_run)
+        fetcher = ProviderQueries(root_path / "runtime" / "data-plane" / "provider-queries.json", fetch_url, now=now, dry_run=dry_run)
     meta_path = repo_path(root_path, GP_META_RELATIVE_PATH)
     meta = load_json(meta_path, {})
     if not isinstance(meta, dict):
@@ -3399,7 +3399,7 @@ def refresh_satcat_csv(
     now = now or utc_now()
     root_path = Path(root).resolve()
     satcat_path = repo_path(root_path, SATCAT_RELATIVE_PATH)
-    fetcher = fetcher or ProviderQueries(root_path / "runtime" / "provider-queries.json", fetch_url, now=now, dry_run=dry_run)
+    fetcher = fetcher or ProviderQueries(root_path / "runtime" / "data-plane" / "provider-queries.json", fetch_url, now=now, dry_run=dry_run)
     meta_path = repo_path(root_path, SATCAT_META_RELATIVE_PATH)
     meta = load_json(meta_path, {})
     if not isinstance(meta, dict):
@@ -5358,7 +5358,7 @@ def scheduled_data_update_plan(
             and _tracked_manifest_is_complete(root_path, root_path / TRACKED_MANIFEST_RELATIVE_PATH)):
         due["tracked"] = reconciliation_due["tracked"] = False
         reasons["tracked"] = "validated GP/SATCAT inputs are unchanged"
-    state = ProviderQueries.read(provider_state_path or root_path / "runtime" / "provider-queries.json")
+    state = ProviderQueries.read(provider_state_path or root_path / "runtime" / "data-plane" / "provider-queries.json")
     retry_delays = []
     cached_sources = []
     cached_tle = state["urls"].get(source_urls_for_mode("incremental")[0], {})
@@ -5435,7 +5435,7 @@ def maybe_update_satellite_data(
 ) -> dict[str, object]:
     now = now or utc_now()
     root_path = Path(root).resolve()
-    fetcher = ProviderQueries(provider_state_path or root_path / "runtime" / "provider-queries.json",
+    fetcher = ProviderQueries(provider_state_path or root_path / "runtime" / "data-plane" / "provider-queries.json",
                               fetcher or fetch_url, now=now, dry_run=dry_run, on_saved=provider_state_saved,
                               clock=utc_now if fetcher is None else None)
 

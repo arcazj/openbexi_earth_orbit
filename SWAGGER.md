@@ -18,7 +18,7 @@ Live endpoint requests and the generated OpenAPI JSON still require the optional
 py server.py --host 127.0.0.1 --port 8000
 ```
 
-Version 2.3.3 enables background data checks after startup and every 24 hours. `--no-data-update` disables them; `--update-data-on-schedule` remains a compatibility flag. Changes to server code take effect after a restart.
+Version 2.4.0 enables background data checks after startup and every 24 hours. `--no-data-update` disables them; `--update-data-on-schedule` remains a compatibility flag. Changes to server code take effect after a restart.
 
 Default base URL:
 
@@ -53,7 +53,7 @@ Tracked routes return `503 TRACKED_CATALOG_UNAVAILABLE` while the selected track
 | `GET` | `/api/tle` | Yes | Deprecated Version 2.2 numeric/Alpha-5 compatibility subset from `json/tle/TLE.json`; it is not complete six-digit coverage. |
 | `GET` | `/api/satellites` | Yes | Generic catalog route that returns preferred GP/OMM with deprecated TLE fallback. |
 | `GET` | `/api/launches` | Yes | Returns SATCAT-backed launch events, including details-only records with no propagatable orbit. |
-| `GET` | `/api/tracked-objects` | Yes | Alias for the current tracked-object manifest; Version 2.3.3 retains tracked schema Version 2.3.0. Returns bounded `503 TRACKED_CATALOG_UNAVAILABLE` when the publication is incoherent. |
+| `GET` | `/api/tracked-objects` | Yes | Alias for the current tracked-object manifest; Version 2.4.0 retains tracked schema Version 2.3.0. Returns bounded `503 TRACKED_CATALOG_UNAVAILABLE` when the publication is incoherent. |
 | `GET` | `/api/tracked-objects/manifest` | Yes | Returns the selected root's atomic tracked-object publication manifest, coverage/accounting invariants, counts, provenance, and referenced chunks only after closure/revision/current-source-lineage verification. Version 2.3.2 facets and result views are client-derived and do not change this API. |
 | `GET` | `/api/tracked-objects/chunks/{file_name}` | Yes | Returns one content-addressed chunk referenced by the current manifest after whole-publication coherence plus allowlist, byte, SHA-256, and record-count validation. |
 | `GET` | `/api/satellite-metadata` | Yes | Lists available metadata JSON files under `json/satellites/`. |
@@ -95,7 +95,7 @@ Example response:
 {
   "status": "ok",
   "app": "openbexi_earth_orbit",
-  "version": "2.3.3",
+  "version": "2.4.0",
   "release_date": null,
   "candidate_date": null,
   "publication_state": "development"
@@ -113,7 +113,7 @@ Example response:
 
 ```json
 {
-  "app_version": "2.3.3",
+  "app_version": "2.4.0",
   "api_version": "1.0.0",
   "release_date": null,
   "candidate_date": null,
@@ -122,7 +122,7 @@ Example response:
   "maturity": "experimental",
   "safety_class": "non-operational",
   "repository": "https://github.com/arcazj/openbexi_earth_orbit",
-  "server": "OpenBEXIHTTP/2.3.3"
+  "server": "OpenBEXIHTTP/2.4.0"
 }
 ```
 

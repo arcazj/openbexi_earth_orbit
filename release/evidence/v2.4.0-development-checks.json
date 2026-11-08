@@ -1,0 +1,60 @@
+{
+  "version": "2.4.0",
+  "localDate": "2026-11-07",
+  "publicationState": "development",
+  "platform": "Windows; Node 24; Python 3.9; Playwright Chromium 149 with SwiftShader",
+  "staticGates": {
+    "command": "npm run check",
+    "result": "passed",
+    "currentCatalogArtifactsValidated": 24
+  },
+  "javascript": {
+    "command": "npm run test:unit",
+    "filesPassed": 64,
+    "filesFailed": 0
+  },
+  "python": {
+    "command": "npm run test:python",
+    "passed": 180,
+    "skipped": 1,
+    "failed": 0
+  },
+  "browser": {
+    "command": "npm run test:browser",
+    "matrixCases": 55,
+    "applicableJourneysPassed": 35,
+    "profileSpecificSkips": 20,
+    "unresolvedFailures": 0,
+    "method": "Full matrix followed by focused reruns; not a single clean full-matrix run.",
+    "fullMatrix": { "passed": 30, "failed": 5, "skipped": 20 },
+    "verifiedReruns": [
+      "Desktop and mobile Mercator overlay/fullscreen",
+      "Main application startup and density rendering at the catalog epoch",
+      "Module-load failure and Retry recovery",
+      "Mobile conjunction workflow"
+    ],
+    "corrections": [
+      "Interact with one open accordion section and restore hidden-menu state after its transition.",
+      "Anchor density smoke propagation to the admitted catalog epoch.",
+      "Use one Retry handler and cancel the failed module graph before reloading.",
+      "Ignore only cancellation of the superseded server-checking icon request.",
+      "Run browser diagnostics serially to avoid competing for bounded local-server connections."
+    ],
+    "timingBudgetsEnforced": false
+  },
+  "ephemeris": {
+    "source": "NASA/JPL Horizons; explicit UTC, geometric Sun-centered J2000 ecliptic vectors",
+    "coverageUtc": ["2020-01-01T00:00:00Z", "2035-12-31T00:00:00Z"],
+    "bodies": 9,
+    "independentSamples": 27,
+    "maximumSampledPositionErrorMeters": 35.20,
+    "positionRegressionLimitMeters": 100,
+    "velocityRegressionLimitMetersPerSecond": 0.1,
+    "scope": "Sampled interpolation regression, not a global accuracy guarantee."
+  },
+  "catalog": {
+    "coverage": "partial",
+    "rebuild": "Incremental from local GP/SATCAT sources; validates tracked lineage and closure."
+  },
+  "deployment": "Not published or deployed by this verification."
+}

@@ -20,6 +20,11 @@
     </div>
 </div>
 <div id="ob_menu"></div>
+<aside id="dataRefreshStatus" class="data-refresh-banner" role="status" aria-live="polite" aria-atomic="true" hidden>
+    <span class="data-refresh-indicator" aria-hidden="true"></span>
+    <span id="dataRefreshSummary"></span>
+    <span id="dataRefreshDates" class="data-refresh-dates"></span>
+</aside>
 <div id="mercatorContainer">
     <div class="mapBackground">
         <canvas id="mercatorCanvas"></canvas>
@@ -167,6 +172,7 @@
         solarSystemEphemerisSummary
     } from './js/solarSystemOverviewLoader.js';
     import { solarSystemEphemerisBounds } from './js/solarSystemEphemeris.js';
+    import { createSolarSystemTimeControls, solarSystemTimeBounds } from './js/solarSystemTimeControls.js';
 
     import {
         initTimeline,
@@ -342,15 +348,16 @@
     const DECAY_ESTIMATE_CHUNK_SIZE = 2;
     const MENU_COLLAPSE_STORAGE_KEY = 'openbexi.menu.collapsedSections';
     const DEFAULT_EXPANDED_ACCORDION_SECTIONS = new Set([
-        'viewContent',
         'satelliteSelectionContent'
     ]);
     const DEFAULT_COLLAPSED_ACCORDION_SECTIONS = new Set([
+        'viewContent',
         'conjunctionContent',
         'timelineContent',
         'shareContent',
         'helpContent'
     ]);
+    const collapsedAccordionSections = new Set(DEFAULT_COLLAPSED_ACCORDION_SECTIONS);
     const SATELLITE_SEARCH_LIMIT = 40;
     const EXCLUDED_COMPANY_FILTER_OPTIONS = new Set(['ACTIVE']);
     const serverApiBaseUrl = resolveApiBaseUrl();
@@ -450,6 +457,7 @@
     let starAtmosphereMesh = null;
     let solarSystemOverview = null;
     let solarSystemPreviousState = null;
+    let solarSystemTimeControls = null;
     let solarSystemPlanetHudElement = null;
 
     const ALL_COMPANY_OPTION = "ALL COMPANY";
@@ -3480,6 +3488,14 @@
         const icon = header?.querySelector('.toggle-icon');
         if (!targetContent || !header) return;
 
+        if (!collapsed) {
+            document.querySelectorAll('#controlsContainer h3[data-collapsible-target]').forEach(otherHeader => {
+                const otherId = otherHeader.dataset.collapsibleTarget;
+                if (otherId !== targetId) {
+                    setAccordionSectionCollapsed(otherId, true, collapsedSections);
+                }
+            });
+        }
         targetContent.classList.toggle('collapsed', collapsed);
         if (icon) {
             icon.classList.toggle('collapsed', collapsed);
@@ -3494,7 +3510,7 @@
     }
 
     function expandCollapsibleSection(targetId) {
-        const collapsedSections = new Set(DEFAULT_COLLAPSED_ACCORDION_SECTIONS);
+        const collapsedSections = collapsedAccordionSections;
         setAccordionSectionCollapsed(targetId, false, collapsedSections);
         debounceMenuStateWrite(MENU_COLLAPSE_STORAGE_KEY, Array.from(collapsedSections));
     }
@@ -3559,6 +3575,7 @@
         const labelValue = formatTimeWarpLabel(simParams.timeWarp);
         if (timeWarpSlider) timeWarpSlider.value = sliderValue;
         if (timeWarpVal) timeWarpVal.textContent = labelValue;
+        if (timeWarpVal && simParams.solarSystemOverview) timeWarpVal.textContent = `${labelValue} ${solarSystemTimeControls?.unit() || 'day'}/s`;
         if (timeWarpSlider) {
             const direction = simParams.timeWarp < 0 ? 'reverse' : simParams.timeWarp > 0 ? 'forward' : 'paused';
             timeWarpSlider.setAttribute('aria-valuetext', `${labelValue} times, ${direction}`);
@@ -3573,6 +3590,7 @@
             timeWarpStatus.textContent = clockState.boundary
                 ? `Ephemeris ${clockState.boundary} reached; paused`
                 : motionDiagnostics?.coverageLimited && simParams.timeWarp
+                    && !simParams.solarSystemOverview
                     ? 'Catalog markers cadence-limited; selected satellite remains exact'
                     : '';
         }
@@ -4049,6 +4067,7 @@
     }
 
     function updateSolarSystemSelectionUi() {
+        solarSystemTimeControls?.sync();
         const planet = SOLAR_SYSTEM_PLANETS.find(item => item.name === simParams.solarSystemFocusedPlanet);
         const ephemerisSummary = solarSystemEphemerisSummary(solarSystemOverview);
         const summary = planet
@@ -4057,7 +4076,12 @@
         if (solarSystemSelectionSummaryElement) solarSystemSelectionSummaryElement.textContent = summary;
         if (solarSystemPlanetHudElement) {
             if (simParams.solarSystemOverview && planet) {
-                const distanceText = planet.parentName ? `${planet.parentName}-relative` : `${planet.semiMajorAu.toFixed(3)} AU`;
+                const vector = solarSystemOverview?.planets.get(planet.name)?.vectorKm;
+                const distanceText = vector ? `${(Math.hypot(...vector.slice(0, 3)) / 149597870.7).toFixed(6)} AU`
+                    : planet.parentName ? `${planet.parentName}-relative (schematic)` : `${planet.semiMajorAu.toFixed(3)} AU (mean)`;
+                const preciseRows = vector ? `<div class="solar-system-hud-row solar-system-hud-row-wrap"><span>X / Y / Z (km)</span><strong>${vector.slice(0, 3).map(value => value.toFixed(1)).join(' / ')}</strong></div>
+                    <div class="solar-system-hud-row"><span>Speed</span><strong>${Math.hypot(...vector.slice(3)).toFixed(4)} km/s</strong></div>
+                    <div class="solar-time-note">Sun-centered geometric vectors, J2000 ecliptic; no light-time correction.</div>` : '';
                 const periodText = Number.isFinite(planet.periodDays) ? `${Math.round(planet.periodDays)} days` : 'N/A';
                 solarSystemPlanetHudElement.innerHTML = `
                     <div class="selected-satellite-detail-header">
@@ -4067,6 +4091,7 @@
                     <div class="selected-satellite-detail-body solar-system-hud-body">
                         <div class="solar-system-hud-row"><span>Distance</span><strong>${distanceText}</strong></div>
                         <div class="solar-system-hud-row"><span>Period</span><strong>${periodText}</strong></div>
+                        ${preciseRows}
                         <div class="solar-system-hud-row solar-system-hud-row-wrap"><span>Status</span><strong>${ephemerisSummary}</strong></div>
                     </div>`;
                 solarSystemPlanetHudElement.hidden = false;
@@ -4081,6 +4106,10 @@
     function snapshotSolarSystemPreviousState() {
         if (!camera || !controls) return null;
         return {
+            simulationTimeMs: simulationClock.state().timeMs,
+            simulationRate: simulationClock.state().rate,
+            simulationScale: simulationClock.timeScale(),
+            lastRunningTimeWarp,
             view3D: simParams.view3D,
             viewMercator: simParams.viewMercator,
             otherSelection: simParams.otherSelection,
@@ -4148,6 +4177,9 @@
         }
         if (next) {
             solarSystemPreviousState = snapshotSolarSystemPreviousState();
+            simulationClock.setRate(0);
+            lastRunningTimeWarp = 1;
+            solarSystemTimeControls?.activate();
             simParams.solarSystemOverview = true;
             simParams.solarSystemFocusedPlanet = null;
             simParams.view3D = true;
@@ -4155,6 +4187,12 @@
             setSolarSystemOverviewVisible(solarSystemOverview, true);
             if (resetOverviewCamera) resetSolarSystemOverviewCamera(solarSystemOverview, camera, controls);
         } else {
+            const previousClock = solarSystemPreviousState;
+            simulationClock.clearBounds();
+            simulationClock.setTimeScale(previousClock?.simulationScale || 60000);
+            simulationClock.reset(previousClock?.simulationTimeMs ?? Date.now(), previousClock?.simulationRate || 0);
+            lastRunningTimeWarp = previousClock?.lastRunningTimeWarp || 1;
+            SIM_DATE.setTime(simulationClock.state().timeMs);
             simParams.solarSystemOverview = false;
             simParams.solarSystemFocusedPlanet = null;
             setSolarSystemOverviewVisible(solarSystemOverview, false);
@@ -4177,6 +4215,7 @@
         const showDayNightToggle = document.getElementById('showDayNightToggle');
         if (showDayNightToggle) showDayNightToggle.checked = simParams.showDayNight;
         updateSolarSystemOptions();
+        updateTimeWarpControls();
     }
 
     function activateEarthFromSolarSystemSelection() {
@@ -4572,6 +4611,22 @@
         solarSystemBackButtonElement = document.getElementById('solarSystemBackButton');
         solarSystemExitButtonElement = document.getElementById('solarSystemExitButton');
         solarSystemSelectionSummaryElement = document.getElementById('solarSystemSelectionSummary');
+        solarSystemTimeControls = createSolarSystemTimeControls({
+            container: document.getElementById('solarSystemTimeControls'), overview: solarSystemOverview, clock: simulationClock,
+            onChange: () => {
+                SIM_DATE.setTime(simulationClock.state().timeMs);
+                simParams.simDate = SIM_DATE;
+                updateSolarSystemOverview(solarSystemOverview, SIM_DATE, { clockBoundary: simulationClock.state().boundary });
+                updateTimeWarpControls();
+                updateSolarSystemSelectionUi();
+            },
+            onFocus: planetName => {
+                if (planetName) {
+                    simParams.solarSystemFocusedPlanet = planetName;
+                    focusSolarSystemPlanet(solarSystemOverview, planetName, camera, controls);
+                } else returnToSolarSystemOverview();
+            }
+        });
         starsMilkyWayToggleElement = document.getElementById('starsMilkyWayToggle');
         starsMilkyWayOptionsElement = document.getElementById('starsMilkyWayOptions');
         showRaDecGridToggleElement = document.getElementById('showRaDecGridToggle');
@@ -4969,9 +5024,9 @@
         });
         updateYPRLabels();
 
-        // Independent accordion sections. Multiple sections may remain open.
+        // Only one accordion section may remain open, including programmatic expansion.
         // Launch state is deterministic: persisted state cannot override required release defaults.
-        const collapsedSections = new Set(DEFAULT_COLLAPSED_ACCORDION_SECTIONS);
+        const collapsedSections = collapsedAccordionSections;
         DEFAULT_EXPANDED_ACCORDION_SECTIONS.forEach(id => collapsedSections.delete(id));
         const persistCollapsedSections = () => debounceMenuStateWrite(MENU_COLLAPSE_STORAGE_KEY, Array.from(collapsedSections));
         document.querySelectorAll('#controlsContainer h3[data-collapsible-target]').forEach(header => {
@@ -5380,6 +5435,11 @@
                 ...satelliteMarkerDiagnostics(renderableSatellites, EARTH_SCENE_RADIUS),
                 motion: { ...satelliteMotionController.diagnostics() },
                 ephemerisMode: solarSystemOverview?.ephemerisRuntimeMode || null,
+                solarSystemActive: simParams.solarSystemOverview,
+                educational: solarSystemOverview?.options.educational || false,
+                millisecondsPerWarpSecond: simulationClock.timeScale(),
+                cameraPosition: camera?.position.toArray(),
+                cameraTarget: controls?.target.toArray(),
                 ephemerisWarning: solarSystemOverview?.ephemerisWarning || null
             };
         },
@@ -6316,9 +6376,10 @@
 
         const dtReal = clock.getDelta();
         const ephemerisBounds = simParams.solarSystemOverview
-            ? solarSystemEphemerisBounds(solarSystemOverview?.ephemerisState?.data)
+            ? solarSystemTimeBounds(solarSystemOverview)
             : null;
         simulationClock.setBounds(ephemerisBounds);
+        if (simParams.solarSystemOverview && !ephemerisBounds) simulationClock.setRate(0);
         const clockState = simulationClock.tick(dtReal);
         simParams.timeWarp = clockState.rate;
         SIM_DATE.setTime(clockState.timeMs);
@@ -6609,7 +6670,9 @@
 </script>
 <script>
     const startupFailure = document.getElementById('startupFailure');
-    startupFailure.querySelector('[data-startup-retry]').addEventListener('click', () => window.location.reload());
+    // The bootstrap may replace this handler after a dependency failure.
+    // Use one handler so Retry cannot trigger competing reloads.
+    startupFailure.querySelector('[data-startup-retry]').onclick = () => window.location.reload();
     if (typeof window.openbexiBootFromTemplate !== 'function') {
         startupFailure.hidden = false;
         console.error('OpenBEXI dependency bootstrap did not load.');

@@ -8,6 +8,7 @@ import {
     solarSystemEphemerisStatusText,
     solarSystemScenePositionForBody
 } from './solarSystemEphemeris.js';
+import { educationalPlanetPosition } from './solarSystemEducation.js';
 
 export const SOLAR_SYSTEM_TEXTURE_PATHS = {
     sun: 'textures/planets/sun.jpg',
@@ -130,8 +131,17 @@ export const SOLAR_SYSTEM_PLANETS = [
         color: 0x2fd7c4,
         orbitColor: 0x55d6d6,
         textureUrl: SOLAR_SYSTEM_TEXTURE_PATHS.uranus
+    },
+    {
+        name: 'Neptune', key: 'neptune', semiMajorAu: 30.069,
+        eccentricity: 0.0086, inclinationDeg: 1.77, periodDays: 60189,
+        phaseDeg: 304, visualRadius: 1.4, color: 0x507fff, orbitColor: 0x638eff,
+        textureUrl: null
     }
 ];
+
+const BODY_RADII_KM = { mercury: 2439.7, venus: 6051.8, earth: 6371, moon: 1737.4,
+    mars: 3389.5, jupiter: 69911, saturn: 58232, uranus: 25362, neptune: 24622 };
 
 export const SOLAR_SYSTEM_TEXTURE_ATTRIBUTIONS = [
     'textures/mercury.png, textures/venus.png, and textures/jupiter.jpg are local project-provided planet texture assets.',
@@ -144,7 +154,7 @@ export const SOLAR_SYSTEM_TEXTURE_ATTRIBUTIONS = [
 const AU_VISUAL_SCALE = 16;
 const ORBIT_SEGMENTS = 512;
 const EPHEMERIS_ORBIT_MIN_FRACTION = 0.95;
-const SKY_RADIUS = 430;
+const SKY_RADIUS = 2400;
 export const SOLAR_SYSTEM_LABEL_MIN_SCREEN_PX = 18;
 export const SOLAR_SYSTEM_LABEL_PREFERRED_SCREEN_PX = 28;
 export const SOLAR_SYSTEM_LABEL_MAX_SCREEN_PX = 42;
@@ -189,10 +199,13 @@ export function createSolarSystemOverview(scene, {
         selectedPlanet: null,
         selectedHighlight: null,
         ephemerisState: createSolarSystemEphemerisState(),
-        ephemerisRuntimeMode: 'approximate visual fallback',
+        ephemerisRuntimeMode: 'Precise positions loading',
         ephemerisWarning: 'JPL-derived ephemeris has not loaded yet.',
         ephemerisOrbitPathsBuilt: false,
         options: {
+            educational: false,
+            enlargedPlanets: true,
+            followPlanet: true,
             planetLabels: true,
             orbitPaths: true,
             planetTextures: true,
@@ -222,38 +235,51 @@ export function createSolarSystemOverview(scene, {
 
 export function updateSolarSystemOverview(overview, simDate, { clockBoundary = null } = {}) {
     if (!overview) return;
-    let usedFallback = false;
-    let warning = '';
+    overview.simDate = new Date(simDate);
+    const educational = overview.options.educational;
+    const ready = educational || overview.ephemerisState?.status === 'ready';
+    const followed = overview.planets.get(overview.selectedPlanet);
+    const previousTarget = followed?.group.position.clone();
     overview.planets.forEach((entry) => {
-        const position = planetPositionAtDate(entry.planet, simDate, overview.ephemerisState);
-        if (overview.ephemerisState?.status !== 'ready') {
-            usedFallback = true;
-            warning = overview.ephemerisState?.lastWarning || 'JPL-derived ephemeris is unavailable';
-        }
+        const result = educational ? null : solarSystemScenePositionForBody(overview.ephemerisState.data, entry.planet.key, simDate);
+        const position = educational ? educationalPosition(entry.planet, simDate) : result?.position;
+        entry.vectorKm = result?.vectorKm || null;
+        entry.group.visible = ready && !!position;
+        if (!entry.group.visible) return;
         entry.group.position.copy(position);
         if (entry.orbit?.userData?.parentName) {
             const parent = SOLAR_SYSTEM_PLANETS.find(item => item.name === entry.orbit.userData.parentName);
-            if (parent) entry.orbit.position.copy(planetPositionAtDate(parent, simDate, overview.ephemerisState));
+            if (parent) entry.orbit.position.copy(educational ? educationalPosition(parent, simDate)
+                : solarSystemScenePositionForBody(overview.ephemerisState.data, parent.key, simDate).position);
         }
         entry.marker.rotation.y = normalizeRadians(simDate.getTime() / DAY_MS * Math.PI * 2);
         updatePlanetLabelCallout(entry, overview);
     });
-    if (overview.ephemerisState?.status === 'ready') {
-        if (!overview.ephemerisOrbitPathsBuilt) rebuildOrbitPathsFromEphemeris(overview);
-        overview.ephemerisRuntimeMode = usedFallback
-            ? 'approximate visual fallback'
-            : overview.ephemerisState.lastMode;
-        overview.ephemerisWarning = overview.ephemerisState.lastWarning || warning;
-    } else {
-        overview.ephemerisRuntimeMode = 'approximate visual fallback';
-        overview.ephemerisWarning = warning || overview.ephemerisState?.lastWarning || 'JPL-derived ephemeris is unavailable';
+    overview.orbitGroup.visible = ready && overview.options.orbitPaths;
+    if (ready && overview.orbitGroup.visible) {
+        const signature = `${educational}:${simDate.getUTCFullYear()}`;
+        if (overview.orbitSignature !== signature) {
+            rebuildOrbitPathsFromEphemeris(overview);
+            overview.orbitSignature = signature;
+        }
     }
-    if (clockBoundary && overview.ephemerisState?.status === 'ready') {
+    overview.ephemerisRuntimeMode = educational ? 'Educational approximation' : ready ? 'JPL-derived ephemeris' : 'Precise positions unavailable';
+    overview.ephemerisWarning = ready ? '' : overview.ephemerisState.lastWarning;
+    if (clockBoundary && !educational && ready) {
         overview.ephemerisState.rangeBoundary = clockBoundary;
         overview.ephemerisState.lastMode = 'JPL-derived ephemeris (range boundary)';
         overview.ephemerisState.lastWarning = `simulation paused at the ${clockBoundary} of the supported range`;
         overview.ephemerisRuntimeMode = overview.ephemerisState.lastMode;
         overview.ephemerisWarning = overview.ephemerisState.lastWarning;
+    } else if (ready && !educational) {
+        overview.ephemerisState.rangeBoundary = null;
+        overview.ephemerisState.lastMode = 'JPL-derived ephemeris';
+        overview.ephemerisState.lastWarning = '';
+    }
+    if (followed?.group.visible && previousTarget && overview.options.followPlanet && overview.root.visible && overview.camera && overview.controls) {
+        const delta = followed.group.position.clone().sub(previousTarget);
+        overview.camera.position.add(delta);
+        overview.controls.target.add(delta);
     }
     updateSelectedHighlight(overview);
 }
@@ -270,6 +296,7 @@ export function setSolarSystemOverviewOptions(overview, options = {}) {
     overview.orbitGroup.visible = !!overview.options.orbitPaths;
     overview.sunGlowGroup.visible = !!overview.options.sunGlow;
     overview.planets.forEach((entry) => {
+        entry.marker.scale.setScalar(overview.options.enlargedPlanets ? 1 : BODY_RADII_KM[entry.planet.key] / 149597870.7 * AU_VISUAL_SCALE / entry.planet.visualRadius);
         entry.label.visible = !!overview.options.planetLabels;
         if (entry.texturedMaterial) {
             entry.marker.material = overview.options.planetTextures
@@ -277,6 +304,8 @@ export function setSolarSystemOverviewOptions(overview, options = {}) {
                 : entry.fallbackMaterial;
         }
     });
+    const sun = overview.root.getObjectByName('Solar System Sun');
+    if (sun) sun.scale.setScalar(overview.options.enlargedPlanets ? 1 : 695700 / 149597870.7 * AU_VISUAL_SCALE / 3.2);
 }
 
 export function pickSolarSystemPlanet(overview, event, camera = overview?.camera) {
@@ -315,7 +344,7 @@ export function focusSolarSystemPlanet(overview, planetName, camera = overview?.
     camera.position.copy(cameraPosition);
     controls.target.copy(target);
     controls.minDistance = Math.max(entry.planet.visualRadius * 2.4, 2);
-    controls.maxDistance = 520;
+    controls.maxDistance = 1800;
     controls.update();
     return { entry, target, cameraPosition };
 }
@@ -323,16 +352,16 @@ export function focusSolarSystemPlanet(overview, planetName, camera = overview?.
 export function resetSolarSystemOverviewCamera(overview, camera = overview?.camera, controls = overview?.controls) {
     if (!overview || !camera || !controls) return;
     setSolarSystemSelectedPlanet(overview, null);
-    camera.position.set(0, 115, 238);
+    camera.position.set(0, 400, 920);
     controls.target.set(0, 0, 0);
     controls.minDistance = 14;
-    controls.maxDistance = 520;
+    controls.maxDistance = 1800;
     controls.update();
 }
 
 export function solarSystemPlanetSummary(planet, overview = null) {
     if (!planet) return '';
-    const ephemerisText = overview ? ` | ${solarSystemEphemerisStatusText(overview.ephemerisState)}` : '';
+    const ephemerisText = overview ? ` | ${solarSystemEphemerisSummary(overview)}` : '';
     if (planet.parentName) {
         return `${planet.name}: Earth-relative JPL-derived Moon vector when ephemeris is available${ephemerisText}`;
     }
@@ -340,7 +369,17 @@ export function solarSystemPlanetSummary(planet, overview = null) {
 }
 
 export function solarSystemEphemerisSummary(overview) {
+    if (overview?.options.educational) return 'Educational approximation | 1000-3000 CE | Moon orbit schematic';
+    if (overview?.ephemerisState?.status !== 'ready') return 'Precise positions unavailable; loading data or enable Educational mode';
     return solarSystemEphemerisStatusText(overview?.ephemerisState);
+}
+
+function educationalPosition(planet, date) {
+    if (planet.parentName) {
+        const earth = educationalPlanetPosition('earth', date);
+        return earth?.add(moonPositionRelativeToParent(planet, date)) || null;
+    }
+    return educationalPlanetPosition(planet.key, date);
 }
 
 export function planetPositionAtDate(planet, simDate, ephemerisStateOrData = null) {
@@ -464,7 +503,7 @@ function createPlanets(overview, textureLoader) {
         overview.planets.set(planet.name, entry);
         overview.pickTargets.push(marker, label);
 
-        textureLoader.load(
+        if (planet.textureUrl) textureLoader.load(
             planet.textureUrl,
             (texture) => {
                 prepareColorTexture(texture, overview.renderer);
@@ -513,21 +552,32 @@ function createOrbitPath(planet) {
 
 function rebuildOrbitPathsFromEphemeris(overview) {
     const data = overview?.ephemerisState?.data;
-    if (!data?.times?.length) return;
+    const educational = overview.options.educational;
+    if (!educational && !data?.times?.length) return;
     overview.planets.forEach((entry) => {
-        if (!shouldUseEphemerisOrbitPath(entry.planet, data)) return;
-        const startMs = data.timeMs[0];
-        const oneOrbitTimeMs = entry.planet.periodDays * DAY_MS;
+        const duration = Math.min(entry.planet.periodDays * DAY_MS, educational ? Infinity : data.timeMs.at(-1) - data.timeMs[0]);
+        const center = overview.simDate?.getTime() ?? data?.timeMs[0];
+        const startMs = educational ? Math.max(Date.parse('1000-01-01'), Math.min(Date.parse('3000-01-01') - duration, center - duration / 2))
+            : Math.max(data.timeMs[0], Math.min(data.timeMs.at(-1) - duration, center - duration / 2));
         const points = [];
-        for (let i = 0; i < ORBIT_SEGMENTS; i += 1) {
+        for (let i = 0; i <= ORBIT_SEGMENTS; i += 1) {
             const orbitFraction = i / ORBIT_SEGMENTS;
-            const position = planetPositionAtDate(entry.planet, new Date(startMs + oneOrbitTimeMs * orbitFraction), data);
+            const date = new Date(startMs + duration * orbitFraction);
+            const position = educational ? educationalPosition(entry.planet, date)
+                : solarSystemScenePositionForBody(data, entry.planet.key, date).position;
+            if (position && entry.planet.parentName) position.sub(educational ? educationalPlanetPosition('earth', date)
+                : solarSystemScenePositionForBody(data, 'earth', date).position);
             if (position) points.push(position);
         }
         if (points.length < 3) return;
-        entry.orbit.geometry.dispose();
-        entry.orbit.geometry = new THREE.BufferGeometry().setFromPoints(points);
-        entry.orbit.name = `${entry.planet.name} JPL-derived Orbit Path`;
+        const old = entry.orbit;
+        entry.orbit = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), old.material);
+        entry.orbit.userData = old.userData;
+        entry.orbit.position.copy(old.position);
+        entry.orbit.name = `${entry.planet.name} ${educational ? 'Educational' : 'JPL-derived'} Orbit Path`;
+        overview.orbitGroup.remove(old);
+        old.geometry.dispose();
+        overview.orbitGroup.add(entry.orbit);
     });
     overview.ephemerisOrbitPathsBuilt = true;
 }
@@ -717,7 +767,7 @@ function updateSelectedHighlight(overview) {
     const highlight = overview?.selectedHighlight;
     if (!highlight) return;
     const entry = overview.selectedPlanet ? overview.planets.get(overview.selectedPlanet) : null;
-    if (!entry) {
+    if (!entry || !entry.group.visible) {
         highlight.visible = false;
         return;
     }

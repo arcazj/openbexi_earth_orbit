@@ -37,7 +37,7 @@ function run() {
   assert(html.includes('role="button"'), 'accordion headers expose button semantics');
   assert(!html.includes('aria-controls="filtersContent"'), 'standalone Filters accordion target is removed');
   assert(html.includes('aria-controls="satelliteSelectionContent"'), 'Satellite header controls its content');
-  assert(html.includes('aria-expanded="true" data-collapsible-target="viewContent"'), 'Views & Time starts expanded in markup');
+  assert(html.includes('aria-expanded="false" data-collapsible-target="viewContent"'), 'Views & Time starts collapsed in markup');
   assert(html.includes('aria-expanded="true" data-collapsible-target="satelliteSelectionContent"'), 'Satellite Selection starts expanded in markup');
   assert(!html.includes('data-collapsible-target="filtersContent"'), 'Filters no longer has its own accordion state');
   assert(html.includes('data-default-expanded="true"'), 'default-expanded accordion state is declared');
@@ -125,18 +125,17 @@ function run() {
 
   assert(indexHtml.includes('DEFAULT_EXPANDED_ACCORDION_SECTIONS = new Set(['), 'required accordion sections are forced open on page load');
   assert(indexHtml.includes('DEFAULT_COLLAPSED_ACCORDION_SECTIONS'), 'other accordion defaults are explicit');
-  ['viewContent', 'satelliteSelectionContent'].forEach(id => {
-    assert(indexHtml.includes(`'${id}'`), `${id} starts expanded on launch`);
-  });
+  assert.strictEqual((html.match(/aria-expanded="true" data-collapsible-target=/g) || []).length, 1,
+    'only Tracked Objects - Matches starts expanded');
   assert(!indexHtml.includes("'filtersContent'"), 'removed Filters content is not part of accordion defaults');
-  ['timelineContent', 'shareContent', 'helpContent'].forEach(id => {
+  ['viewContent', 'timelineContent', 'shareContent', 'helpContent'].forEach(id => {
     assert(indexHtml.includes(`'${id}'`), `${id} starts collapsed on launch`);
   });
   assert(!indexHtml.includes("'otherSelectionsContent'"), 'removed Other Selections content is not part of accordion defaults');
   assert(!indexHtml.includes("'settingsContent'"), 'settings content is not part of accordion defaults');
   assert(indexHtml.includes('persisted state cannot reopen') || indexHtml.includes('persisted state cannot override'), 'persisted accordion state cannot override launch defaults');
-  assert(indexHtml.includes('setAccordionSectionCollapsed(targetId, nextCollapsed, collapsedSections)'), 'accordion toggles only the targeted section');
-  assert(indexHtml.includes('Multiple sections may remain open'), 'implementation documents multi-open accordion behavior');
+  assert(indexHtml.includes('setAccordionSectionCollapsed(targetId, nextCollapsed, collapsedSections)'), 'accordion headers toggle their target');
+  assert(indexHtml.includes('setAccordionSectionCollapsed(otherId, true, collapsedSections)'), 'expansion closes other accordion sections');
   assert(indexHtml.includes("expandCollapsibleSection('satelliteSelectionContent')"), 'YPR-enabled selection opens Satellite Selection');
   assert(!indexHtml.includes("expandCollapsibleSection('filtersContent')"), 'YPR selection does not force unrelated sections open');
 

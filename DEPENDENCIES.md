@@ -10,12 +10,12 @@ Supported tooling is declared in `package.json#engines`. CI currently exercises 
 
 ```text
 npm run audit:dependencies
-npm run sbom -- --output release/evidence/openbexi-node-sbom-2.3.2-development.cdx.json
+npm run sbom -- --output release/evidence/openbexi-node-sbom-2.4.0-development.cdx.json
 npm run check
 npm run test:all
 ```
 
-The audit covers both runtime and development dependencies. The release SBOM intentionally records shipped runtime dependencies only; build an additional toolchain SBOM when release policy requires CI tooling provenance. `release/evidence/openbexi-node-sbom-2.3.2-development.cdx.json` is the current generated inventory, not final checksum-bound evidence until the Version 2.3.2 tree freezes. Archive the final SBOM with the version record, commit SHA, validation report, dependency audit result, artifact manifest, rollback evidence, and deployment attestation.
+The audit covers both runtime and development dependencies. The release SBOM intentionally records shipped runtime dependencies only; build an additional toolchain SBOM when release policy requires CI tooling provenance. `release/evidence/openbexi-node-sbom-2.4.0-development.cdx.json` is the current generated inventory, not final checksum-bound evidence until the Version 2.4.0 tree freezes. Archive the final SBOM with the version record, commit SHA, validation report, dependency audit result, artifact manifest, rollback evidence, and deployment attestation.
 
 Dependabot proposes weekly npm and GitHub Actions updates. Updates must retain exact npm versions and immutable GitHub Action commit pins, pass local-first vendored dependency delivery in Chromium, and preserve Three.js core/addon version parity.
 

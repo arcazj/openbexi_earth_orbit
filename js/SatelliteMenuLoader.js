@@ -29,12 +29,12 @@ export function satelliteMenuLoader() {
 
     <div class="menu-accordion" aria-label="OpenBEXI menu sections">
       <section id="viewAccordionSection" class="menu-accordion-section menu-section-view">
-        <h3 id="viewAccordionHeader" role="button" tabindex="0" aria-controls="viewContent" aria-expanded="true" data-collapsible-target="viewContent" class="section-heading menu-accordion-heading menu-accordion-heading-view" data-default-expanded="true">
+        <h3 id="viewAccordionHeader" role="button" tabindex="0" aria-controls="viewContent" aria-expanded="false" data-collapsible-target="viewContent" class="section-heading menu-accordion-heading menu-accordion-heading-view" data-default-collapsed="true">
           <span>Views &amp; Time</span>
-          <span class="toggle-icon">v</span>
+          <span class="toggle-icon collapsed">&gt;</span>
         </h3>
 
-        <div id="viewContent" class="collapsible-content view-option-grid" aria-labelledby="viewAccordionHeader">
+        <div id="viewContent" class="collapsible-content view-option-grid collapsed" aria-labelledby="viewAccordionHeader">
           <div class="view-checkbox-table" role="group" aria-label="Views and time display controls">
             <div class="view-checkbox-cell"><label><input type="checkbox" id="solarSystemOverviewToggle">Solar System</label></div>
             <div class="view-checkbox-cell"><label><input type="checkbox" id="starsMilkyWayToggle" checked>Stars &amp; Milky Way</label></div>
@@ -47,6 +47,7 @@ export function satelliteMenuLoader() {
             <div class="view-checkbox-cell view-checkbox-empty" aria-hidden="true"></div>
           </div>
           <div id="solarSystemOptions" class="solar-system-options" hidden aria-hidden="true">
+            <div id="solarSystemTimeControls" class="solar-time-controls"></div>
             <div class="view-control-row view-control-row-two solar-system-control-row">
               <label><input type="checkbox" id="solarSystemPlanetLabelsToggle" checked>Planet Labels</label>
               <label><input type="checkbox" id="solarSystemOrbitPathsToggle" checked>Orbit Paths</label>

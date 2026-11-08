@@ -6,13 +6,14 @@ generated JSON files under data/ephemeris and never fetches Horizons at runtime.
 
 from __future__ import annotations
 
+import argparse
 import csv
 import io
 import json
 import time
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 
@@ -40,6 +41,7 @@ BODIES = [
     ("jupiter", "Jupiter", "599", "outer"),
     ("saturn", "Saturn", "699", "outer"),
     ("uranus", "Uranus", "799", "outer"),
+    ("neptune", "Neptune", "899", "outer"),
 ]
 
 MONTHS = {
@@ -72,6 +74,9 @@ def horizons_request(command: str, start: str, stop: str, step: str) -> str:
         "OUT_UNITS": "KM-S",
         "REF_SYSTEM": "ICRF",
         "REF_PLANE": "ECLIPTIC",
+        "TIME_TYPE": "UT",
+        "CAL_TYPE": "GREGORIAN",
+        "VEC_CORR": "NONE",
     }
     url = f"{HORIZONS_URL}?{urllib.parse.urlencode(params)}"
     with urllib.request.urlopen(url, timeout=120) as response:
@@ -134,12 +139,28 @@ def fetch_body_table(command: str) -> list[dict[str, object]]:
 def fetch_reference_sample(command: str, date: str) -> dict[str, object]:
     # Query one minute and use the first returned vector at the requested epoch.
     start_dt = datetime.strptime(date, "%Y-%b-%d %H:%M").replace(tzinfo=timezone.utc)
-    stop_dt = start_dt.replace(minute=start_dt.minute + 1) if start_dt.minute < 59 else start_dt
+    stop_dt = start_dt + timedelta(minutes=1)
     stop = stop_dt.strftime("%Y-%b-%d %H:%M")
     return parse_horizons_csv(horizons_request(command, date, stop, "1m"))[0]
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--start', default='2020-01-01', help='First UTC date (YYYY-MM-DD)')
+    parser.add_argument('--stop', default='2035-12-31', help='Last UTC date (YYYY-MM-DD)')
+    parser.add_argument('--output', type=Path, default=EPHEMERIS_FILE)
+    parser.add_argument('--reference-output', type=Path, default=REFERENCE_FILE)
+    args = parser.parse_args()
+    global START_TIME, STOP_TIME
+    start = datetime.strptime(args.start, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+    stop = datetime.strptime(args.stop, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+    if not start < stop or (stop - start).days > 36526:
+        parser.error('Choose an increasing range of at most 100 years per file.')
+    START_TIME, STOP_TIME = args.start, args.stop
+    reference_dates = [
+        (start + (stop - start) * fraction).replace(hour=3, minute=0).strftime('%Y-%b-%d %H:%M')
+        for fraction in (0.1, 0.5, 0.9)
+    ] if (args.start, args.stop) != ('2020-01-01', '2035-12-31') else REFERENCE_SAMPLE_DATES
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -174,12 +195,13 @@ def main() -> None:
                 "stopUtc": times[-1],
             },
             "sampleCadence": "PT6H",
-            "interpolation": "linear position interpolation between 6-hour Horizons samples",
+            "interpolation": "cubic Hermite position and velocity interpolation between 6-hour Horizons samples",
             "referenceFrame": "ICRF",
             "referencePlane": "ECLIPTIC",
             "origin": "Sun center, Horizons center 500@10",
             "units": "km and km/s",
-            "timeScale": "UTC timestamps from Horizons calendar output; runtime interpolation uses UTC milliseconds",
+            "timeScale": "UTC (Horizons TIME_TYPE=UT); runtime interpolation uses UTC milliseconds",
+            "vectorCorrection": "NONE (geometric, no light-time or aberration)",
             "acceptableErrorKm": {
                 "innerPlanetsAndMoon": 5000,
                 "outerPlanets": 50000,
@@ -193,11 +215,10 @@ def main() -> None:
         "times": times,
         "bodies": body_payload,
     }
-    EPHEMERIS_FILE.write_text(json.dumps(ephemeris, separators=(",", ":")), encoding="utf-8")
 
     samples = []
     for key, name, command, category in BODIES:
-        for date in REFERENCE_SAMPLE_DATES:
+        for date in reference_dates:
             print(f"Fetching reference sample for {name} at {date}")
             sample = fetch_reference_sample(command, date)
             samples.append({
@@ -219,12 +240,17 @@ def main() -> None:
             "referencePlane": "ECLIPTIC",
             "origin": "Sun center, Horizons center 500@10",
             "units": "km and km/s",
+            "timeScale": "UTC (Horizons TIME_TYPE=UT)",
         },
         "samples": samples,
     }
-    REFERENCE_FILE.write_text(json.dumps(reference, indent=2), encoding="utf-8")
-    print(f"Wrote {EPHEMERIS_FILE}")
-    print(f"Wrote {REFERENCE_FILE}")
+    # Keep the last complete dataset if any provider request fails.
+    for path, payload in ((args.output, ephemeris), (args.reference_output, reference)):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        pending = path.with_suffix(path.suffix + '.tmp')
+        pending.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
+        pending.replace(path)
+        print(f"Wrote {path}")
 
 
 if __name__ == "__main__":

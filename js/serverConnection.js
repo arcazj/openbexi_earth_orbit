@@ -451,26 +451,44 @@ export function createStaticDataRevisionWatcher(options = {}) {
 }
 
 export function renderDataRefreshStatus(status, documentObj = globalThis.document) {
-    let label = documentObj?.getElementById('dataRefreshStatus');
-    if (!label) {
-        const parent = documentObj?.getElementById('versionDisplay');
-        if (!parent) return;
-        label = documentObj.createElement('div');
-        label.id = 'dataRefreshStatus';
-        label.style.cssText = 'font-size:11px;color:#b6c8d9;margin-top:4px';
-        parent.appendChild(label);
-    }
+    const label = documentObj?.getElementById('dataRefreshStatus');
+    const summaryLabel = documentObj?.getElementById('dataRefreshSummary');
+    const datesLabel = documentObj?.getElementById('dataRefreshDates');
+    if (!label || !summaryLabel || !datesLabel) return;
     const blocked = status?.last_result?.provider_blocked;
     const updating = status?.phase === 'updating' || status?.state === 'checking';
-    const updated = status?.last_finished_at || status?.datasets?.gp?.last_success_at;
-    label.textContent = blocked ? 'Data refresh paused; previous validated data remains available'
-        : updating ? 'Checking for new orbital and timeline data…'
-        : updated ? `Data checked ${new Date(updated).toLocaleString()}` : 'Watching for new orbital and timeline data';
-    label.title = status?.last_error || [
+    const degraded = blocked || status?.state === 'degraded' || status?.catalog_state === 'degraded';
+    const hasIssue = dataset => !!dataset?.last_error ||
+        ['failed', 'failure', 'partial', 'degraded', 'error'].includes(dataset?.last_status);
+    const orbitalIssue = hasIssue(status?.datasets?.gp) || hasIssue(status?.datasets?.tle);
+    const latest = [
         status?.newest_launch_date && `Latest launch: ${status.newest_launch_date}`,
-        status?.newest_confirmed_decay_date && `Latest confirmed decay: ${status.newest_confirmed_decay_date}`,
-        status?.newest_orbital_epoch && `Orbital elements: ${status.newest_orbital_epoch}`
-    ].filter(Boolean).join('\n') || 'New launches, confirmed decays and orbital elements appear automatically after validation.';
+        status?.newest_confirmed_decay_date && `Confirmed decay: ${status.newest_confirmed_decay_date}`
+    ].filter(Boolean).join(' | ');
+    const sourceTime = status?.datasets?.satcat?.last_success_at;
+    const stale = sourceTime && Date.now() - Date.parse(sourceTime) > 48 * 3600 * 1000;
+    const timelineIssue = stale || ['satcat', 'launch', 'decay'].some(key => hasIssue(status?.datasets?.[key]));
+    const summary = blocked ? 'Provider has paused updates; saved data is in use.'
+        : updating ? 'Checking for new satellite data...'
+        : orbitalIssue && timelineIssue ? 'Orbital and timeline data await refresh.'
+        : orbitalIssue ? 'Orbital data awaits refresh.'
+        : timelineIssue ? 'Launch and decay data await refresh.'
+        : degraded ? 'Some data awaits refresh; saved data is in use.'
+        : status?.last_finished_at ? `Satellite data last checked: ${new Date(status.last_finished_at).toLocaleString()}`
+        : 'Showing saved satellite data.';
+    // Update only changed text so routine polling does not repeat live announcements.
+    if (summaryLabel.textContent !== summary) summaryLabel.textContent = summary;
+    if (datesLabel.textContent !== latest) datesLabel.textContent = latest;
+    datesLabel.hidden = !latest;
+    label.dataset.tone = degraded || orbitalIssue || timelineIssue ? 'warning' : 'neutral';
+    label.hidden = false;
+    label.title = [
+        sourceTime && `Launch and decay source last retrieved: ${new Date(sourceTime).toLocaleString()}`,
+        status?.newest_orbital_epoch && `Newest orbital epoch: ${status.newest_orbital_epoch}`,
+        status?.next_check_at && `Next scheduled check: ${new Date(status.next_check_at).toLocaleString()}`,
+        (status?.last_result?.provider_error || status?.last_error) &&
+            `Previous download issue: ${status.last_result?.provider_error || status.last_error}`
+    ].filter(Boolean).join('\n') || 'Satellite data status';
 }
 
 export function resolveServerDataUrl(originalUrl, baseUrl) {
