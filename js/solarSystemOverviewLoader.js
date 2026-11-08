@@ -3,6 +3,8 @@
 
 import * as THREE from 'three';
 import {
+    AU_KM,
+    SOLAR_SYSTEM_AU_SCENE_SCALE,
     createSolarSystemEphemerisState,
     loadSolarSystemEphemeris,
     solarSystemEphemerisStatusText,
@@ -142,8 +144,11 @@ export const SOLAR_SYSTEM_PLANETS = [
     }
 ];
 
-const BODY_RADII_KM = { mercury: 2439.7, venus: 6051.8, earth: 6371, moon: 1737.4,
+// Volumetric mean radii: JPL planetary parameters; NASA Sun/Moon fact sheets (2026-11-08).
+const BODY_RADII_KM = { sun: 695700, mercury: 2439.4, venus: 6051.8, earth: 6371.0084, moon: 1737.4,
     mars: 3389.5, jupiter: 69911, saturn: 58232, uranus: 25362, neptune: 24622 };
+const physicalRadius = key => BODY_RADII_KM[key] / AU_KM * SOLAR_SYSTEM_AU_SCENE_SCALE;
+export const solarSystemUsesEnlargedSymbols = overview => !!(overview.options.educational && overview.options.enlargedPlanets);
 
 export const SOLAR_SYSTEM_TEXTURE_ATTRIBUTIONS = [
     'textures/mercury.png, textures/venus.png, and textures/jupiter.jpg are local project-provided planet texture assets.',
@@ -191,6 +196,7 @@ export function createSolarSystemOverview(scene, {
         root,
         renderer,
         camera,
+        defaultCameraNear: camera?.near,
         controls,
         planets: new Map(),
         pickTargets: [],
@@ -203,11 +209,11 @@ export function createSolarSystemOverview(scene, {
         ephemerisState: createSolarSystemEphemerisState(),
         orbitGuideState: createOrbitGuideState(),
         autoLoadEphemeris,
-        ephemerisRuntimeMode: 'Precise positions loading',
-        ephemerisWarning: 'JPL-derived ephemeris has not loaded yet.',
+        ephemerisRuntimeMode: 'Educational approximation',
+        ephemerisWarning: '',
         ephemerisOrbitPathsBuilt: false,
         options: {
-            educational: false,
+            educational: true,
             enlargedPlanets: true,
             followPlanet: true,
             planetLabels: true,
@@ -304,12 +310,14 @@ export function setSolarSystemOverviewVisible(overview, visible) {
 
 export function setSolarSystemOverviewOptions(overview, options = {}) {
     if (!overview) return;
+    const wasEnlarged = solarSystemUsesEnlargedSymbols(overview);
     overview.options = { ...overview.options, ...options };
+    const enlarged = solarSystemUsesEnlargedSymbols(overview);
     overview.labelGroup.visible = !!overview.options.planetLabels;
     overview.orbitGroup.visible = !!overview.options.orbitPaths;
-    overview.sunGlowGroup.visible = !!overview.options.sunGlow;
+    overview.sunGlowGroup.visible = !!(overview.options.educational && overview.options.sunGlow);
     overview.planets.forEach((entry) => {
-        entry.marker.scale.setScalar(overview.options.enlargedPlanets ? 1 : BODY_RADII_KM[entry.planet.key] / 149597870.7 * AU_VISUAL_SCALE / entry.planet.visualRadius);
+        entry.marker.scale.setScalar(enlarged ? 1 : physicalRadius(entry.planet.key) / entry.planet.visualRadius);
         entry.ring?.scale.copy(entry.marker.scale);
         entry.label.visible = !!overview.options.planetLabels;
         if (entry.texturedMaterial) {
@@ -319,7 +327,27 @@ export function setSolarSystemOverviewOptions(overview, options = {}) {
         }
     });
     const sun = overview.root.getObjectByName('Solar System Sun');
-    if (sun) sun.scale.setScalar(overview.options.enlargedPlanets ? 1 : 695700 / 149597870.7 * AU_VISUAL_SCALE / 3.2);
+    if (sun) sun.scale.setScalar(enlarged ? 1 : physicalRadius('sun') / 3.2);
+    if (wasEnlarged !== enlarged && overview.camera && overview.controls) {
+        if (overview.selectedPlanet) focusSolarSystemPlanet(overview, overview.selectedPlanet);
+        else setSolarSystemCameraScale(overview, enlarged ? 3.2 : physicalRadius('sun'), enlarged ? 14 : physicalRadius('sun') * 2.4);
+    }
+}
+
+export function solarSystemSizeDiagnostics(overview) {
+    const sun = overview.root.getObjectByName('Solar System Sun');
+    return { enlarged: solarSystemUsesEnlargedSymbols(overview), sunGlow: overview.sunGlowGroup.visible,
+        cameraNear: overview.camera?.near,
+        radiiScene: { Sun: sun.geometry.parameters.radius * sun.scale.x,
+            ...Object.fromEntries([...overview.planets.values()].map(e => [e.planet.name, e.marker.geometry.parameters.radius * e.marker.scale.x])) } };
+}
+
+function setSolarSystemCameraScale(overview, radius, minDistance, camera = overview.camera, controls = overview.controls) {
+    const defaultNear = overview.defaultCameraNear ?? camera.near;
+    camera.near = solarSystemUsesEnlargedSymbols(overview) ? defaultNear : Math.min(defaultNear, radius / 10);
+    camera.updateProjectionMatrix();
+    controls.minDistance = minDistance;
+    controls.update();
 }
 
 export function pickSolarSystemPlanet(overview, event, camera = overview?.camera) {
@@ -354,11 +382,14 @@ export function focusSolarSystemPlanet(overview, planetName, camera = overview?.
     const target = new THREE.Vector3().setFromMatrixPosition(entry.group.matrixWorld);
     const direction = target.clone().normalize();
     if (direction.lengthSq() < 1e-6) direction.set(1, 0.35, 1).normalize();
-    const distance = Math.max(entry.planet.visualRadius * 16, 16);
-    const cameraPosition = target.clone().add(direction.multiplyScalar(distance)).add(new THREE.Vector3(0, entry.planet.visualRadius * 4, 0));
+    const radius = entry.planet.visualRadius * entry.marker.scale.x;
+    const enlarged = solarSystemUsesEnlargedSymbols(overview);
+    const distance = enlarged ? Math.max(radius * 16, 16) : radius * 16;
+    if (!enlarged) direction.negate(); // Inspect the sunlit side at physical scale.
+    const cameraPosition = target.clone().add(direction.multiplyScalar(distance)).add(new THREE.Vector3(0, radius * 4, 0));
     camera.position.copy(cameraPosition);
     controls.target.copy(target);
-    controls.minDistance = Math.max(entry.planet.visualRadius * 2.4, 2);
+    setSolarSystemCameraScale(overview, radius, enlarged ? Math.max(radius * 2.4, 2) : radius * 2.4, camera, controls);
     controls.maxDistance = 12000;
     controls.update();
     return { entry, target, cameraPosition };
@@ -389,7 +420,8 @@ export function fitSolarSystemOverviewCamera(overview, innerPlanets = false, cam
     camera.far = Math.max(camera.far, SKY_RADIUS * 2);
     camera.updateProjectionMatrix();
     controls.target.set(0, 0, 0);
-    controls.minDistance = 14;
+    const enlarged = solarSystemUsesEnlargedSymbols(overview);
+    setSolarSystemCameraScale(overview, enlarged ? 3.2 : physicalRadius('sun'), enlarged ? 14 : physicalRadius('sun') * 2.4, camera, controls);
     controls.maxDistance = Math.max(12000, distance * 2);
     controls.update();
     overview.fitMode = innerPlanets ? 'inner' : 'all';
@@ -760,8 +792,10 @@ function updatePlanetLabelCallout(entry, overviewOrCamera) {
     const label = entry?.label;
     const planet = entry?.planet;
     if (!label || !planet) return;
-    const pinOffset = Math.max(planet.visualRadius * 1.05, 0.38);
-    label.position.set(planet.visualRadius * 0.15, pinOffset, 0);
+    const enlarged = !overviewOrCamera?.options || solarSystemUsesEnlargedSymbols(overviewOrCamera);
+    const radius = planet.visualRadius * (entry.marker?.scale.x ?? 1);
+    const pinOffset = enlarged ? Math.max(radius * 1.05, 0.38) : radius * 1.05;
+    label.position.set(radius * 0.15, pinOffset, 0);
     const baseScale = label.userData.baseScale || LABEL_BASE_SCALE;
     const camera = overviewOrCamera?.camera || overviewOrCamera;
     if (!camera || !entry.group) {
@@ -773,7 +807,8 @@ function updatePlanetLabelCallout(entry, overviewOrCamera) {
     const distance = camera.position.distanceTo(labelWorldPosition);
     const scaleFactor = solarSystemLabelScaleFactorForDistance(distance, {
         fovDeg: camera.fov,
-        viewportHeight: solarSystemLabelViewportHeight(overviewOrCamera?.renderer)
+        viewportHeight: solarSystemLabelViewportHeight(overviewOrCamera?.renderer),
+        minWorldScale: enlarged ? LABEL_MIN_WORLD_SCALE : 1e-9
     });
     label.scale.set(baseScale.x * scaleFactor, baseScale.y * scaleFactor, 1);
 }
@@ -781,7 +816,8 @@ function updatePlanetLabelCallout(entry, overviewOrCamera) {
 export function solarSystemLabelScaleFactorForDistance(distance, {
     fovDeg = DEFAULT_LABEL_CAMERA_FOV_DEG,
     viewportHeight = DEFAULT_LABEL_VIEWPORT_HEIGHT,
-    baseWorldHeight = LABEL_BASE_SCALE.y
+    baseWorldHeight = LABEL_BASE_SCALE.y,
+    minWorldScale = LABEL_MIN_WORLD_SCALE
 } = {}) {
     const safeDistance = Number.isFinite(distance) && distance > 0 ? distance : 1;
     const safeFov = Number.isFinite(fovDeg) && fovDeg > 0 ? fovDeg : DEFAULT_LABEL_CAMERA_FOV_DEG;
@@ -794,8 +830,8 @@ export function solarSystemLabelScaleFactorForDistance(distance, {
         (safeViewportHeight * safeBaseWorldHeight);
     return clampNumber(
         preferredScale,
-        LABEL_MIN_WORLD_SCALE,
-        Math.min(LABEL_MAX_DISTANCE_SCALE, Math.max(LABEL_MIN_WORLD_SCALE, maxScreenScale))
+        minWorldScale,
+        Math.min(LABEL_MAX_DISTANCE_SCALE, Math.max(minWorldScale, maxScreenScale))
     );
 }
 
@@ -842,14 +878,15 @@ function updateSelectedHighlight(overview) {
     const highlight = overview?.selectedHighlight;
     if (!highlight) return;
     const entry = overview.selectedPlanet ? overview.planets.get(overview.selectedPlanet) : null;
-    if (!entry || !entry.group.visible) {
+    if (!entry || !entry.group.visible || !overview.options.educational) {
         highlight.visible = false;
         return;
     }
     entry.group.updateMatrixWorld(true);
     highlight.visible = true;
     highlight.position.setFromMatrixPosition(entry.group.matrixWorld);
-    const scale = Math.max(entry.planet.visualRadius * 1.35, 1.4);
+    const radius = entry.planet.visualRadius * entry.marker.scale.x;
+    const scale = solarSystemUsesEnlargedSymbols(overview) ? Math.max(radius * 1.35, 1.4) : radius * 1.35;
     highlight.scale.setScalar(scale);
 }
 

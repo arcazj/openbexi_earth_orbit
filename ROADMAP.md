@@ -4,7 +4,7 @@ Current version: **2.5.1 development / experimental / non-operational**. The Git
 
 ## Delivered in 2.5
 
-- 2.5.1: visible Solar System unit selectors beside Play/Pause and Live in both views, explicit rate labels, Advanced year/s, keyboard operation and narrow-screen checks. Unit changes preserve UTC, multiplier and playback state.
+- 2.5.1: visible Solar System unit selectors beside Play/Pause and Live in both views, explicit rate labels, Advanced year/s, keyboard operation and narrow-screen checks. Unit changes preserve UTC, multiplier and playback state. Educational mode is now the default with unchanged illustrative sizes; precise mode enforces physical body radii and supports close inspection.
 
 - Six-source health reporting with UTC content/check/attempt times, lineage, provider delays, failure retention and a quiet bottom disclosure.
 - Lazy Solar System playback loading, shared requests/cache and retry; precise mode and complete JPL guides retained from 2.4.

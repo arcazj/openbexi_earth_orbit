@@ -4,7 +4,7 @@ This is a concise record of user intent and decisions. Full historical requests 
 
 ## Version 2.5.1 — visible playback units
 
-The user requested sec/s by default, plus min/s, hour/s and day/s for Solar System playback, then accepted all recommendations for v2.5.1. Both integrated and standalone views expose units beside Play/Pause and Live; year/s remains under Advanced. Unit changes preserve UTC, signed multiplier and paused/running state; Live resets to 1 sec/s. Keyboard, narrow-screen and legacy behavior checks accompany concise documentation. Existing v2.5/v2.5.0 tags and downloads remain intact; the authorized public development-prerelease scope is unchanged.
+The user requested sec/s by default, plus min/s, hour/s and day/s for Solar System playback, then accepted all recommendations for v2.5.1. Both integrated and standalone views expose units beside Play/Pause and Live; year/s remains under Advanced. Unit changes preserve UTC, signed multiplier and paused/running state; Live resets to 1 sec/s. Keyboard, narrow-screen and legacy behavior checks accompany concise documentation. Before publication, the user changed the default to educational mode and clarified that its existing Sun/planet sizes must remain unchanged. Turning educational mode off must enforce physical Sun/planet sizes. This correction belongs to 2.5.1, not 2.5.2. Existing v2.5/v2.5.0 tags and downloads remain intact; the authorized public development-prerelease scope is unchanged.
 
 ## Version 2.5 — public commercial source
 

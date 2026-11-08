@@ -49,7 +49,9 @@ test('core journey: lazy playback, search, keyboard health, views, dates and res
     const before = await page.evaluate(() => window.openbexiSimulation.snapshot());
     await page.locator('#solarSystemOverviewToggle').check();
     await expect(page.locator('#solarDate')).toBeEnabled({ timeout: 60000 });
-    await expect(page.locator('#solarEducational')).not.toBeChecked();
+    await expect(page.locator('#solarEducational')).toBeChecked();
+    await page.locator('#solarEducational').uncheck();
+    await expect(page.locator('#solarDate')).toBeEnabled({ timeout: 60000 });
     await page.locator('#solarDate').fill('2024-02-29T12:00');
     await page.locator('#solarDate').press('Tab');
     await expect.poll(() => page.evaluate(() => window.openbexiSimulation.snapshot().dateUtc)).toBe('2024-02-29T12:00:00.000Z');
@@ -71,6 +73,7 @@ test('failed playback load preserves the clock and recovers with retry', async (
     await boot(page);
     await page.locator('#viewAccordionHeader').click();
     await page.locator('#solarSystemOverviewToggle').check();
+    await page.locator('#solarEducational').uncheck();
     await expect(page.locator('#solarDate')).toBeDisabled();
     await expect.poll(() => page.evaluate(() => window.openbexiSimulation.snapshot().ephemerisMode)).toBe('Precise positions unavailable');
     await page.unroute(playback);

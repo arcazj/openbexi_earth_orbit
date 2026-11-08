@@ -21,6 +21,32 @@ async function verifySolarToolbar(page, standalone) {
     const readout = page.locator(standalone ? '#timeSpeedValue' : '#timeWarpVal');
     const api = standalone ? 'openbexiSolarSystem' : 'openbexiSimulation';
     const state = () => page.evaluate(key => window[key].snapshot(), api);
+    const sizes = () => page.evaluate(key => window[key].bodySizes(), api);
+    const educational = page.locator('#solarEducational');
+    await expect(educational).toBeChecked();
+    const illustrative = await sizes();
+    expect(illustrative.radiiScene).toEqual({ Sun: 3.2, Mercury: 0.68, Venus: 0.95, Earth: 1.05, Moon: 0.34,
+        Mars: 0.86, Jupiter: 2.1, Saturn: 1.85, Uranus: 1.45, Neptune: 1.4 });
+    await educational.uncheck();
+    await expect(page.locator('#solarDate')).toBeEnabled({ timeout: 60000 });
+    await expect(page.locator('#solarEnlarged')).not.toBeChecked();
+    await expect(page.locator('#solarEnlarged')).toBeDisabled();
+    const physical = await sizes();
+    expect(physical).toMatchObject({ enlarged: false, sunGlow: false });
+    const radiiKm = { Sun: 695700, Mercury: 2439.4, Venus: 6051.8, Earth: 6371.0084, Moon: 1737.4,
+        Mars: 3389.5, Jupiter: 69911, Saturn: 58232, Uranus: 25362, Neptune: 24622 };
+    for (const [name, radius] of Object.entries(radiiKm)) {
+        expect(physical.radiiScene[name] / 16 * 149597870.7).toBeCloseTo(radius, 6);
+    }
+    await page.locator('#solarPlanetFocus').selectOption('Earth');
+    expect((await sizes()).cameraNear).toBeLessThan(physical.radiiScene.Earth);
+    await page.screenshot({ path: `runtime/v251-physical-${standalone ? 'standalone' : 'integrated'}-${test.info().project.name}.png` });
+    await educational.check();
+    expect((await sizes()).radiiScene).toEqual(illustrative.radiiScene);
+    await expect(page.locator('#solarEnlarged')).toBeChecked();
+    await expect(page.locator('#solarEnlarged')).toBeEnabled();
+    await page.locator('#solarFitAll').click();
+    await live.click();
     await expect(toolbar.locator('select:visible')).toHaveCount(1);
     await expect(toolbar.locator('#solarTimeUnit')).toBeVisible();
     await expect(page.locator('#solarSystemTimeControls #solarTimeUnit')).toHaveCount(0);
@@ -145,9 +171,12 @@ test('standalone Live drives precise positions and nominal spin, with pause and 
     const state = () => page.evaluate(() => ({ ...window.openbexiSolarSystem.snapshot(),
         earth: window.openbexiSolarSystem.planetPosition('Earth'),
         rotation: window.openbexiSolarSystem.planetRotation('Earth') }));
+    await verifySolarToolbar(page, true);
+    await page.locator('#solarEducational').uncheck();
+    await expect(page.locator('#solarDate')).toBeEnabled({ timeout: 60000 });
+    await page.locator('#timeNow').click();
     const before = await state();
     expect(before).toMatchObject({ live: true, rate: 1, millisecondsPerWarpSecond: 1000, mode: 'JPL-derived ephemeris' });
-    await verifySolarToolbar(page, true);
     await setUtc(page, +fixedUtc + 60000);
     await expect.poll(async () => (await state()).timeMs).toBe(+fixedUtc + 60000);
     const after = await state();

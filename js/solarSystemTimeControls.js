@@ -1,6 +1,6 @@
 import { solarSystemEphemerisBounds } from './solarSystemEphemeris.js';
 import { EDUCATIONAL_BOUNDS } from './solarSystemEducation.js';
-import { SOLAR_SYSTEM_PLANETS, setSolarSystemOverviewOptions, setSolarSystemOverviewVisible, fitSolarSystemOverviewCamera, solarSystemOrbitGuideSummary } from './solarSystemOverviewLoader.js';
+import { SOLAR_SYSTEM_PLANETS, setSolarSystemOverviewOptions, setSolarSystemOverviewVisible, fitSolarSystemOverviewCamera, solarSystemOrbitGuideSummary, solarSystemUsesEnlargedSymbols } from './solarSystemOverviewLoader.js';
 
 export const SOLAR_TIME_UNITS = Object.freeze({ second: 1000, minute: 60000, hour: 3600000, day: 86400000, year: 31557600000 });
 const DAY = 86400000;
@@ -20,7 +20,7 @@ export function createSolarSystemTimeControls({ container, unitSelect, overview,
     unitSelect.innerHTML = `<option value="second">sec/s</option><option value="minute">min/s</option><option value="hour">hour/s</option><option value="day">day/s</option><optgroup label="Advanced"><option value="year">year/s</option></optgroup>`;
     unitSelect.value = 'second';
     container.innerHTML = `
-      <label class="solar-mode-toggle"><input id="solarEducational" type="checkbox"> Educational mode <span>(approximate, wider dates)</span></label>
+      <label class="solar-mode-toggle"><input id="solarEducational" type="checkbox" checked> Educational mode <span>(approximate, wider dates)</span></label>
       <div id="solarCoverage" class="solar-time-note"></div>
       <div id="solarOrbitGuideStatus" class="solar-time-note" role="status"></div>
       <label for="solarDate">Simulation date and time (UTC)</label>
@@ -35,7 +35,8 @@ export function createSolarSystemTimeControls({ container, unitSelect, overview,
       <div class="solar-time-actions"><button type="button" id="solarStepBack">-1 day</button><button type="button" id="solarStepForward">+1 day</button></div>
       <div class="solar-time-actions"><button type="button" id="solarFitAll">Fit Solar System</button><button type="button" id="solarFitInner">Inner planets</button></div>
       <label for="solarPlanetFocus">Follow a planet<select id="solarPlanetFocus"><option value="">Sun-centered overview</option>${SOLAR_SYSTEM_PLANETS.map(planet => `<option>${planet.name}</option>`).join('')}</select></label>
-      <label class="solar-mode-toggle"><input id="solarEnlarged" type="checkbox" checked> Enlarge planet symbols</label>
+      <label class="solar-mode-toggle"><input id="solarEnlarged" type="checkbox" checked aria-describedby="solarSizeNote"> Enlarge Sun and planet symbols</label>
+      <div id="solarSizeNote" class="solar-time-note"></div>
       <div class="solar-time-note">Live follows current UTC at 1 sec/s; planetary motion is slow at this scale. Choose playback units beside Play/Pause; year/s is under Advanced. Planet symbols use nominal spin rates; axis orientation and texture alignment are illustrative. The educational Moon orbit is schematic.</div>
       <button type="button" id="solarDataRetry" hidden>Retry Solar System data</button>
       <div id="solarTimeMessage" class="solar-time-note" role="status" aria-live="polite"></div>`;
@@ -120,7 +121,11 @@ export function createSolarSystemTimeControls({ container, unitSelect, overview,
         const guideSummary = solarSystemOrbitGuideSummary(overview);
         if (el('solarOrbitGuideStatus').textContent !== guideSummary) el('solarOrbitGuideStatus').textContent = guideSummary;
         el('solarEducational').checked = overview.options.educational;
-        el('solarEnlarged').checked = overview.options.enlargedPlanets;
+        el('solarEnlarged').checked = solarSystemUsesEnlargedSymbols(overview);
+        el('solarEnlarged').disabled = !overview.options.educational;
+        el('solarSizeNote').textContent = overview.options.educational
+            ? 'Educational view: illustrative sizes and Moon orbit.'
+            : 'Physical mean radii at orbital distance scale. Bodies are tiny in overview; follow a planet to inspect it. Labels are guides.';
         el('solarPlanetFocus').value = overview.selectedPlanet || '';
         for (const id of ['solarDate', 'solarScrubber', 'solarRange', 'solarRangeStart', 'solarRangeEnd', 'solarStepBack', 'solarStepForward']) el(id).disabled = !bounds;
         const date = el('solarDate');

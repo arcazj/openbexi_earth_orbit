@@ -5,6 +5,8 @@ async function openSolar(page) {
     await page.waitForFunction(() => !!window.openbexiSimulation);
     await page.locator('#viewAccordionHeader').click();
     await page.locator('#solarSystemOverviewToggle').check();
+    await expect(page.locator('#solarEducational')).toBeChecked();
+    await page.locator('#solarEducational').uncheck();
     await expect(page.locator('#solarDate')).toBeEnabled({ timeout: 60000 });
 }
 const snapshot = page => page.evaluate(() => window.openbexiSimulation.snapshot());
@@ -116,6 +118,7 @@ test('full JPL guides span both playback edges, fit the viewport and stay cached
 test('missing full guides leave precise playback available and identify partial arcs', async ({ page }) => {
     await page.route('**/data/ephemeris/orbits/**', route => route.fulfill({ status: 503, body: 'Unavailable' }));
     await page.goto('/SolarSystemOverview.html');
+    await page.locator('#solarEducational').uncheck();
     await expect(page.locator('#solarDate')).toBeEnabled({ timeout: 60000 });
     await expect(page.locator('#solarOrbitGuideStatus')).toContainText('available JPL arcs');
     await expect(page.locator('#solarEducational')).not.toBeChecked();
@@ -152,6 +155,9 @@ test('standalone shares precise and educational playback', async ({ page }) => {
 test('missing precise data stays explicit and educational mode remains usable', async ({ page }) => {
     await page.route('**/data/ephemeris/*6h.json', route => route.abort());
     await page.goto('/SolarSystemOverview.html');
+    await expect(page.locator('#solarEducational')).toBeChecked();
+    await expect(page.locator('#solarDate')).toBeEnabled();
+    await page.locator('#solarEducational').uncheck();
     await expect(page.locator('#solarCoverage')).toContainText('unavailable');
     await expect(page.locator('#solarDate')).toBeDisabled();
     await page.locator('#solarEducational').check();

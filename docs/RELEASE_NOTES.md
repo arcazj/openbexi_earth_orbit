@@ -4,7 +4,7 @@
 
 Solar System playback units now sit beside Play/Pause and Live in both integrated and standalone views. Choose sec/s (default), min/s, hour/s or day/s; year/s remains under Advanced. Readouts show explicit rates such as `-2 hour/s`. Changing units preserves the UTC instant, signed multiplier and paused/running state. Live resets to current UTC at `1 sec/s`; historical playback never claims Live.
 
-Native keyboard selection, readable rate announcements and narrow-screen controls accompany the change. Precise mode, JPL boundaries, orbit guides and legacy satellite playback remain intact. Version metadata, API examples and the runtime dependency inventory are updated. Prior v2.5 and v2.5.0 tags/downloads remain unchanged.
+Educational mode is now the default with its existing illustrative Sun/planet sizes. Turning it off uses physical mean radii at the orbital distance scale, disables enlargement and decorative Sun glow, and adjusts focus/zoom for close inspection. Native keyboard selection, readable rate announcements and narrow-screen controls accompany the change. Precise mode, JPL boundaries, orbit guides and legacy satellite playback remain intact. Version metadata, API examples and the runtime dependency inventory are updated. Prior v2.5 and v2.5.0 tags/downloads remain unchanged.
 
 This remains an experimental, non-operational development prerelease under the existing commercial notice and retained MIT/upstream rights. Qualification limits below still apply. Exact-commit verification is attached to the GitHub release.
 

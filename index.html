@@ -178,7 +178,8 @@
         resetSolarSystemOverviewCamera,
         solarSystemPlanetSummary,
         solarSystemEphemerisSummary,
-        solarSystemOrbitGuideDiagnostics
+        solarSystemOrbitGuideDiagnostics,
+        solarSystemSizeDiagnostics
     } from './js/solarSystemOverviewLoader.js';
     import { solarSystemEphemerisBounds } from './js/solarSystemEphemeris.js';
     import { createSolarSystemTimeControls, solarSystemTimeBounds } from './js/solarSystemTimeControls.js';
@@ -4063,7 +4064,10 @@
         if (solarSystemPlanetLabelsToggleElement) solarSystemPlanetLabelsToggleElement.checked = !!simParams.solarSystemPlanetLabels;
         if (solarSystemOrbitPathsToggleElement) solarSystemOrbitPathsToggleElement.checked = !!simParams.solarSystemOrbitPaths;
         if (solarSystemPlanetTexturesToggleElement) solarSystemPlanetTexturesToggleElement.checked = !!simParams.solarSystemPlanetTextures;
-        if (solarSystemSunGlowToggleElement) solarSystemSunGlowToggleElement.checked = !!simParams.solarSystemSunGlow;
+        if (solarSystemSunGlowToggleElement) {
+            solarSystemSunGlowToggleElement.checked = !!simParams.solarSystemSunGlow;
+            solarSystemSunGlowToggleElement.disabled = !solarSystemOverview?.options.educational;
+        }
         syncSolarSystemControlsVisibility();
         updateSolarSystemSelectionUi();
     }
@@ -4633,7 +4637,7 @@
                 simParams.simDate = SIM_DATE;
                 updateSolarSystemOverview(solarSystemOverview, SIM_DATE, { clockBoundary: simulationClock.state().boundary });
                 updateTimeWarpControls();
-                updateSolarSystemSelectionUi();
+                syncSolarSystemControlsState();
             },
             onFocus: planetName => {
                 if (planetName) {
@@ -5414,6 +5418,7 @@
     let cameraMove = null;
 
     window.openbexiSimulation = Object.freeze({
+        bodySizes: () => solarSystemSizeDiagnostics(solarSystemOverview),
         setTime(value) {
             const timeMs = value instanceof Date ? value.getTime() : Date.parse(value);
             if (!Number.isFinite(timeMs)) throw new TypeError('Simulation time must be a valid UTC instant.');

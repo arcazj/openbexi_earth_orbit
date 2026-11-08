@@ -282,6 +282,7 @@ test('Time x keeps selected satellite fluid and drives bounded Solar System ephe
 
   if (await page.locator('#viewAccordionHeader').getAttribute('aria-expanded') !== 'true') await page.locator('#viewAccordionHeader').click();
   await page.locator('#solarSystemOverviewToggle').check();
+  await page.locator('#solarEducational').uncheck();
   await page.waitForFunction(() => window.openbexiSimulation.snapshot().ephemerisMode === 'JPL-derived ephemeris');
   await page.evaluate(() => window.openbexiSimulation.setTime('2026-08-23T00:00:00Z'));
   const planets = ['Mercury', 'Venus', 'Earth', 'Moon', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune'];

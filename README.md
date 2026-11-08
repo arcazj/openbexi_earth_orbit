@@ -11,7 +11,7 @@ Interactive Earth-orbit visualization, tracked-object search and Solar System ti
 - Globe and Mercator views, orbit filters, search, satellite models, launch and confirmed-decay timelines.
 - Tracked inventory separates matches, positioned objects and metadata-only records; missing elements never imply decay.
 - One expanded menu section at a time; startup opens **Tracked Objects - Matches**.
-- Precise mode uses a bounded JPL-derived Solar System ephemeris and complete orbit guides. An educational checkbox enables approximate visualization. Playback stays inside its validated dataset; guide coverage does not extend playback.
+- Solar System starts in educational mode with the existing illustrative sizes. Uncheck Educational mode for a bounded JPL-derived Solar System ephemeris, complete orbit guides and physical Sun/planet sizes. Precise playback stays inside its validated dataset; guide coverage does not extend playback.
 - Satellite and Solar System views start **Live at 1 sec/s**: one simulated second per real second, following system UTC. Solar System units sit beside Play/Pause: sec/s, min/s, hour/s and day/s, with year/s under Advanced. Pause and reverse remain available. Live follows the clock; data freshness is reported separately.
 - A bottom data-health disclosure shows source checks, content ages, partial coverage and update failures. The Python server checks for updates in the background; static hosting uses packaged snapshots.
 - Experimental browser and authenticated server close-approach screening. No operational collision-risk or collision-probability claim.

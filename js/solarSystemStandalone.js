@@ -6,7 +6,7 @@ import { createSimulationClock, simulationRateLabel, simulationRateDescription }
 import { createSolarSystemTimeControls } from './solarSystemTimeControls.js';
 import { SOLAR_SYSTEM_PLANETS, createSolarSystemOverview, updateSolarSystemOverview,
     setSolarSystemOverviewVisible, setSolarSystemOverviewOptions, solarSystemEphemerisSummary, solarSystemOrbitGuideDiagnostics,
-    focusSolarSystemPlanet, resetSolarSystemOverviewCamera, pickSolarSystemPlanet } from './solarSystemOverviewLoader.js';
+    focusSolarSystemPlanet, resetSolarSystemOverviewCamera, pickSolarSystemPlanet, solarSystemSizeDiagnostics } from './solarSystemOverviewLoader.js';
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(52, innerWidth / innerHeight, 0.01, 6000);
@@ -49,6 +49,7 @@ el('planetCount').textContent = '8 + Moon';
 el('planetLegend').textContent = SOLAR_SYSTEM_PLANETS.map(planet => planet.name).join(' · ');
 function sync() {
     timeControls.sync();
+    el('toggleGlow').disabled = !overview.options.educational;
     simDate.setTime(clock.state().timeMs);
     el('utcClock').textContent = `${simDate.toISOString().replace('T', ' ').slice(0, 19)} UTC`;
     el('timeSpeed').value = String(clock.state().rate);
@@ -64,6 +65,7 @@ window.addEventListener('resize', () => {
     renderer.setSize(innerWidth, innerHeight);
 });
 window.openbexiSolarSystem = Object.freeze({
+    bodySizes: () => solarSystemSizeDiagnostics(overview),
     orbitGuides: () => solarSystemOrbitGuideDiagnostics(overview),
     snapshot: () => ({ ...clock.state(), millisecondsPerWarpSecond: clock.timeScale(), educational: overview.options.educational, mode: overview.ephemerisRuntimeMode }),
     planetPosition: name => overview.planets.get(name)?.group.position.toArray(),

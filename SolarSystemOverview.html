@@ -260,7 +260,7 @@
   <aside id="hud" aria-label="Solar system overview controls">
     <h1>OpenBEXI Solar System Overview</h1>
     <p class="subtitle">
-      Explore planetary motion with precise JPL positions or an optional educational approximation.
+      Explore in educational mode, or switch to precise JPL positions and physical body sizes.
     </p>
 
     <div class="control-grid">
@@ -287,13 +287,13 @@
     <div class="data-grid">
       <span>Frame</span><strong>Sun-centered, J2000 ecliptic</strong>
       <span>Planets</span><strong id="planetCount">0</strong>
-      <span>Scale</span><strong>Linear AU; optional enlarged symbols</strong>
+      <span>Scale</span><strong>Linear AU; physical sizes outside educational mode</strong>
       <span>Ephemeris</span><strong id="ephemerisStatus">loading local JPL-derived data</strong>
     </div>
 
     <div id="planetLegend" aria-label="Planet color legend"></div>
     <p class="note">
-      Distances and planet sizes use separate visual scaling so inner and outer planets remain visible together.
+      Educational mode keeps enlarged symbols. Turn it off for JPL positions and physical Sun/planet sizes.
     </p>
   </aside>
 
