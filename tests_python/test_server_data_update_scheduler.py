@@ -152,7 +152,7 @@ class ServerDataUpdateSchedulerTests(unittest.TestCase):
             + ("x" * (server.DATA_UPDATE_ERROR_MAX_LENGTH + 200))
         )
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             metadata = write_dataset_metadata(root, tle_error=metadata_error)
             with server.DATA_UPDATE_STATUS_LOCK:
                 server.DATA_UPDATE_STATUS.clear()
@@ -232,7 +232,7 @@ class ServerDataUpdateSchedulerTests(unittest.TestCase):
             },
         }
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             metadata = write_dataset_metadata(root, tle_error="TLE source unavailable")
             plane = mock.Mock()
             plane.stage_update.return_value = result
@@ -293,7 +293,7 @@ class ServerDataUpdateSchedulerTests(unittest.TestCase):
             },
         }
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             plane = mock.Mock()
             plane.stage_update.return_value = result
             scheduler = server.DataUpdateScheduler(data_plane=plane, clock=lambda: 1_800_000_000.0)
@@ -670,7 +670,7 @@ class ServerDataUpdateSchedulerTests(unittest.TestCase):
             with self.subTest(flags=flags), tempfile.TemporaryDirectory() as temporary:
                 args = server.parse_args(["--no-v21-service", *flags])
                 with (
-                    mock.patch.object(server, "ROOT", Path(temporary)),
+                    mock.patch.object(server, "ROOT", Path(temporary).resolve()),
                     mock.patch.object(server, "parse_args", return_value=args),
                     mock.patch.object(server, "ThreadingHTTPServer"),
                     mock.patch.object(server, "DataUpdateScheduler") as scheduler,

@@ -9,6 +9,9 @@ on:
 permissions:
   contents: read
 
+env:
+  OPENBEXI_PYTHON_COMMAND: python
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -38,6 +41,9 @@ jobs:
 
       - name: Verify clean commit bytes
         run: npm run check:release-tree -- --tree HEAD --require-clean
+
+      - name: Verify configured Python interpreter
+        run: node scripts/python.mjs -c "import sys; assert sys.version_info[:2] == (3, 12), sys.version; print(sys.version)"
 
       - name: Install locked dependencies
         run: npm ci
@@ -86,6 +92,9 @@ jobs:
 
       - name: Install browser engines
         run: npx playwright install --with-deps chromium firefox webkit
+
+      - name: Verify configured Python interpreter
+        run: node scripts/python.mjs -c "import sys; assert sys.version_info[:2] == (3, 12), sys.version; print(sys.version)"
 
       - name: Run browser smoke test
         run: npm run test:browser

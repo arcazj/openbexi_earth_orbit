@@ -79,7 +79,7 @@ def _result(name: str) -> data_tools.UpdateResult:
 class ScheduledDataUpdateTests(unittest.TestCase):
     def test_decayed_missing_satcat_after_refresh_failure_persists_error(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             attempted_at = dt.datetime(2026, 8, 30, 12, 0, tzinfo=dt.timezone.utc)
             refresh_failure = data_tools.UpdateResult(
                 changed=False,
@@ -111,7 +111,7 @@ class ScheduledDataUpdateTests(unittest.TestCase):
 
     def test_update_lock_recovers_dead_owner_but_preserves_live_owner(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             lock_path = root / data_tools.UPDATE_LOCK_RELATIVE_PATH
             lock_path.parent.mkdir(parents=True)
             lock_path.write_text("999999 2026-08-29T00:00:00Z\n", encoding="utf-8")
@@ -130,7 +130,7 @@ class ScheduledDataUpdateTests(unittest.TestCase):
 
     def test_atomic_promotions_use_collision_safe_bounded_backups(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             target = root / "catalog.json"
             target.write_text("version-0", encoding="utf-8")
             legacy_backup = root / "catalog.json.bak-20260828120000"
@@ -171,7 +171,7 @@ class ScheduledDataUpdateTests(unittest.TestCase):
 
     def test_rotation_failure_after_promotion_does_not_block_success_metadata(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             now = dt.datetime(2026, 8, 29, 12, 0, tzinfo=dt.timezone.utc)
             satcat_path = root / data_tools.SATCAT_RELATIVE_PATH
             satcat_path.parent.mkdir(parents=True)
@@ -229,7 +229,7 @@ class ScheduledDataUpdateTests(unittest.TestCase):
         )
 
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
 
             tle_root = root / "tle"
             tle_base = data_tools.transform_satellite_tle_object(
@@ -484,7 +484,7 @@ class ScheduledDataUpdateTests(unittest.TestCase):
 
     def test_launch_and_decay_due_work_run_independently(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
 
             def is_due(_root, metadata_path, _data_path, _hours, *, now=None):
                 del now
@@ -531,7 +531,7 @@ class ScheduledDataUpdateTests(unittest.TestCase):
 
     def test_daily_reconciliation_coalesces_fetches_and_preserves_history(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             now = dt.datetime(2026, 8, 29, 12, 0, tzinfo=dt.timezone.utc)
 
             alpha5_line1 = "1 A0001U 26001A   26240.24769802  .00009145  00000+0  16852-2 0  9990"
@@ -679,7 +679,7 @@ class ScheduledDataUpdateTests(unittest.TestCase):
 
     def test_reconcile_rejects_304_after_local_catalog_change(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             now = dt.datetime(2026, 8, 29, 12, 0, tzinfo=dt.timezone.utc)
             (root / "json").mkdir(parents=True)
             (root / data_tools.SATCAT_RELATIVE_PATH).write_text(SATCAT_FIXTURE, encoding="utf-8")
@@ -788,7 +788,7 @@ class ScheduledDataUpdateTests(unittest.TestCase):
 
     def test_satcat_304_clears_prior_failure_after_matching_reconciliation(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             now = dt.datetime(2026, 8, 29, 12, 0, tzinfo=dt.timezone.utc)
             satcat_path = root / data_tools.SATCAT_RELATIVE_PATH
             satcat_path.parent.mkdir(parents=True)
@@ -840,7 +840,7 @@ class ScheduledDataUpdateTests(unittest.TestCase):
 
     def test_satcat_crlf_bytes_keep_revision_binding_and_avoid_noop_backup_churn(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             now = dt.datetime(2026, 8, 30, 12, 0, tzinfo=dt.timezone.utc)
             satcat_path = root / data_tools.SATCAT_RELATIVE_PATH
             satcat_path.parent.mkdir(parents=True)

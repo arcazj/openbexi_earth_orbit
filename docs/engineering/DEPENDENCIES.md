@@ -6,6 +6,8 @@ Use `npm ci`, not `npm install`, for CI and release evidence. Runtime and develo
 
 Supported tooling is declared in `package.json#engines`. CI currently exercises Node 22 and Python 3.12.
 
+CI sets `OPENBEXI_PYTHON_COMMAND=python` and verifies the selected interpreter version after setup, so a system-wide Windows launcher cannot override the configured Python. For a local explicit interpreter, set the same variable to its executable path.
+
 ## Required Checks
 
 ```text

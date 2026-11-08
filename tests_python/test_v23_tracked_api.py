@@ -298,7 +298,7 @@ def write_valid_tracked_pointer(
 class TrackedCatalogApiTests(unittest.TestCase):
     def test_manifest_and_only_referenced_chunks_are_exposed(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             gp_root = root / "json" / "gp"
             gp_root.mkdir(parents=True)
             (gp_root / "GP.json").write_bytes(GP_FIXTURE_BYTES)
@@ -382,7 +382,7 @@ class TrackedCatalogApiTests(unittest.TestCase):
 
     def test_manifest_metadata_and_chunks_fail_closed_on_stale_source_lineage(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             _, chunk_path = write_valid_tracked_pointer(root)
             gp_meta_path = root / "json" / "gp" / "GP.meta.json"
             gp_meta = json.loads(gp_meta_path.read_text(encoding="utf-8"))
@@ -412,7 +412,7 @@ class TrackedCatalogApiTests(unittest.TestCase):
 
     def test_gp_payload_drift_degrades_health_and_denies_tracked_catalog(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             _, chunk_path = write_valid_tracked_pointer(root)
             (root / "json" / "gp" / "GP.json").write_text(
                 '[{"norad_id":"200002"}]',
@@ -440,7 +440,7 @@ class TrackedCatalogApiTests(unittest.TestCase):
 
     def test_missing_manifest_satcat_lineage_denies_all_tracked_routes(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             manifest_path, chunk_path = write_valid_tracked_pointer(root)
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             manifest["provenance"].pop("satcat_revision")
@@ -480,7 +480,7 @@ class TrackedCatalogApiTests(unittest.TestCase):
 
     def test_absent_satcat_lineage_is_not_a_coherent_tracked_snapshot(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             manifest_path, chunk_path = write_valid_tracked_pointer(root)
             coherent_revision = server._catalog_data_health(root)["data_revision"]
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -699,7 +699,7 @@ class TrackedCatalogApiTests(unittest.TestCase):
         }
         for name, mutate in cases.items():
             with self.subTest(case=name), tempfile.TemporaryDirectory() as temporary:
-                root = Path(temporary)
+                root = Path(temporary).resolve()
                 manifest_path, chunk_path = write_valid_tracked_pointer(root)
                 metadata_path = root / "json" / "tracked" / "TRACKED.meta.json"
                 manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -789,7 +789,7 @@ class TrackedCatalogApiTests(unittest.TestCase):
         )
         for label, target, mutate in cases:
             with self.subTest(case=label), tempfile.TemporaryDirectory() as temporary:
-                root = Path(temporary)
+                root = Path(temporary).resolve()
                 manifest_path, chunk_path = write_valid_tracked_pointer(root)
                 metadata_path = root / "json" / "tracked" / "TRACKED.meta.json"
                 mutate(manifest_path if target == "manifest" else metadata_path)
@@ -834,7 +834,7 @@ class TrackedCatalogApiTests(unittest.TestCase):
         )
         for label, rewrite in cases:
             with self.subTest(case=label), tempfile.TemporaryDirectory() as temporary:
-                root = Path(temporary)
+                root = Path(temporary).resolve()
                 manifest_path, chunk_path = write_valid_tracked_pointer(root)
                 metadata_path = root / "json" / "tracked" / "TRACKED.meta.json"
                 manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -928,7 +928,7 @@ class TrackedCatalogApiTests(unittest.TestCase):
         )
         for label, mutate in cases:
             with self.subTest(case=label), tempfile.TemporaryDirectory() as temporary:
-                root = Path(temporary)
+                root = Path(temporary).resolve()
                 manifest_path, chunk_path = write_valid_tracked_pointer(root)
                 metadata_path = root / "json" / "tracked" / "TRACKED.meta.json"
                 manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -978,7 +978,7 @@ class TrackedCatalogApiTests(unittest.TestCase):
 
     def test_manifest_response_uses_the_exact_validated_snapshot(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             manifest_path, _ = write_valid_tracked_pointer(root)
             expected_body = manifest_path.read_bytes()
             original_loader = server._load_coherent_tracked_catalog_snapshot
@@ -1007,7 +1007,7 @@ class TrackedCatalogApiTests(unittest.TestCase):
 
     def test_historical_chunk_scope_is_verified_and_served(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             payload = {
                 "schema_version": "2.3.0",
                 "scope": "HISTORICAL",
@@ -1211,7 +1211,7 @@ class TrackedCatalogApiTests(unittest.TestCase):
             self.assertIn("503", openapi_paths[path]["get"]["responses"])
 
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             gp_path = root / "json" / "gp" / "GP.json"
             gp_path.parent.mkdir(parents=True)
             gp_path.write_bytes(GP_FIXTURE_BYTES)
@@ -1240,7 +1240,7 @@ class TrackedCatalogApiTests(unittest.TestCase):
 
     def test_health_validates_pointer_closure_and_current_source_lineage(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             gp_root = root / "json" / "gp"
             gp_root.mkdir(parents=True)
             (gp_root / "GP.json").write_bytes(GP_FIXTURE_BYTES)
@@ -1304,7 +1304,7 @@ class TrackedCatalogApiTests(unittest.TestCase):
 
     def test_health_degrades_when_declared_satcat_metadata_is_missing_or_corrupt(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             gp_root = root / "json" / "gp"
             gp_root.mkdir(parents=True)
             (gp_root / "GP.json").write_bytes(GP_FIXTURE_BYTES)
@@ -1344,7 +1344,7 @@ class TrackedCatalogApiTests(unittest.TestCase):
 
     def test_tracked_chunk_symlink_cannot_escape_repository_root(self):
         with tempfile.TemporaryDirectory() as temporary:
-            temporary_root = Path(temporary)
+            temporary_root = Path(temporary).resolve()
             root = temporary_root / "repository"
             _, chunk_path = write_valid_tracked_pointer(root)
             body = chunk_path.read_bytes()
@@ -1391,7 +1391,7 @@ class TrackedCatalogApiTests(unittest.TestCase):
         )
         for name, write_meta, manifest_text in cases:
             with self.subTest(case=name), tempfile.TemporaryDirectory() as temporary:
-                root = Path(temporary)
+                root = Path(temporary).resolve()
                 gp_path = root / "json" / "gp" / "GP.json"
                 gp_path.parent.mkdir(parents=True)
                 gp_path.write_bytes(GP_FIXTURE_BYTES)

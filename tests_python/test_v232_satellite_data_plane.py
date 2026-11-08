@@ -167,7 +167,7 @@ def request(port: int, path: str) -> tuple[int, bytes]:
 class SatelliteDataPlaneTests(unittest.TestCase):
     def test_local_tracked_repair_survives_a_failed_provider_refresh(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             seed_repository(root)
             before_gp = (root / data_tools.GP_RELATIVE_PATH).read_bytes()
             satcat = SATCAT.replace("TEST OBJECT", "RENAMED OBJECT")
@@ -196,7 +196,7 @@ class SatelliteDataPlaneTests(unittest.TestCase):
 
     def test_local_tracked_repair_rejects_unverified_source_bytes(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             seed_repository(root)
             path = root / data_tools.SATCAT_META_RELATIVE_PATH
             meta = json.loads(path.read_text())
@@ -234,7 +234,7 @@ class SatelliteDataPlaneTests(unittest.TestCase):
             return data_tools.FetchResponse(url=url, text=payload)
 
         with tempfile.TemporaryDirectory() as temporary:
-            baseline = Path(temporary) / "baseline"
+            baseline = Path(temporary).resolve() / "baseline"
             progress = []
             initial = data_tools.maybe_update_satellite_data(root=baseline, fetcher=fetcher, force=True, now=NOW, on_progress=progress.append)
             self.assertFalse(initial["degraded"], initial)
@@ -245,7 +245,7 @@ class SatelliteDataPlaneTests(unittest.TestCase):
             data_plane.validate_data_root(baseline)
             for index, relative in enumerate(data_plane.CORE_DATA_PATHS):
                 with self.subTest(missing=relative):
-                    root = Path(temporary) / f"repository-{index}"
+                    root = Path(temporary).resolve() / f"repository-{index}"
                     shutil.copytree(baseline, root)
                     missing = root / relative
                     missing.unlink()
@@ -258,7 +258,7 @@ class SatelliteDataPlaneTests(unittest.TestCase):
 
     def test_progress_distinguishes_rejection_from_publication(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             seed_repository(root)
             plane = data_plane.SatelliteDataPlane(repository_root=root, state_root=root / "runtime")
             progress = []
@@ -282,7 +282,7 @@ class SatelliteDataPlaneTests(unittest.TestCase):
 
     def test_missing_data_is_due_even_when_its_metadata_is_recent(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             seed_repository(root)
             (root / data_tools.SATCAT_RELATIVE_PATH).unlink()
             plan = data_tools.scheduled_data_update_plan(root=root, now=NOW)
@@ -294,7 +294,7 @@ class SatelliteDataPlaneTests(unittest.TestCase):
 
     def test_cli_import_validate_and_promote_are_explicit_and_network_free(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             seed_repository(root)
             output = io.StringIO()
             with (
@@ -342,7 +342,7 @@ class SatelliteDataPlaneTests(unittest.TestCase):
 
     def test_import_preserves_malformed_local_closure_without_network_or_promotion(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             seed_repository(root)
             malformed = b"is it a professional{\n"
             (root / data_tools.TLE_META_RELATIVE_PATH).write_bytes(malformed)
@@ -374,7 +374,7 @@ class SatelliteDataPlaneTests(unittest.TestCase):
 
     def test_not_due_preflight_and_dry_run_promotion_create_no_candidate(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             seed_repository(root)
             plane = data_plane.SatelliteDataPlane(
                 repository_root=root,
@@ -421,7 +421,7 @@ class SatelliteDataPlaneTests(unittest.TestCase):
 
     def test_persistent_os_lock_rejects_concurrent_stale_takeover(self):
         with tempfile.TemporaryDirectory() as temporary:
-            state_root = Path(temporary)
+            state_root = Path(temporary).resolve()
             lock_path = state_root / data_plane.DATA_PLANE_LOCK_NAME
             lock_path.write_text("12345 2020-01-01T00:00:00Z\n", encoding="utf-8")
             entered = threading.Event()
@@ -459,7 +459,7 @@ class SatelliteDataPlaneTests(unittest.TestCase):
 
     def test_staged_refresh_promotes_private_candidate_without_mutating_release(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             seed_repository(root)
             release_inventory = inventory(root)
             plane = data_plane.SatelliteDataPlane(
@@ -487,7 +487,7 @@ class SatelliteDataPlaneTests(unittest.TestCase):
 
     def test_metadata_only_reconciliation_revision_is_promoted(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             seed_repository(root)
             plane = data_plane.SatelliteDataPlane(
                 repository_root=root,
@@ -745,7 +745,7 @@ class SatelliteDataPlaneTests(unittest.TestCase):
         )
         for offset, (label, mutate, expected_error) in enumerate(cases, start=1):
             with self.subTest(case=label), tempfile.TemporaryDirectory() as temporary:
-                root = Path(temporary)
+                root = Path(temporary).resolve()
                 seed_repository(root)
                 plane = data_plane.SatelliteDataPlane(
                     repository_root=root,
@@ -824,7 +824,7 @@ class SatelliteDataPlaneTests(unittest.TestCase):
         )
         for offset, (label, relative, mutate) in enumerate(cases, start=1):
             with self.subTest(case=label), tempfile.TemporaryDirectory() as temporary:
-                root = Path(temporary)
+                root = Path(temporary).resolve()
                 seed_repository(root)
                 plane = data_plane.SatelliteDataPlane(
                     repository_root=root,
@@ -888,7 +888,7 @@ class SatelliteDataPlaneTests(unittest.TestCase):
         )
         for offset, (label, mutate) in enumerate(cases, start=1):
             with self.subTest(case=label), tempfile.TemporaryDirectory() as temporary:
-                root = Path(temporary)
+                root = Path(temporary).resolve()
                 seed_repository(root)
                 plane = data_plane.SatelliteDataPlane(
                     repository_root=root,
@@ -950,7 +950,7 @@ class SatelliteDataPlaneTests(unittest.TestCase):
         )
         for offset, (label, rewrite) in enumerate(cases, start=1):
             with self.subTest(case=label), tempfile.TemporaryDirectory() as temporary:
-                root = Path(temporary)
+                root = Path(temporary).resolve()
                 seed_repository(root)
                 plane = data_plane.SatelliteDataPlane(
                     repository_root=root,
@@ -994,7 +994,7 @@ class SatelliteDataPlaneTests(unittest.TestCase):
 
     def test_promoted_byte_drift_fails_closed_and_current_previous_survive_pruning(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             seed_repository(root)
             plane = data_plane.SatelliteDataPlane(
                 repository_root=root,
@@ -1068,7 +1068,7 @@ class SatelliteDataPlaneTests(unittest.TestCase):
 
     def test_validation_drift_and_atomic_pointer_failure_preserve_current_candidate(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             seed_repository(root)
             plane = data_plane.SatelliteDataPlane(
                 repository_root=root,
@@ -1127,7 +1127,7 @@ class SatelliteDataPlaneTests(unittest.TestCase):
 
     def test_server_api_and_static_routes_follow_the_atomic_pointer(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             seed_repository(root)
             plane = data_plane.SatelliteDataPlane(
                 repository_root=root,
@@ -1150,7 +1150,7 @@ class SatelliteDataPlaneTests(unittest.TestCase):
 
     def test_default_server_rebinds_external_promotion_before_v21_routing(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             seed_repository(root)
             plane = data_plane.SatelliteDataPlane(
                 repository_root=root,
@@ -1199,7 +1199,7 @@ class SatelliteDataPlaneTests(unittest.TestCase):
 
     def test_scheduler_stop_cancels_candidate_before_pointer_publication(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             seed_repository(root)
             release_inventory = inventory(root)
             plane = data_plane.SatelliteDataPlane(
@@ -1243,7 +1243,7 @@ class SatelliteDataPlaneTests(unittest.TestCase):
 
     def test_update_cooperative_cancel_fires_before_any_candidate_phase(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             seed_repository(root)
             before = inventory(root)
             with self.assertRaises(data_tools.SatelliteDataCancelled):

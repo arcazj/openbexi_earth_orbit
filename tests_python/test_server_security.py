@@ -199,7 +199,7 @@ class StaticPathPolicyTests(unittest.TestCase):
 
     def test_gp_catalog_preference_and_data_health_metadata(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             (root / "json" / "gp").mkdir(parents=True)
             (root / "json" / "launches").mkdir(parents=True)
             (root / "json" / "decayed").mkdir(parents=True)
@@ -284,7 +284,7 @@ class StaticPathPolicyTests(unittest.TestCase):
 
     def test_data_health_fails_closed_when_gp_and_tle_are_unavailable(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
 
             unavailable = server._catalog_data_health(root)
             self.assertEqual(unavailable["catalog_state"], "unavailable")
@@ -513,7 +513,7 @@ class CorsPolicyTests(unittest.TestCase):
 class HttpSecurityIntegrationTests(unittest.TestCase):
     def test_gp_metadata_status_revisions_and_openapi_route(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             (root / "json" / "gp").mkdir(parents=True)
             (root / "json" / "launches").mkdir(parents=True)
             (root / "json" / "decayed").mkdir(parents=True)
