@@ -9,6 +9,7 @@ import {
     solarSystemScenePositionForBody
 } from './solarSystemEphemeris.js';
 import { educationalPlanetPosition } from './solarSystemEducation.js';
+import { createOrbitGuideState, loadOrbitGuides, sampleOrbitGuide } from './solarSystemOrbitGuides.js';
 
 export const SOLAR_SYSTEM_TEXTURE_PATHS = {
     sun: 'textures/planets/sun.jpg',
@@ -154,13 +155,13 @@ export const SOLAR_SYSTEM_TEXTURE_ATTRIBUTIONS = [
 const AU_VISUAL_SCALE = 16;
 const ORBIT_SEGMENTS = 512;
 const EPHEMERIS_ORBIT_MIN_FRACTION = 0.95;
-const SKY_RADIUS = 2400;
+const SKY_RADIUS = 10000;
 export const SOLAR_SYSTEM_LABEL_MIN_SCREEN_PX = 18;
 export const SOLAR_SYSTEM_LABEL_PREFERRED_SCREEN_PX = 28;
 export const SOLAR_SYSTEM_LABEL_MAX_SCREEN_PX = 42;
 const LABEL_BASE_SCALE = new THREE.Vector3(12.8, 4.0, 1);
 const LABEL_MIN_WORLD_SCALE = 0.01;
-const LABEL_MAX_DISTANCE_SCALE = 5.2;
+const LABEL_MAX_DISTANCE_SCALE = 50;
 const LABEL_PIN_CENTER_X = 42 / 512;
 const LABEL_PIN_CENTER_Y = (160 - 122) / 160;
 const DEFAULT_LABEL_VIEWPORT_HEIGHT = 800;
@@ -199,6 +200,8 @@ export function createSolarSystemOverview(scene, {
         selectedPlanet: null,
         selectedHighlight: null,
         ephemerisState: createSolarSystemEphemerisState(),
+        orbitGuideState: createOrbitGuideState(),
+        autoLoadEphemeris,
         ephemerisRuntimeMode: 'Precise positions loading',
         ephemerisWarning: 'JPL-derived ephemeris has not loaded yet.',
         ephemerisOrbitPathsBuilt: false,
@@ -223,10 +226,11 @@ export function createSolarSystemOverview(scene, {
     createSun(overview, textureLoader);
     createPlanets(overview, textureLoader);
     createSelectedHighlight(overview);
+    controls?.addEventListener?.('start', () => { overview.fitMode = null; });
     if (initialDate) updateSolarSystemOverview(overview, initialDate);
     if (autoLoadEphemeris) {
         loadSolarSystemEphemeris(overview.ephemerisState)
-            .then(() => rebuildOrbitPathsFromEphemeris(overview))
+            .then(() => { overview.forceOrbitUpdate = true; })
             .catch(() => {});
     }
     setSolarSystemOverviewOptions(overview, overview.options);
@@ -256,11 +260,15 @@ export function updateSolarSystemOverview(overview, simDate, { clockBoundary = n
         updatePlanetLabelCallout(entry, overview);
     });
     overview.orbitGroup.visible = ready && overview.options.orbitPaths;
-    if (ready && overview.orbitGroup.visible) {
-        const signature = `${educational}:${simDate.getUTCFullYear()}`;
-        if (overview.orbitSignature !== signature) {
+    if (ready && overview.orbitGroup.visible && overview.root.visible) {
+        const now = performance.now();
+        if (overview.forceOrbitUpdate || !overview.lastOrbitUpdate || now - overview.lastOrbitUpdate >= 100) {
             rebuildOrbitPathsFromEphemeris(overview);
-            overview.orbitSignature = signature;
+            overview.forceOrbitUpdate = false;
+            overview.lastOrbitUpdate = now;
+        }
+        if (overview.fitMode && overview.fitAspect !== overview.camera?.aspect) {
+            fitSolarSystemOverviewCamera(overview, overview.fitMode === 'inner');
         }
     }
     overview.ephemerisRuntimeMode = educational ? 'Educational approximation' : ready ? 'JPL-derived ephemeris' : 'Precise positions unavailable';
@@ -287,6 +295,7 @@ export function updateSolarSystemOverview(overview, simDate, { clockBoundary = n
 export function setSolarSystemOverviewVisible(overview, visible) {
     if (!overview?.root) return;
     overview.root.visible = !!visible;
+    if (visible && overview.autoLoadEphemeris) loadOrbitGuides(overview.orbitGuideState);
 }
 
 export function setSolarSystemOverviewOptions(overview, options = {}) {
@@ -333,6 +342,7 @@ export function setSolarSystemSelectedPlanet(overview, planetName) {
 }
 
 export function focusSolarSystemPlanet(overview, planetName, camera = overview?.camera, controls = overview?.controls) {
+    overview.fitMode = null;
     const entry = setSolarSystemSelectedPlanet(overview, planetName);
     if (!entry || !camera || !controls) return null;
     entry.group.updateMatrixWorld(true);
@@ -344,19 +354,68 @@ export function focusSolarSystemPlanet(overview, planetName, camera = overview?.
     camera.position.copy(cameraPosition);
     controls.target.copy(target);
     controls.minDistance = Math.max(entry.planet.visualRadius * 2.4, 2);
-    controls.maxDistance = 1800;
+    controls.maxDistance = 12000;
     controls.update();
     return { entry, target, cameraPosition };
 }
 
 export function resetSolarSystemOverviewCamera(overview, camera = overview?.camera, controls = overview?.controls) {
+    fitSolarSystemOverviewCamera(overview, false, camera, controls);
+}
+
+export function fitSolarSystemOverviewCamera(overview, innerPlanets = false, camera = overview?.camera, controls = overview?.controls) {
     if (!overview || !camera || !controls) return;
     setSolarSystemSelectedPlanet(overview, null);
-    camera.position.set(0, 400, 920);
+    let radius = 4;
+    for (const entry of overview.planets.values()) {
+        if (entry.planet.parentName || (innerPlanets && entry.planet.semiMajorAu > 2)) continue;
+        radius = Math.max(radius, entry.planet.semiMajorAu * (1 + entry.planet.eccentricity) * AU_VISUAL_SCALE);
+        const positions = entry.orbit?.geometry?.attributes.position;
+        if (positions) for (let i = 0; i < positions.count; i++) {
+            radius = Math.max(radius, Math.hypot(positions.getX(i), positions.getY(i), positions.getZ(i)));
+        }
+    }
+    const vertical = THREE.MathUtils.degToRad(camera.fov) / 2;
+    const horizontal = Math.atan(Math.tan(vertical) * camera.aspect);
+    // Portrait viewports need room for the screen-sized planet callouts.
+    const padding = camera.aspect < 1 ? 1.4 : 1.15;
+    const distance = radius * padding / Math.sin(Math.min(vertical, horizontal));
+    camera.position.set(0, .6, 1).normalize().multiplyScalar(distance);
+    camera.far = Math.max(camera.far, SKY_RADIUS * 2);
+    camera.updateProjectionMatrix();
     controls.target.set(0, 0, 0);
     controls.minDistance = 14;
-    controls.maxDistance = 1800;
+    controls.maxDistance = Math.max(12000, distance * 2);
     controls.update();
+    overview.fitMode = innerPlanets ? 'inner' : 'all';
+    overview.fitAspect = camera.aspect;
+}
+
+export function solarSystemOrbitGuideSummary(overview) {
+    if (overview.options.educational) return 'Educational orbit guides (approximate).';
+    const state = overview.orbitGuideState;
+    if (state.status === 'idle' || state.status === 'loading') return `Loading full JPL orbit guides (${state.data.size}/8)...`;
+    const complete = [...overview.planets.values()].filter(entry => !entry.planet.parentName && entry.orbit.userData.completeRevolution).length;
+    return complete === 8 ? 'JPL orbit guides: one revolution around the selected date.'
+        : `Full JPL guides: ${complete}/8. Remaining paths show available JPL arcs.`;
+}
+
+export function solarSystemOrbitGuideDiagnostics(overview) {
+    overview.root.updateMatrixWorld(true);
+    overview.camera?.updateMatrixWorld(true);
+    return [...overview.planets.values()].filter(entry => !entry.planet.parentName).map(entry => {
+        const positions = entry.orbit.geometry.attributes.position;
+        const projectedBounds = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
+        if (overview.camera) for (let i = 0; i < positions.count; i++) {
+            const point = new THREE.Vector3().fromBufferAttribute(positions, i).applyMatrix4(entry.orbit.matrixWorld).project(overview.camera);
+            projectedBounds.minX = Math.min(projectedBounds.minX, point.x);
+            projectedBounds.maxX = Math.max(projectedBounds.maxX, point.x);
+            projectedBounds.minY = Math.min(projectedBounds.minY, point.y);
+            projectedBounds.maxY = Math.max(projectedBounds.maxY, point.y);
+        }
+        return { name: entry.planet.name, type: entry.orbit.type, points: positions.count,
+            projectedBounds, ...entry.orbit.userData };
+    });
 }
 
 export function solarSystemPlanetSummary(planet, overview = null) {
@@ -555,12 +614,18 @@ function rebuildOrbitPathsFromEphemeris(overview) {
     const educational = overview.options.educational;
     if (!educational && !data?.times?.length) return;
     overview.planets.forEach((entry) => {
-        const duration = Math.min(entry.planet.periodDays * DAY_MS, educational ? Infinity : data.timeMs.at(-1) - data.timeMs[0]);
         const center = overview.simDate?.getTime() ?? data?.timeMs[0];
+        const signature = `${educational}:${overview.orbitGuideState.revision}:${Math.floor(center / (entry.planet.periodDays * DAY_MS / 720))}`;
+        if (!overview.forceOrbitUpdate && entry.orbitSignature === signature) return;
+        entry.orbitSignature = signature;
+        const guide = !educational && !entry.planet.parentName
+            ? sampleOrbitGuide(overview.orbitGuideState.data.get(entry.planet.key), entry.planet.key, new Date(center), { anchor: entry.group.position })
+            : null;
+        const duration = Math.min(entry.planet.periodDays * DAY_MS, educational ? Infinity : data.timeMs.at(-1) - data.timeMs[0]);
         const startMs = educational ? Math.max(Date.parse('1000-01-01'), Math.min(Date.parse('3000-01-01') - duration, center - duration / 2))
             : Math.max(data.timeMs[0], Math.min(data.timeMs.at(-1) - duration, center - duration / 2));
-        const points = [];
-        for (let i = 0; i <= ORBIT_SEGMENTS; i += 1) {
+        const points = guide?.points || [];
+        for (let i = 0; !guide && i <= ORBIT_SEGMENTS; i += 1) {
             const orbitFraction = i / ORBIT_SEGMENTS;
             const date = new Date(startMs + duration * orbitFraction);
             const position = educational ? educationalPosition(entry.planet, date)
@@ -572,7 +637,10 @@ function rebuildOrbitPathsFromEphemeris(overview) {
         if (points.length < 3) return;
         const old = entry.orbit;
         entry.orbit = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), old.material);
-        entry.orbit.userData = old.userData;
+        entry.orbit.userData = { parentName: entry.planet.parentName || null,
+            completeRevolution: !!guide, centerTimeMs: center,
+            startTimeMs: guide?.minTimeMs ?? startMs, endTimeMs: guide?.maxTimeMs ?? startMs + duration,
+            longitudeSpan: guide?.longitudeSpan ?? null, anchorIndex: guide?.anchorIndex ?? null };
         entry.orbit.position.copy(old.position);
         entry.orbit.name = `${entry.planet.name} ${educational ? 'Educational' : 'JPL-derived'} Orbit Path`;
         overview.orbitGroup.remove(old);

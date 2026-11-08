@@ -169,7 +169,8 @@
         focusSolarSystemPlanet,
         resetSolarSystemOverviewCamera,
         solarSystemPlanetSummary,
-        solarSystemEphemerisSummary
+        solarSystemEphemerisSummary,
+        solarSystemOrbitGuideDiagnostics
     } from './js/solarSystemOverviewLoader.js';
     import { solarSystemEphemerisBounds } from './js/solarSystemEphemeris.js';
     import { createSolarSystemTimeControls, solarSystemTimeBounds } from './js/solarSystemTimeControls.js';
@@ -4149,6 +4150,7 @@
     }
 
     function setSolarSystemEarthLayerVisibility(active) {
+        document.body.classList.toggle('solar-system-active', active);
         if (earthMesh) earthMesh.visible = !active;
         if (moon) moon.visible = !active;
         if (mars) mars.visible = !active;
@@ -5458,6 +5460,9 @@
         },
         planetPosition(planetName) {
             return solarSystemOverview?.planets?.get(planetName)?.group?.position?.toArray?.() || null;
+        },
+        orbitGuides() {
+            return solarSystemOrbitGuideDiagnostics(solarSystemOverview);
         }
     });
 

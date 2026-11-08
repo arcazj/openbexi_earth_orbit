@@ -4,6 +4,8 @@
 
 User requested precise astronomical mode by default, an educational checkbox, flexible time ranges, Sun-centered and planet-following views, legacy compatibility, concise documentation updates, and a local version 2.4 commit. Implemented as 2.4.0 with explicit data coverage and labeled approximations; publication was not requested.
 
+Follow-up: complete the truncated precise-mode planetary guides using JPL trajectories, while keeping playback bounded by its validated dataset. Separate guide files, full/inner camera presets, explicit partial-guide status and regression checks implement that scope without extending the playback table.
+
 
 ## Version 2.3.3 Project Cleanup (2026-09-26)
 

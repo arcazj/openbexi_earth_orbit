@@ -53,6 +53,8 @@ Open **Views & Time > Solar System**. Precise mode is the default, with Sun-cent
 
 **Educational mode** enables approximate planetary motion from 1000-3000 CE; changing back pauses and adjusts dates to precise coverage when needed. The default precise table covers 2020-2035, and the generator can replace it with another complete range. Follow any planet using the selector; enlarged symbols are optional and orbital distances remain to scale. Exiting restores the prior satellite date, playback scale, filters and view. The standalone `SolarSystemOverview.html` shares the same engine and controls. See [ephemeris accuracy and limits](data/ephemeris/README.md).
 
+Precise orbit guides show a full JPL revolution for every planet around the selected date, including the outer planets. Separate guide files load on first opening Solar System and do not extend playback beyond 2020-2035. Use **Fit Solar System** for all eight orbits or **Inner planets** for a closer view. Actual trajectory endpoints can differ slightly; the renderer does not add an artificial closing segment. If guide files are unavailable, the status identifies the shorter available JPL arcs.
+
 ## Quick Start
 
 Install the locked dependencies and start the loopback application/API server:
@@ -331,6 +333,8 @@ py tools/generate_jpl_ephemeris.py
 ```
 
 This helper downloads Mercury through Neptune plus the Moon from NASA/JPL Horizons, with explicit UTC times and six-hour position/velocity samples. `--help` lists options; `--start YYYY-MM-DD --stop YYYY-MM-DD` changes coverage (up to 100 years per file), and `--output` / `--reference-output` select output files. Defaults regenerate the bundled 2020-2035 table and independent validation samples. Files are replaced only after all queries succeed. The browser never contacts Horizons at runtime.
+
+Run `py tools/generate_jpl_orbit_guides.py` to regenerate the separate full-revolution guides, including after a deliberate playback-range change. It uses cached, serial Horizons requests and validates each planet's sampling before publishing the manifest. See the [data documentation](data/ephemeris/README.md) for limits and options.
 
 The obsolete `save_obj_with_texture.py` helper and Java/Maven exporters have been removed. Use the maintained Python commands above for data and asset preparation.
 

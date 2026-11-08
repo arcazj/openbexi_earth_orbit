@@ -12,6 +12,11 @@
     "textures/March_8k.jpg": 12000000
   },
   "groups": {
+    "solarSystemOrbitGuides": {
+      "roots": ["data/ephemeris/orbits"],
+      "extensions": [".json"],
+      "maxBytes": 6000000
+    },
     "browserJavaScript": {
       "roots": ["js"],
       "extensions": [".js", ".mjs"],

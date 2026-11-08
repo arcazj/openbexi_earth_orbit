@@ -195,6 +195,15 @@ for (const record of artifactManifest.files) {
 }
 
 const manifestPaths = new Set(artifactManifest.files.map(file => file.path));
+const guideRoot = 'data/ephemeris/orbits/';
+assert(manifestPaths.has(`${guideRoot}manifest.json`), 'artifact packages the JPL guide manifest');
+const guideManifest = JSON.parse(fs.readFileSync(path.join(outputRoot, guideRoot, 'manifest.json'), 'utf8'));
+for (const descriptor of Object.values(guideManifest.bodies)) {
+  const record = artifactManifest.files.find(file => file.path === `${guideRoot}${descriptor.file}`);
+  assert(record, 'artifact includes every referenced orbit guide');
+  assert.strictEqual(record.sha256, descriptor.sha256, 'packaged guide matches the JPL manifest');
+  assert.strictEqual(record.bytes, descriptor.bytes);
+}
 assert(manifestPaths.has('.nojekyll'), 'artifact disables Jekyll path rewriting');
 assert(manifestPaths.has('vendor/satellite.js/6.0.2/satellite.es.js'));
 assert(manifestPaths.has('vendor/three/0.184.0/build/three.module.js'));

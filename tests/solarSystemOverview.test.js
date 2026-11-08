@@ -106,7 +106,7 @@ function run() {
     'SOLAR_SYSTEM_LABEL_MIN_SCREEN_PX',
     'SOLAR_SYSTEM_LABEL_PREFERRED_SCREEN_PX',
     'SOLAR_SYSTEM_LABEL_MAX_SCREEN_PX',
-    'LABEL_MAX_DISTANCE_SCALE = 5.2',
+    'LABEL_MAX_DISTANCE_SCALE = 50',
     'LABEL_PIN_CENTER_X',
     'LABEL_PIN_CENTER_Y',
     'sprite.center.set(LABEL_PIN_CENTER_X, LABEL_PIN_CENTER_Y)',
@@ -175,7 +175,8 @@ function run() {
   [
     { distance: 20, viewportHeight: 900 },
     { distance: 160, viewportHeight: 900 },
-    { distance: 520, viewportHeight: 580 }
+    { distance: 520, viewportHeight: 580 },
+    { distance: 3600, viewportHeight: 844 }
   ].forEach(({ distance, viewportHeight }) => {
     const scale = solarSystemLabelScaleFactorForDistance(distance, { fovDeg: 52, viewportHeight });
     const screenHeight = solarSystemLabelScreenHeightPxForScale(scale, distance, { fovDeg: 52, viewportHeight });

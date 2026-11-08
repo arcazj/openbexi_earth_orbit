@@ -155,6 +155,14 @@ test('curated static artifact boots offline and screens the full catalog in its 
   await expect(page.locator('#conjunctionProgress')).toHaveJSProperty('value', 100);
   await expect(page.getByRole('button', { name: 'Export JSON', exact: true })).toBeEnabled();
 
+  expect(network.requests.some(url => url.includes('/ephemeris/orbits/'))).toBe(false);
+  await page.locator('#viewAccordionHeader').click();
+  await page.locator('#solarSystemOverviewToggle').check();
+  await expect(page.locator('#solarOrbitGuideStatus')).toContainText('one revolution', { timeout: 60_000 });
+  expect(await page.evaluate(() => window.openbexiSimulation.orbitGuides().filter(guide => guide.completeRevolution).length)).toBe(8);
+  await page.locator('#solarSystemExitButton').click();
+  await expect(page.locator('#trackedCoverageHud')).toBeVisible();
+
   expect(network.requests.some(url => url.endsWith('/js/conjunction/conjunctionWorker.js'))).toBe(true);
   expect(network.requests.some(url => url.endsWith('/vendor/satellite.js/6.0.2/satellite.es.js'))).toBe(true);
   expect(network.requests.some(url => new URL(url).pathname.endsWith('/icons/ob_satellite.png'))).toBe(true);
@@ -172,7 +180,8 @@ test('curated static artifact boots offline and screens the full catalog in its 
     externalRequests: network.externalRequests,
     notFoundResponses: network.notFoundResponses,
     sameOriginCancellations: network.requestFailures.length,
-    workerScreening: 'passed'
+    workerScreening: 'passed',
+    packagedJplGuides: 'passed'
   })}`);
 });
 

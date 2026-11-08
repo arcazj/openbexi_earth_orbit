@@ -1,0 +1,46 @@
+{
+  "version": "2.4.0",
+  "localDate": "2026-11-07",
+  "scope": "Complete planetary JPL guides without expanding precise playback coverage",
+  "staticGates": { "command": "npm run check", "result": "passed" },
+  "javascript": { "command": "npm run test:unit", "filesPassed": 65, "filesFailed": 0 },
+  "python": {
+    "command": "node scripts/python.mjs -m unittest tests_python.test_jpl_orbit_guides -v",
+    "passed": 2,
+    "failed": 0,
+    "fullSuiteRepeated": false
+  },
+  "browser": {
+    "project": "chromium",
+    "specs": ["solarSystemTime", "timeSimulation", "dayNight", "smoke", "staticDeployment"],
+    "uniqueJourneysPassed": 12,
+    "initialRun": { "passed": 11, "failed": 1 },
+    "correctedSmokeRerun": { "passed": 2, "failed": 0 },
+    "correction": "Wait for a coherent point-cloud upload after asynchronous propagation batches before comparing complete marker identity lists.",
+    "method": "Targeted suite followed by two repetitions of the corrected smoke journey; not a single clean full-matrix run.",
+    "solarViewports": ["1280x720", "390x844"],
+    "offlineArtifact": { "externalRequests": 0, "notFoundResponses": 0, "completeGuides": 8 },
+    "unresolvedFailures": 0,
+    "timingBudgetsEnforced": false
+  },
+  "orbitGuides": {
+    "source": "NASA/JPL Horizons geometric Sun-centered ICRF ecliptic vectors; explicit UTC",
+    "bodies": 8,
+    "independentSamples": 136,
+    "maximumSampledPositionErrorKm": 74.61758603080463,
+    "positionRegressionLimitKm": 100,
+    "maximumTestedRenderPointsPerBody": 2049,
+    "fullRevolutionDefinition": "360 degrees of heliocentric longitude around the selected epoch, without an artificial closing chord",
+    "bodyFilesBytes": 5229909,
+    "manifestAndBodyFilesBytes": 5231548,
+    "manifestSha256": "142e2336540f517f436cf2664766dba84de52dc62e8fe334d2c261d27a8d3b10",
+    "scope": "Sampled display-guide interpolation regression, not a global accuracy bound or an extension of validated playback."
+  },
+  "playback": {
+    "coverageUtc": ["2020-01-01T00:00:00Z", "2035-12-31T00:00:00Z"],
+    "sha256": "f134c85a93705af7d0eaf43ebf803bb6a959d292a0c33a31228fa1c1c27ea764",
+    "identicalToPreviousCommit": "fde19e4",
+    "maximumSampledPositionErrorMeters": 35.20
+  },
+  "publicationState": "development"
+}

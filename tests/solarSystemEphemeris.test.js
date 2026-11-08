@@ -1,5 +1,7 @@
 import fs from 'fs';
 import assert from 'assert';
+import * as THREE from 'three';
+import { mock } from 'node:test';
 import {
   SOLAR_SYSTEM_EPHEMERIS_URL,
   createSolarSystemEphemerisState,
@@ -15,6 +17,7 @@ import {
 } from '../js/solarSystemEphemeris.js';
 import {
   planetPositionAtDate,
+  updateSolarSystemOverview,
   shouldUseEphemerisOrbitPath,
   SOLAR_SYSTEM_PLANETS,
   SOLAR_SYSTEM_TEXTURE_PATHS
@@ -160,7 +163,28 @@ function run() {
   assert(loader.includes('solarSystemScenePositionForBody'), 'Solar System loader uses ephemeris scene positions');
   assert(loader.includes('loadSolarSystemEphemeris'), 'Solar System loader loads local ephemeris data');
   assert(!loader.includes('Date.now()'), 'Solar System loader does not use Date.now for body positions');
-  assert(!loader.includes('performance.now()'), 'Solar System loader does not use performance.now for body positions');
+  // Rendering may throttle guide rebuilds with elapsed time, but body positions
+  // must always follow the simulation date, including between guide rebuilds.
+  const group = new THREE.Group();
+  const overview = {
+    root: new THREE.Group(), orbitGroup: new THREE.Group(),
+    options: { educational: false, orbitPaths: true },
+    ephemerisState: { status: 'ready', data: ephemeris },
+    orbitGuideState: { revision: 0, data: new Map() },
+    planets: new Map([['Earth', { planet: earthPlanet, group, marker: new THREE.Object3D(),
+      orbit: new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial()) }]])
+  };
+  let elapsed = 1000;
+  const timer = mock.method(performance, 'now', () => elapsed);
+  try {
+    for (const [wallTime, utc] of [[1000, '2026-06-07'], [9000, '2026-06-07'], [9001, '2026-06-08']]) {
+      elapsed = wallTime;
+      const date = new Date(`${utc}T00:00:00Z`);
+      updateSolarSystemOverview(overview, date);
+      assert(group.position.distanceTo(solarSystemScenePositionForBody(ephemeris, 'earth', date).position) < 1e-12,
+        'body position follows the simulation date independently of guide scheduling');
+    }
+  } finally { timer.mock.restore(); }
   assert(!ephemerisModule.includes('Date.now()'), 'ephemeris module does not use Date.now for body positions');
   assert(!ephemerisModule.includes('performance.now()'), 'ephemeris module does not use performance.now for body positions');
   assert(indexHtml.includes('updateSolarSystemOverview(solarSystemOverview, SIM_DATE'), 'integrated Solar System updates from shared SIM_DATE');

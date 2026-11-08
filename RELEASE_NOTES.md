@@ -6,6 +6,8 @@ Precise JPL mode is now the default, with all eight planets and the existing Moo
 
 The Horizons generator now requests UTC explicitly, includes Neptune, accepts configurable dates, and collects independent validation samples. Cubic Hermite interpolation uses positions and velocities. Planet symbols can be enlarged without altering planetary distances; precise mode does not silently substitute an approximate model.
 
+Precise orbit guides now cover a full JPL revolution for all eight planets at every playable date. Separate cached guide files fix the previously truncated outer-planet arcs while preserving the validated 2020-2035 playback table. Adaptive sampling retains the real trajectory endpoints. Full-system and inner-planet camera presets fit desktop and mobile screens; the satellite coverage panel hides immediately in Solar System mode. Guide interpolation has its own sampled display tolerance, documented separately from playback accuracy.
+
 Also includes the shared provider request ledger, clearer refresh status in a bottom banner, and single-open menu sections with Tracked Objects expanded at startup. Startup Retry cancels the failed module load and performs one reload. Provider cooldowns remain enforced. The derived tracked catalog was rebuilt incrementally from local sources to repair stale lineage; its coverage remains explicitly partial. Version 2.4.0 remains a development build; this commit does not publish or deploy it.
 
 ## Version 2.3.3 Project Cleanup (2026-09-26)

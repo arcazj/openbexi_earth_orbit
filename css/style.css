@@ -59,6 +59,10 @@ canvas {
     box-sizing: border-box;
 }
 
+.solar-system-active #trackedCoverageHud {
+    display: none;
+}
+
 #controlsContainer.menu-hidden {
     transform: translateX(calc(-100% - 20px)); /* Slide out completely */
 }

@@ -154,13 +154,19 @@ test('main application boots with local dependencies and a rendered WebGL canvas
   await expect.poll(() => page.evaluate(() => window.openbexiSimulation.snapshot().drawnNoradIds.length), {
     timeout: 30_000
   }).toBeGreaterThan(16_000);
-  const pointCloud = await page.evaluate(async () => {
-    const diagnostics = (await import('/js/satelliteTLELoader.js')).getSatellitePointCloudDiagnostics();
-    return {
-      ...diagnostics,
-      expectedNoradIds: [...window.openbexiSimulation.snapshot().drawnNoradIds].sort()
-    };
-  });
+  // A propagation batch can make more records ready between rendered frames.
+  // Capture a settled upload before comparing the complete identity lists.
+  let pointCloud;
+  await expect.poll(async () => {
+    pointCloud = await page.evaluate(async () => {
+      const diagnostics = (await import('/js/satelliteTLELoader.js')).getSatellitePointCloudDiagnostics();
+      return {
+        ...diagnostics,
+        expectedNoradIds: [...window.openbexiSimulation.snapshot().drawnNoradIds].sort()
+      };
+    });
+    return JSON.stringify(pointCloud.uploadedNoradIds.toSorted()) === JSON.stringify(pointCloud.expectedNoradIds);
+  }, { timeout: 30_000 }).toBe(true);
   expect(pointCloud.drawnCount).toBeGreaterThan(16_000);
   expect(pointCloud.matchedPositionCount).toBe(pointCloud.drawnCount);
   expect(pointCloud.uploadedNoradIds.toSorted()).toEqual(pointCloud.expectedNoradIds);

@@ -8,7 +8,9 @@ Last reviewed: 2026-11-07
 
 ### v2.4 Solar System controls and Neptune
 
-The 2.4 implementation measures 318,802 bytes for `index.html`, 934,656 bytes for the budgeted JavaScript group, and 17,504,236 bytes for the regenerated nine-body ephemeris. Fixed ceilings are now 325,000 / 950,000 / 18,000,000 bytes respectively. The standalone page reuses the shared renderer instead of duplicating it. These are size ceilings, not measured frame-rate guarantees.
+With full JPL orbit guides, the 2.4 implementation measures 319,024 bytes for `index.html`, 945,710 bytes for the budgeted JavaScript group, and 17,504,236 bytes for the unchanged nine-body playback ephemeris. Measurements use the committed LF line endings. Fixed ceilings remain 325,000 / 950,000 / 18,000,000 bytes respectively. The standalone page reuses the shared renderer. These are size ceilings, not measured frame-rate guarantees.
+
+The eight wider-range guide files and their manifest add 5,231,548 bytes under a separate fixed 6,000,000-byte ceiling. They load serially on first entering Solar System, remain cached in the viewer, and are not fetched during satellite-only startup. Geometry uses adaptive sampling with per-body time buckets to avoid rebuilding every frame. The edge-date tests observed at most 2,049 vertices per planetary guide; this is bounded geometry evidence, not a measured frame-rate guarantee.
 
 ### v2.3.3 Catalog Ceiling Correction (2026-10-23)
 

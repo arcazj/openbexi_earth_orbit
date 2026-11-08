@@ -1,6 +1,6 @@
 import { solarSystemEphemerisBounds } from './solarSystemEphemeris.js';
 import { EDUCATIONAL_BOUNDS } from './solarSystemEducation.js';
-import { SOLAR_SYSTEM_PLANETS, setSolarSystemOverviewOptions } from './solarSystemOverviewLoader.js';
+import { SOLAR_SYSTEM_PLANETS, setSolarSystemOverviewOptions, fitSolarSystemOverviewCamera, solarSystemOrbitGuideSummary } from './solarSystemOverviewLoader.js';
 
 export const SOLAR_TIME_UNITS = Object.freeze({ minute: 60000, hour: 3600000, day: 86400000, year: 31557600000 });
 const DAY = 86400000;
@@ -20,6 +20,7 @@ export function createSolarSystemTimeControls({ container, overview, clock, onCh
     container.innerHTML = `
       <label class="solar-mode-toggle"><input id="solarEducational" type="checkbox"> Educational mode <span>(approximate, wider dates)</span></label>
       <div id="solarCoverage" class="solar-time-note"></div>
+      <div id="solarOrbitGuideStatus" class="solar-time-note" role="status"></div>
       <label for="solarDate">Simulation date and time (UTC)</label>
       <input id="solarDate" type="datetime-local" step="1">
       <div class="solar-time-grid">
@@ -33,13 +34,14 @@ export function createSolarSystemTimeControls({ container, overview, clock, onCh
       <input id="solarScrubber" type="range" min="0" max="10000" step="1" value="5000" aria-label="Explore the selected date range">
       <div id="solarRangeLabel" class="solar-time-note"></div>
       <div class="solar-time-actions"><button type="button" id="solarStepBack">-1 day</button><button type="button" id="solarStepForward">+1 day</button></div>
+      <div class="solar-time-actions"><button type="button" id="solarFitAll">Fit Solar System</button><button type="button" id="solarFitInner">Inner planets</button></div>
       <label for="solarPlanetFocus">Follow a planet<select id="solarPlanetFocus"><option value="">Sun-centered overview</option>${SOLAR_SYSTEM_PLANETS.map(planet => `<option>${planet.name}</option>`).join('')}</select></label>
       <label class="solar-mode-toggle"><input id="solarEnlarged" type="checkbox" checked> Enlarge planet symbols</label>
       <div class="solar-time-note">Planetary distances remain to scale; the educational Moon orbit is schematic. Use Time x above to play, pause or reverse; Now returns to today.</div>
       <div id="solarTimeMessage" class="solar-time-note" role="status" aria-live="polite"></div>`;
     const el = id => container.querySelector(`#${id}`);
     let range = null, lastBounds = '', lastMode = null;
-    const changed = () => { onChange(); sync(); };
+    const changed = () => { overview.forceOrbitUpdate = true; onChange(); sync(); };
     const message = text => { el('solarTimeMessage').textContent = text; };
     function resetWindow() {
         const bounds = solarSystemTimeBounds(overview);
@@ -93,6 +95,9 @@ export function createSolarSystemTimeControls({ container, overview, clock, onCh
     el('solarStepBack').addEventListener('click', () => setTime(clock.state().timeMs - DAY));
     el('solarStepForward').addEventListener('click', () => setTime(clock.state().timeMs + DAY));
     el('solarPlanetFocus').addEventListener('change', event => { onFocus(event.target.value); changed(); });
+    for (const [id, inner] of [['solarFitAll', false], ['solarFitInner', true]]) el(id).addEventListener('click', () => {
+        onFocus(''); fitSolarSystemOverviewCamera(overview, inner); changed();
+    });
     el('solarEnlarged').addEventListener('change', event => {
         setSolarSystemOverviewOptions(overview, { enlargedPlanets: event.target.checked }); changed();
     });
@@ -107,6 +112,8 @@ export function createSolarSystemTimeControls({ container, overview, clock, onCh
         const mode = overview.options.educational ? 'Educational approximation' : 'Precise • JPL Horizons';
         const coverage = bounds ? `${mode}: ${dateInput(bounds.minTimeMs)} to ${dateInput(bounds.maxTimeMs)}` : 'Precise data loading or unavailable. Educational mode remains available.';
         if (el('solarCoverage').textContent !== coverage) el('solarCoverage').textContent = coverage;
+        const guideSummary = solarSystemOrbitGuideSummary(overview);
+        if (el('solarOrbitGuideStatus').textContent !== guideSummary) el('solarOrbitGuideStatus').textContent = guideSummary;
         el('solarEducational').checked = overview.options.educational;
         el('solarEnlarged').checked = overview.options.enlargedPlanets;
         el('solarPlanetFocus').value = overview.selectedPlanet || '';

@@ -4,7 +4,7 @@ import { createAnimationTimer } from './animationTimer.js';
 import { createSimulationClock } from './simulationClock.js';
 import { createSolarSystemTimeControls } from './solarSystemTimeControls.js';
 import { SOLAR_SYSTEM_PLANETS, createSolarSystemOverview, updateSolarSystemOverview,
-    setSolarSystemOverviewVisible, setSolarSystemOverviewOptions, solarSystemEphemerisSummary,
+    setSolarSystemOverviewVisible, setSolarSystemOverviewOptions, solarSystemEphemerisSummary, solarSystemOrbitGuideDiagnostics,
     focusSolarSystemPlanet, resetSolarSystemOverviewCamera, pickSolarSystemPlanet } from './solarSystemOverviewLoader.js';
 
 const scene = new THREE.Scene();
@@ -59,6 +59,7 @@ window.addEventListener('resize', () => {
     renderer.setSize(innerWidth, innerHeight);
 });
 window.openbexiSolarSystem = Object.freeze({
+    orbitGuides: () => solarSystemOrbitGuideDiagnostics(overview),
     snapshot: () => ({ ...clock.state(), educational: overview.options.educational, mode: overview.ephemerisRuntimeMode }),
     planetPosition: name => overview.planets.get(name)?.group.position.toArray()
 });

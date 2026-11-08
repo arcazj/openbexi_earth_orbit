@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "source": "https://ssd.jpl.nasa.gov/api/horizons.api",
+  "purpose": "orbit-guides-only",
+  "playbackCoverage": {
+    "startUtc": "2020-01-01T00:00:00Z",
+    "stopUtc": "2035-12-31T00:00:00Z"
+  },
+  "bodies": {
+    "mercury": {
+      "file": "mercury-2af15c8a1280bca1.json",
+      "sha256": "2af15c8a1280bca181f21f835c08d815eede6ac0b1f015a07256571ae06aae53",
+      "bytes": 617981
+    },
+    "venus": {
+      "file": "venus-87e75496085923da.json",
+      "sha256": "87e75496085923da777f9ae867871f5ac2143b4604a405532f335cb2119d2aa6",
+      "bytes": 162627
+    },
+    "earth": {
+      "file": "earth-df102d0164a2d7e5.json",
+      "sha256": "df102d0164a2d7e5ebf7fa0a16513c1d0de0b1cf9fe5722e4f29e583b0caf90c",
+      "bytes": 164076
+    },
+    "mars": {
+      "file": "mars-4b1f9c0a3f26d6e0.json",
+      "sha256": "4b1f9c0a3f26d6e015c955cae5ecffb7d82aef8f610543c74c129b4cc244c823",
+      "bytes": 92500
+    },
+    "jupiter": {
+      "file": "jupiter-81bceec62d77c01a.json",
+      "sha256": "81bceec62d77c01a02538566ab2b5d2a491a65a99a6254569d6fbdbcd0c1d399",
+      "bytes": 648715
+    },
+    "saturn": {
+      "file": "saturn-a807a84cefa4151d.json",
+      "sha256": "a807a84cefa4151d51ee4e59455e30541ba4600a0ef470ee2efff3ef9f23682d",
+      "bytes": 292099
+    },
+    "uranus": {
+      "file": "uranus-4e10c16a467ac533.json",
+      "sha256": "4e10c16a467ac533b44eeb47fb31dfa366d28d844fc9e299f08e27ae36f56597",
+      "bytes": 689135
+    },
+    "neptune": {
+      "file": "neptune-fb419d3d8f47f6e5.json",
+      "sha256": "fb419d3d8f47f6e58379bd97cea94c5254ec252711d7ee8432f6a3ccb0879088",
+      "bytes": 2562776
+    }
+  }
+}

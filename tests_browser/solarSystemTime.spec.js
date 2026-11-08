@@ -17,6 +17,7 @@ test('Solar System modes, UTC scrubber, following and legacy restoration', async
     await openSolar(page);
     await expect(page.locator('#solarEducational')).not.toBeChecked();
     await expect(page.locator('#solarCoverage')).toContainText('Precise');
+    await expect(page.locator('#trackedCoverageHud')).toBeHidden();
     await page.locator('#solarDate').fill('2026-06-07T09:00');
     await page.locator('#solarDate').press('Tab');
     await expect.poll(async () => (await snapshot(page)).dateUtc).toBe('2026-06-07T09:00:00.000Z');
@@ -66,6 +67,60 @@ test('Solar System modes, UTC scrubber, following and legacy restoration', async
     await expect.poll(async () => (await snapshot(page)).solarSystemActive).toBe(false);
     expect((await snapshot(page)).millisecondsPerWarpSecond).toBe(60000);
     expect(errors).toEqual([]);
+});
+
+test('full JPL guides span both playback edges, fit the viewport and stay cached', async ({ page }) => {
+    test.setTimeout(120000);
+    const requests = [];
+    page.on('request', request => { if (request.url().includes('/ephemeris/orbits/')) requests.push(request.url()); });
+    await openSolar(page);
+    await expect(page.locator('#solarOrbitGuideStatus')).toContainText('one revolution', { timeout: 60000 });
+    for (const input of ['2020-01-01T00:00', '2035-12-31T00:00']) {
+        await page.locator('#solarDate').fill(input);
+        await page.locator('#solarDate').press('Tab');
+        const epoch = Date.parse(`${input}:00Z`);
+        await expect.poll(() => page.evaluate(time => window.openbexiSimulation.orbitGuides().every(guide =>
+            guide.completeRevolution && guide.type === 'Line' && Math.abs(guide.centerTimeMs - time) < 1000 &&
+            guide.startTimeMs < time && guide.endTimeMs > time), epoch)).toBe(true);
+        await expect(page.locator('#solarDate')).toHaveAttribute('min', '2020-01-01T00:00:00');
+        await expect(page.locator('#solarDate')).toHaveAttribute('max', '2035-12-31T00:00:00');
+    }
+    await page.locator('#solarFitInner').click();
+    const innerCamera = (await snapshot(page)).cameraPosition;
+    await page.locator('#solarFitAll').click();
+    expect(Math.hypot(...(await snapshot(page)).cameraPosition)).toBeGreaterThan(Math.hypot(...innerCamera) * 5);
+    const assertFit = async () => {
+        await expect.poll(() => page.evaluate(() => window.openbexiSimulation.orbitGuides().every(guide => {
+            const b = guide.projectedBounds;
+            return b.minX >= -1 && b.maxX <= 1 && b.minY >= -1 && b.maxY <= 1;
+        }))).toBe(true);
+    };
+    await assertFit();
+    await page.locator('#menuToggleBtn').click();
+    await expect.poll(() => page.locator('#controlsContainer').evaluate(element => element.getBoundingClientRect().right)).toBeLessThanOrEqual(0);
+    await page.screenshot({ path: 'runtime/jpl-complete-guides-desktop.png' });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await assertFit();
+    await page.screenshot({ path: 'runtime/jpl-complete-guides-mobile.png' });
+    await page.locator('#menuToggleBtn').click();
+    const loadedRequests = requests.length;
+    await page.locator('#solarSystemExitButton').click();
+    await expect(page.locator('#trackedCoverageHud')).toBeVisible();
+    await page.locator('#solarSystemOverviewToggle').check();
+    await expect(page.locator('#solarOrbitGuideStatus')).toContainText('one revolution');
+    expect(requests.length).toBe(loadedRequests);
+    expect(new Set(requests).size).toBe(9);
+});
+
+test('missing full guides leave precise playback available and identify partial arcs', async ({ page }) => {
+    await page.route('**/data/ephemeris/orbits/**', route => route.fulfill({ status: 503, body: 'Unavailable' }));
+    await page.goto('/SolarSystemOverview.html');
+    await expect(page.locator('#solarDate')).toBeEnabled({ timeout: 60000 });
+    await expect(page.locator('#solarOrbitGuideStatus')).toContainText('available JPL arcs');
+    await expect(page.locator('#solarEducational')).not.toBeChecked();
+    expect(await page.evaluate(() => window.openbexiSolarSystem.orbitGuides().some(guide => guide.completeRevolution))).toBe(false);
+    await page.locator('#solarEducational').check();
+    await expect(page.locator('#solarOrbitGuideStatus')).toContainText('Educational');
 });
 
 test('standalone shares precise and educational playback', async ({ page }) => {
