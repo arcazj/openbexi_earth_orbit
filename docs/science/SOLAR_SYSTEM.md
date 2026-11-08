@@ -6,7 +6,7 @@ Precise mode uses bundled [NASA/JPL Horizons](https://ssd-api.jpl.nasa.gov/doc/h
 
 Cubic Hermite interpolation uses both positions and velocities. Independent off-grid Horizons queries at three dates per body test interpolation with a 100 m position and 0.1 m/s velocity regression ceiling. The current 27 positional samples have a worst difference of 35.20 m. These samples do not establish an error bound across all dates, an independent scientific qualification, or suitability for navigation.
 
-Precise mode never falls back silently: missing playback data leaves positions unavailable; dates outside the loaded table clamp to its boundary and pause. Positions and Moon distance retain their physical scale; planet symbols may be enlarged. Axial rotation and textures are illustrative.
+Precise mode never falls back silently: missing playback data leaves positions unavailable; dates outside the loaded table clamp to its boundary and pause. Positions and Moon distance retain their physical scale; planet symbols may be enlarged. Nominal sidereal spin periods come from the [JPL physical-parameter table](https://ssd.jpl.nasa.gov/planets/phys_par.html) and [NASA Moon fact sheet](https://nssdc.gsfc.nasa.gov/planetary/factsheet/moonfact.html), checked 2026-11-08; negative periods preserve retrograde Venus/Uranus spin. Texture phase is arbitrarily zero at J2000 UTC. Pole orientation, tilt, prime meridians and lunar libration are not modeled accurately; orbital validation does not qualify axial orientation.
 
 ## Full planetary orbit guides
 
@@ -16,7 +16,7 @@ Guide cadences are refined separately for each planet against 17 independent off
 
 Educational mode uses [JPL approximate Keplerian elements, Tables 2a/2b](https://ssd.jpl.nasa.gov/planets/approx_pos.html), restricted in this UI to **1000-3000 CE**. It uses UTC as a sufficient approximate time argument, represents Earth by the Earth-Moon barycenter, and shows a schematic, enlarged lunar orbit. It is always labeled approximate. It must not be interpreted as precise ephemeris data.
 
-Both views share a simulation clock with forward/reverse playback, pause, Now, UTC date input and a zoomable/custom date window. The window controls scrubbing; complete dataset coverage controls playback boundaries. Switching modes pauses and clamps only when necessary. The main app restores its prior satellite clock and view on exit.
+Both views start **Live at 1×**, following system UTC and resynchronizing after background/sleep delays. Manual 1× advances one simulated second per elapsed real second; faster units explicitly show minutes, hours, days or years per second. Planetary motion at 1× is slow at full-system scale. Pause freezes the date; Play resumes from that date, while Live returns to current UTC and seconds/second. Manual dates, scrubbing and steps pause. The window controls scrubbing; dataset coverage controls playback boundaries, including Live. Switching precise/educational modes pauses. On exit the main app restores its prior Live or historical clock and view. Live updates the simulation instant, not provider data freshness.
 
 ## Regeneration / extended precise coverage
 

@@ -42,7 +42,7 @@ assert.deepEqual(solarTimeWindow(preciseBounds.minTimeMs, 30, preciseBounds), {
     minTimeMs: preciseBounds.minTimeMs, maxTimeMs: preciseBounds.minTimeMs + 30 * 86400000
 });
 assert.deepEqual(solarTimeWindow(time.getTime(), Infinity, preciseBounds), preciseBounds);
-const clock = createSimulationClock({ initialTimeMs: time.getTime(), maxFrameGapSeconds: 1 });
+const clock = createSimulationClock({ initialTimeMs: time.getTime() });
 const original = clock.state().timeMs;
 clock.setTimeScale(SOLAR_TIME_UNITS.day); clock.setRate(1); clock.tick(1);
 assert.equal(clock.state().timeMs, original + 86400000);
@@ -54,5 +54,5 @@ assert.equal(clock.state().timeMs, preciseBounds.maxTimeMs);
 assert.equal(clock.state().rate, 0);
 clock.setRate(-1); clock.tick(1); assert(clock.state().timeMs < preciseBounds.maxTimeMs);
 clock.clearBounds(); clock.setTimeScale(60000); clock.reset(original, 1); clock.tick(1);
-assert.equal(clock.state().timeMs, original + 60000, 'legacy satellite time scale remains one minute per unit');
+assert.equal(clock.state().timeMs, original + 60000, 'explicit minutes/second retains accelerated satellite playback');
 console.log(`Solar time and precision tests passed; worst sampled error ${(worstErrorKm * 1000).toFixed(2)} m.`);

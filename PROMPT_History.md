@@ -12,6 +12,8 @@ Publication preparation preserves the original unpublished work in a verified lo
 
 The user also requested explicit legal wording covering inaccurate results and the author's/OpenBEXI project's responsibility. The notice includes accuracy/completeness/timeliness disclaimers, independent-verification guidance, reliance and damage limitations, and an exception for liabilities and statutory rights that cannot lawfully be excluded.
 
+The user then requested that true real-time movement be implemented as part of **2.5.0**. The correction adds Live UTC and literal 1× in both satellite and Solar System views, preserves accelerated/reverse playback and validated JPL bounds, and replaces the shared 24-hour planet spin with nominal body-specific rates. Absolute body orientation remains illustrative.
+
 ## Version 2.4 — Solar System time exploration
 
 User requested precise astronomical playback by default, an educational checkbox, flexible bounded time controls and legacy compatibility. Follow-up: use JPL to complete orbit guides first while keeping playback inside its validated dataset. Public tag/release: [v2.4](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/v2.4), commit `f7724f5`. The requested obsolete `v2.3.3-qualification.20261023.1` tag was removed; v2.3.3 was preserved.

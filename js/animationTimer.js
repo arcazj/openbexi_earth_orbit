@@ -11,8 +11,9 @@ export function createAnimationTimer({ performanceObj = globalThis.performance }
     let previousTime = startTime;
 
     return {
-        getDelta() {
-            const currentTime = nowSeconds();
+        getDelta(frameTimeMs) {
+            // A shared RAF timestamp avoids per-callback workload changing the clock sample.
+            const currentTime = Number.isFinite(frameTimeMs) ? frameTimeMs / 1000 : nowSeconds();
             const delta = Math.max(0, currentTime - previousTime);
             previousTime = currentTime;
             return delta;

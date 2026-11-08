@@ -245,12 +245,12 @@
     </div>
 
     <div class="range-row">
-      <label for="timeSpeed">Time x</label>
+      <label for="timeSpeed">Playback speed</label>
       <span id="timeSpeedValue">0</span>
     </div>
     <input id="timeSpeed" type="range" min="-120" max="120" step="1" value="0" aria-label="Simulation time multiplier">
 
-    <div class="solar-time-actions"><button id="timePause" type="button">Play</button><button id="timeNow" type="button">Now</button></div>
+    <div class="solar-time-actions"><button id="timePause" type="button">Pause</button><button id="timeNow" type="button" aria-pressed="true" title="Follow current UTC at 1×">Live</button></div>
     <div id="solarSystemTimeControls" class="solar-time-controls"></div>
     <button id="resetCamera" type="button">Reset Overview Camera</button>
 

@@ -53,12 +53,12 @@ export default defineConfig({
     },
     {
       name: 'mobile-chromium',
-      testMatch: ['**/conjunction.spec.js', '**/timelines.spec.js', '**/satelliteFilters.spec.js', '**/v25Core.spec.js', '**/documentation.spec.js'],
+      testMatch: ['**/conjunction.spec.js', '**/timelines.spec.js', '**/satelliteFilters.spec.js', '**/v25Core.spec.js', '**/liveTime.spec.js', '**/documentation.spec.js'],
       use: { ...devices['Pixel 7'] }
     },
     {
       name: 'firefox',
-      testMatch: ['**/v25Core.spec.js', '**/solarSystemTime.spec.js', '**/documentation.spec.js'],
+      testMatch: ['**/v25Core.spec.js', '**/solarSystemTime.spec.js', '**/liveTime.spec.js', '**/documentation.spec.js'],
       use: {
         ...devices['Desktop Firefox'],
         ...(firefoxSoftwareWebgl ? {
@@ -69,7 +69,7 @@ export default defineConfig({
     },
     {
       name: 'webkit',
-      testMatch: ['**/v25Core.spec.js', '**/solarSystemTime.spec.js', '**/documentation.spec.js'],
+      testMatch: ['**/v25Core.spec.js', '**/solarSystemTime.spec.js', '**/liveTime.spec.js', '**/documentation.spec.js'],
       use: { ...devices['Desktop Safari'] }
     }
   ],

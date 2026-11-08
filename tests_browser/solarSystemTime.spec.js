@@ -65,7 +65,8 @@ test('Solar System modes, UTC scrubber, following and legacy restoration', async
     await page.screenshot({ path: 'runtime/solar-system-mobile.png' });
     await page.locator('#solarSystemExitButton').click();
     await expect.poll(async () => (await snapshot(page)).solarSystemActive).toBe(false);
-    expect((await snapshot(page)).millisecondsPerWarpSecond).toBe(60000);
+    expect((await snapshot(page)).millisecondsPerWarpSecond).toBe(1000);
+    expect((await snapshot(page)).live).toBe(true);
     expect(errors).toEqual([]);
 });
 
@@ -130,6 +131,9 @@ test('standalone shares precise and educational playback', async ({ page }) => {
     await expect(page.locator('#solarDate')).toBeEnabled({ timeout: 60000 });
     await expect(page.locator('#planetCount')).toHaveText('8 + Moon');
     await page.locator('#solarPlanetFocus').selectOption('Neptune');
+    await expect.poll(() => page.evaluate(() => window.openbexiSolarSystem.snapshot().live)).toBe(true);
+    await page.locator('#timePause').click();
+    await expect.poll(() => page.evaluate(() => window.openbexiSolarSystem.snapshot().rate)).toBe(0);
     await page.locator('#timePause').click();
     await expect.poll(() => page.evaluate(() => window.openbexiSolarSystem.snapshot().rate)).toBe(1);
     await page.locator('#timePause').click();

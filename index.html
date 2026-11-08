@@ -202,7 +202,7 @@
         scheduleDeferredWork
     } from './js/startupPerformance.js';
     import { createAnimationTimer } from './js/animationTimer.js';
-    import { createSimulationClock } from './js/simulationClock.js';
+    import { createSimulationClock, simulationRateLabel } from './js/simulationClock.js';
     import {
         createSatelliteMotionController,
         satelliteMarkerDiagnostics,
@@ -385,10 +385,9 @@
     const SIM_DATE = new Date();
     const simulationClock = createSimulationClock({
         initialTimeMs: SIM_DATE.getTime(),
-        initialRate: 0,
+        initialLive: true,
         minRate: -60,
-        maxRate: 60,
-        maxFrameGapSeconds: 0.25
+        maxRate: 60
     });
 
     // Throttles
@@ -3432,7 +3431,7 @@
         simParams.conjunctionEventId = pendingShareState.conjunctionEventId || '';
         simParams.conjunctionRequestId = pendingShareState.conjunctionRequestId || '';
         if (pendingShareState.simDate) {
-            const state = simulationClock.setTime(pendingShareState.simDate.getTime());
+            const state = simulationClock.reset(pendingShareState.simDate.getTime(), 0);
             SIM_DATE.setTime(state.timeMs);
             simParams.simDate = SIM_DATE;
         }
@@ -3543,23 +3542,25 @@
     }
 
     // Time-warp UI
-    simParams.timeWarp = 0;
+    simParams.timeWarp = simulationClock.state().rate;
     simParams.simDate = SIM_DATE;
     let lastRunningTimeWarp = 1;
 
     const twHTML = `
   <div id="timeWarpBox">
-    <label for="timeWarpSlider">Time x</label>
-    <input type="range" id="timeWarpSlider" min="-60" max="60" step="1" value="0"
-           aria-label="Simulation time rate" aria-valuetext="Paused">
-    <span id="timeWarpVal">0</span>x
-    <button type="button" id="timeWarpPause" aria-label="Resume simulation" title="Pause or resume">&gt;</button>
-    <button type="button" id="timeWarpNow" title="Reset simulation time to now">Now</button>
+    <label for="timeWarpSlider">Time</label>
+    <input type="range" id="timeWarpSlider" min="-60" max="60" step="1" value="1"
+           aria-label="Simulation time rate" aria-valuetext="Live at 1 times">
+    <select id="timeWarpUnit" aria-label="Satellite playback unit"><option value="1000">sec/s</option><option value="60000">min/s</option></select>
+    <span id="timeWarpVal">Live · 1×</span>
+    <button type="button" id="timeWarpPause" aria-label="Pause simulation" title="Pause or resume">||</button>
+    <button type="button" id="timeWarpNow" aria-pressed="true" title="Follow current UTC at 1×">Live</button>
     <span id="timeWarpStatus" role="status" aria-live="polite"></span>
   </div>`;
     document.body.insertAdjacentHTML('beforeend', twHTML);
     const timeWarpSlider = document.getElementById('timeWarpSlider');
     const timeWarpVal = document.getElementById('timeWarpVal');
+    const timeWarpUnit = document.getElementById('timeWarpUnit');
     const timeWarpPause = document.getElementById('timeWarpPause');
     const timeWarpNow = document.getElementById('timeWarpNow');
     const timeWarpStatus = document.getElementById('timeWarpStatus');
@@ -3573,21 +3574,21 @@
         return `${Math.min(60, Math.max(-60, Math.round(value)))}`;
     }
 
-    function formatTimeWarpLabel(value) {
-        return `${Math.min(60, Math.max(-60, Math.round(value)))}`;
-    }
-
     function updateTimeWarpControls() {
         const clockState = simulationClock.state();
         simParams.timeWarp = clockState.rate;
         const sliderValue = timeWarpToSliderValue(simParams.timeWarp);
-        const labelValue = formatTimeWarpLabel(simParams.timeWarp);
+        const unit = simParams.solarSystemOverview ? solarSystemTimeControls?.unit() || 'second'
+            : simulationClock.timeScale() === 60000 ? 'min' : 'second';
+        const labelValue = simulationRateLabel(simulationClock, unit);
+        timeWarpUnit.hidden = !!simParams.solarSystemOverview;
+        timeWarpUnit.value = String(simulationClock.timeScale());
+        timeWarpNow.setAttribute('aria-pressed', String(clockState.live));
         if (timeWarpSlider) timeWarpSlider.value = sliderValue;
         if (timeWarpVal) timeWarpVal.textContent = labelValue;
-        if (timeWarpVal && simParams.solarSystemOverview) timeWarpVal.textContent = `${labelValue} ${solarSystemTimeControls?.unit() || 'day'}/s`;
         if (timeWarpSlider) {
             const direction = simParams.timeWarp < 0 ? 'reverse' : simParams.timeWarp > 0 ? 'forward' : 'paused';
-            timeWarpSlider.setAttribute('aria-valuetext', `${labelValue} times, ${direction}`);
+            timeWarpSlider.setAttribute('aria-valuetext', `${labelValue}, ${direction}`);
         }
         if (timeWarpPause) {
             const paused = simParams.timeWarp === 0;
@@ -4117,6 +4118,7 @@
         return {
             simulationTimeMs: simulationClock.state().timeMs,
             simulationRate: simulationClock.state().rate,
+            simulationLive: simulationClock.state().live,
             simulationScale: simulationClock.timeScale(),
             lastRunningTimeWarp,
             view3D: simParams.view3D,
@@ -4187,7 +4189,7 @@
         }
         if (next) {
             solarSystemPreviousState = snapshotSolarSystemPreviousState();
-            simulationClock.setRate(0);
+            if (!simulationClock.state().live) simulationClock.setRate(0);
             lastRunningTimeWarp = 1;
             solarSystemTimeControls?.activate();
             simParams.solarSystemOverview = true;
@@ -4199,8 +4201,9 @@
         } else {
             const previousClock = solarSystemPreviousState;
             simulationClock.clearBounds();
-            simulationClock.setTimeScale(previousClock?.simulationScale || 60000);
+            simulationClock.setTimeScale(previousClock?.simulationScale || 1000);
             simulationClock.reset(previousClock?.simulationTimeMs ?? Date.now(), previousClock?.simulationRate || 0);
+            if (previousClock?.simulationLive) simulationClock.goLive();
             lastRunningTimeWarp = previousClock?.lastRunningTimeWarp || 1;
             SIM_DATE.setTime(simulationClock.state().timeMs);
             simParams.solarSystemOverview = false;
@@ -4713,13 +4716,19 @@
         timeWarpSlider?.addEventListener('input', e => {
             setTimeWarpFromSliderValue(e.target.value);
         });
+        timeWarpUnit.addEventListener('change', () => {
+            simulationClock.setTimeScale(Number(timeWarpUnit.value));
+            updateTimeWarpControls();
+        });
         timeWarpPause?.addEventListener('click', () => {
             const nextRate = simulationClock.state().rate === 0 ? lastRunningTimeWarp : 0;
             simParams.timeWarp = simulationClock.setRate(nextRate).rate;
             updateTimeWarpControls();
         });
         timeWarpNow?.addEventListener('click', () => {
-            const state = simulationClock.reset(Date.now(), 0);
+            const state = simulationClock.goLive();
+            lastRunningTimeWarp = 1;
+            solarSystemTimeControls?.sync();
             SIM_DATE.setTime(state.timeMs);
             simParams.simDate = SIM_DATE;
             simParams.timeWarp = state.rate;
@@ -5406,7 +5415,7 @@
         setTime(value) {
             const timeMs = value instanceof Date ? value.getTime() : Date.parse(value);
             if (!Number.isFinite(timeMs)) throw new TypeError('Simulation time must be a valid UTC instant.');
-            const state = simulationClock.setTime(timeMs);
+            const state = simulationClock.reset(timeMs, 0);
             SIM_DATE.setTime(state.timeMs);
             simParams.simDate = SIM_DATE;
             updateTimeWarpControls();
@@ -5429,6 +5438,8 @@
                 timeMs: state.timeMs,
                 dateUtc: new Date(state.timeMs).toISOString(),
                 rate: state.rate,
+                live: state.live,
+                speedMultiplier: state.rate * simulationClock.timeScale() / 1000,
                 boundary: state.boundary,
                 selectedNoradId: currentSelectedSatellite?.norad_id?.toString() || null,
                 selectedMeshUuid: selectedSceneRecord?.mesh?.uuid || null,
@@ -6369,7 +6380,7 @@
         return `${timePart} UTC  ${datePart}`;
     }
 
-    function animate() {
+    function animate(frameTimeMs) {
         requestAnimationFrame(animate);
 
         /* Camera easing */
@@ -6388,12 +6399,12 @@
             controls.update();
         }
 
-        const dtReal = clock.getDelta();
+        const dtReal = clock.getDelta(frameTimeMs);
         const ephemerisBounds = simParams.solarSystemOverview
             ? solarSystemTimeBounds(solarSystemOverview)
             : null;
         simulationClock.setBounds(ephemerisBounds);
-        if (simParams.solarSystemOverview && !ephemerisBounds) simulationClock.setRate(0);
+        if (simParams.solarSystemOverview && !ephemerisBounds && !simulationClock.state().live) simulationClock.setRate(0);
         const clockState = simulationClock.tick(dtReal);
         simParams.timeWarp = clockState.rate;
         SIM_DATE.setTime(clockState.timeMs);
@@ -6439,6 +6450,7 @@
                 selectedObject: propagatableSelectedSatellite,
                 simTimeMs: clockState.timeMs,
                 rate: clockState.rate,
+                millisecondsPerWarpSecond: simulationClock.timeScale(),
                 clockGeneration: clockState.generation,
                 realTimeMs: nowPerf
             });

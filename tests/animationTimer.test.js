@@ -22,6 +22,9 @@ function run() {
   timer.reset();
   now = 2300;
   assertNearlyEqual(timer.getDelta(), 0.3, 'reset restarts delta measurement from reset time');
+  now = 9999;
+  assertNearlyEqual(timer.getDelta(2800), 0.5, 'RAF timestamps measure elapsed frames independently of callback work');
+  assertNearlyEqual(timer.getDelta(32800), 30, 'RAF timing retains long background gaps');
 
   const indexHtml = fs.readFileSync('index.html', 'utf8');
   const standalone = fs.readFileSync('js/solarSystemStandalone.js', 'utf8');

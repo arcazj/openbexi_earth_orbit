@@ -12,6 +12,7 @@ Interactive Earth-orbit visualization, tracked-object search and Solar System ti
 - Tracked inventory separates matches, positioned objects and metadata-only records; missing elements never imply decay.
 - One expanded menu section at a time; startup opens **Tracked Objects - Matches**.
 - Precise mode uses a bounded JPL-derived Solar System ephemeris and complete orbit guides. An educational checkbox enables approximate visualization. Playback stays inside its validated dataset; guide coverage does not extend playback.
+- Satellite and Solar System views start **Live at 1×**: one simulated second per real second, following system UTC. Pause, reverse and explicitly labeled faster units remain available. Live follows the clock; data freshness is reported separately.
 - A bottom data-health disclosure shows source checks, content ages, partial coverage and update failures. The Python server checks for updates in the background; static hosting uses packaged snapshots.
 - Experimental browser and authenticated server close-approach screening. No operational collision-risk or collision-probability claim.
 

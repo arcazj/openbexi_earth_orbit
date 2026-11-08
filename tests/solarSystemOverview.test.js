@@ -157,18 +157,18 @@ function run() {
   assert(earthMotionSevenDays > earthMotionOneDay, 'larger simulation-time changes produce larger Earth orbital motion');
   assert(planetPositionAtDate(mars, t0).distanceTo(planetPositionAtDate(mars, t7)) > 0, 'Mars moves when the simulation date advances');
   assert(planetPositionAtDate(moon, t0).distanceTo(planetPositionAtDate(moon, t1)) > 0, 'Moon moves around Earth when the simulation date advances');
-  const simulationClock = createSimulationClock({ initialTimeMs: 1000, initialRate: 0, maxFrameGapSeconds: 10 });
+  const simulationClock = createSimulationClock({ initialTimeMs: 1000, initialRate: 0 });
   simulationClock.tick(10);
   assert.strictEqual(simulationClock.state().timeMs, 1000, 'Time x = 0 freezes simulation milliseconds');
   simulationClock.setRate(1);
   simulationClock.tick(2);
-  assert.strictEqual(simulationClock.state().timeMs, 121000, 'Time x = 1 advances one simulation minute per real second');
+  assert.strictEqual(simulationClock.state().timeMs, 3000, 'Time x = 1 advances one simulation second per real second');
   simulationClock.reset(1000, 60);
   simulationClock.tick(2);
-  assert.strictEqual(simulationClock.state().timeMs, 7201000, 'Time x = 60 advances sixty simulation minutes per real second');
+  assert.strictEqual(simulationClock.state().timeMs, 121000, 'Time x = 60 advances sixty simulation seconds per real second');
   simulationClock.reset(1000, -60);
   simulationClock.tick(2);
-  assert.strictEqual(simulationClock.state().timeMs, -7199000, 'Time x = -60 reverses sixty simulation minutes per real second');
+  assert.strictEqual(simulationClock.state().timeMs, -119000, 'Time x = -60 reverses sixty simulation seconds per real second');
   assert(indexHtml.includes('simulationClock.tick(dtReal)'), 'main app simulation time is driven by the authoritative Time x clock');
   assert(indexHtml.includes('updateSolarSystemOverview(solarSystemOverview, SIM_DATE'), 'integrated Solar System updates from the shared simulation date');
 

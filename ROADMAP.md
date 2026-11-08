@@ -6,6 +6,7 @@ Current version: **2.5.0 development / experimental / non-operational**. The Git
 
 - Six-source health reporting with UTC content/check/attempt times, lineage, provider delays, failure retention and a quiet bottom disclosure.
 - Lazy Solar System playback loading, shared requests/cache and retry; precise mode and complete JPL guides retained from 2.4.
+- Live UTC and true 1× in both views, explicit accelerated units, elapsed-time recovery and nominal per-body spin rates. Precise body orientation/libration remains outside the qualified scope.
 - 544 frozen JPL interpolation checks plus 48 independently implemented SGP4 holdouts, with unchanged sampled tolerances.
 - Bounded server admission and idle-preconnection handling, revision continuity, recovery rehearsals and four browser profiles.
 - Commercial notice for new material, public source, retained MIT/upstream rights, concise documentation and isolated private history.

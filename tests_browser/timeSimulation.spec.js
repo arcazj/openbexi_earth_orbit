@@ -163,9 +163,10 @@ test('Time x keeps selected satellite fluid and drives bounded Solar System ephe
   const identityBefore = await page.evaluate(() => window.openbexiSimulation.snapshot());
 
   const timeSlider = page.locator('#timeWarpSlider');
+  await page.locator('#timeWarpUnit').selectOption('60000');
   await timeSlider.fill('20');
   await page.waitForFunction(() => window.openbexiSimulation.snapshot().rate === 20);
-  await expect(timeSlider).toHaveAttribute('aria-valuetext', '20 times, forward');
+  await expect(timeSlider).toHaveAttribute('aria-valuetext', '20 min/s, forward');
   await page.waitForTimeout(150);
   await page.locator('#timeWarpPause').click();
   await page.waitForFunction(() => window.openbexiSimulation.snapshot().rate === 0);
@@ -187,7 +188,7 @@ test('Time x keeps selected satellite fluid and drives bounded Solar System ephe
 
   await timeSlider.fill('-30');
   await page.waitForFunction(() => window.openbexiSimulation.snapshot().rate === -30);
-  await expect(timeSlider).toHaveAttribute('aria-valuetext', '-30 times, reverse');
+  await expect(timeSlider).toHaveAttribute('aria-valuetext', '-30 min/s, reverse');
   const reverseFrames = await page.evaluate(() => new Promise(resolve => {
     const frames = [];
     const collect = timestamp => {

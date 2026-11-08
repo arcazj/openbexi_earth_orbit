@@ -2,7 +2,7 @@ import { solarSystemEphemerisBounds } from './solarSystemEphemeris.js';
 import { EDUCATIONAL_BOUNDS } from './solarSystemEducation.js';
 import { SOLAR_SYSTEM_PLANETS, setSolarSystemOverviewOptions, setSolarSystemOverviewVisible, fitSolarSystemOverviewCamera, solarSystemOrbitGuideSummary } from './solarSystemOverviewLoader.js';
 
-export const SOLAR_TIME_UNITS = Object.freeze({ minute: 60000, hour: 3600000, day: 86400000, year: 31557600000 });
+export const SOLAR_TIME_UNITS = Object.freeze({ second: 1000, minute: 60000, hour: 3600000, day: 86400000, year: 31557600000 });
 const DAY = 86400000;
 export function solarSystemTimeBounds(overview) {
     return overview.options.educational ? EDUCATIONAL_BOUNDS : solarSystemEphemerisBounds(overview.ephemerisState?.data);
@@ -24,7 +24,7 @@ export function createSolarSystemTimeControls({ container, overview, clock, onCh
       <label for="solarDate">Simulation date and time (UTC)</label>
       <input id="solarDate" type="datetime-local" step="1">
       <div class="solar-time-grid">
-        <label for="solarTimeUnit">Time x unit<select id="solarTimeUnit"><option value="minute">Minutes / second</option><option value="hour">Hours / second</option><option value="day" selected>Days / second</option><option value="year">Years / second</option></select></label>
+        <label for="solarTimeUnit">Playback unit<select id="solarTimeUnit"><option value="second" selected>Seconds / second (1×)</option><option value="minute">Minutes / second</option><option value="hour">Hours / second</option><option value="day">Days / second</option><option value="year">Years / second</option></select></label>
         <label for="solarRange">Timeline window<select id="solarRange"><option value="30">1 month</option><option value="365.25" selected>1 year</option><option value="3652.5">10 years</option><option value="36525">100 years</option><option value="all">Full coverage</option><option value="custom">Custom dates</option></select></label>
       </div>
       <div id="solarCustomRange" class="solar-time-grid" hidden>
@@ -37,7 +37,7 @@ export function createSolarSystemTimeControls({ container, overview, clock, onCh
       <div class="solar-time-actions"><button type="button" id="solarFitAll">Fit Solar System</button><button type="button" id="solarFitInner">Inner planets</button></div>
       <label for="solarPlanetFocus">Follow a planet<select id="solarPlanetFocus"><option value="">Sun-centered overview</option>${SOLAR_SYSTEM_PLANETS.map(planet => `<option>${planet.name}</option>`).join('')}</select></label>
       <label class="solar-mode-toggle"><input id="solarEnlarged" type="checkbox" checked> Enlarge planet symbols</label>
-      <div class="solar-time-note">Planetary distances remain to scale; the educational Moon orbit is schematic. Use Time x above to play, pause or reverse; Now returns to today.</div>
+      <div class="solar-time-note">Live follows current UTC at 1×; planetary motion is slow at this scale. Choose days or years per second to explore. Planet symbols use nominal spin rates; axis orientation and texture alignment are illustrative. The educational Moon orbit is schematic.</div>
       <button type="button" id="solarDataRetry" hidden>Retry Solar System data</button>
       <div id="solarTimeMessage" class="solar-time-note" role="status" aria-live="polite"></div>`;
     const el = id => container.querySelector(`#${id}`);
@@ -108,6 +108,7 @@ export function createSolarSystemTimeControls({ container, overview, clock, onCh
         el('solarDataRetry').disabled = overview.ephemerisState?.status === 'loading' || overview.orbitGuideState?.status === 'loading';
         const bounds = solarSystemTimeBounds(overview);
         const state = clock.state();
+        el('solarTimeUnit').value = Object.keys(SOLAR_TIME_UNITS).find(unit => SOLAR_TIME_UNITS[unit] === clock.timeScale()) || 'second';
         const signature = bounds ? `${bounds.minTimeMs}:${bounds.maxTimeMs}` : '';
         if (signature !== lastBounds || lastMode !== overview.options.educational) {
             lastBounds = signature; lastMode = overview.options.educational; resetWindow();
@@ -140,5 +141,5 @@ export function createSolarSystemTimeControls({ container, overview, clock, onCh
         }
     }
     return { sync, bounds: () => solarSystemTimeBounds(overview), unit: () => el('solarTimeUnit').value,
-        activate() { clock.setTimeScale(SOLAR_TIME_UNITS[el('solarTimeUnit').value]); sync(); } };
+        activate() { if (!clock.state().live) clock.setTimeScale(SOLAR_TIME_UNITS[el('solarTimeUnit').value]); sync(); } };
 }

@@ -9,7 +9,6 @@ const DEFAULT_CORRECTION_BLEND_MS = 120;
 const DEFAULT_MAX_ORBIT_FRACTION = 1 / 32;
 const DEFAULT_UNKNOWN_ORBIT_WINDOW_MS = 5 * 60_000;
 const DEFAULT_FAILURE_RETRY_MS = 1_000;
-const SIM_MILLISECONDS_PER_WARP_SECOND = 60_000;
 
 function finiteVector(vector) {
     return !!vector && Number.isFinite(vector.x) && Number.isFinite(vector.y) && Number.isFinite(vector.z);
@@ -343,12 +342,12 @@ export function createSatelliteMotionController(options = {}) {
         stats.coverageLimited = job.coverageLimitedObjects > 0;
     };
 
-    const scheduleSamples = (objects, selectedObject, simTimeMs, rate, realTimeMs) => {
+    const scheduleSamples = (objects, selectedObject, simTimeMs, rate, realTimeMs, timeScale) => {
         if (pendingJob || objects.length === 0 || samplingSweepRemaining <= 0) return;
         const direction = rate < 0 ? -1 : 1;
         const windowMs = Math.max(
             minWindowMs,
-            Math.min(maxWindowMs, Math.abs(rate) * SIM_MILLISECONDS_PER_WARP_SECOND * windowRealSeconds)
+            Math.min(maxWindowMs, Math.abs(rate) * timeScale * windowRealSeconds)
         );
         const job = {
             id: null,
@@ -380,6 +379,8 @@ export function createSatelliteMotionController(options = {}) {
             const selectedObject = context.selectedObject ?? null;
             const simTimeMs = Number(context.simTimeMs);
             const rate = Number.isFinite(context.rate) ? context.rate : 0;
+            const timeScale = Number.isFinite(context.millisecondsPerWarpSecond) && context.millisecondsPerWarpSecond > 0
+                ? context.millisecondsPerWarpSecond : 1000;
             const realTimeMs = Number.isFinite(context.realTimeMs) ? context.realTimeMs : now();
             const clockGeneration = Number(context.clockGeneration);
             if (!Number.isFinite(simTimeMs)) throw new TypeError('Satellite motion update requires a finite simulation time.');
@@ -411,7 +412,7 @@ export function createSatelliteMotionController(options = {}) {
             }
             const previousSimTimeMs = lastSimTimeMs;
             if (Number.isFinite(lastSimTimeMs) && Number.isFinite(lastRealTimeMs)) {
-                const expected = Math.max(1, Math.abs(realTimeMs - lastRealTimeMs) * Math.abs(rate) * 60);
+                const expected = Math.max(1, Math.abs(realTimeMs - lastRealTimeMs) * Math.abs(rate) * timeScale / 1000);
                 if (Math.abs(simTimeMs - lastSimTimeMs) > Math.max(5 * 60_000, expected * 4)) invalidate();
             }
             lastSimTimeMs = simTimeMs;
@@ -486,7 +487,7 @@ export function createSatelliteMotionController(options = {}) {
                 }
             }
 
-            scheduleSamples(source, selectedObject, simTimeMs, rate, realTimeMs);
+            scheduleSamples(source, selectedObject, simTimeMs, rate, realTimeMs, timeScale);
             stats.generation = generation;
             return stats;
         },

@@ -1648,7 +1648,8 @@ body:has(#mercatorContainer.fullscreen) #menuToggleBtn {
 }
 
 #timeWarpPause,
-#timeWarpNow {
+#timeWarpNow,
+#timeWarpUnit {
     height: 24px;
     box-sizing: border-box;
 }
@@ -1662,6 +1663,15 @@ body:has(#mercatorContainer.fullscreen) #menuToggleBtn {
     min-width: 42px;
     padding: 0 6px;
 }
+
+#timeWarpNow[aria-pressed="true"] {
+    border-color: #87d6b0;
+    font-weight: 700;
+}
+
+#timeWarpUnit { max-width: 68px; font: inherit; }
+
+#timeWarpUnit[hidden] { display: none; }
 
 #timeWarpStatus {
     flex: 0 0 100%;
@@ -2991,6 +3001,10 @@ body:has(#controlsContainer.menu-hidden) #menuToggleBtn {
 
     #timeWarpStatus {
         grid-column: 1 / -1;
+    }
+
+    .solar-system-active #timeWarpBox {
+        grid-template-columns: auto minmax(0, 1fr) auto 28px 42px;
     }
 
     #utcClockDisplay {

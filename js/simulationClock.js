@@ -1,7 +1,6 @@
 const DEFAULT_MIN_RATE = -60;
 const DEFAULT_MAX_RATE = 60;
-const DEFAULT_MILLISECONDS_PER_WARP_SECOND = 60_000;
-const DEFAULT_MAX_FRAME_GAP_SECONDS = 0.25;
+const DEFAULT_MILLISECONDS_PER_WARP_SECOND = 1000;
 
 function finiteOr(value, fallback) {
     return Number.isFinite(value) ? value : fallback;
@@ -24,10 +23,7 @@ export function createSimulationClock(options = {}) {
         0,
         finiteOr(options.millisecondsPerWarpSecond, DEFAULT_MILLISECONDS_PER_WARP_SECOND)
     );
-    const maxFrameGapSeconds = Math.max(
-        0,
-        finiteOr(options.maxFrameGapSeconds, DEFAULT_MAX_FRAME_GAP_SECONDS)
-    );
+    const now = options.now ?? Date.now;
     let { minTimeMs, maxTimeMs } = normalizeBounds(options.bounds);
 
     const state = {
@@ -35,7 +31,8 @@ export function createSimulationClock(options = {}) {
         rate: Math.min(maxRate, Math.max(minRate, finiteOr(options.initialRate, 0))),
         appliedDeltaSeconds: 0,
         boundary: null,
-        generation: 0
+        generation: 0,
+        live: false
     };
 
     const clampTime = (timeMs, pauseOnClamp = true) => {
@@ -50,17 +47,32 @@ export function createSimulationClock(options = {}) {
         }
         state.timeMs = next;
         state.boundary = boundary;
-        if (boundary && pauseOnClamp) state.rate = 0;
+        if (boundary && pauseOnClamp) { state.rate = 0; state.live = false; }
         return boundary;
     };
 
     clampTime(state.timeMs);
 
+    const goLive = () => {
+        millisecondsPerWarpSecond = 1000;
+        state.rate = 1;
+        state.live = true;
+        state.generation += 1;
+        clampTime(now());
+        return state;
+    };
+    if (options.initialLive) goLive();
+
     return Object.freeze({
+        goLive,
         tick(deltaSeconds) {
-            const requestedDelta = Math.max(0, finiteOr(deltaSeconds, 0));
-            const appliedDelta = Math.min(requestedDelta, maxFrameGapSeconds);
+            // Rendering may throttle in a background tab; simulation time must not.
+            const appliedDelta = Math.max(0, finiteOr(deltaSeconds, 0));
             state.appliedDeltaSeconds = appliedDelta;
+            if (state.live) {
+                clampTime(now());
+                return state;
+            }
             if (!appliedDelta || !state.rate) return state;
 
             const nextTime = state.timeMs + appliedDelta * millisecondsPerWarpSecond * state.rate;
@@ -79,13 +91,16 @@ export function createSimulationClock(options = {}) {
         },
         setTime(timeMs, { pauseOnClamp = true } = {}) {
             const previous = state.timeMs;
+            if (state.live) state.generation += 1;
+            state.live = false;
             clampTime(timeMs, pauseOnClamp);
             if (state.timeMs !== previous) state.generation += 1;
             return state;
         },
         setRate(rate) {
             const nextRate = Math.min(maxRate, Math.max(minRate, finiteOr(Number(rate), 0)));
-            if (nextRate !== state.rate) state.generation += 1;
+            if (nextRate !== state.rate || state.live) state.generation += 1;
+            state.live = false;
             state.rate = nextRate;
             if ((state.boundary === 'start' && nextRate > 0) || (state.boundary === 'end' && nextRate < 0)) {
                 state.boundary = null;
@@ -94,7 +109,8 @@ export function createSimulationClock(options = {}) {
         },
         setTimeScale(value) {
             if (!Number.isFinite(value) || value <= 0) throw new RangeError('Time scale must be positive.');
-            if (value !== millisecondsPerWarpSecond) state.generation += 1;
+            if (value !== millisecondsPerWarpSecond || state.live) state.generation += 1;
+            state.live = false;
             millisecondsPerWarpSecond = value;
             return state;
         },
@@ -118,6 +134,7 @@ export function createSimulationClock(options = {}) {
         },
         reset(timeMs, rate = 0) {
             state.generation += 1;
+            state.live = false;
             state.rate = Math.min(maxRate, Math.max(minRate, finiteOr(Number(rate), 0)));
             clampTime(timeMs);
             return state;
@@ -136,6 +153,12 @@ export function createSimulationClock(options = {}) {
 export const SIMULATION_CLOCK_DEFAULTS = Object.freeze({
     minRate: DEFAULT_MIN_RATE,
     maxRate: DEFAULT_MAX_RATE,
-    millisecondsPerWarpSecond: DEFAULT_MILLISECONDS_PER_WARP_SECOND,
-    maxFrameGapSeconds: DEFAULT_MAX_FRAME_GAP_SECONDS
+    millisecondsPerWarpSecond: DEFAULT_MILLISECONDS_PER_WARP_SECOND
 });
+
+export function simulationRateLabel(clock, unit = 'second') {
+    const { rate, live } = clock.state();
+    if (live) return 'Live · 1×';
+    if (!rate) return 'Paused';
+    return clock.timeScale() === 1000 ? `${rate}×` : `${rate} ${unit}/s`;
+}

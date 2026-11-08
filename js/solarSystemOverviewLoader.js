@@ -9,6 +9,7 @@ import {
     solarSystemScenePositionForBody
 } from './solarSystemEphemeris.js';
 import { educationalPlanetPosition } from './solarSystemEducation.js';
+import { solarSystemRotationRadians } from './solarSystemRotation.js';
 import { createOrbitGuideState, loadOrbitGuides, sampleOrbitGuide } from './solarSystemOrbitGuides.js';
 
 export const SOLAR_SYSTEM_TEXTURE_PATHS = {
@@ -251,7 +252,7 @@ export function updateSolarSystemOverview(overview, simDate, { clockBoundary = n
             if (parent) entry.orbit.position.copy(educational ? educationalPosition(parent, simDate)
                 : solarSystemScenePositionForBody(overview.ephemerisState.data, parent.key, simDate).position);
         }
-        entry.marker.rotation.y = normalizeRadians(simDate.getTime() / DAY_MS * Math.PI * 2);
+        entry.marker.rotation.y = solarSystemRotationRadians(entry.planet.key, simDate.getTime());
         updatePlanetLabelCallout(entry, overview);
     });
     overview.orbitGroup.visible = ready && overview.options.orbitPaths;
@@ -309,6 +310,7 @@ export function setSolarSystemOverviewOptions(overview, options = {}) {
     overview.sunGlowGroup.visible = !!overview.options.sunGlow;
     overview.planets.forEach((entry) => {
         entry.marker.scale.setScalar(overview.options.enlargedPlanets ? 1 : BODY_RADII_KM[entry.planet.key] / 149597870.7 * AU_VISUAL_SCALE / entry.planet.visualRadius);
+        entry.ring?.scale.copy(entry.marker.scale);
         entry.label.visible = !!overview.options.planetLabels;
         if (entry.texturedMaterial) {
             entry.marker.material = overview.options.planetTextures
@@ -585,7 +587,9 @@ function createPlanets(overview, textureLoader) {
 
         if (planet.hasRing) {
             const ring = createSaturnRing(planet, textureLoader, overview.renderer);
-            marker.add(ring);
+            // Keep the illustrative ring plane fixed as the surface texture spins.
+            entry.ring = ring;
+            group.add(ring);
         }
 
         overview.root.add(group);

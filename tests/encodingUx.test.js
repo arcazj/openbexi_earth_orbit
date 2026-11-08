@@ -40,7 +40,7 @@ function run() {
   assertCleanText('generated satellite menu markup', satelliteMenuLoader());
 
   const indexHtml = fs.readFileSync('index.html', 'utf8');
-  assert(indexHtml.includes('>Time x</label>'), 'time slider label uses an ASCII-safe label');
+  assert(indexHtml.includes('>Time</label>'), 'time slider label uses an ASCII-safe label');
   assert(indexHtml.includes('>Close</button>'), 'initial menu toggle label uses readable text');
   assert(indexHtml.includes("textContent = hidden ? 'Menu' : 'Close'"), 'runtime menu toggle uses readable text');
 

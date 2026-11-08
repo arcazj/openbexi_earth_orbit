@@ -5,6 +5,8 @@ const playback = '**/data/ephemeris/solar_system_jpl_horizons_2020_2035_6h.json'
 async function boot(page) {
     await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => !!window.openbexiSimulation);
+    // These journeys compare exact historical instants; Live is covered separately.
+    await page.evaluate(() => window.openbexiSimulation.setRate(0));
     await expect(page.locator('#satelliteSearchInput')).toBeEnabled({ timeout: 60000 });
 }
 

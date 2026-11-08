@@ -1,7 +1,9 @@
 {
   "schemaVersion": 1,
   "version": "2.5.0",
-  "tag": "v2.5",
+  "tag": "v2.5.0",
+  "previousTag": "v2.5",
+  "previousPublicCommit": "3c74a3592ed675821e2616165110feffa7c6b0a5",
   "kind": "development-prerelease",
   "repository": "arcazj/openbexi_earth_orbit",
   "visibility": "public",
