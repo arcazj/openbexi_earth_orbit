@@ -40,8 +40,8 @@
     "check:docs": "node scripts/check-docs.mjs"
   },
   "dependencies": {
-    "satellite.js": "6.0.2",
-    "three": "0.184.0"
+    "satellite.js": "7.1.0",
+    "three": "0.187.0"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.12.1",
