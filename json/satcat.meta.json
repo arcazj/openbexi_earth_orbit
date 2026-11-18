@@ -1,23 +1,23 @@
 {
-  "fetched_at": "2026-11-07T23:09:09.753706Z",
-  "last_success_at": "2026-11-07T23:09:09.753706Z",
-  "last_attempt_at": "2026-11-07T23:09:09.753706Z",
+  "fetched_at": "2026-11-18T23:06:00.164609Z",
+  "last_success_at": "2026-11-18T23:06:00.164609Z",
+  "last_attempt_at": "2026-11-18T23:06:00.164609Z",
   "last_status": "ok",
   "source_url": "https://celestrak.org/pub/satcat.csv",
-  "catalog_revision": "sha256:7957672ce4b7a23f85c31765be032086858683a7f88d30bfc2aa4b4c8888ccc6",
-  "dataset_hash": "sha256:7957672ce4b7a23f85c31765be032086858683a7f88d30bfc2aa4b4c8888ccc6",
+  "catalog_revision": "sha256:d5618b86ba9a90de8b3343d1eec3e4d6c7db0b061177119849af34e702e2d81e",
+  "dataset_hash": "sha256:d5618b86ba9a90de8b3343d1eec3e4d6c7db0b061177119849af34e702e2d81e",
   "counts": {
-    "bytes": 6795531,
-    "records": 71293
+    "bytes": 6802281,
+    "records": 71365
   },
   "urls": {
     "https://celestrak.org/pub/satcat.csv": {
-      "etag": "\"36b18f81b6fdd1:0\"",
-      "last_modified": "Sat, 07 Nov 2026 22:58:29 GMT",
+      "etag": "\"344b166c3b77dd1:0\"",
+      "last_modified": "Wed, 18 Nov 2026 09:01:39 GMT",
       "status": 200,
-      "last_attempt_at": "2026-11-07T23:09:09.753706Z"
+      "last_attempt_at": "2026-11-18T23:06:00.164609Z"
     }
   },
-  "last_reconciled_at": "2026-10-05T11:58:53.015210Z",
-  "last_reconciled_catalog_revision": "sha256:7100cdfb38a3b37b70b961d62c1e0a61c89071052c2436085a2dd2d6e0d0ef1c"
+  "last_reconciled_at": "2026-11-18T23:06:00.164609Z",
+  "last_reconciled_catalog_revision": "sha256:d5618b86ba9a90de8b3343d1eec3e4d6c7db0b061177119849af34e702e2d81e"
 }

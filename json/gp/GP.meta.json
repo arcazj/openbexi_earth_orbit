@@ -4,10 +4,10 @@
   "dataset_format": "CCSDS_OMM_JSON",
   "source_format": "CCSDS_OMM_JSON",
   "provider": "CelesTrak",
-  "fetched_at": "2026-10-05T11:58:53.015210Z",
-  "retrieval_timestamp": "2026-10-05T11:58:53.015210Z",
-  "last_success_at": "2026-10-05T11:58:53.015210Z",
-  "last_attempt_at": "2026-10-05T11:58:53.015210Z",
+  "fetched_at": "2026-11-18T23:06:00.164609Z",
+  "retrieval_timestamp": "2026-11-18T23:06:00.164609Z",
+  "last_success_at": "2026-11-18T23:06:00.164609Z",
+  "last_attempt_at": "2026-11-18T23:06:00.164609Z",
   "last_status": "ok",
   "last_error": null,
   "source_status": "COMPLETE",
@@ -44,59 +44,59 @@
   },
   "provider_completeness_claim": false,
   "celestrak_min_refresh_hours": 2.0,
-  "catalog_revision": "sha256:1339c9ce13d34802952a5b0eab4483d7123ea17ae65eb53bc79d90e43f0191d3",
-  "dataset_hash": "sha256:1339c9ce13d34802952a5b0eab4483d7123ea17ae65eb53bc79d90e43f0191d3",
-  "newest_orbital_epoch": "2026-10-07T10:41:14.682Z",
-  "newest_launch_date": "2026-10-02",
+  "catalog_revision": "sha256:f5e64aaa67bc99af8779ac86319ecd9e0b5fb9f9d013d3a7941e5a992feac68c",
+  "dataset_hash": "sha256:f5e64aaa67bc99af8779ac86319ecd9e0b5fb9f9d013d3a7941e5a992feac68c",
+  "newest_orbital_epoch": "2026-11-21T09:34:36.134Z",
+  "newest_launch_date": "2026-11-14",
   "counts": {
-    "existing": 16470,
-    "fetched": 19307,
-    "added": 2935,
-    "updated": 16372,
-    "retained": 0,
-    "pruned": 98,
+    "existing": 19599,
+    "fetched": 19599,
+    "added": 0,
+    "updated": 9,
+    "retained": 19590,
+    "pruned": 0,
     "duplicates": 0,
     "quarantined": 0,
-    "total": 19307,
-    "omm": 19307,
+    "total": 19599,
+    "omm": 19599,
     "tle": 0,
-    "six_digit_ids": 671,
+    "six_digit_ids": 1064,
     "nine_digit_ids": 0,
     "tag_enriched": 0,
-    "tag_source_matches": 13453,
-    "tagged": 16131,
-    "tag_unmatched": 3176,
+    "tag_source_matches": 16046,
+    "tagged": 16047,
+    "tag_unmatched": 3552,
     "orbit_reclassified": 0
   },
   "tag_enrichment": {
     "source": "json/tle/TLE.json",
-    "source_catalog_revision": "sha256:58b3a6299bc22682165be28eaa09567e42c09d1df187458cfafbebfee6735d5d",
-    "tag_map_revision": "sha256:6b2126b217e1173a47dec3086632d127058a7689fad71607c84d70a47b8050bd",
-    "available_tags": 13501,
-    "matched_records": 13453,
-    "tagged_records": 16131,
-    "unmatched_records": 3176
+    "source_catalog_revision": "sha256:bcc94b5dc9418bf49c5e90c6c5b8e9d77038f791704702a113eb7cf733bc8c08",
+    "tag_map_revision": "sha256:6b7348cee81312f9b8203eb59a972903d5de7f2393200b109dad5f544ee02d4a",
+    "available_tags": 16215,
+    "matched_records": 16046,
+    "tagged_records": 16047,
+    "unmatched_records": 3552
   },
   "quarantine": [],
   "quarantine_truncated": 0,
   "urls": {
     "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=json": {
       "status": 200,
-      "last_attempt_at": "2026-10-05T11:58:53.015210Z"
+      "last_attempt_at": "2026-11-18T23:06:00.164609Z"
     },
     "https://celestrak.org/NORAD/elements/gp.php?GROUP=fengyun-1c-debris&FORMAT=json": {
       "status": 200,
-      "last_attempt_at": "2026-10-05T11:58:53.015210Z"
+      "last_attempt_at": "2026-11-18T23:06:00.164609Z"
     },
     "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-33-debris&FORMAT=json": {
       "status": 200,
-      "last_attempt_at": "2026-10-05T11:58:53.015210Z"
+      "last_attempt_at": "2026-11-18T23:06:00.164609Z"
     },
     "https://celestrak.org/NORAD/elements/gp.php?GROUP=cosmos-2251-debris&FORMAT=json": {
       "status": 200,
-      "last_attempt_at": "2026-10-05T11:58:53.015210Z"
+      "last_attempt_at": "2026-11-18T23:06:00.164609Z"
     }
   },
-  "last_reconciled_at": "2026-10-05T11:58:53.015210Z",
-  "last_reconciled_catalog_revision": "sha256:1339c9ce13d34802952a5b0eab4483d7123ea17ae65eb53bc79d90e43f0191d3"
+  "last_reconciled_at": "2026-11-18T23:06:00.164609Z",
+  "last_reconciled_catalog_revision": "sha256:f5e64aaa67bc99af8779ac86319ecd9e0b5fb9f9d013d3a7941e5a992feac68c"
 }
