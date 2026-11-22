@@ -36,10 +36,13 @@ function run() {
   assert(indexHtml.includes('sunSceneVectorFromJD(jDay, 1)'), 'Earth albedo is modulated from current Sun direction');
   assert(indexHtml.includes('SELECTED_MODEL_EARTH_ALBEDO_INTENSITY'), 'Earth albedo intensity is controlled by a named constant');
 
-  const animateStart = indexHtml.indexOf('function animate()');
+  const animateStart = indexHtml.search(/\bfunction animate\s*\(/);
+  assert(animateStart >= 0, 'the animation loop is present');
   const dayNightUpdate = indexHtml.indexOf('drawDayNight3D(scene, earthMesh, SIM_DATE', animateStart);
-  const renderCall = indexHtml.indexOf('renderer.render(scene, camera);', animateStart);
-  assert(dayNightUpdate > animateStart && dayNightUpdate < renderCall, 'Sun lighting updates before rendering');
+  for (const draw of ['renderCloseSatelliteScene();', 'renderer.render(scene, camera);']) {
+    const renderCall = indexHtml.indexOf(draw, animateStart);
+    assert(dayNightUpdate > animateStart && dayNightUpdate < renderCall, 'Sun lighting updates before ' + draw);
+  }
   assert(indexHtml.includes('sunIntensity: SUN_LIGHT_INTENSITY'), 'main renderer passes configured Sun intensity to drawDayNight3D');
 
   assert(modelLoader.includes('function currentRenderer()'), 'model loader resolves renderer dynamically after index initializes it');

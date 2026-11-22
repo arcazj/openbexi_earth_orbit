@@ -6,8 +6,10 @@ Serve `dist/` over HTTP with correct JavaScript MIME types. Browser modules, wor
 
 Static hosting cannot run provider updates, the Python API or durable jobs. The UI reports snapshot mode and polls only packaged revisions. Publish a complete coherent replacement to update data. An explicit API base opts into a separately configured server; do not imply live freshness from packaged bytes.
 
-Help serves README, release notes, API reference and licensing notices. Source-only documentation links open the public repository. Root prompt history, roadmap and private artifacts are not packaged.
+Help serves the README, release notes, API reference and licensing notices. The Satellite Model Viewer opens from `display_satellite.html` and reads the bundled model manifest, catalog files and shared meshes from the same artifact. Source-only documentation links in Help open the public repository. The roadmap and prompt history are available in the source checkout.
+
+The **REST API** section below **Timelines** links to the packaged endpoint reference and machine-readable schema using deployment-relative paths. Its catalog search and model examples appear when the configured Python server advertises these resources. [Catalog and model contract](../catalog-api.openapi.json)
 
 Verification: `npm run check`, full browser journeys, exact-commit build, `npm run rehearse:rollback`, then local/deployed-byte attestation for a deployment. Current browser profiles cover Chromium, Firefox, Playwright WebKit and mobile emulation; physical devices remain unqualified.
 
-Troubleshooting: use HTTP rather than file URLs; check WebGL 2 and hardware acceleration; check module/worker MIME types and network failures; retry a fresh profile when a stale module graph is cached. A strict CSP still requires extracting legacy inline scripts/styles. No Pages deployment is part of the v2.5 GitHub publication.
+For startup problems, check the HTTP origin, WebGL 2 availability, hardware acceleration and the module and worker MIME types. A fresh browser profile can isolate a stale module graph. A strict CSP still requires extracting legacy inline scripts and styles. The 2.6.0 artifact was built and verified locally. Pages deployment follows its own manual workflow.

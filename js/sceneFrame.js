@@ -423,6 +423,26 @@ export function selectedSatelliteObliqueCameraUp(orbitalFrame, observerDirection
     return cameraUp.normalize();
 }
 
+// Both tangents stay perpendicular to nadir at every latitude. Cross-track up
+// also preserves the north-up view of near-equatorial MEOs such as O3b.
+export function selectedEarthPointingObserver(orbitalFrame, orbitClass) {
+    if (!orbitalFrame) return null;
+    if (orbitClass === 'GEO') {
+        return {
+            observerDirection: selectedSatelliteObliqueObserverDirection(orbitalFrame, {
+                antiNadir: 1, velocity: .36, crossTrack: .10
+            }),
+            cameraUp: orbitalFrame.xAxis,
+            placement: 'geo-oblique-orbital-frame'
+        };
+    }
+    return {
+        observerDirection: orbitalFrame.zAxis.clone().negate(),
+        cameraUp: orbitClass === 'LEO' ? orbitalFrame.xAxis : orbitalFrame.yAxis,
+        placement: `${(orbitClass || 'satellite').toLowerCase()}-radial-orbital-frame`
+    };
+}
+
 function axisObjectToVector3(axis) {
     return new THREE.Vector3(axis?.x ?? 0, axis?.y ?? 0, axis?.z ?? 1).normalize();
 }
@@ -545,6 +565,9 @@ function setQuaternionFromEulerZYX(out, rollRad, pitchRad, yawRad) {
 }
 
 function orbitalFrameModelBasis(frame, modelAxisMapping = 'x-velocity-y-crosstrack-z-nadir') {
+    if (modelAxisMapping === 'x-negative-crosstrack-y-velocity-z-nadir') {
+        return { xAxis: frame.yAxis.clone().negate(), yAxis: frame.xAxis, zAxis: frame.zAxis };
+    }
     if (modelAxisMapping === 'x-velocity-y-nadir-z-negative-crosstrack') {
         return {
             xAxis: frame.xAxis,

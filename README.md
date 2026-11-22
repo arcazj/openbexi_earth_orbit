@@ -1,6 +1,6 @@
 # OpenBEXI Earth Orbit
 
-Interactive Earth-orbit visualization, tracked-object search and Solar System time exploration. **2.5.1 is a development prerelease, experimental and non-operational.** Public source remains available; new owner-controlled 2.5 material uses commercial licensing.
+Interactive Earth-orbit visualization, tracked-object search and Solar System time exploration. **2.6.0 is in development, experimental and non-operational.** See the [release notes](docs/RELEASE_NOTES.md) for this version.
 
 ## Live Demo
 
@@ -8,8 +8,12 @@ Interactive Earth-orbit visualization, tracked-object search and Solar System ti
 
 ## Features
 
-- Globe and Mercator views, orbit filters, search, satellite models, launch and confirmed-decay timelines.
-- Tracked inventory separates matches, positioned objects and metadata-only records; missing elements never imply decay.
+- Globe and Mercator views show positioned spacecraft, orbital paths, launches and confirmed decays. In the globe close-up, **View full orbit** shows the path face-on. **View spacecraft** returns to the selected satellite.
+- Open **Browse catalog results** below the UTC clock. Choose **All matches**, **On map** or **Position unavailable**, then type a name, NORAD ID, owner or international designator into **Filter results**. Terms can be combined. For example, `GLONASS-K2 63130` finds COSMOS 2584 in the bundled MEO payload catalog. **Clear** restores the current tab and sort order.
+- **Satellite Model Viewer** starts collapsed above **Catalog data** in the right panel. Expand it to rotate the selected spacecraft or open the full viewer. **OMM details** starts closed on each selection. **Tracked record summary** contains coverage, counts and the map legend.
+- Expand **REST API** below **Timelines** for the offline endpoint reference and OpenAPI schema. With the local Python server running, scripts can search tracked objects, read their current orbital elements and download a shared spacecraft model. [Catalog API walkthrough](docs/SWAGGER.md#catalog-and-models)
+- In the Satellite Model Viewer, choose current or historical LEO, MEO or GEO spacecraft and search by name or NORAD ID. Spacecraft with the same exterior share a model. **Model Diagnostics** shows the reference basis and estimated dimensions when available. [Open the Satellite Model Viewer](display_satellite.html)
+- Search for `63724` to inspect a production Kuiper spacecraft, `58013` for a Protoflight satellite, or `33275` for AMC-21. The Kuiper models use Amazon flight imagery. AMC-21 shows the two 2.3 m reflectors and four panels per solar wing specified by its manufacturer. [Spacecraft model references](docs/THIRD_PARTY_NOTICES.md)
 - One expanded menu section at a time; startup opens **Tracked Objects - Matches**.
 - Solar System starts in educational mode with the existing illustrative sizes. Uncheck Educational mode for a bounded JPL-derived Solar System ephemeris, complete orbit guides and physical Sun/planet sizes. Precise playback stays inside its validated dataset; guide coverage does not extend playback.
 - Satellite and Solar System views start **Live at 1 sec/s**: one simulated second per real second, following system UTC. Solar System units sit beside Play/Pause: sec/s, min/s, hour/s and day/s, with year/s under Advanced. Pause and reverse remain available. Live follows the clock; data freshness is reported separately.
@@ -17,6 +21,8 @@ Interactive Earth-orbit visualization, tracked-object search and Solar System ti
 - Experimental browser and authenticated server close-approach screening. No operational collision-risk or collision-probability claim.
 
 ## Images
+
+These screenshots show earlier Earth, Starlink and OneWeb views. The catalog controls described above are from 2.6.0.
 
 [![Earth orbit view](https://arcazj.github.io/openbexi_earth_orbit/images/openbexi_earth_orbit_ex1.png)](https://arcazj.github.io/openbexi_earth_orbit/images/openbexi_earth_orbit_ex1.png)
 [![Starlink view](https://arcazj.github.io/openbexi_earth_orbit/images/openbexi_earth_orbit_STARLINK.PNG)](https://arcazj.github.io/openbexi_earth_orbit/images/openbexi_earth_orbit_STARLINK.PNG)
@@ -71,6 +77,8 @@ Use `tools/satellite_data_tools.py` for maintained data commands and `server.py`
 
 Subcommands: `export-gp`, `export-tle`, `refresh-satcat`, `build-launches`, `build-decayed-db`, `build-tracked`, `maybe-update`, `stage-update`, `plan`, `resume-provider`, `import-candidate`, `validate-candidate`, `promote-candidate`. The normal GP/TLE path is incremental; `--all` reconciles the configured scope and does not promise global coverage. See [data maintenance](docs/engineering/DATA_MAINTENANCE.md) for options and failure handling.
 
+`tools/build_orbit_models.py` regenerates shared fleet meshes, the display manifest and the NORAD-to-model index. The model references and regeneration commands are in the [model notices](docs/THIRD_PARTY_NOTICES.md).
+
 `tools/generate_jpl_ephemeris.py` builds bounded JPL tables; `tools/preprocess_star_catalog.py` prepares star data. Performance tools: `npm run benchmark:full-catalog`, `npm run benchmark:v21-service`, `npm run benchmark:v25-browser`. Keep benchmark data and private runtime snapshots out of publications.
 
 ## Testing
@@ -83,6 +91,6 @@ Subcommands: `export-gp`, `export-tle`, `refresh-satcat`, `build-launches`, `bui
 
 ## License
 
-[Commercial licensing notice](LICENSE.md): Jean-Christophe Arcaz, [arcazj@gmail.com](mailto:arcazj@gmail.com). New owner-controlled 2.5 material requires a written commercial agreement. Earlier MIT rights and [third-party terms](docs/THIRD_PARTY_NOTICES.md) remain. Public source visibility is intentional.
+The commercial notice introduced in 2.5 applies to new owner-controlled material after the 2.4.0 baseline. Contact Jean-Christophe Arcaz for a written commercial agreement. Earlier MIT grants and asset-specific terms continue to apply. [License](LICENSE.md) · [Licensing contact](mailto:arcazj@gmail.com) · [Third-party notices](docs/THIRD_PARTY_NOTICES.md)
 
 The app and results are supplied as is, without an accuracy, completeness or timeliness warranty. To the extent permitted by law, the author and OpenBEXI contributors disclaim liability for use of or reliance on inaccurate, incomplete or unavailable results. Independently verify results; do not use this experimental app as the sole basis for operational or safety-critical decisions. The full notice preserves liabilities and statutory rights that cannot lawfully be excluded.

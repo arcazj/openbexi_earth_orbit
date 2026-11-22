@@ -13,10 +13,15 @@ const DRAWER_MARKUP = `
     <header class="tracked-results-header">
         <div>
             <h2 id="trackedResultsTitle">Tracked-object results</h2>
-            <span id="trackedResultsCount">0 results</span>
+            <span id="trackedResultsCount" role="status">0 results</span>
         </div>
         <button id="closeTrackedResults" type="button" class="tracked-results-close" aria-label="Close catalog results" title="Close catalog results">&times;</button>
     </header>
+    <div class="tracked-results-search">
+        <label for="trackedResultsSearch">Filter results</label>
+        <input id="trackedResultsSearch" type="search" placeholder="Name, NORAD ID, owner…" aria-controls="trackedResultsViewport" autocomplete="off">
+        <button id="clearTrackedResultsSearch" type="button" class="search-clear-button" aria-label="Clear results filter" disabled>Clear</button>
+    </div>
     <div id="trackedResultsTabs" class="tracked-results-tabs" role="tablist" aria-label="Result availability">
         <button type="button" role="tab" data-result-mode="ALL" aria-selected="true">All matches</button>
         <button type="button" role="tab" data-result-mode="POSITIONED" aria-selected="false" tabindex="-1">On map</button>
@@ -54,6 +59,8 @@ function resolveElements(root) {
         openButton: byId('openTrackedResults'),
         drawer: byId('trackedResultsDrawer'),
         closeButton: byId('closeTrackedResults'),
+        search: byId('trackedResultsSearch'),
+        clearSearch: byId('clearTrackedResultsSearch'),
         tabs: byId('trackedResultsTabs'),
         columns: byId('trackedResultsColumns'),
         viewport: byId('trackedResultsViewport'),
@@ -82,6 +89,7 @@ export function createTrackedResultsController(options = {}) {
     const rowHeight = Math.max(32, Number(options.rowHeight) || DEFAULT_ROW_HEIGHT);
     const removers = [];
     let sourceRecords = [];
+    let sortedRows = [];
     let preparedRows = [];
     let mode = TRACKED_RESULT_MODE.ALL;
     let sortKey = TRACKED_RESULT_SORT.NAME;
@@ -151,19 +159,36 @@ export function createTrackedResultsController(options = {}) {
 
     function refresh(records = sourceRecords) {
         sourceRecords = Array.isArray(records) ? records : [];
-        preparedRows = prepareTrackedResults(sourceRecords, { mode, sortKey, direction: sortDirection });
+        sortedRows = prepareTrackedResults(sourceRecords, { mode, sortKey, direction: sortDirection });
+        filterRows();
+    }
+
+    function filterRows() {
+        const query = (elements.search?.value || '').trim().toLowerCase();
+        const terms = query.split(/\s+/);
+        preparedRows = query ? sortedRows.filter(row => terms.every(term => row.searchText.includes(term))) : sortedRows;
         activeIndex = Math.min(activeIndex, preparedRows.length - 1);
         if (elements.count) {
             elements.count.textContent = `${preparedRows.length.toLocaleString()} ` +
                 `${preparedRows.length === 1 ? 'result' : 'results'}`;
         }
-        if (elements.empty) elements.empty.hidden = preparedRows.length > 0;
+        if (elements.clearSearch) elements.clearSearch.disabled = !elements.search.value;
+        if (elements.empty) {
+            elements.empty.hidden = preparedRows.length > 0;
+            elements.empty.textContent = query ? 'No objects match this filter.' : 'No results in this availability view.';
+        }
         if (elements.viewport) {
             elements.viewport.hidden = preparedRows.length === 0;
             const maxScroll = Math.max(0, preparedRows.length * rowHeight - elements.viewport.clientHeight);
             if (elements.viewport.scrollTop > maxScroll) elements.viewport.scrollTop = maxScroll;
         }
         renderWindow();
+    }
+
+    function onQueryChange() {
+        activeIndex = -1;
+        elements.viewport.scrollTop = 0;
+        filterRows();
     }
 
     function setOpen(open) {
@@ -259,6 +284,18 @@ export function createTrackedResultsController(options = {}) {
     elements.openButton?.setAttribute('aria-expanded', 'false');
     listen(elements.openButton, 'click', () => setOpen(true));
     listen(elements.closeButton, 'click', () => setOpen(false));
+    listen(elements.search, 'input', onQueryChange);
+    listen(elements.clearSearch, 'click', () => {
+        elements.search.value = '';
+        onQueryChange();
+        elements.search.focus();
+    });
+    listen(elements.search, 'keydown', event => {
+        if (event.key === 'ArrowDown' && preparedRows.length) {
+            elements.viewport.focus();
+            handleViewportKeydown(event);
+        }
+    });
     listen(elements.tabs, 'click', event => {
         const button = event.target?.closest?.('[data-result-mode]');
         if (button) selectMode(button);

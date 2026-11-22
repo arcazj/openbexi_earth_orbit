@@ -1,0 +1,27 @@
+{
+  "0": {
+    "name": "SSL 1300",
+    "meta": {
+      "bus": "SSL 1300",
+      "geometry": {
+        "body_length_m": 8.2,
+        "body_width_m": 3.2,
+        "span_m": 32.4,
+        "glb_units": "m",
+        "center_model": false
+      },
+      "references": [
+        "https://science.nasa.gov/3d-resources/space-systems-loral-ssl-1300/",
+        "https://europeanspaceflight.com/wp-content/uploads/2023/11/VA208-launchkit.pdf#page=7"
+      ],
+      "flight_references": {
+        "https://space.skyrocket.de/doc_sdat/intelsat-20.htm": [
+          38740
+        ]
+      },
+      "reference_status": "Illustrated design",
+      "reference_illustration": "Intelsat 20 [Arianespace / Space Systems Loral]",
+      "dimension_note": "Intelsat 20 has a published 32.4 m deployed span and 8.2 by 3.5 by 3.2 m launch envelope. The body proportions and reflector mounts are estimated from the launch drawing."
+    }
+  }
+}

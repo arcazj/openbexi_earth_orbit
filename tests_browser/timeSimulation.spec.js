@@ -154,7 +154,10 @@ test('Time x keeps selected satellite fluid and drives bounded Solar System ephe
   await expect(search).toBeEnabled();
   await search.fill('100011');
   await page.locator('#satelliteSearchResults [data-norad-id="100011"]').click();
-  await page.waitForFunction(() => window.openbexiSimulation.snapshot().selectedNoradId === '100011');
+  await page.waitForFunction(() => {
+    const state = window.openbexiSimulation.snapshot();
+    return state.selectedNoradId === '100011' && state.selectedDetailedModelVisible;
+  });
 
   const originalFilters = await page.locator('#orbitTypeFilter button[aria-pressed="true"]')
     .evaluateAll(buttons => buttons.map(button => button.dataset.orbitFilter));
@@ -279,6 +282,7 @@ test('Time x keeps selected satellite fluid and drives bounded Solar System ephe
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(resolve)));
   const returnedPosition = (await page.evaluate(() => window.openbexiSimulation.snapshot())).selectedPosition;
   expect(vectorDistance(originalPosition, returnedPosition)).toBeLessThan(1e-9);
+  const closeView = await page.evaluate(() => window.openbexiSimulation.snapshot());
 
   if (await page.locator('#viewAccordionHeader').getAttribute('aria-expanded') !== 'true') await page.locator('#viewAccordionHeader').click();
   await page.locator('#solarSystemOverviewToggle').check();
@@ -304,10 +308,20 @@ test('Time x keeps selected satellite fluid and drives bounded Solar System ephe
   planets.forEach(name => expect(vectorDistance(planetPositionsBefore[name], planetPositionsReturned[name])).toBeLessThan(1e-9));
 
   await page.locator('#solarSystemOverviewToggle').uncheck();
-  await page.waitForFunction(() => {
+  await page.waitForFunction(originalMesh => {
     const snapshot = window.openbexiSimulation.snapshot();
-    return snapshot.drawnNoradIds.includes('100011') && window.openbexiSimulation.markerState('100011')?.visible === true;
-  });
+    return snapshot.selectedNoradId === '100011' && snapshot.selectedMeshUuid === originalMesh &&
+      snapshot.selectedDetailedModelVisible && !snapshot.drawnNoradIds.includes('100011');
+  }, identityBefore.selectedMeshUuid);
+  const restoredView = await page.evaluate(() => window.openbexiSimulation.snapshot());
+  expect(vectorDistance(restoredView.cameraPosition, closeView.cameraPosition)).toBeLessThan(1e-8);
+  await page.evaluate(() => window.openbexiSimulation.setTime('2026-08-23T00:10:00Z'));
+  await page.waitForFunction(expectedPosition => {
+    const state = window.openbexiSimulation.snapshot();
+    return Math.hypot(...state.selectedPosition.map((v, i) => v - expectedPosition[i])) < 1e-8 &&
+      Math.hypot(...state.cameraTarget.map((v, i) => v - state.selectedPosition[i])) < 1e-8 &&
+      Math.hypot(...state.cameraPosition.map((v, i) => v - state.selectedPosition[i])) < .001;
+  }, futurePosition);
   if (await page.locator('#viewAccordionHeader').getAttribute('aria-expanded') !== 'true') await page.locator('#viewAccordionHeader').click();
   await page.locator('#solarSystemOverviewToggle').check();
   await page.waitForFunction(() => window.openbexiSimulation.snapshot().ephemerisMode === 'JPL-derived ephemeris');

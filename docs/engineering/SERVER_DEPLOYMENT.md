@@ -1,6 +1,8 @@
 # Local server and durable service
 
-The supported default is a loopback development server. Start with `npm run serve` or `node scripts/python.mjs server.py --host 127.0.0.1 --port 8000`. Use `--no-data-update` for offline work and `--no-v21-service` for the legacy/static API boundary.
+The supported default is a loopback development server. Start with `npm run serve` or `node scripts/python.mjs server.py --host 127.0.0.1 --port 8000`. Use `--no-data-update` for offline work. The read-only object and model routes work with `--no-v21-service`. Model file URLs use the default static host. [Catalog and models](../SWAGGER.md#catalog-and-models)
+
+The server reads release metadata at startup. After updating the checkout, static UI files can show the new version while an older server process still reports its startup version. Restart that process when switching releases and check `GET /api/version` to confirm the backend version.
 
 ## Roles and storage
 
@@ -18,4 +20,4 @@ Default mutable data and `/api/v1` requests recheck the verified pointer. Durabl
 
 The server uses eight handlers, a 64-connection backlog and a two-second admission wait. An unused socket has one second to provide its request line; active transfers retain a 30-second timeout. These limits prevent idle preconnections from exhausting the service and do not make it a public production server.
 
-Before hosted use, separately review identity, TLS, proxy trust, CORS, storage/retention, concurrency, provider terms, audit/alerts and recovery. The optional Docker/cloud path is not published or qualified by v2.5. See [security](../SECURITY.md) and [rollback](ROLLBACK.md).
+Before hosted use, separately review identity, TLS, proxy trust, CORS, storage and retention, concurrency, provider terms, audit, alerts and recovery. The local 2.6.0 checks cover the development server. Hosted and container qualification is a separate task. [Security](../SECURITY.md) · [Rollback](ROLLBACK.md)

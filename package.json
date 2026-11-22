@@ -1,6 +1,6 @@
 {
   "name": "openbexi_orbit",
-  "version": "2.5.1",
+  "version": "2.6.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -37,7 +37,7 @@
     "test:unit": "node tests/runAll.js",
     "vendor:browser": "node scripts/vendor-browser-dependencies.mjs --sync",
     "version:sync": "node scripts/sync-version.mjs",
-    "check:docs": "node scripts/check-docs.mjs"
+    "check:docs": "node scripts/check-docs.mjs && node scripts/sync-catalog-reference.mjs --check"
   },
   "dependencies": {
     "satellite.js": "6.0.2",

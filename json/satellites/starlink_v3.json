@@ -1,0 +1,10 @@
+{
+  "0": {
+    "name": "Starlink V3",
+    "meta": {
+      "bus": "Starlink V3",
+      "manufacturer": "SpaceX",
+      "geometry": { "glb_units": "m" }
+    }
+  }
+}

@@ -46,7 +46,7 @@ function run() {
   assert(!modelLoaderSource.includes('root.position.sub(c)'), 'model centering no longer moves the root position');
   assert(modelLoaderSource.includes("method: 'child-offset-root-preserved'"), 'model centering diagnostic records root-preserving method');
 
-  const starlinkRawDiameter = objMaxDiameter('obj/starlink_V1.obj');
+  const starlinkRawDiameter = objMaxDiameter('obj/leo/starlink_V1.obj');
   assert(starlinkRawDiameter > 0, 'Starlink OBJ has nonzero raw bounds');
 
   const starlinkSceneDiameter = starlinkRawDiameter * modelScaleToSceneUnits('m');

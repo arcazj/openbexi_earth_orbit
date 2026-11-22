@@ -4,6 +4,7 @@
   "entrypoint": "index.html",
   "files": [
     "index.html",
+    "display_satellite.html",
     "markdown_viewer.html",
     "swagger.html",
     "README.md",
@@ -13,8 +14,10 @@
     "docs/THIRD_PARTY_NOTICES.md",
     "data/health/policy.json",
     "docs/SWAGGER.md",
+    "docs/catalog-api.openapi.json",
     "json/decayed/decayed.json",
     "json/decayed/decayed.meta.json",
+    "json/display_satellite_models.json",
     "json/gp/GP.json",
     "json/gp/GP.meta.json",
     "json/launches/launches.json",

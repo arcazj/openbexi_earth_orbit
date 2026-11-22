@@ -1,6 +1,8 @@
 # Performance budgets
 
-Targets: core/default-MEO readiness within **4 s**, globe frame **p95 <= 33 ms** on a named representative profile. These targets are not met by the recorded 2.5 software-rendered baseline.
+The 2.6 REST API accordion brings the uncompressed browser JavaScript group to 978,141 bytes on the Windows checkout. Its ceiling is 979,000 bytes. Opening the globe does not request the API reference or model metadata.
+
+The targets are **4 s** for default-MEO readiness and **33 ms** for the p95 globe frame on a named representative profile. The measurements below are the 2.5 software-rendered baseline. The 2.6.0 local run checked asset-size ceilings and functional behavior. A new timing run on representative hardware is pending. [2.6.0 checks](../../release/evidence/v2.6.0-development-checks.json)
 
 | Fixture / cache | Core readiness | Globe frame p95 |
 | --- | ---: | ---: |

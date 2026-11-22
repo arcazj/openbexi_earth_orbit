@@ -1,6 +1,6 @@
 # Experimental Full-Catalog Screening in Version 2.1
 
-Last reviewed: 2026-08-30
+The method review below dates to 2026-08-30. The project records the current release status and admitted data sources separately. [Release policy](../governance/RELEASE_POLICY.md) · [Data sources](../governance/DATA_SOURCES.md)
 
 ## Claim Boundary
 
@@ -118,7 +118,7 @@ The first command measures the engine. Version 2.3.1 prefers the packaged GP/OMM
 - Validate progress coalescing under representative long-running and failure/recovery profiles, and define outbox consumer acknowledgement/pruning and retention behavior.
 - Accept an independent orbital truth set or cross-tool full-catalog comparison with tolerances.
 - Independently review the swept-bound assumptions, brute-force oracle, refinement method, and partial-result semantics.
-- Admit an OMM-capable source that covers current identifiers under reviewed license, retention, and redistribution terms.
+- Document coverage and retention or redistribution terms for any additional OMM provider. The current service already accepts the configured CelesTrak GP/OMM groups. [Admitted source scope](../governance/DATA_SOURCES.md)
 - Rehearse backup, restore, feature disablement, and rollback on the target environment.
 - Archive a clean-clone evidence bundle bound to a commit or immutable source identifier.
 

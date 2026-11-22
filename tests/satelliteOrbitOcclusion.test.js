@@ -215,6 +215,16 @@ function run() {
   assert.strictEqual(runningOrbit.userData.material, firstMaterial, 'running Time x preserves the selected orbit material');
   assert.strictEqual(runningOrbit.userData.startTimeMs, startDate.getTime() + 10 * 60_000, 'running Time x advances the one-revolution orbit path');
   assertRenderedOrbitMatches(new THREE.Vector3(0, 20, 0), 'full orbit after simulation time changes');
+  const simTimeMs = runningOrbit.userData.startTimeMs + 37000;
+  const position = new THREE.Vector3(7.003123456789, .0123456789, .931256);
+  const anchored = refreshSelectedOrbitOcclusion({position:new THREE.Vector3(0,20,0)},
+    {satellitePosition:position, simTimeMs});
+  assert(runningOrbit.position.equals(position), 'GPU geometry uses the propagated spacecraft as its local origin');
+  const arc = anchored.findIndex(segment=>segment.some(point=>point.equals(position)));
+  assert(arc>=0, 'the displayed arc includes the satellite between its regular time samples');
+  const at = anchored[arc].findIndex(point=>point.equals(position));
+  const vertex = runningOrbit.children[arc].geometry.getAttribute('position');
+  assert.deepEqual([vertex.getX(at),vertex.getY(at),vertex.getZ(at)],[0,0,0]);
   assert.strictEqual(
     scene.children.filter(child => child.name === 'selectedOrbitTrajectoryRoot').length,
     1,

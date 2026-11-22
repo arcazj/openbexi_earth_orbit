@@ -2,6 +2,12 @@
 
 This is a concise record of user intent and decisions. Full historical requests remain in published Git history; private agreements and internal implementation prompts are excluded from the public 2.5 history.
 
+## Version 2.6.0 — spacecraft models, live tracking and catalog results
+
+The user requested current and historical LEO, MEO and GEO model catalogs organized by orbit. Spacecraft with the same hardware should share one model across NORAD IDs. Starlink should have three primary models and retain the original V1 asset. The requested revisions included OneWeb, O3b Classic and mPOWER, Qianfan, Iridium, CubeSats and reference-based GEO exteriors for the Intelsat and Galaxy fleets.
+
+The user asked for a centered, smooth orbit, Earth-facing GEO antennas and steady Live tracking on OneWeb and GLONASS-K2. They also requested a right-hand catalog panel aligned with the UTC clock, collapsed OMM details on selection and a search filter within Tracked-object results. They asked for complete regression testing, updated documentation and local preparation of 2.6 without a commit.
+
 ## Version 2.5.1 — visible playback units
 
 The user requested sec/s by default, plus min/s, hour/s and day/s for Solar System playback, then accepted all recommendations for v2.5.1. Both integrated and standalone views expose units beside Play/Pause and Live; year/s remains under Advanced. Unit changes preserve UTC, signed multiplier and paused/running state; Live resets to 1 sec/s. Keyboard, narrow-screen and legacy behavior checks accompany concise documentation. Before publication, the user changed the default to educational mode and clarified that its existing Sun/planet sizes must remain unchanged. Turning educational mode off must enforce physical Sun/planet sizes. This correction belongs to 2.5.1, not 2.5.2. Existing v2.5/v2.5.0 tags and downloads remain intact; the authorized public development-prerelease scope is unchanged.

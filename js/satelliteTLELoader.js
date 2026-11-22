@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { eciToSceneVector } from './sceneFrame.js';
+import { applyOrbitDistanceFade, refineOrbitForView } from './orbit/selectedOrbitCurve.js';
 import {
     satelliteConfig,
     fetchJSON,
@@ -897,6 +898,14 @@ export function isUsableOrbitPosition(position, minRadiusKm = MIN_ORBIT_RADIUS_K
     return Number.isFinite(radiusKm) && radiusKm >= minRadiusKm;
 }
 
+function orbitPointAt(satrec, timeMs, satelliteLib, minRadiusKm) {
+    const position = satelliteLib.propagate(satrec, new Date(timeMs))?.position;
+    if (!isUsableOrbitPosition(position, minRadiusKm)) return null;
+    const point = eciToSceneVector(new THREE.Vector3(), position);
+    point.orbitTimeMs = timeMs;
+    return point;
+}
+
 export function generateOrbitScenePointSegments(satrec, simDate = new Date(), options = {}) {
     if (!satrec) return [];
 
@@ -914,7 +923,10 @@ export function generateOrbitScenePointSegments(satrec, simDate = new Date(), op
         ? numPoints
         : getOrbitSampleCount(periodMinutes);
     const deltaT = periodMinutes / sampleCount;
-    const startTime = new Date(simDate);
+    // On a selected trajectory put the seam half a revolution away. Secular
+    // perturbations mean that a one-period track does not close exactly.
+    const startTime = new Date(new Date(simDate).getTime() -
+        (options.centerOnEpoch ? Math.floor(sampleCount / 2) * deltaT * 60000 : 0));
     const segments = [];
     let currentSegment = [];
 
@@ -926,13 +938,13 @@ export function generateOrbitScenePointSegments(satrec, simDate = new Date(), op
     };
 
     for (let i = 0; i <= sampleCount; i++) {
-        const t = new Date(startTime.getTime() + i * deltaT * 60000);
-        const pv = satLib.propagate(satrec, t);
-        if (!isUsableOrbitPosition(pv?.position, minRadiusKm)) {
+        const timeMs = Math.trunc(startTime.getTime() + i * deltaT * 60000);
+        const sample = orbitPointAt(satrec, timeMs, satLib, minRadiusKm);
+        if (!sample) {
             finishSegment();
             continue;
         }
-        currentSegment.push(eciToSceneVector(new THREE.Vector3(), pv.position));
+        currentSegment.push(sample);
     }
     finishSegment();
 
@@ -970,7 +982,24 @@ export function nearestPointDistanceToOrbitSegments(point, segments) {
 }
 
 export function selectedOrbitNearestPointDistance(point) {
-    return nearestPointDistanceToOrbitSegments(point, orbitLine?.userData?.sourceSegments || []);
+    const data = orbitLine?.userData;
+    return nearestPointDistanceToOrbitSegments(point, data?.visibleSegments || data?.sourceSegments || []);
+}
+
+function insertPropagatedPosition(segments, position, timeMs) {
+    return segments.map(segment => {
+        if (timeMs < segment[0].orbitTimeMs || timeMs > segment[segment.length - 1].orbitTimeMs) return segment;
+        let lo = 0, hi = segment.length - 1;
+        while (lo < hi) {
+            const mid = (lo + hi) >>> 1;
+            if (segment[mid].orbitTimeMs < timeMs) lo = mid + 1;
+            else hi = mid;
+        }
+        const after = segment[lo].orbitTimeMs === timeMs ? lo + 1 : lo;
+        const current = position.clone();
+        current.orbitTimeMs = timeMs;
+        return [...segment.slice(0, lo), current, ...segment.slice(after)];
+    });
 }
 
 export function isScenePointOccludedByEarth(
@@ -1034,13 +1063,12 @@ export function splitOrbitSegmentsByEarthOcclusion(
 }
 
 function createOrbitLineMaterial() {
-    return new THREE.LineBasicMaterial({
+    return applyOrbitDistanceFade(new THREE.LineBasicMaterial({
         color: 0xff0000,
         depthTest: true,
-        depthWrite: true,
-        transparent: false,
-        opacity: 1
-    });
+        depthWrite: false,
+        transparent: true
+    }));
 }
 
 function createOrbitLineSegment(points, material = createOrbitLineMaterial()) {
@@ -1064,45 +1092,54 @@ function trimOrbitLineChildren(group, targetCount) {
 export function refreshSelectedOrbitOcclusion(camera, options = {}) {
     if (!orbitLine?.userData?.sourceSegments || !camera?.position) return null;
 
-    const {
-        earthRadiusScene = EARTH_SCENE_RADIUS
-    } = options;
+    const { earthRadiusScene = EARTH_SCENE_RADIUS, viewportHeight = 0 } = options;
     const cameraPosition = camera.position;
+    const {satellitePosition, simTimeMs} = options;
+    const anchored = satellitePosition && Number.isFinite(simTimeMs);
+    const pixelAngle = camera.isPerspectiveCamera && viewportHeight > 0
+        ? 2 * Math.tan(THREE.MathUtils.degToRad(camera.getEffectiveFOV()) / 2) / viewportHeight : 0;
     const cameraSignature = [
-        cameraPosition.x.toFixed(4),
-        cameraPosition.y.toFixed(4),
-        cameraPosition.z.toFixed(4),
-        earthRadiusScene.toFixed(4)
+        cameraPosition.x, cameraPosition.y, cameraPosition.z, earthRadiusScene, pixelAngle,
+        anchored ? simTimeMs : ''
     ].join('|');
 
     if (orbitLine.userData.occlusionCameraSignature === cameraSignature) {
         return orbitLine.userData.visibleSegments || null;
     }
 
+    const {sourceSegments, sampleAt} = orbitLine.userData;
+    const curve = pixelAngle > 0 ? refineOrbitForView(sourceSegments, sampleAt, cameraPosition, pixelAngle) : sourceSegments;
+    const segments = anchored ? insertPropagatedPosition(curve, satellitePosition, simTimeMs) : curve;
     const visibleSegments = splitOrbitSegmentsByEarthOcclusion(
-        orbitLine.userData.sourceSegments,
+        segments,
         cameraPosition,
         earthRadiusScene
     );
     const material = orbitLine.userData.material || createOrbitLineMaterial();
     orbitLine.userData.material = material;
+    material.userData.observerRange.value = anchored ? Math.max(cameraPosition.distanceTo(satellitePosition), 1e-6) : 1e12;
+    if (anchored) orbitLine.position.copy(satellitePosition);
+    else orbitLine.position.set(0,0,0);
     visibleSegments.forEach((segment, index) => {
+        // Subtract before converting the positions to Float32. At GEO a world
+        // coordinate stored directly in a vertex can move the line several metres.
+        const points = anchored ? segment.map(p => p.clone().sub(satellitePosition)) : segment;
         const existing = orbitLine.children[index];
         if (existing) {
             // setFromPoints updates an existing buffer but cannot enlarge it.
             // Camera motion can reveal more of the orbit than the previous arc.
             if (existing.geometry.getAttribute('position').count < segment.length) {
                 const previousGeometry = existing.geometry;
-                existing.geometry = new THREE.BufferGeometry().setFromPoints(segment);
+                existing.geometry = new THREE.BufferGeometry().setFromPoints(points);
                 previousGeometry.dispose();
             } else {
-                existing.geometry.setFromPoints(segment);
+                existing.geometry.setFromPoints(points);
             }
             // Shorter arcs must not draw leftover vertices from the previous view.
             existing.geometry.setDrawRange(0, segment.length);
             existing.geometry.computeBoundingSphere();
         } else {
-            orbitLine.add(createOrbitLineSegment(segment, material));
+            orbitLine.add(createOrbitLineSegment(points, material));
         }
     });
     trimOrbitLineChildren(orbitLine, visibleSegments.length);
@@ -1136,95 +1173,62 @@ function orbitSatelliteKey(satData) {
     ].join('|');
 }
 
+function orbitSamples(satrec, epoch, options, realTimeMs) {
+    const periodMinutes = getOrbitDurationMinutes(satrec);
+    const sampleCount = getOrbitSampleCount(periodMinutes);
+    const sourceSegments = generateOrbitScenePointSegments(satrec, epoch, {
+        ...options, centerOnEpoch: true, periodMinutes, numPoints: sampleCount
+    });
+    if (!sourceSegments.length) return null;
+    // Midpoint times are fixed within this ephemeris window, even while the
+    // selected spacecraft moves. Discard the cache with the window on refresh.
+    const midpointCache = new Map();
+    const satelliteLib = getSatelliteLib(options.satelliteLib);
+    function sampleAt(timeMs) {
+        if (!midpointCache.has(timeMs)) {
+            midpointCache.set(timeMs, orbitPointAt(satrec, timeMs, satelliteLib, options.minRadiusKm));
+        }
+        return midpointCache.get(timeMs);
+    }
+    return {
+        sourceSegments, sampleAt, periodMinutes, sampleCount, startTimeMs: epoch.getTime(), lastRefreshRealMs: realTimeMs,
+        refreshIntervalMillis: getOrbitRefreshIntervalMillis(periodMinutes, sampleCount),
+        occlusionCameraSignature: '', visibleSegments: null
+    };
+}
+
 export function updateOrbitTrajectory(scene, simParams, satData, options = {}) {
     clearOrbitLine(scene);
-
-    if (!simParams.showOrbit || !satData || !satData.satrec) return null;
-
-    const simDate = simParams.simDate || new Date();
-    const periodMinutes = getOrbitDurationMinutes(satData.satrec);
-    const sampleCount = getOrbitSampleCount(periodMinutes);
-    const orbitSegments = generateOrbitScenePointSegments(satData.satrec, simDate, {
-        ...options,
-        periodMinutes,
-        numPoints: sampleCount
-    });
-    if (orbitSegments.length === 0) return null;
-
+    if (!simParams.showOrbit || !satData?.satrec) return null;
+    const epoch = new Date(simParams.simDate || Date.now());
+    const samples = orbitSamples(satData.satrec, epoch, options, options.realTimeMs ?? performance.now());
+    if (!samples) return null;
     orbitLine = new THREE.Group();
     orbitLine.name = 'selectedOrbitTrajectoryRoot';
-    orbitLine.renderOrder = 0;
-    orbitLine.userData.depthOccludedByEarth = true;
-    orbitLine.userData.material = createOrbitLineMaterial();
-    orbitLine.userData.sourceSegments = orbitSegments.map(segment => segment.map(point => point.clone()));
-    orbitLine.userData.satelliteKey = orbitSatelliteKey(satData);
-    orbitLine.userData.startTimeMs = new Date(simDate).getTime();
-    orbitLine.userData.periodMinutes = periodMinutes;
-    orbitLine.userData.sampleCount = sampleCount;
-    orbitLine.userData.refreshIntervalMillis = getOrbitRefreshIntervalMillis(periodMinutes, sampleCount);
-    orbitLine.userData.lastRefreshRealMs = Number.isFinite(options.realTimeMs)
-        ? options.realTimeMs
-        : (globalThis.performance?.now?.() ?? Date.now());
-    orbitLine.userData.occlusionCameraSignature = '';
-
+    Object.assign(orbitLine.userData, samples, {
+        depthOccludedByEarth: true, material: createOrbitLineMaterial(), satelliteKey: orbitSatelliteKey(satData)
+    });
     scene.add(orbitLine);
     return orbitLine;
 }
 
 export function refreshOrbitTrajectoryIfNeeded(scene, simParams, satData, options = {}) {
     if (!simParams?.showOrbit || !satData?.satrec) return orbitLine;
-
-    if (!orbitLine) {
+    if (!orbitLine || orbitLine.userData.satelliteKey !== orbitSatelliteKey(satData)) {
         return updateOrbitTrajectory(scene, simParams, satData, options);
     }
-
-    const simTimeMs = new Date(simParams.simDate || new Date()).getTime();
-    const startTimeMs = orbitLine.userData?.startTimeMs;
-    const refreshIntervalMillis = orbitLine.userData?.refreshIntervalMillis || MIN_ORBIT_REFRESH_INTERVAL_MS;
-    const satelliteKey = orbitSatelliteKey(satData);
-    const staleForSatellite = orbitLine.userData?.satelliteKey !== satelliteKey;
-    const staleForTime = !Number.isFinite(startTimeMs) ||
-        Math.abs(simTimeMs - startTimeMs) >= refreshIntervalMillis;
-
-    if (staleForSatellite) {
-        return updateOrbitTrajectory(scene, simParams, satData, options);
+    const data = orbitLine.userData;
+    const epoch = new Date(simParams.simDate || Date.now());
+    const elapsed = Math.abs(epoch.getTime() - data.startTimeMs);
+    if (elapsed < data.refreshIntervalMillis) return orbitLine;
+    const realTimeMs = options.realTimeMs ?? performance.now();
+    const interval = Math.max(100, options.runningRefreshRealMillis ?? MIN_RUNNING_ORBIT_REFRESH_REAL_MS);
+    // A time jump outside the sampled revolution needs an immediate refresh.
+    if (Number(simParams.timeWarp) && elapsed < data.periodMinutes*30000 && realTimeMs - data.lastRefreshRealMs < interval) {
+        return orbitLine;
     }
-
-    if (staleForTime) {
-        const timeWarp = Number(simParams.timeWarp);
-        const running = Number.isFinite(timeWarp) && timeWarp !== 0;
-        const realTimeMs = Number.isFinite(options.realTimeMs)
-            ? options.realTimeMs
-            : (globalThis.performance?.now?.() ?? Date.now());
-        const lastRefreshRealMs = orbitLine.userData?.lastRefreshRealMs;
-        const runningRefreshRealMillis = Math.max(
-            100,
-            options.runningRefreshRealMillis ?? MIN_RUNNING_ORBIT_REFRESH_REAL_MS
-        );
-        if (running && Number.isFinite(lastRefreshRealMs) &&
-            realTimeMs - lastRefreshRealMs < runningRefreshRealMillis) {
-            return orbitLine;
-        }
-
-        const periodMinutes = getOrbitDurationMinutes(satData.satrec);
-        const sampleCount = getOrbitSampleCount(periodMinutes);
-        const orbitSegments = generateOrbitScenePointSegments(satData.satrec, new Date(simTimeMs), {
-            ...options,
-            periodMinutes,
-            numPoints: sampleCount
-        });
-        if (orbitSegments.length === 0) return orbitLine;
-
-        orbitLine.userData.sourceSegments = orbitSegments.map(segment => segment.map(point => point.clone()));
-        orbitLine.userData.startTimeMs = simTimeMs;
-        orbitLine.userData.periodMinutes = periodMinutes;
-        orbitLine.userData.sampleCount = sampleCount;
-        orbitLine.userData.refreshIntervalMillis = getOrbitRefreshIntervalMillis(periodMinutes, sampleCount);
-        orbitLine.userData.lastRefreshRealMs = realTimeMs;
-        orbitLine.userData.occlusionCameraSignature = '';
-        orbitLine.userData.visibleSegments = null;
-    }
-
+    const samples = orbitSamples(satData.satrec, epoch, options, realTimeMs);
+    if (samples) Object.assign(data, samples);
     return orbitLine;
 }
 

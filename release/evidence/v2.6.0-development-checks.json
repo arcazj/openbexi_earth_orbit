@@ -1,0 +1,274 @@
+{
+  "version": "2.6.0",
+  "localDate": "2026-11-22",
+  "publicationState": "development",
+  "source": "Local uncommitted release preparation",
+  "platform": {
+    "os": "Windows x64",
+    "node": "24.22.1",
+    "npm": "11.19.1",
+    "python": "3.9.13"
+  },
+  "staticChecks": {
+    "command": "npm run check",
+    "result": "passed",
+    "sampledHorizonsComparisons": 544,
+    "sampledSgp4Comparisons": 48
+  },
+  "javascript": {
+    "command": "npm run test:unit",
+    "filesPassed": 71,
+    "filesFailed": 0
+  },
+  "python": {
+    "command": "npm run test:python",
+    "passed": 202,
+    "skipped": 1,
+    "failed": 0,
+    "skipReason": "The Windows account lacks the privilege to create a directory symlink in test_tracked_chunk_symlink_cannot_escape_repository_root."
+  },
+  "browser": {
+    "command": "npm run test:browser -- --workers=2 --retries=1",
+    "projects": [
+      "chromium",
+      "mobile-chromium",
+      "firefox",
+      "webkit"
+    ],
+    "matrixCases": 113,
+    "passedFirstAttempt": 86,
+    "passedOnRetry": 0,
+    "profileSpecificSkips": 24,
+    "failuresInInitialRun": 3,
+    "unresolvedFailures": 0,
+    "passedAfterVerification": 89,
+    "initialFailuresCheckedAgain": [
+      {
+        "case": "curated static artifact boots offline and screens the full catalog in its module Worker",
+        "project": "chromium"
+      },
+      {
+        "case": "OMM selection and static catalog revisions refresh both timelines without reload",
+        "project": "chromium"
+      },
+      {
+        "case": "OMM selection and static catalog revisions refresh both timelines without reload",
+        "project": "mobile-chromium"
+      }
+    ],
+    "finalFocusedRun": {
+      "workers": 1,
+      "retries": 0,
+      "passed": 8,
+      "profileSpecificSkips": 1,
+      "failed": 0,
+      "coverage": "Model preview and catalog navigation, panel order, compact diagnostics, historical objects and packaged offline screening."
+    }
+  },
+  "catalogResults": {
+    "source": "Built static application with the bundled offline catalog",
+    "checkedWidthsPx": [
+      320,
+      1440
+    ],
+    "catalogSelection": "MEO payloads",
+    "unfilteredMatches": 600,
+    "glonassK2Matches": [
+      "57517",
+      "63130"
+    ],
+    "singleMatch": "63130",
+    "narrowedBy": [
+      "GLONASS-K2 with NORAD 63130",
+      "Owner CIS with NORAD 63130",
+      "International designator 2025-042A with NORAD 63130"
+    ],
+    "keyboardSelection": "passed",
+    "clearRestoredAllMatches": true
+  },
+  "orbitRegressions": {
+    "highLatitudeLiveTracking": [
+      "ONEWEB-0012 (44057)",
+      "ONEWEB-0010 (44058)",
+      "COSMOS 2584 [GLONASS-K2] (63130)"
+    ],
+    "geoPointingAndOrbitCenter": "GALAXY 33 (54026)",
+    "rotatingCloseUp": "O3B MPOWER F7 (62362)",
+    "bundledIridiumFilter": {
+      "catalogMatches": "77 / 35547",
+      "normalNear": 0.1,
+      "closeNear": 1e-06,
+      "filteredNear": 0.1
+    },
+    "globeAfterFilteredCloseUp": {
+      "spacecraft": "OneWeb 44057",
+      "renderer": "Chromium WebGL",
+      "cameraNearBeforeFix": 1e-06,
+      "cameraNearAfterFix": 0.1,
+      "viewpoints": 3,
+      "rgbChannelDifferencesAfterFix": [
+        0,
+        0,
+        0
+      ],
+      "comparison": "Compared the central 32 by 32 pixels of the live scene at each viewpoint with the overview projection. The prior renderer differed in two views."
+    }
+  },
+  "modelLibrary": {
+    "manifestProfiles": 1921,
+    "modelsByDirectory": {
+      "geo": 294,
+      "leo": 872,
+      "meo": 142
+    },
+    "distinctModelFileHashes": 1308,
+    "byteIdenticalModelFileGroups": 0,
+    "unusedModelFiles": 0,
+    "catalogedPayloads": 27400,
+    "kuiper": {
+      "prototypeRecords": 2,
+      "productionRecords": 396,
+      "physicalModels": 2
+    },
+    "amc": {
+      "spacecraft": 18,
+      "physicalModels": 11
+    },
+    "illustratedAssetsRendered": 14,
+    "reproducibility": "Regenerated both the LEO and GEO profiles from the recorded local GCAT inputs and compared every resolved profile.",
+    "ses17": {
+      "norad": 49332,
+      "file": "geo/ses-17.glb",
+      "sha256": "0a800a96f75c397c920516eb42cf262ef432384f9b11b54b5c9d9940a3ad9761",
+      "wingspanMetres": 46,
+      "arrayPanelsAbreastFromRoot": [
+        1,
+        1,
+        3,
+        1
+      ],
+      "otherSpacebusNeo200Assignments": [
+        53765,
+        54259,
+        55508,
+        57045,
+        60086
+      ],
+      "verification": "Rebuilt the mesh byte for byte, compared all GEO NORAD assignments and verified the downloaded model and its sources through the local API."
+    }
+  },
+  "starlinkV1": {
+    "filesCompared": 6,
+    "result": "The model, material and four textures under obj/leo matched their original Git blobs byte for byte."
+  },
+  "releaseEngineering": {
+    "command": "npm run test:release",
+    "result": "passed"
+  },
+  "dependencyAudit": {
+    "command": "npm run audit:dependencies",
+    "vulnerabilities": 0
+  },
+  "artifact": {
+    "fileCount": 1479,
+    "totalBytes": 333829176,
+    "manifestSha256": "97cbbbb284ff18fe7a48e8179ec5c7bf3258ded4cc4e19a388f57039e72e4bd3",
+    "verification": "Compared every packaged file to the byte length and SHA-256 in the asset manifest. Verified the packaged model files against the workspace and checked the static API reference."
+  },
+  "rollback": {
+    "command": "npm run rehearse:rollback -- --artifact-root dist",
+    "result": "passed",
+    "verified": "The server fell back to the GP-only artifact and restored the original tracked catalog revision."
+  },
+  "publication": "Commit, tag, publication and exact-commit CI remain pending.",
+  "earlierDevelopmentSnapshot": {
+    "scope": "Before the catalog API and Kuiper/AMC model revisions",
+    "artifact": {
+      "fileCount": 1468,
+      "totalBytes": 332561788,
+      "manifestSha256": "6df106b0f196ce05121fc0c1709d15366896932ea8ada474c7df130d3989cd94",
+      "verification": "Compared all 1,468 source inputs between the workspace and the tested checkout, then verified each installed file against its manifest."
+    },
+    "documentationRefresh": {
+      "date": "2026-11-22",
+      "fullBrowserMatrixArtifact": {
+        "fileCount": 1468,
+        "totalBytes": 332558006,
+        "manifestSha256": "f193c74816a9cc327271cd2cd47146b2636324889df2646600d33c0038f66f52"
+      },
+      "authoredMarkdownFilesChecked": 41,
+      "relativeLinkOccurrencesChecked": 177,
+      "javascriptTestFilesPassed": 71,
+      "pythonPassed": 197,
+      "pythonSkipped": 1,
+      "helpBrowserCasesPassed": 4,
+      "helpBrowserRetries": 0,
+      "offlineHelp": "Opened the guides under a deployment prefix, followed the model viewer and API reference links and verified the Swagger model examples against the bundled manifest and packaged files.",
+      "rebuiltPackageRollback": "passed"
+    }
+  },
+  "catalogAndModelApi": {
+    "backend": "Local bundled catalog and model library",
+    "catalogRevision": "sha256:ca31a530470f012fbbf7aac7c1eae4d8f7f26675be0adf4efa6da59d9b370c18",
+    "modelResources": 1308,
+    "currentOmmNorad": 63130,
+    "historicalWithoutElements": 44080,
+    "sharedO3bNorads": [
+      39188,
+      39189
+    ],
+    "downloads": "Verified file paths and required textures across the model library. Compared a downloaded GLONASS-K2 GLB with its packaged bytes."
+  },
+  "previousCatalogApiBuild": {
+    "scope": "Before the SES-17 and model viewer changes",
+    "artifact": {
+      "fileCount": 1478,
+      "totalBytes": 333656387,
+      "manifestSha256": "94baff7c3ebecca2d8dde84984d9f14ca2338a25abc29a169646a2f0ae227ac2",
+      "verification": "Compared every packaged file to the byte length and SHA-256 in the asset manifest. Verified the packaged model files against the workspace and checked the static API reference."
+    },
+    "browser": {
+      "command": "npm run test:browser -- --workers=1 --retries=1",
+      "projects": [
+        "chromium",
+        "mobile-chromium",
+        "firefox",
+        "webkit"
+      ],
+      "matrixCases": 111,
+      "passedFirstAttempt": 86,
+      "passedOnRetry": 1,
+      "profileSpecificSkips": 24,
+      "unresolvedFailures": 0,
+      "retriedCases": [
+        {
+          "test": "concurrent tab module requests queue within the bounded local server",
+          "project": "chromium",
+          "attempts": 2
+        }
+      ],
+      "concurrentTabConfirmation": {
+        "singleWorker": true,
+        "retries": 0,
+        "passed": 3,
+        "failed": 0
+      }
+    }
+  },
+  "satelliteModelViewer": {
+    "selection": "SES-17 (49332), packaged app under a URL prefix",
+    "startsCollapsed": true,
+    "initialPreviewFrames": 0,
+    "aboveCatalogData": true,
+    "requestsAfterExpansion": 1,
+    "pageErrors": [],
+    "diagnosticsWidthPx": {
+      "desktop": 316,
+      "at320px": 296
+    },
+    "horizontalOverflowPx": {
+      "desktop": 0,
+      "at320px": 0
+    }
+  }
+}

@@ -3763,7 +3763,7 @@ def _tracked_satcat_rows(
     }, quarantine
 
 
-def _valid_gp_records_for_tracked_catalog(
+def valid_gp_records_for_tracked_catalog(
     payload: object,
 ) -> tuple[dict[str, dict[str, object]], list[dict[str, object]]]:
     records = payload if isinstance(payload, list) else []
@@ -4557,7 +4557,7 @@ def build_tracked_catalog(
             paths={"manifest": str(manifest_path), "metadata": str(meta_path)},
         )
 
-    gp_records, gp_quarantine = _valid_gp_records_for_tracked_catalog(gp_payload)
+    gp_records, gp_quarantine = valid_gp_records_for_tracked_catalog(gp_payload)
     quarantine.extend(gp_quarantine)
     previous = _load_tracked_records(root_path)
     current: dict[str, dict[str, object]] = {}

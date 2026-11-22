@@ -8,4 +8,4 @@ Current controls include bounded parsing and requests, scoped authorization, pat
 
 The static app includes an explicit file allowlist. The Python server serves selected Help documents only, not the whole docs tree or repository. Inline bootstrap/style code prevents a complete strict CSP today; a dependency audit is not independent security approval.
 
-See [threat model](engineering/THREAT_MODEL.md), [2.5 review scope](engineering/SECURITY_REVIEW_V2_5.md), [server setup](engineering/SERVER_DEPLOYMENT.md) and [recovery](engineering/ROLLBACK.md).
+The November 22 local dependency audit for 2.6.0 reported zero vulnerabilities. Independent security review is an open roadmap item. [2.6.0 local checks](../release/evidence/v2.6.0-development-checks.json) · [Threat model](engineering/THREAT_MODEL.md) · [2.5 review scope](engineering/SECURITY_REVIEW_V2_5.md) · [Server setup](engineering/SERVER_DEPLOYMENT.md) · [Recovery](engineering/ROLLBACK.md)

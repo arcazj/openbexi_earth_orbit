@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import path from 'node:path';
 
 const ENFORCE_TIMING_BUDGETS = process.env.OPENBEXI_ENFORCE_TIMING_BUDGETS === '1';
-const LIGHTWEIGHT_DETAILED_MODEL_FIXTURE = path.resolve('obj/starlink_v2.glb');
+const LIGHTWEIGHT_DETAILED_MODEL_FIXTURE = path.resolve('obj/leo/starlink_v2.glb');
 
 function emptyTrackedManifestFixture() {
   const quarantineBody = JSON.stringify({ schema_version: '2.3.2', records: [] });
@@ -697,7 +697,7 @@ test('mobile conjunction workflow screens, renders, and fits without horizontal 
   test.skip(testInfo.project.name !== 'mobile-chromium', 'This workflow targets the mobile profile.');
   test.setTimeout(180_000);
   const browserErrors = monitorBrowserErrors(page);
-  await page.route('**/obj/ISS.glb', route => route.fulfill({
+  await page.route('**/obj/leo/ISS.glb', route => route.fulfill({
     contentType: 'model/gltf-binary',
     path: LIGHTWEIGHT_DETAILED_MODEL_FIXTURE
   }));

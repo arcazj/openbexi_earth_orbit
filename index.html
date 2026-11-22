@@ -41,23 +41,7 @@
             aria-label="Exit full-screen Mercator map" title="Exit full-screen Mercator map">&times;</button>
 </div>
 <div id="utcClockDisplay"></div>
-<aside id="trackedCoverageHud" class="tracked-coverage-hud" role="status" aria-live="polite" hidden>
-    <div class="tracked-coverage-hud-header">
-        <strong>Tracked coverage</strong>
-        <span id="trackedCoverageState" class="tracked-coverage-state">Orbital catalog</span>
-    </div>
-    <div class="tracked-coverage-metrics" aria-hidden="true">
-        <span><b id="trackedCoverageMatched">0</b> matches</span>
-        <span><b id="trackedCoveragePositioned">0</b> positioned</span>
-        <span><b id="trackedCoverageUnavailable">0</b> position unavailable</span>
-    </div>
-    <div class="tracked-coverage-meta">
-        <span id="trackedCoverageScope">current</span>
-        <time id="trackedCoverageTimestamp"></time>
-    </div>
-</aside>
 <section id="trackedResultsDrawer" class="tracked-results-drawer" aria-labelledby="trackedResultsTitle" hidden></section>
-<aside id="selectedSatelliteDetailPanel" class="selected-satellite-detail-panel" aria-live="polite" hidden></aside>
 <aside id="solarSystemPlanetHud" class="selected-satellite-detail-panel solar-system-planet-hud" aria-live="polite" hidden></aside>
 <div id="marsTextureLoading" class="planet-texture-loading" role="status" aria-live="polite" hidden>
     <div class="planet-texture-loading-header">
@@ -72,6 +56,7 @@
 <script id="openbexi-main-module" type="text/openbexi-module">
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { fullOrbitCameraFrame } from './js/orbit/selectedOrbitCurve.js';
 
     import {
         mercatorCanvasElement,
@@ -129,6 +114,7 @@
         selectedSatelliteOrbitalFrameQuaternion,
         selectedSatelliteObliqueCameraUp,
         selectedSatelliteObliqueObserverDirection,
+        selectedEarthPointingObserver,
         selectedModelViewportHeightFraction,
         eciToSceneVector,
         ecfToSceneVector
@@ -364,6 +350,7 @@
         'viewContent',
         'conjunctionContent',
         'timelineContent',
+        'restApiContent',
         'shareContent',
         'helpContent'
     ]);
@@ -452,6 +439,7 @@
     let renderableSatellites = [];
     let textureLoader;
     let detailedSatelliteModel = null;
+    let framedOrbitRecord = null, orbitViewButton;
     let satelliteModelLoadToken = 0;
     let selectedModelFillLight = null;
     let selectedModelEarthAlbedoLight = null;
@@ -556,6 +544,7 @@
     let satelliteSearchInput, satelliteSearchResults, satelliteSearchClearButton, satelliteSearchEmpty;
     let selectFirstStarlinkButton, selectIssButton, showOnlySelectedSatelliteCheckbox, selectedSatelliteControls;
     let filterEmptyState, resetFiltersButton, resetFiltersEmptyButton, selectedSatelliteDetailPanel;
+    let selectedDetailMarkup = '';
     let includeHistoricalTrackedObjectsCheckbox, trackedCatalogStatusElement;
     let trackedDebrisFacetsElement, trackedDebrisFacetSummaryElement, resetTrackedDebrisFacetsButton;
     let trackedPositionFacetElement, trackedRcsFacetElement, trackedOwnerFacetElement;
@@ -564,9 +553,6 @@
     let trackedCountTotalElement, trackedCountFilteredElement, trackedCountCurrentElement;
     let trackedCountHistoricalElement, trackedCountPropagatableElement, trackedCountMetadataOnlyElement;
     let trackedCountRenderReadyElement, trackedCountQuarantineElement;
-    let trackedCoverageHudElement, trackedCoverageStateElement, trackedCoverageMatchedElement;
-    let trackedCoveragePositionedElement, trackedCoverageUnavailableElement;
-    let trackedCoverageScopeElement, trackedCoverageTimestampElement;
     let trackedResultsController;
     let globePointerDown = null;
     let currentSearchResults = [];
@@ -1926,23 +1912,9 @@
             lineageBlocked: trackedCatalogLineageBlocked,
             includeHistorical: simParams.includeHistoricalTrackedObjects
         });
-        if (trackedCoverageHudElement) {
-            trackedCoverageHudElement.hidden = !coveragePresentation.visible || simParams.solarSystemOverview;
-            trackedCoverageHudElement.dataset.state = coveragePresentation.state.key;
-            trackedCoverageHudElement.setAttribute('aria-label', coveragePresentation.ariaLabel);
-        }
-        if (trackedCoverageStateElement) trackedCoverageStateElement.textContent = coveragePresentation.state.label;
-        setTrackedCountValue(trackedCoverageMatchedElement, coveragePresentation.matched);
-        setTrackedCountValue(trackedCoveragePositionedElement, coveragePresentation.positioned);
-        setTrackedCountValue(trackedCoverageUnavailableElement, coveragePresentation.unavailable);
-        if (trackedCoverageScopeElement) trackedCoverageScopeElement.textContent = coveragePresentation.scope;
-        if (trackedCoverageTimestampElement) {
-            trackedCoverageTimestampElement.textContent = coveragePresentation.timestamp;
-            trackedCoverageTimestampElement.dateTime = coveragePresentation.timestamp;
-            trackedCoverageTimestampElement.hidden = !coveragePresentation.timestamp;
-        }
-        lastTrackedRenderReadyCount = displayCounts.render_ready;
-        return displayCounts;
+        const snapshotInfo = document.getElementById('trackedSnapshotInfo');
+        snapshotInfo.textContent = [coveragePresentation.state.label, coveragePresentation.scope, coveragePresentation.timestamp]
+            .filter(Boolean).join(' · ');
     }
 
     function selectMapTrackedObject(record) {
@@ -2203,6 +2175,7 @@
     }
 
     function updateSelectedSatelliteControlsVisibility(satData = currentSelectedSatellite) {
+        if (framedOrbitRecord && framedOrbitRecord !== satData) setFramedOrbit(null);
         const hasActiveSatellite = !satData?.isDecayedTimelineRecord &&
             hasActiveSatelliteSceneRecord(satData);
         if (selectedSatelliteControls) {
@@ -2673,9 +2646,8 @@
         return rows.filter(([, value]) => hasSatelliteDetailValue(value));
     }
 
-    function selectedSatelliteModelSourceDetail(satData) {
+    function selectedSatelliteModelSourceDetail(satData, modelResolution) {
         if (!satData) return null;
-        const modelResolution = resolveSatelliteModel(satData);
         const assetId = String(modelResolution?.assetId || '').toLowerCase();
         const metadataId = String(modelResolution?.metadataId || '').toLowerCase();
         if (modelResolution?.found && (
@@ -2699,27 +2671,57 @@
         const clockEl = document.getElementById("utcClockDisplay");
         const clockRect = clockEl?.getBoundingClientRect?.();
         const timeControlsRect = document.getElementById('timeWarpBox')?.getBoundingClientRect?.();
-        const clockWidth = Math.ceil(clockRect?.width || 0);
-        const clockRight = clockRect ? Math.max(0, Math.ceil(window.innerWidth - clockRect.right)) : 16;
+        const clockWidth = clockRect?.width || 0;
+        const clockRight = clockRect ? Math.max(0, window.innerWidth - clockRect.right) : 16;
         const panelAnchorBottom = Math.max(clockRect?.bottom || 0, timeControlsRect?.bottom || 0);
         const panelTop = panelAnchorBottom ? Math.ceil(panelAnchorBottom + 14) : 52;
-        if (clockWidth > 0) {
-            [
-                selectedSatelliteDetailPanel,
-                solarSystemPlanetHudElement || document.getElementById('solarSystemPlanetHud')
-            ].filter(Boolean).forEach((panel) => {
-                panel.style.width = `${clockWidth}px`;
-                panel.style.right = `${clockRight}px`;
-                panel.style.top = `${panelTop}px`;
-            });
+        if (clockWidth && clockEl.textContent) document.body.style.setProperty('--catalog-panel-width', `${clockWidth}px`);
+        document.body.style.setProperty('--catalog-panel-right', `${clockRight}px`);
+        document.body.style.setProperty('--catalog-panel-top', `${panelTop}px`);
+        if (clockWidth > 0 && solarSystemPlanetHudElement) {
+            solarSystemPlanetHudElement.style.width = `${clockWidth}px`;
+            solarSystemPlanetHudElement.style.right = `${clockRight}px`;
+            solarSystemPlanetHudElement.style.top = `${panelTop}px`;
         }
+    }
+
+    function collapseSelectedOmmDetails() {
+        selectedSatelliteDetailPanel?.querySelector('.selected-satellite-omm-section')?.removeAttribute('open');
+    }
+
+    function syncSelectedModelPreview() {
+        const section = document.getElementById('selectedModelViewer');
+        const host = document.getElementById('selectedModelPreview');
+        const link = document.getElementById('selectedModelViewerLink');
+        if (!section.open || !link.search) {
+            if (host.firstElementChild) host.replaceChildren();
+            return;
+        }
+        const url = new URL(link.href);
+        url.searchParams.set('embed', '1');
+        if (host.firstElementChild?.src === url.href) return;
+        const frame = document.createElement('iframe');
+        frame.title = 'Interactive satellite model';
+        frame.src = url.href;
+        host.replaceChildren(frame);
     }
 
     function updateSelectedSatelliteDetailPanel(satData = currentSelectedSatellite) {
         if (!selectedSatelliteDetailPanel) return;
+        const resolution = satData ? resolveSatelliteModel(satData) : null;
+        const link = document.getElementById('selectedModelViewerLink');
+        const notice = document.getElementById('selectedModelNotice');
+        const url = new URL('display_satellite.html', document.baseURI);
+        if (resolution?.found) url.searchParams.set('model', resolution.assetId);
+        link.href = url.href;
+        link.textContent = resolution?.found ? 'Open full viewer' : 'Browse satellite models';
+        notice.hidden = Boolean(resolution?.found);
+        notice.textContent = satData ? 'No model is available for this object.' : 'Select a spacecraft to preview its model.';
+        syncSelectedModelPreview();
         if (!satData) {
             selectedSatelliteDetailPanel.hidden = true;
             selectedSatelliteDetailPanel.innerHTML = '';
+            selectedDetailMarkup = '';
             return;
         }
 
@@ -2740,10 +2742,9 @@
             .join('');
         const elementSection = elementFormat === 'OMM' && elementSet.omm && ommRows
             ? `
-            <details class="selected-satellite-detail-section selected-satellite-omm-section" open>
+            <details class="selected-satellite-detail-section selected-satellite-omm-section">
               <summary>
                 <span>OMM details</span>
-                <small>Collapse OMM</small>
               </summary>
               <table class="selected-satellite-detail-table" aria-label="OMM details">
                 <tbody>${ommRows}</tbody>
@@ -2753,7 +2754,6 @@
             <details class="selected-satellite-detail-section selected-satellite-tle-section" open>
               <summary>
                 <span>TLE details</span>
-                <small>Collapse TLE</small>
               </summary>
               <div class="selected-satellite-tle-block" aria-label="TLE details">
                 <strong>TLE line 1</strong>
@@ -2762,13 +2762,12 @@
                 <code>${escapeHtml(tleLine2)}</code>
               </div>
             </details>` : '';
-        const sourceDetail = selectedSatelliteModelSourceDetail(satData);
+        const sourceDetail = selectedSatelliteModelSourceDetail(satData, resolution);
         const sourceSection = sourceDetail
             ? `
             <details class="selected-satellite-detail-section selected-satellite-source-section" open>
               <summary>
                 <span>Source detail</span>
-                <small>Collapse source</small>
               </summary>
               <p class="selected-satellite-source-detail">${escapeHtml(sourceDetail)}</p>
             </details>`
@@ -2782,7 +2781,7 @@
                     : 'No current orbital elements are available.')
             )} This object is not rendered on the globe or map.</p>`
             : '';
-        selectedSatelliteDetailPanel.innerHTML = `
+        const markup = `
           <div class="selected-satellite-detail-header">
             <span>Selected Tracked Object</span>
             <strong>${escapeHtml(satData.satellite_name || satData.name || 'Tracked object')}</strong>
@@ -2792,21 +2791,37 @@
             <details class="selected-satellite-detail-section selected-satellite-data-section" open>
               <summary>
                 <span>Catalog data</span>
-                <small>${rows ? 'Collapse details' : 'No extra data'}</small>
               </summary>
               <table class="selected-satellite-detail-table">
                 <tbody>${rows}</tbody>
               </table>
+              ${sourceSection}
             </details>
             ${elementSection}
-            ${sourceSection}
           </div>`;
+        if (markup !== selectedDetailMarkup) {
+            selectedSatelliteDetailPanel.innerHTML = markup;
+            selectedDetailMarkup = markup;
+        }
         selectedSatelliteDetailPanel.hidden = false;
         syncSelectedSatelliteDetailPanelWidth();
     }
 
     function updateApiDocsState() {
         const connected = serverConnectionState.state === 'connected';
+        const catalogExamples = document.getElementById('catalogApiExamples');
+        if (catalogExamples) {
+            const available = connected && serverConnectionState.version?.catalog_model_api === '/api/v1/objects';
+            catalogExamples.hidden = !available;
+            for (const link of catalogExamples.querySelectorAll('[data-catalog-route]')) {
+                if (available) link.href = serverConnectionState.baseUrl + link.dataset.catalogRoute;
+                else link.removeAttribute('href');
+            }
+            document.getElementById('catalogApiStatus').textContent = available
+                ? 'Try these read-only requests on the connected server.'
+                : connected ? 'The connected server does not advertise the catalog API. Start the updated 2.6 server to use the examples.'
+                    : 'Start the local Python server to open the catalog and model examples.';
+        }
         const swaggerUiUrl = 'swagger.html';
         const swaggerMarkdownUrl = 'markdown_viewer.html?source=docs/SWAGGER.md&title=Swagger%20API';
         const openApiUrl = `${serverConnectionState.baseUrl}/openapi.json`;
@@ -3036,6 +3051,7 @@
         if (catalogRefreshInProgress) throw new Error('A catalog refresh is already in progress.');
         if (!scene) throw new Error('The orbital scene is not ready for catalog refresh.');
         catalogRefreshInProgress = true;
+        collapseSelectedOmmDetails();
         const selectedNorad = currentSelectedSatellite?.norad_id?.toString() || null;
         const savedTrackedFacets = structuredClone(simParams.trackedFacets);
         const staticSource = status?.source === 'static-metadata';
@@ -3518,28 +3534,10 @@
         }
     }
 
-    function expandCollapsibleSection(targetId) {
-        const collapsedSections = collapsedAccordionSections;
-        setAccordionSectionCollapsed(targetId, false, collapsedSections);
-        debounceMenuStateWrite(MENU_COLLAPSE_STORAGE_KEY, Array.from(collapsedSections));
-    }
-
     function ensureYPRControlsVisibleForSelection() {
         const showYPRToggle = document.getElementById('showYPRToggle');
-        const yprSlidersRow = document.getElementById('yprSlidersRow');
-        const hasSelection = !!currentSelectedSatellite;
         if (showYPRToggle) showYPRToggle.checked = !!simParams.showYPR;
-        if (yprSlidersRow) {
-            const showSliders = hasSelection && !!simParams.showYPR;
-            yprSlidersRow.hidden = !showSliders;
-            yprSlidersRow.style.display = showSliders ? 'grid' : 'none';
-        }
-        setYPRVisibility(yprFrame, hasSelection && !!simParams.showYPR);
         updateSelectedSatelliteControlsVisibility(currentSelectedSatellite);
-
-        if (hasSelection && simParams.showYPR) {
-            expandCollapsibleSection('satelliteSelectionContent');
-        }
     }
 
     // Time-warp UI
@@ -3976,7 +3974,7 @@
                 uniform vec3 glowColor;
                 varying vec3 vNormal;
                 void main() {
-                    float intensity = pow(0.62 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.4);
+                    float intensity = pow(max(0.0, 0.62 - normalize(vNormal).z), 2.4);
                     gl_FragColor = vec4(glowColor, clamp(intensity, 0.0, 0.48));
                 }
             `
@@ -4135,6 +4133,12 @@
             showYPR: simParams.showYPR,
             showFootprint: simParams.showFootprint,
             cameraPosition: camera.position.clone(),
+            cameraUp: camera.up.clone(),
+            cameraNear: camera.near,
+            cameraFar: camera.far,
+            cameraMove,
+            cameraMoveElapsed: cameraMove ? clock.getElapsedTime() - cameraMove.startTime : 0,
+            selectedModelTracking,
             controlsTarget: controls.target.clone(),
             controlsMinDistance: controls.minDistance,
             controlsMaxDistance: controls.maxDistance,
@@ -4152,13 +4156,21 @@
         simParams.showOrbitFrame = previous.showOrbitFrame;
         simParams.showYPR = previous.showYPR;
         simParams.showFootprint = previous.showFootprint;
-        if (camera) camera.position.copy(previous.cameraPosition);
-        if (controls) {
-            controls.target.copy(previous.controlsTarget);
-            controls.minDistance = previous.controlsMinDistance;
-            controls.maxDistance = previous.controlsMaxDistance;
-            controls.update();
-        }
+        clearCameraMomentum();
+        camera.position.copy(previous.cameraPosition);
+        camera.up.copy(previous.cameraUp);
+        camera.near = previous.cameraNear;
+        camera.far = previous.cameraFar;
+        camera.updateProjectionMatrix();
+        cameraMove = previous.cameraMove;
+        if (cameraMove) cameraMove.startTime = clock.getElapsedTime() - previous.cameraMoveElapsed;
+        controls.enabled = !cameraMove;
+        selectedModelTracking = previous.selectedModelTracking?.targetObject === detailedSatelliteModel
+            ? previous.selectedModelTracking : null;
+        controls.target.copy(previous.controlsTarget);
+        controls.minDistance = previous.controlsMinDistance;
+        controls.maxDistance = previous.controlsMaxDistance;
+        controls.update();
         if (detailedSatelliteModel) {
             detailedSatelliteModel.visible = !!previous.detailedSatelliteModelVisible;
         }
@@ -4167,6 +4179,7 @@
 
     function setSolarSystemEarthLayerVisibility(active) {
         document.body.classList.toggle('solar-system-active', active);
+        if (active) document.getElementById('selectedModelViewer')?.removeAttribute('open');
         if (earthMesh) earthMesh.visible = !active;
         if (moon) moon.visible = !active;
         if (mars) mars.visible = !active;
@@ -4195,6 +4208,9 @@
         }
         if (next) {
             solarSystemPreviousState = snapshotSolarSystemPreviousState();
+            cameraMove = null;
+            disableSelectedModelTracking();
+            if (controls) controls.enabled = true;
             if (!simulationClock.state().live) simulationClock.setRate(0);
             lastRunningTimeWarp = 1;
             solarSystemTimeControls?.activate();
@@ -4216,9 +4232,11 @@
             simParams.solarSystemFocusedPlanet = null;
             setSolarSystemOverviewVisible(solarSystemOverview, false);
             setSolarSystemSelectedPlanet(solarSystemOverview, null);
-            if (restorePrevious) restoreSolarSystemPreviousState();
-            if (!restorePrevious) solarSystemPreviousState = null;
-            restoreEarthControlLimits();
+            if (restorePrevious && previousClock) restoreSolarSystemPreviousState();
+            else {
+                solarSystemPreviousState = null;
+                restoreEarthControlLimits();
+            }
             updateSatelliteList();
             if (renderer?.domElement) renderer.domElement.style.cursor = '';
         }
@@ -4598,13 +4616,6 @@
         trackedCountMetadataOnlyElement = document.getElementById('trackedCountMetadataOnly');
         trackedCountRenderReadyElement = document.getElementById('trackedCountRenderReady');
         trackedCountQuarantineElement = document.getElementById('trackedCountQuarantine');
-        trackedCoverageHudElement = document.getElementById('trackedCoverageHud');
-        trackedCoverageStateElement = document.getElementById('trackedCoverageState');
-        trackedCoverageMatchedElement = document.getElementById('trackedCoverageMatched');
-        trackedCoveragePositionedElement = document.getElementById('trackedCoveragePositioned');
-        trackedCoverageUnavailableElement = document.getElementById('trackedCoverageUnavailable');
-        trackedCoverageScopeElement = document.getElementById('trackedCoverageScope');
-        trackedCoverageTimestampElement = document.getElementById('trackedCoverageTimestamp');
         trackedResultsController = createTrackedResultsController({
             root: document,
             getRecords: buildFilteredSatellitesBySelection,
@@ -4653,6 +4664,8 @@
         showStarAtmosphereToggleElement = document.getElementById('showStarAtmosphereToggle');
         starCatalogSummaryElement = document.getElementById('starCatalogSummary');
         showOrbitToggle = document.getElementById('showOrbitToggle');
+        orbitViewButton = document.getElementById('orbitViewButton');
+        orbitViewButton.addEventListener('click', toggleFullOrbitView);
         selectFirstStarlinkButton = document.getElementById('selectFirstStarlinkButton');
         selectIssButton = document.getElementById('selectIssButton');
 
@@ -4668,6 +4681,7 @@
         resetFiltersButton = document.getElementById('resetFiltersButton');
         resetFiltersEmptyButton = document.getElementById('resetFiltersEmptyButton');
         selectedSatelliteDetailPanel = document.getElementById('selectedSatelliteDetailPanel');
+        document.getElementById('selectedModelViewer').addEventListener('toggle', syncSelectedModelPreview);
         solarSystemPlanetHudElement = document.getElementById('solarSystemPlanetHud');
         selectedSatelliteControls = document.getElementById('selectedSatelliteControls');
 
@@ -5166,6 +5180,7 @@
         }
     }
     async function handleSatelliteDropdownChange(event) {
+        collapseSelectedOmmDetails();
         const selectionToken = ++satelliteModelLoadToken;
         const selectedValue = event.target.value;
         const selectedOption = event.target.selectedOptions?.[0];
@@ -5388,6 +5403,12 @@
 
     function clearDetailedSatelliteView() {
         disableSelectedModelTracking();
+        if (!simParams.solarSystemOverview && camera && controls && defaultCameraNear !== null &&
+            camera.near < defaultCameraNear) {
+            cameraMove = null;
+            controls.enabled = true;
+            restoreEarthControlLimits();
+        }
         if (detailedSatelliteModel) {
             const oldNoradId = detailedSatelliteModel.userData ? detailedSatelliteModel.userData.noradId : null;
             clearCurrentDetailedSat(scene);
@@ -5511,6 +5532,7 @@
     }
 
     function restoreEarthControlLimits() {
+        setFramedOrbit(null);
         disableSelectedModelTracking();
         if (!controls) return;
         if (defaultControlsMinDistance !== null) controls.minDistance = defaultControlsMinDistance;
@@ -5593,12 +5615,8 @@
         return selectedSatelliteOrbitalFrame(targetPos, velocityScene);
     }
 
-    function currentStarlinkOrbitalFrame(targetPos, propagation = null) {
-        return currentSelectedOrbitalFrame(targetPos, propagation);
-    }
-
     function selectedStarlinkCameraFrameOptions(targetPos, propagation = null) {
-        const orbitalFrame = currentStarlinkOrbitalFrame(targetPos, propagation);
+        const orbitalFrame = currentSelectedOrbitalFrame(targetPos, propagation);
         if (!orbitalFrame) {
             console.warn('[camera] Starlink orbital-frame velocity unavailable; falling back to nadir observer view.');
             return null;
@@ -5612,8 +5630,14 @@
         return {
             orbitalFrame,
             observerDirection,
-            cameraUp
+            cameraUp,
+            placement: 'starlink-oblique-orbital-frame'
         };
+    }
+
+    function detailedModelOrbitClass(object) {
+        return object && object === detailedSatelliteModel
+            ? currentSelectedSatellite?.orbit_class || currentSelectedSatellite?.orbitType : null;
     }
 
     function vectorSnapshot(value) {
@@ -5681,9 +5705,13 @@
         const modelDiameter = Number.isFinite(storedDiameter) && storedDiameter > 0
             ? storedDiameter
             : getObjectVisualDiameter(targetObject, 0);
-        const starlinkCameraFrame = isStarlinkDetailedModel(targetObject)
-            ? selectedStarlinkCameraFrameOptions(targetPos, propagation)
-            : null;
+        const orbitClass = detailedModelOrbitClass(targetObject);
+        let observer = null;
+        if (isStarlinkDetailedModel(targetObject)) {
+            observer = selectedStarlinkCameraFrameOptions(targetPos, propagation);
+        } else {
+            observer = selectedEarthPointingObserver(currentSelectedOrbitalFrame(targetPos, propagation), orbitClass);
+        }
         const frame = selectedSatelliteCameraFrame(targetPos, {
             requestedMeters: SELECTED_SATELLITE_TARGET_METERS,
             modelDiameterSceneUnits: modelDiameter,
@@ -5691,7 +5719,7 @@
             earthRadiusSceneUnits: EARTH_SCENE_RADIUS,
             earthContextDistanceSceneUnits: 0,
             preservePhysicalDistance: true,
-            observerDirectionScene: starlinkCameraFrame?.observerDirection || null
+            observerDirectionScene: observer?.observerDirection || null
         });
         if (!frame) return null;
 
@@ -5702,10 +5730,8 @@
             modelDiameter,
             cameraPosition: new THREE.Vector3(frame.position.x, frame.position.y, frame.position.z),
             cameraTarget: new THREE.Vector3(frame.target.x, frame.target.y, frame.target.z),
-            cameraUp: starlinkCameraFrame?.cameraUp || null,
-            observerPlacement: starlinkCameraFrame
-                ? 'starlink-oblique-orbital-frame'
-                : 'selected-model-radial'
+            cameraUp: observer?.cameraUp || null,
+            observerPlacement: observer?.placement || 'selected-model-radial'
         };
     }
 
@@ -5930,9 +5956,17 @@
         controls.update();
     }
 
+    function clearCameraMomentum() {
+        if (!controls.enableDamping) return;
+        controls.enableDamping = false;
+        controls.update();
+        controls.enableDamping = true;
+    }
+
     function animateCameraTo(endCamPos, endTarget, millis = 1500) {
         if (!camera || !controls || !endCamPos || !endTarget) return;
         if (!(millis > 0)) {
+            clearCameraMomentum();
             cameraMove = null;
             camera.position.copy(endCamPos);
             controls.target.copy(endTarget);
@@ -5968,8 +6002,38 @@
         animateCameraTo(endCamPos, targetPos.clone(), millis);
     }
 
+    function setFramedOrbit(record) {
+        framedOrbitRecord = record;
+        if (orbitViewButton) orbitViewButton.textContent = record ? 'View spacecraft' : 'View full orbit';
+    }
+
+    function toggleFullOrbitView() {
+        const object = selectedSatelliteDisplayObject();
+        if (!object || !hasActiveSatelliteSceneRecord(currentSelectedSatellite)) return;
+        if (simParams.solarSystemOverview) setSolarSystemOverviewMode(false);
+        if (!simParams.view3D) view3DToggle.click();
+        if (simParams.viewMercator) viewMercatorToggle.click();
+        if (framedOrbitRecord === currentSelectedSatellite) {
+            setFramedOrbit(null);
+            flyCameraToSelectedSatellite(object, 0, object === currentSelectedSatellite.mesh);
+            return;
+        }
+        if (!simParams.showOrbit) showOrbitToggle.click();
+        const orbit = refreshOrbitTrajectoryIfNeeded(scene, simParams, currentSelectedSatellite);
+        const normal = currentSelectedOrbitalFrame(object.position)?.yAxis;
+        const frame = fullOrbitCameraFrame(orbit?.userData.sourceSegments, normal, camera);
+        if (!frame) return;
+        restoreEarthControlLimits();
+        controls.maxDistance = Math.max(controls.maxDistance, frame.range * 1.2);
+        camera.far = Math.max(camera.far, frame.range + 2 * frame.radius);
+        camera.updateProjectionMatrix();
+        animateCameraTo(frame.position, frame.target, 0);
+        setFramedOrbit(currentSelectedSatellite);
+    }
+
     function flyCameraToSelectedSatellite(targetObject, millis = 1500, isSprite = false) {
         if (!targetObject || !camera || !controls) return;
+        if (framedOrbitRecord && framedOrbitRecord === currentSelectedSatellite) return;
         if (!simParams.view3D) return;
         targetObject.updateMatrixWorld(true);
 
@@ -6084,6 +6148,31 @@
         }
     }
 
+    function renderCloseSatelliteScene() {
+        // A metre-scale near plane otherwise quantizes the far side of the scene
+        // (including the Earth and sky) to the same depth value.
+        const near = camera.near, far = camera.far, split = 0.05; // 50 km from the observer
+        const autoClear = renderer.autoClear, background = scene.background;
+        try {
+            camera.near = split;
+            camera.updateProjectionMatrix();
+            renderer.render(scene, camera);
+            renderer.autoClear = false;
+            scene.background = null;
+            renderer.clearDepth();
+            camera.near = near;
+            camera.far = split;
+            camera.updateProjectionMatrix();
+            renderer.render(scene, camera);
+        } finally {
+            scene.background = background;
+            renderer.autoClear = autoClear;
+            camera.near = near;
+            camera.far = far;
+            camera.updateProjectionMatrix();
+        }
+    }
+
     function selectedSatelliteDisplayObject() {
         if (detailedSatelliteModel?.visible) return detailedSatelliteModel;
         return currentSelectedSatellite?.mesh || null;
@@ -6096,7 +6185,19 @@
         let q = null;
         const isStarlinkModel = isStarlinkDetailedModel(displayObject);
         const isIssModel = isIssDetailedModel(displayObject);
-        if (isStarlinkModel || isIssModel) {
+        const orbitClass = detailedModelOrbitClass(displayObject);
+        if (displayObject === detailedSatelliteModel && !isStarlinkModel && !isIssModel) {
+            const pv = propagation || (currentSelectedSatellite.satrec && satellite.propagate(currentSelectedSatellite.satrec, SIM_DATE));
+            const velocity = selectedSatelliteVelocitySceneFromPropagation(pv);
+            if (velocity) {
+                q = selectedSatelliteOrbitalFrameQuaternion(Q_TMP1, satPos, velocity, {
+                    ...selectedSatelliteOrientationBias(),
+                    modelAxisMapping: orbitClass === 'GEO'
+                        ? 'x-negative-crosstrack-y-velocity-z-nadir' : 'x-velocity-y-crosstrack-z-nadir'
+                });
+                if (q) displayObject.userData.orientationMode = `${(orbitClass || 'satellite').toLowerCase()}-earth-pointing`;
+            }
+        } else if (isStarlinkModel || isIssModel) {
             let pv = propagation;
             if (!pv?.velocity && currentSelectedSatellite?.satrec) {
                 pv = satellite.propagate(currentSelectedSatellite.satrec, SIM_DATE);
@@ -6547,9 +6648,18 @@
             }
             if (simParams.showOrbit && !simParams.solarSystemOverview && propagatableSelectedSatellite) {
                 refreshOrbitTrajectoryIfNeeded(scene, simParams, propagatableSelectedSatellite, { realTimeMs: nowPerf });
-                refreshSelectedOrbitOcclusion(camera, { earthRadiusScene: EARTH_SCENE_RADIUS });
+                refreshSelectedOrbitOcclusion(camera, {
+                    earthRadiusScene: EARTH_SCENE_RADIUS,
+                    viewportHeight: renderer.domElement.height,
+                    satellitePosition: detailedSatelliteModel?.visible ? detailedSatelliteModel.position : null,
+                    simTimeMs: SIM_DATE.getTime()
+                });
             }
-            renderer.render(scene, camera);
+            if (!simParams.solarSystemOverview && camera.near <= SELECTED_MODEL_CAMERA_NEAR_SCENE_UNITS) {
+                renderCloseSatelliteScene();
+            } else {
+                renderer.render(scene, camera);
+            }
             startupPerf.markOnce('first-visible-globe-render');
             if (!simParams.solarSystemOverview) {
                 update3DLabelsPosition(camera, simParams, rotY);

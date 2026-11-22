@@ -1,5 +1,19 @@
 # Release notes
 
+## v2.6.0 — development, unreleased
+
+- The local server adds read-only catalog search, NORAD lookup and shared spacecraft model resources under `/api/v1`. Open **REST API** below **Timelines** for the endpoint reference and downloadable OpenAPI contract. The section starts collapsed. [Catalog and model API](SWAGGER.md#catalog-and-models)
+
+- Open **Browse catalog results** and enter a name, NORAD ID, international designator or owner in **Filter results**. Terms can be combined in any order. In the bundled MEO payload catalog, `GLONASS-K2` finds two spacecraft and `GLONASS-K2 63130` narrows the list to COSMOS 2584. **Clear** restores the current availability tab and sort order, including on a 320 px screen.
+- The right-hand catalog panel lines up with the UTC clock. Above **Catalog data**, expand **Satellite Model Viewer** to inspect the selected spacecraft in place or open it in a new tab. The preview follows selection while open. The full viewer places design references, dimensions and mesh statistics in a compact diagnostics panel. OMM details start collapsed, and the tracked counts and legend are in the summary at the bottom.
+- Live spacecraft tracking uses the orbital frame to stabilize the camera through high-latitude passes, including OneWeb and GLONASS-K2. The selected orbit stays centered during close inspection. **View full orbit** shows it face-on and **View spacecraft** returns to the close-up.
+- Returning from a spacecraft close-up by changing catalog filters restores the globe's depth range. This fixes the moving dark polygons that could appear over land and ocean.
+- Selecting SES-17 (NORAD 49332) loads its deployed 46 m solar wings, gold-blanketed body and two side-mounted reflector banks. Five other Spacebus NEO spacecraft continue to share the family model. [SES-17 in the viewer](../display_satellite.html?catalog=geo&norad=49332)
+- The two original Kuiper prototypes and the production Amazon Leo spacecraft have separate shared models. Eighteen AMC spacecraft now resolve to eleven illustrated exteriors, including AMC-14 in the MEO catalog and the former AMC-12 and AMC-23 under their later names. The viewer and API expose the design sources and estimated details. [Model references](THIRD_PARTY_NOTICES.md)
+- The Satellite Model Viewer groups current and historical LEO, MEO and GEO spacecraft by shared hardware. Starlink V1, V2 and V3 each have one primary model. The V1 geometry, material and four textures match the originals byte for byte. Revised GEO exteriors include Intelsat 23, 25 and 28 and Galaxy 17, 33 and 34. Diagnostics identify reference imagery, estimated dimensions and catalog outlines. [Satellite Model Viewer](../display_satellite.html) · [Spacecraft model references](THIRD_PARTY_NOTICES.md)
+
+Local regression coverage includes filter changes during close-up tracking, pixel comparisons of the globe at three viewing angles, shared model assignments, and the catalog API against the bundled data. Release CI against a final commit is pending.
+
 ## v2.5.1 — development prerelease
 
 Solar System playback units now sit beside Play/Pause and Live in both integrated and standalone views. Choose sec/s (default), min/s, hour/s or day/s; year/s remains under Advanced. Readouts show explicit rates such as `-2 hour/s`. Changing units preserves the UTC instant, signed multiplier and paused/running state. Live resets to current UTC at `1 sec/s`; historical playback never claims Live.

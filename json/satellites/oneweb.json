@@ -2,14 +2,14 @@
   "0": {
     "name": "oneweb",
     "meta": {
-      "norad_id": "44072",
-      "smuid": "oneweb_44072",
+      "norad_id": "44057",
+      "smuid": "oneweb_44057",
       "type": "platform",
       "description": "OneWeb first-generation broadband satellite providing global connectivity in near-polar low Earth orbit.",
       "scid": "oneweb_GEN1",
       "modDate": "2025-11-02T00:00:00Z",
       "sduid": "OW-GEN1",
-      "bus": "OneWeb Gen1 Bus",
+      "bus": "Arrow",
       "manufacturer": "Airbus OneWeb Satellites",
       "launch_mass_kg": 150,
       "dry_mass_kg": 147,

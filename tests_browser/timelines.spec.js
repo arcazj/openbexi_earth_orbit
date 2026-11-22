@@ -202,11 +202,12 @@ async function routeEmptyTrackedCatalog(page) {
   ], emptyTrackedManifestFixture());
 }
 
-async function waitForStaticRevisionBaseline(page) {
+async function expectTimelineRevisions(page, launchMetadata, decayMetadata) {
+  // A scheduled catalog check can apply the revision before the manual check.
   await expect.poll(() => page.evaluate(async () => {
     const result = await window.openbexiServerConnection?.checkForDataUpdates?.();
-    return result?.revision ?? null;
-  })).not.toBeNull();
+    return [result?.status?.launch_revision, result?.status?.decay_revision];
+  })).toEqual([launchMetadata.catalog_revision, decayMetadata.catalog_revision]);
 }
 
 function createTimelineFixtureState() {
@@ -268,7 +269,7 @@ async function bootTimelineFixture(page, state) {
   await page.waitForFunction(() => (
     typeof window.openbexiServerConnection?.checkForDataUpdates === 'function'
   ));
-  await waitForStaticRevisionBaseline(page);
+  await expectTimelineRevisions(page, state.launchMetadata, state.decayMetadata);
 }
 
 async function timelineHasPaint(canvas) {
@@ -314,6 +315,14 @@ test('OMM selection and static catalog revisions refresh both timelines without 
   const state = createTimelineFixtureState();
   await bootTimelineFixture(page, state);
 
+  const catalogPanel = page.locator('#catalogPanel');
+  const browse = page.getByRole('button', { name: 'Browse catalog results' });
+  const recordSummary = catalogPanel.locator('#trackedRecordSummary');
+  await expect(browse).toBeVisible();
+  await expect(catalogPanel.getByRole('button', { name: 'Browse catalog results' })).toHaveCount(1);
+  await expect(recordSummary).toHaveJSProperty('open', false);
+  await expect(catalogPanel.locator('#selectedSatelliteDetailPanel')).toBeHidden();
+
   await page.locator('#orbitTypeFilter [data-orbit-filter="ALL"]').click();
   const searchInput = page.locator('#satelliteSearchInput');
   await expect(searchInput).toBeEnabled();
@@ -321,18 +330,30 @@ test('OMM selection and static catalog revisions refresh both timelines without 
   const ommOption = page.locator('#satelliteSearchResults [data-norad-id="100001"]');
   await expect(ommOption).toBeVisible();
   await ommOption.click();
-  const selectedDetails = page.locator('#selectedSatelliteDetailPanel');
-  const menuConstrainedLayout = await page.evaluate(() => matchMedia('(max-width: 1280px)').matches);
-  if (menuConstrainedLayout) {
-    await expect(selectedDetails).toBeHidden();
-    await expect(searchInput).toHaveValue('OMM ACTIVE 100001');
-  } else {
-    await expect(selectedDetails).toBeVisible();
-  }
+  const selectedDetails = catalogPanel.locator('#selectedSatelliteDetailPanel');
+  await expect(selectedDetails).toBeVisible();
+  await expect(searchInput).toHaveValue('OMM ACTIVE 100001');
   await expect(selectedDetails).toContainText('OMM ACTIVE 100001');
   await expect(selectedDetails).toContainText('OMM details');
   const canonicalDetails = selectedDetails.locator('.selected-satellite-data-section');
   const ommDetails = selectedDetails.locator('.selected-satellite-omm-section');
+  await expect(canonicalDetails).toHaveJSProperty('open', true);
+  await expect(ommDetails).toHaveJSProperty('open', false);
+  expect(await catalogPanel.locator('#openTrackedResults, #selectedSatelliteControls, #yprSlidersRow, .selected-satellite-data-section, .selected-satellite-omm-section, #selectedModelViewer, #trackedRecordSummary')
+    .evaluateAll(nodes => nodes.map(node => node.id || node.querySelector('summary > span').textContent.trim())))
+    .toEqual(['openTrackedResults', 'selectedSatelliteControls', 'yprSlidersRow', 'selectedModelViewer', 'Catalog data', 'OMM details', 'trackedRecordSummary']);
+  await expect(catalogPanel.locator('#selectedSatelliteControls input[type="checkbox"]')).toHaveCount(5);
+  await ommDetails.locator('summary').press('Enter');
+  await expect(ommDetails.locator('table')).toBeVisible();
+  await expect(recordSummary).toHaveJSProperty('open', false);
+  await recordSummary.locator('summary').press('Enter');
+  await expect(recordSummary.locator('#trackedCatalogCounts dt')).toHaveCount(8);
+  await expect(recordSummary.locator('#trackedCatalogStatus')).toBeVisible();
+  await expect(recordSummary.locator('#trackedSnapshotInfo')).toBeVisible();
+  await expect(recordSummary.locator('#trackedObjectLegend')).toBeVisible();
+  await expect(ommDetails).toHaveJSProperty('open', true);
+  await recordSummary.locator('summary').press('Enter');
+  await ommDetails.locator('summary').press('Enter');
   await expect(canonicalDetails.locator('th', { hasText: /^NORAD ID$/ })).toHaveCount(1);
   await expect(canonicalDetails.locator('th', { hasText: /^Inclination \(deg\)$/ })).toHaveCount(1);
   await expect(canonicalDetails.locator('th', { hasText: /^Eccentricity$/ })).toHaveCount(1);
@@ -391,11 +412,7 @@ test('OMM selection and static catalog revisions refresh both timelines without 
   state.launchMetadata = staticMetadata('sha256:launch-two', 'newest_launch_date', '2026-08-23');
   state.decayCatalog = REVISED_DECAY_CATALOG;
   state.decayMetadata = staticMetadata('sha256:decay-two', 'newest_confirmed_decay_date', '2026-08-23');
-  const refreshResult = await page.evaluate(() => (
-    window.openbexiServerConnection.checkForDataUpdates()
-  ));
-  expect(refreshResult.error).toBeUndefined();
-  expect(refreshResult.changed).toBe(true);
+  await expectTimelineRevisions(page, state.launchMetadata, state.decayMetadata);
   expect(await page.evaluate(() => window.__openbexiTimelineDocumentToken)).toBe(documentToken);
 
   await expect(reentryStatus).toContainText('Latest re-entry: 2026-08-23');
@@ -482,7 +499,7 @@ test('unavailable GP falls back to TLE and auxiliary-only revisions avoid anothe
     window.openbexiStartupPerformance?.summary().some(entry => entry.name === 'first-interactive-ui')
   ));
   await expect.poll(() => decayMetadataRequests).toBeGreaterThan(0);
-  await waitForStaticRevisionBaseline(page);
+  await expectTimelineRevisions(page, launchMetadata, decayMetadata);
   await page.locator('#orbitTypeFilter [data-orbit-filter="ALL"]').click();
   await page.locator('#satelliteSearchInput').fill('44714');
   const tleOption = page.locator('#satelliteSearchResults [data-norad-id="44714"]');
@@ -509,11 +526,7 @@ test('unavailable GP falls back to TLE and auxiliary-only revisions avoid anothe
   decayCatalog = REVISED_DECAY_CATALOG;
   launchMetadata = staticMetadata('sha256:fallback-launch-two', 'newest_launch_date', '2026-08-23');
   decayMetadata = staticMetadata('sha256:fallback-decay-two', 'newest_confirmed_decay_date', '2026-08-23');
-  const refreshResult = await page.evaluate(() => (
-    window.openbexiServerConnection.checkForDataUpdates()
-  ));
-  expect(refreshResult.error).toBeUndefined();
-  expect(refreshResult.changed).toBe(true);
+  await expectTimelineRevisions(page, launchMetadata, decayMetadata);
   expect(gpRequests).toBe(requestsBeforeAuxiliaryRefresh);
   await expect(reentryStatus).toContainText('REVISION DECAY 100404');
   await setTimelineToggle(reentryToggle, false);

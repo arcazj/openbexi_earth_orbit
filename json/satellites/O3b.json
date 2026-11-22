@@ -5,13 +5,14 @@
       "norad_id": 39188,
       "cospar_id": "2013-031A",
       "orbital_slot": {
-        "nominal": "MEO equatorial (~8070km)",
+        "nominal": "Equatorial MEO (~8063 km)",
         "operational_history": [
           "8069km×8077km @0.10° inclination (TLEepoch2025‑05‑26)"
         ]
       },
-      "bus": "ThalesAleniaSpaceELiTeBus",
-      "manufacturer": "ThalesAleniaSpace",
+      "bus": "ELiTeBus",
+      "manufacturer": "Thales Alenia Space",
+      "geometry": { "glb_units": "m" },
       "launch_mass_kg": 700,
       "dry_mass_kg": 500,
       "launch_date": "2013-06-25T19:27:00Z",
@@ -22,7 +23,7 @@
     "orbit": {
       "latitude": 0.0,
       "longitude": 0.0,
-      "altitude": 35786000
+      "altitude": 8063000
     },
     "attitude": {
       "roll": 0,
@@ -38,55 +39,15 @@
     },
     "footprints": {
       "type": "FeatureCollection",
-      "features": [{
-        "type": "Feature",
-        "properties": { "beamId": 0 },
-        "geometry": {
-          "type": "Polygon",
-          "coordinates": [[
-            [-60,10], [-50,15], [-45,5], [-60,10]
-          ]]
-        }
-      }]
-    },
-    "orbital_slot": {
-      "nominal": "<orbitType>",
-      "operational_history": [
-        "<orbitHistoryString>"
-      ]
+      "features": []
     },
     "payload": {
       "transponders": {
-        "<band>": {
-          "num_36MHz_eq": 0,
-          "beam_classes": {
-            "<beamClass>": {
-              "beam_peak_eirp_dBW": 0,
-              "edge_eirp_dBW": 0,
-              "beam_peak_G_T_dBK": null,
-              "contours": []
-            }
-          }
-        }
+        "Ka": { "count": 12 }
       },
-      "bandwidth_MHz": [
-        0
-      ],
-      "polarization": {
-        "<band>": "<polarizationType>"
-      },
-      "frequency_bands_ghz": {
-        "<band>": {
-          "downlink": [
-            0.0,
-            0.0
-          ],
-          "uplink": [
-            0.0,
-            0.0
-          ]
-        }
-      }
+      "steerable_antennas": { "user": 10, "gateway": 2 },
+      "bandwidth_per_user_beam_MHz": { "forward": 216, "return": 216 },
+      "polarization": { "Ka": "circular" }
     }
   }
 }

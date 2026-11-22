@@ -1,0 +1,71 @@
+# OpenBEXI original Wavefront materials.
+
+newmtl Silver
+Ka 0.10 0.10 0.10
+Kd 0.73 0.76 0.77
+Ks 0.38 0.38 0.38
+Ns 56
+illum 2
+
+newmtl Graphite
+Ka 0.10 0.10 0.10
+Kd 0.19 0.21 0.24
+Ks 0.16 0.16 0.16
+Ns 28
+illum 2
+
+newmtl Steel
+Ka 0.10 0.10 0.10
+Kd 0.45 0.5 0.53
+Ks 0.33 0.33 0.33
+Ns 47
+illum 2
+
+newmtl Board
+Ka 0.10 0.10 0.10
+Kd 0.17 0.22 0.23
+Ks 0.16 0.16 0.16
+Ns 34
+illum 2
+
+newmtl CellNavy
+Ka 0.10 0.10 0.10
+Kd 0.1 0.17 0.31
+Ks 0.27 0.27 0.27
+Ns 51
+illum 2
+
+newmtl Electrode
+Ka 0.10 0.10 0.10
+Kd 0.72 0.61 0.39
+Ks 0.25 0.25 0.25
+Ns 46
+illum 2
+
+newmtl GoldSeam
+Ka 0.10 0.10 0.10
+Kd 0.74 0.55 0.28
+Ks 0.31 0.31 0.31
+Ns 43
+illum 2
+
+newmtl CellViolet
+Ka 0.10 0.10 0.10
+Kd 0.17 0.18 0.33
+Ks 0.27 0.27 0.27
+Ns 51
+illum 2
+
+newmtl IvoryCeramic
+Ka 0.10 0.10 0.10
+Kd 0.83 0.78 0.65
+Ks 0.11 0.11 0.11
+Ns 33
+illum 2
+
+newmtl Recess
+Ka 0.10 0.10 0.10
+Kd 0.095 0.11 0.14
+Ks 0.12 0.12 0.12
+Ns 24
+illum 2

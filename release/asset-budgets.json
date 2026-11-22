@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "policy": "regression-ceiling",
   "files": {
-    "index.html": 325000,
+    "index.html": 327000,
     "json/gp/GP.json": 28000000,
     "json/launches/launches.json": 10500000,
     "json/tle/TLE.json": 11000000,
     "data/ephemeris/solar_system_jpl_horizons_2020_2035_6h.json": 18000000,
-    "obj/ISS.glb": 45000000,
+    "obj/leo/ISS.glb": 45000000,
     "textures/1_earth_16k.jpg": 35000000,
     "textures/March_8k.jpg": 12000000
   },
@@ -26,8 +26,8 @@
         "js/domain/index.js",
         "js/satelliteCategoryFilter.js"
       ],
-      "maxBytes": 965000,
-      "note": "2.5.1 adds accessible unit controls, physical sizing and close-focus support; 5 kB allowance over the 2.5.0 runtime."
+      "maxBytes": 979000,
+      "note": "The catalog API accordion brings the uncompressed browser modules to 978,141 bytes on Windows. Its OpenAPI schema and reference load on demand."
     },
     "vendoredBrowserRuntime": {
       "roots": ["vendor"],

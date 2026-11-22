@@ -1,6 +1,6 @@
 # v2.0 Local Verification
 
-> Historical v2.0 verification log, retained as evidence; not a current release gate. See [Testing](../TESTING.md) for 2.5.
+> This log records the v2.0 verification. Current release results are in [Testing](../TESTING.md).
 
 Recorded: 2026-07-19; post-fix verification refreshed 2026-07-20
 Release: 2.0.0 local preview candidate  
@@ -56,7 +56,7 @@ This is local preview evidence. It is not clean-clone CI evidence, independent s
 - Event selection moved the camera and playback advanced the shared UTC clock by 30 seconds
 - Microsoft Edge rendered the live source page after its stale browser cache was cleared. This is a user-reported manual confirmation, not an automated cross-browser release result.
 
-Current raw structured measurements are in `docs/engineering/evidence/v2.0-browser-profile-2026-07-20.json`; the 2026-07-19 profile remains historical.
+The July 20 measurements are in the [v2.0 browser profile](../engineering/evidence/v2.0-browser-profile-2026-07-20.json).
 
 ## Visual Evidence
 

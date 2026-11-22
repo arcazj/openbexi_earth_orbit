@@ -5,6 +5,7 @@ import {
   metersToSceneUnits,
   nadirDirectionScene,
   nadirPointingQuaternion,
+  selectedEarthPointingObserver,
   selectedSatelliteObliqueCameraUp,
   selectedSatelliteObliqueObserverDirection,
   selectedCameraFrameKeepsEarthInView,
@@ -68,6 +69,33 @@ function normalized(v) {
 }
 
 function run() {
+  // A polar pass crosses directly through world north. Both the camera and
+  // body must rotate only by the orbital advance across this crossing.
+  const polarStep = 0.001;
+  let lastView = null;
+  for (const angle of [-polarStep, 0, polarStep]) {
+    const radial = new THREE.Vector3(Math.sin(angle), Math.cos(angle), 0);
+    const velocity = new THREE.Vector3(Math.cos(angle), -Math.sin(angle), 0);
+    const orbital = selectedSatelliteOrbitalFrame(radial, velocity);
+    const { observerDirection, cameraUp } = selectedEarthPointingObserver(orbital, 'LEO');
+    vectorClose(observerDirection, radial);
+    vectorClose(cameraUp, velocity);
+    const body = selectedSatelliteOrbitalFrameQuaternion(new THREE.Quaternion(), radial, velocity);
+    vectorClose(rotateVectorByQuaternion({x: 1, y: 0, z: 0}, body), cameraUp);
+    for (const orbitClass of ['MEO', 'HEO']) {
+      const observer = selectedEarthPointingObserver(orbital, orbitClass);
+      vectorClose(observer.observerDirection, radial);
+      vectorClose(observer.cameraUp, {x: 0, y: 0, z: 1});
+      vectorClose(rotateVectorByQuaternion({x: 0, y: 1, z: 0}, body), observer.cameraUp);
+    }
+    if (lastView) {
+      nearlyEqual(lastView.up.angleTo(cameraUp), polarStep, 1e-9);
+      nearlyEqual(lastView.body.angleTo(body), polarStep, 1e-9);
+    }
+    lastView = { up: cameraUp, body };
+  }
+  const equatorial = selectedSatelliteOrbitalFrame(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 1));
+  vectorClose(selectedEarthPointingObserver(equatorial, 'MEO').cameraUp, {x: 0, y: 1, z: 0});
   nearlyEqual(metersToSceneUnits(100), 0.1 * KM_TO_SCENE_UNITS);
   nearlyEqual(metersToSceneUnits(75), 0.075 * KM_TO_SCENE_UNITS);
 
@@ -122,6 +150,11 @@ function run() {
   vectorClose(orbitalFrame.yAxis, { x: 0, y: 1, z: 0 }, 1e-12);
   vectorClose(normalized(cross(orbitalFrame.xAxis, orbitalFrame.yAxis)), orbitalFrame.zAxis, 1e-12);
   assert(orbitalFrame.isRightHanded, 'Starlink orbital frame is right-handed');
+
+  const geoQ = selectedSatelliteOrbitalFrameQuaternion(new THREE.Quaternion(), orbitalSatPos, orbitalVelocity,
+    { modelAxisMapping: 'x-negative-crosstrack-y-velocity-z-nadir' });
+  vectorClose(rotateVectorByQuaternion({x:0,y:0,z:1},geoQ),orbitalFrame.zAxis,1e-12);
+  vectorClose(rotateVectorByQuaternion({x:0,y:1,z:0},geoQ),orbitalFrame.xAxis,1e-12);
 
   const starlinkQ = selectedSatelliteOrbitalFrameQuaternion(
     new THREE.Quaternion(),

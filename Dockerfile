@@ -21,7 +21,9 @@ COPY services /app/services
 COPY data/health /app/data/health
 COPY tools /app/tools
 COPY release/version.json /app/release/version.json
+COPY --from=build /app/dist/docs/catalog-api.openapi.json /app/docs/catalog-api.openapi.json
 COPY --from=build /app/dist/json/ /app/json/
+RUN ln -s /usr/share/nginx/html/obj /app/obj
 COPY json/satcat.csv json/satcat.meta.json /app/json/
 COPY deploy/cloud-run/start.sh /app/start.sh
 CMD ["/bin/sh", "/app/start.sh"]

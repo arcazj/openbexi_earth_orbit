@@ -1,0 +1,20 @@
+{
+  "0": {
+    "name": "Iridium NEXT",
+    "meta": {
+      "name": "Iridium NEXT",
+      "type": "platform",
+      "operator": "Iridium Communications",
+      "manufacturer": "Thales Alenia Space",
+      "bus": "ELiTeBus",
+      "orbital_slot": { "nominal": "Near-polar LEO, approximately 780 km" },
+      "geometry": { "obj_units": "m", "deployed_span_m": 9.4 },
+      "dimension_note": "Iridium specifies the deployed span. Antenna dimensions and surface details are estimated from the spacecraft diagram.",
+      "references": [
+        "https://investor.iridium.com/09-23-2014-another-iridium-next-milestone-achieved-with-successful-qualification-of-its-unique-solar-panel-power-system",
+        "https://www.spaceweather.gov/sites/default/files/images/u63/05.%20Everets_Iridium_s%20Space%20Operations%20Experience%20Through%20the%20Decades.pdf#page=3"
+      ]
+    },
+    "payload": { "mission_antenna": "L-band phased array", "feeder_links": "Ka-band", "hosted_payload": "Aireon ADS-B" }
+  }
+}

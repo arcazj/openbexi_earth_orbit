@@ -137,6 +137,9 @@ function createFixture() {
   drawer.id = 'trackedResultsDrawer';
   drawer.hidden = true;
   const closeButton = append(drawer, element('button'));
+  const search = append(drawer, element('input'));
+  search.value = '';
+  const clearSearch = append(drawer, element('button'));
   const tabs = append(drawer, element('div'));
   const modeButtons = ['ALL', 'POSITIONED', 'UNAVAILABLE'].map(mode => {
     const button = append(tabs, element('button'));
@@ -161,7 +164,7 @@ function createFixture() {
   empty.hidden = true;
   return {
     documentRef,
-    elements: { openButton, drawer, closeButton, tabs, columns, viewport, spacer, rows, count, empty },
+    elements: { openButton, drawer, closeButton, search, clearSearch, tabs, columns, viewport, spacer, rows, count, empty },
     modeButtons,
     sortButtons
   };
@@ -192,6 +195,24 @@ assert.equal(fixture.documentRef.activeElement, fixture.elements.viewport, 'open
 assert.deepEqual(fixture.elements.rows.children.map(row => row.children[0].textContent), ['Alpha', 'Beta', 'Zulu']);
 assert(fixture.elements.rows.children.every(row => row.tabIndex === -1), 'listbox options stay out of the tab order');
 assert.equal(fixture.elements.rows.children[1].getAttribute('aria-selected'), 'true');
+
+const { search, clearSearch } = fixture.elements;
+search.value = '  bEtA   11 ';
+search.dispatch('input');
+assert.equal(fixture.elements.count.textContent, '1 result');
+assert.equal(fixture.elements.rows.children[0].dataset.noradId, '11');
+controller.refresh(records.filter(record => record.norad_id !== '11'));
+assert.equal(fixture.elements.empty.hidden, false);
+assert.equal(fixture.elements.viewport.hidden, true);
+controller.refresh(records);
+assert.equal(fixture.elements.count.textContent, '1 result');
+fixture.modeButtons[2].click();
+assert.equal(fixture.elements.count.textContent, '0 results');
+clearSearch.click();
+assert.equal(fixture.elements.rows.children[0].dataset.noradId, '20');
+assert.equal(fixture.documentRef.activeElement, search);
+assert.equal(clearSearch.disabled, true);
+fixture.modeButtons[0].click();
 
 fixture.modeButtons[0].dispatch('keydown', { key: 'ArrowRight' });
 assert.equal(fixture.documentRef.activeElement, fixture.modeButtons[1]);

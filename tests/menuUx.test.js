@@ -50,6 +50,7 @@ function run() {
   const satelliteSection = indexOfOrFail(html, 'id="satelliteAccordionSection"', 'satellite accordion exists');
   const viewSection = indexOfOrFail(html, 'id="viewAccordionSection"', 'view accordion exists');
   const timelinesSection = indexOfOrFail(html, 'id="timelinesAccordionSection"', 'timelines accordion exists');
+  const restApiSection = indexOfOrFail(html, 'id="restApiAccordionSection"', 'REST API accordion exists');
   const shareSection = indexOfOrFail(html, 'id="shareAccordionSection"', 'share accordion exists');
   const helpSection = indexOfOrFail(html, 'id="helpAccordionSection"', 'help accordion exists');
   assert(!html.includes('id="otherAccordionSection"'), 'Other Selections accordion section is removed');
@@ -59,8 +60,8 @@ function run() {
   assert(!html.includes('data-collapsible-target="settingsContent"'), 'Settings content target is removed');
   assert(
     viewSection < satelliteSection && satelliteSection < timelinesSection &&
-      timelinesSection < shareSection && shareSection < helpSection,
-    'accordion section order is Views & Time, Satellite Selection, Timelines, Share, Help'
+      timelinesSection < restApiSection && restApiSection < shareSection && shareSection < helpSection,
+    'REST API sits between Timelines and Share'
   );
   assert(html.includes('Views &amp; Time'), 'View section is renamed to Views & Time');
 
@@ -136,8 +137,6 @@ function run() {
   assert(indexHtml.includes('persisted state cannot reopen') || indexHtml.includes('persisted state cannot override'), 'persisted accordion state cannot override launch defaults');
   assert(indexHtml.includes('setAccordionSectionCollapsed(targetId, nextCollapsed, collapsedSections)'), 'accordion headers toggle their target');
   assert(indexHtml.includes('setAccordionSectionCollapsed(otherId, true, collapsedSections)'), 'expansion closes other accordion sections');
-  assert(indexHtml.includes("expandCollapsibleSection('satelliteSelectionContent')"), 'YPR-enabled selection opens Satellite Selection');
-  assert(!indexHtml.includes("expandCollapsibleSection('filtersContent')"), 'YPR selection does not force unrelated sections open');
 
   assert(!/>\s*Active\s*</i.test(html), 'filter menu does not expose an Active control');
   assert(indexHtml.includes('EXCLUDED_COMPANY_FILTER_OPTIONS'), 'index defines generated company/tag exclusions');
@@ -243,15 +242,24 @@ function run() {
   const orbitFilter = indexOfOrFail(html, 'id="orbitTypeFilter"', 'orbit filter exists');
   const objectFilter = indexOfOrFail(html, 'id="objectTypeFilter"', 'object filter exists');
   const companyFilter = indexOfOrFail(html, 'id="companyFilter"', 'tag filter exists');
-  const selectedControls = indexOfOrFail(html, 'id="selectedSatelliteControls"', 'selected satellite controls exist');
-  const firstSatelliteCheckbox = indexOfOrFail(html, 'id="showYPRToggle"', 'satellite-specific checkboxes exist');
   assert(
     satelliteSelection < searchInput && searchInput < clearSearch && clearSearch < resetFilters &&
       resetFilters < satelliteShortcutRow && satelliteShortcutRow < starlinkShortcut &&
       starlinkShortcut < issShortcut && issShortcut < satelliteFilterPanel && satelliteFilterPanel < orbitFilter &&
-      orbitFilter < objectFilter && objectFilter < companyFilter && companyFilter < selectedControls && selectedControls < firstSatelliteCheckbox,
-    'search, Clear, Reset Filters, shortcuts, filters, and selected-satellite controls appear inside Satellite Selection in the required order'
+      orbitFilter < objectFilter && objectFilter < companyFilter && companyFilter < html.indexOf('id="conjunctionAccordionSection"'),
+    'search, Clear, Reset Filters, shortcuts, and filters appear inside Satellite Selection in the required order'
   );
+  const catalogPanel = html.slice(indexOfOrFail(html, 'id="catalogPanel"', 'the catalog panel exists'));
+  const panelOrder = ['openTrackedResults', 'selectedSatelliteControls', 'yprSlidersRow', 'selectedModelViewer', 'selectedSatelliteDetailPanel', 'trackedRecordSummary'];
+  let previous = -1;
+  for (const id of panelOrder) {
+    const location = indexOfOrFail(catalogPanel, `id="${id}"`, `${id} belongs to the catalog panel`);
+    assert(location > previous, `${id} follows the preceding panel section`);
+    assert.equal(html.split(`id="${id}"`).length, 2, `${id} appears only once`);
+    previous = location;
+  }
+  const previewDetails = catalogPanel.match(/<details\b[^>]*\bid="selectedModelViewer"[^>]*>/)?.[0];
+  assert(previewDetails && !/\sopen\b/.test(previewDetails), 'the model viewer starts collapsed');
   assert(html.includes('id="selectedSatelliteControls" class="satellite-option-grid" aria-label="Selected tracked-object options" aria-hidden="true" hidden'), 'object controls are hidden until a positioned selection');
   assert(html.includes('id="showFootprintCheckbox"><span>Show Footprint</span>'), 'Show Footprint checkbox exists and is unchecked by default');
   assert(html.includes('id="showOnlySelectedSatellite" checked'), 'Show only selected satellite checkbox is checked by default when shown');
@@ -352,7 +360,6 @@ function run() {
   assert(css.includes('#satelliteCountDisplay'), 'satellite count has a dedicated style hook');
   assert(css.includes('.satellite-found-count'), 'satellite count has a heading-specific style hook');
   assert(css.includes('.satellite-filter-panel'), 'embedded Satellite Selection filters have dedicated CSS');
-  assert(css.includes('.tracked-coverage-hud'), 'coverage HUD has a dedicated responsive presentation');
   assert(css.includes('.tracked-results-drawer') && css.includes('.tracked-results-viewport'), 'virtualized results have bounded desktop and mobile layout');
   assert(!css.includes('.debris-reset-row'), 'obsolete debris reset row CSS is removed');
   assert(css.includes('.orbit-segmented') && css.includes('grid-template-columns: repeat(6, minmax(0, 1fr))'), 'orbit taxonomy is styled as an independent six-button row');
@@ -361,7 +368,8 @@ function run() {
   assert(html.includes('Include history'), 'tracked lifecycle history has a compact opt-in label');
   assert(html.includes('aria-label="Include decayed and absent tracked-object history"'), 'tracked lifecycle history has a precise accessible label');
   assert(html.includes('id="openTrackedResults"'), 'tracked-object selection exposes the virtualized catalog browser');
-  assert(indexHtml.includes('id="trackedCoverageHud"') && indexHtml.includes('role="status"'), 'Globe coverage is persistently summarized in an accessible status HUD');
+  assert(!indexHtml.includes('id="trackedCoverageHud"'), 'the standalone tracked coverage panel is removed');
+  assert(catalogPanel.includes('id="trackedCatalogCounts"'), 'the catalog panel contains the tracked record counts');
   assert(indexHtml.includes('id="trackedResultsDrawer"') && trackedResultsController.includes('role="listbox"'), 'catalog results use a keyboard-navigable virtualized list');
   assert(indexHtml.includes('pickSatellitePoint') && indexHtml.includes('pickMercatorSatellite'), 'Globe and Mercator markers share the canonical selection path');
   assert(indexHtml.includes('function isDebrisFacetContext()'), 'debris facets remain available within any selected orbit scope');
@@ -396,7 +404,6 @@ function run() {
   assert(css.includes('#mercatorContainer.fullscreen .mercator-fullscreen-exit'), 'full-screen Mercator reveals its in-map exit');
   assert(css.includes('top: 50px !important'), 'narrow viewport time slider is moved away from top controls');
   assert(css.includes('grid-template-columns: minmax(48px, 1fr) 70px minmax(0, 84px) 28px 42px'), 'narrow viewport time controls stay on one stable row');
-  assert(css.includes('top: 190px') && css.includes('top: 180px'), 'narrow viewport menu toggle and panel start below the Time x and coverage bands');
   assert(css.includes('.menu-accordion-heading-satellite { border-left-color: #35b9a9; }'), 'Satellite keeps the legacy teal accent');
   assert(css.includes('.menu-accordion-heading-view { border-left-color: #f0b429; }'), 'View keeps the legacy yellow accent');
   assert(css.includes('.menu-accordion-heading-timelines { border-left-color: #d45187; }'), 'Timelines keeps the legacy pink accent');
@@ -458,13 +465,11 @@ function run() {
   assert(indexHtml.includes("mercatorContainer.classList.remove('fullscreen', 'globe-overlay')"), 'Mercator view classes are cleared when Mercator is disabled');
   assert(indexHtml.includes('id="mercatorExitFullscreenButton"'), 'full-screen Mercator provides an accessible in-map exit');
   assert(indexHtml.includes('handleMercatorFullscreenKeydown'), 'Escape exits full-screen Mercator');
-  assert(indexHtml.includes('id="selectedSatelliteDetailPanel"'), 'index defines the selected satellite detail panel');
   assert(indexHtml.includes('updateSelectedSatelliteDetailPanel'), 'index updates the right-side selected satellite detail panel');
   assert(indexHtml.includes('syncSelectedSatelliteDetailPanelWidth'), 'index syncs the selected detail panel width to the UTC clock');
-  assert(indexHtml.includes("solarSystemPlanetHudElement || document.getElementById('solarSystemPlanetHud')"), 'index syncs the Solar System HUD width to the UTC clock');
-  assert(indexHtml.includes('panel.style.width = `${clockWidth}px`'), 'right-side panels are assigned the clock measurement width');
-  assert(indexHtml.includes('panel.style.right = `${clockRight}px`'), 'right-side panels align horizontally with the UTC clock');
-  assert(indexHtml.includes('panel.style.top = `${panelTop}px`'), 'right-side panels align directly below the UTC clock');
+  assert(indexHtml.includes('solarSystemPlanetHudElement.style.width = `${clockWidth}px`'), 'the planet HUD uses the clock width');
+  assert(indexHtml.includes('solarSystemPlanetHudElement.style.right = `${clockRight}px`'), 'the planet HUD aligns with the clock');
+  assert(indexHtml.includes("setProperty('--catalog-panel-top', `${panelTop}px`)"), 'the catalog panel position accounts for the clock and time controls');
   assert(indexHtml.includes('SELECTED_DETAIL_DUPLICATE_KEYS'), 'index excludes duplicated selected-detail fields from the metadata table');
   assert(indexHtml.includes('SELECTED_OMM_DUPLICATE_KEYS'), 'index excludes OMM identity fields already rendered canonically');
   assert(!indexHtml.includes("['Name', satData.satellite_name"), 'selected satellite name is rendered only in the panel header');
@@ -480,8 +485,8 @@ function run() {
   assert(indexHtml.includes('<details class="selected-satellite-detail-section selected-satellite-tle-section" open>'), 'selected satellite TLE section is expanded by default');
   assert(indexHtml.includes('<span>Catalog data</span>'), 'selected tracked-object data section has an inclusive visible toggle label');
   assert(indexHtml.includes('<span>TLE details</span>'), 'selected satellite TLE section has a visible toggle label');
-  assert(indexHtml.includes('Collapse details'), 'satellite data default-open state uses a matching summary hint');
-  assert(indexHtml.includes('Collapse TLE'), 'TLE details default-open state uses a matching summary hint');
+  assert(indexHtml.includes('<details class="selected-satellite-detail-section selected-satellite-omm-section">'), 'OMM details start collapsed');
+  assert(!/<details[^>]+id="trackedRecordSummary"[^>]*\sopen\b/.test(catalogPanel), 'tracked record summary starts collapsed');
   assert(indexHtml.includes('selectedSatelliteModelSourceDetail'), 'selected satellite panel computes model source attribution');
   assert(indexHtml.includes('<details class="selected-satellite-detail-section selected-satellite-source-section" open>'), 'selected satellite source detail section is expanded by default');
   assert(indexHtml.includes('<span>Source detail</span>'), 'selected satellite source detail section has a visible toggle label');
@@ -518,7 +523,6 @@ function run() {
   assert(indexHtml.includes('swaggerMarkdownLink'), 'index preserves the Swagger Markdown companion link');
   assert(indexHtml.includes('Swagger UI opens locally without the Python server'), 'offline Swagger UI docs remain available without the Python server');
   assert(!indexHtml.includes('Swagger and OpenAPI documentation are available from the connected Python server.'), 'prohibited Swagger/API status sentence is not emitted');
-  assert(indexHtml.includes('ensureYPRControlsVisibleForSelection'), 'index preserves YPR controls after satellite selection');
   assert(!/yawSlider\.value\s*=\s*0/.test(indexHtml), 'satellite selection does not reset yaw slider value');
   assert(!/pitchSlider\.value\s*=\s*0/.test(indexHtml), 'satellite selection does not reset pitch slider value');
   assert(!/rollSlider\.value\s*=\s*0/.test(indexHtml), 'satellite selection does not reset roll slider value');

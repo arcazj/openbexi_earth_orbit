@@ -163,7 +163,7 @@ test('curated static artifact boots offline and screens the full catalog in its 
   await expect(page.locator('#solarOrbitGuideStatus')).toContainText('one revolution', { timeout: 60_000 });
   expect(await page.evaluate(() => window.openbexiSimulation.orbitGuides().filter(guide => guide.completeRevolution).length)).toBe(8);
   await page.locator('#solarSystemExitButton').click();
-  await expect(page.locator('#trackedCoverageHud')).toBeVisible();
+  await expect(page.locator('#catalogPanel')).toBeVisible();
 
   expect(network.requests.some(url => url.endsWith('/js/conjunction/conjunctionWorker.js'))).toBe(true);
   expect(network.requests.some(url => url.endsWith('/vendor/satellite.js/6.0.2/satellite.es.js'))).toBe(true);

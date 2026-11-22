@@ -1,11 +1,14 @@
 # Documentation
 
-Current guides for **2.5.1 development / experimental / non-operational**. Historical architecture decisions and frozen validation records are retained where they still explain implemented contracts. Old per-release checklists and duplicated prompt logs were consolidated.
+Current guides for **2.6.0 development / experimental / non-operational**. Historical architecture decisions and frozen validation records retain the context of their original releases.
+
+For catalog search, spacecraft controls and the model viewer, start with the [user guide in the project README](../README.md#features). The [roadmap](../ROADMAP.md) lists the work prepared for 2.6.0 and the remaining release steps. The [local regression results](../release/evidence/v2.6.0-development-checks.json) and [runtime dependency inventory](../release/evidence/openbexi-node-sbom-2.6.0-development.cdx.json) belong to this development build.
 
 - [Contributing](CONTRIBUTING.md)
 - [Release notes](RELEASE_NOTES.md)
 - [Security](SECURITY.md)
 - [OpenBEXI Earth Orbit Swagger API](SWAGGER.md)
+- [Catalog and model OpenAPI contract](catalog-api.openapi.json)
 - [Testing and evidence](TESTING.md)
 - [Third-party notices](THIRD_PARTY_NOTICES.md)
 - [ADR 0001: v2.0 Quality Gates and Local-First Server](adr/0001-v2-quality-gates-and-local-first-server.md)
@@ -33,7 +36,7 @@ Current guides for **2.5.1 development / experimental / non-operational**. Histo
 - [Orbital Domain Contracts v2](orbital-domain-contracts-v2.md)
 - [Experimental Conjunction Screening in v2.0](science/EXPERIMENTAL_CONJUNCTION_SCREENING_V2.md)
 - [Experimental Full-Catalog Screening in Version 2.1](science/EXPERIMENTAL_FULL_CATALOG_SCREENING_V2_1.md)
-- [Solar System ephemeris (2.5)](science/SOLAR_SYSTEM.md)
+- [Solar System ephemeris, display modes and time controls](science/SOLAR_SYSTEM.md)
 - [v2.0 Local Verification](validation/V2_0_LOCAL_VERIFICATION.md)
 - [2.5 acceptance review packet](validation/V2_5_ACCEPTANCE.md)
 - [Validation Corpus Policy](validation/VALIDATION_CORPUS.md)
