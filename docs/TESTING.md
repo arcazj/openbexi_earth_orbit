@@ -16,6 +16,8 @@ Browser coverage uses Chromium, mobile emulation, Firefox and Playwright WebKit.
 
 ## 2.6.0 verification
 
+Catalog visibility tests use the epoch in their synthetic OMM data. The HEO regression also checks two invalid propagation times and the return to a valid position. Live tracking uses an advancing clock across measured passes.
+
 The release verification record covers the integrated dependency updates and the tagged build. [Exact-commit results and downloads](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/v2.6.0)
 
 ### Local baseline before dependency integration

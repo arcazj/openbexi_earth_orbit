@@ -608,6 +608,9 @@ function unexpectedConsoleErrors(messages) {
 }
 
 async function bootFilterFixture(page, state, url = '/index.html', options = {}) {
+  // Catalog membership checks expect valid positions at the synthetic OMM epoch.
+  // The live tracking case supplies its own advancing clock for specific orbital passes.
+  if (options.useFixtureEpoch !== false) await page.clock.setFixedTime(new Date(EPOCH));
   await page.route('**/node_modules/**', route => route.abort('blockedbyclient'));
   await page.route('**/obj/leo/ISS.glb', route => route.fulfill({
     contentType: 'model/gltf-binary',
@@ -2522,7 +2525,7 @@ test('live tracking keeps OneWeb and GLONASS-K2 views steady through their highe
   // Keep real frame timing and run the live clock across the measured polar pass.
   await page.addInitScript(epoch => { Date.now = () => epoch + Math.round(performance.now()); },
     Date.parse('2026-11-22T01:00:05Z'));
-  await bootFilterFixture(page, state);
+  await bootFilterFixture(page, state, '/index.html', { useFixtureEpoch: false });
   await clickCategory(page, 'ALL');
   await page.locator('#timeWarpNow').click();
 
@@ -2729,13 +2732,21 @@ test('known MEO and GEO markers have finite orbital radii and invalid selection 
       canvas.dataset.selectedMarkerRendered === 'true';
   });
 
-  await page.evaluate(() => window.openbexiSimulation.setTime('2029-05-19T00:00:00.000Z'));
-  await page.waitForFunction(() => window.openbexiSimulation.markerState('110004')?.propagationInvalid === true);
+  for (const instant of ['2026-11-22T22:55:15Z', '2029-05-19T00:00:00Z']) {
+    await page.evaluate(time => window.openbexiSimulation.setTime(time), instant);
+    await page.waitForFunction(() => window.openbexiSimulation.markerState('110004')?.propagationInvalid === true);
+    await page.waitForFunction(() => {
+      const canvas = document.querySelector('#mercatorCanvas');
+      return canvas?.dataset.selectedMarkerNoradId === '110004' &&
+        canvas.dataset.selectedMarkerRendered === 'false' &&
+        canvas.dataset.renderedMarkerCount === '0';
+    });
+  }
+  await page.evaluate(time => window.openbexiSimulation.setTime(time), EPOCH);
   await page.waitForFunction(() => {
     const canvas = document.querySelector('#mercatorCanvas');
-    return canvas?.dataset.selectedMarkerNoradId === '110004' &&
-      canvas.dataset.selectedMarkerRendered === 'false' &&
-      canvas.dataset.renderedMarkerCount === '0';
+    return window.openbexiSimulation.markerState('110004')?.propagationInvalid === false &&
+      canvas?.dataset.selectedMarkerNoradId === '110004' && canvas.dataset.selectedMarkerRendered === 'true';
   });
 
   expect(browserErrors.pageErrors).toEqual([]);
