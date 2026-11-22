@@ -3,6 +3,7 @@ import {
     isTrackedRecordPropagatable,
     trackedObjectType
 } from './trackedObjectCatalog.js';
+import { satelliteSearchText } from './satelliteSearchUtils.js';
 
 export const TRACKED_RESULT_MODE = Object.freeze({
     ALL: 'ALL',
@@ -33,6 +34,7 @@ export function trackedResultRow(record) {
         ? null
         : Number(rawRcs);
     const positioned = trackedResultIsPositioned(record);
+    const availability = positioned ? 'Positioned' : 'Position unavailable';
     return Object.freeze({
         record,
         norad: String(record?.norad_id ?? record?.NORAD_CAT_ID ?? '').trim(),
@@ -41,7 +43,8 @@ export function trackedResultRow(record) {
         owner: String(record?.owner ?? record?.owner_code ?? record?.operator ?? '').trim() || 'Not reported',
         orbit: String(record?.orbit_class ?? record?.orbitType ?? record?.type ?? '').trim() || 'Unknown',
         rcs: Number.isFinite(rcs) && rcs >= 0 ? rcs : null,
-        availability: positioned ? 'Positioned' : 'Position unavailable',
+        availability,
+        searchText: `${satelliteSearchText(record)} ${availability.toLowerCase()}`,
         positioned
     });
 }

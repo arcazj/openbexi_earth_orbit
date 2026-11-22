@@ -1,10 +1,10 @@
 {
   "name": "openbexi_orbit",
-  "version": "2.5.1",
+  "version": "2.6.0",
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=20 <25",
+    "node": "^20.19.0 || ^22.13.0 || ^24.0.0",
     "npm": ">=10"
   },
   "scripts": {
@@ -37,15 +37,16 @@
     "test:unit": "node tests/runAll.js",
     "vendor:browser": "node scripts/vendor-browser-dependencies.mjs --sync",
     "version:sync": "node scripts/sync-version.mjs",
-    "check:docs": "node scripts/check-docs.mjs"
+    "check:docs": "node scripts/check-docs.mjs && node scripts/sync-catalog-reference.mjs --check"
   },
   "dependencies": {
-    "satellite.js": "6.0.2",
-    "three": "0.184.0"
+    "satellite.js": "7.1.0",
+    "three": "0.187.0"
   },
   "devDependencies": {
-    "@axe-core/playwright": "4.12.1",
-    "@playwright/test": "1.61.1"
+    "@axe-core/playwright": "4.14.0",
+    "@playwright/test": "1.65.0",
+    "esbuild": "0.28.2"
   },
   "license": "SEE LICENSE IN LICENSE"
 }

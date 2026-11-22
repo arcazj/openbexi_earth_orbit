@@ -1,0 +1,73 @@
+# OpenBEXI original Wavefront materials.
+
+newmtl WhiteThermal
+Ka 0.10 0.10 0.10
+Kd 0.85 0.86 0.84
+Ks 0.15 0.15 0.15
+Ns 28
+illum 2
+
+newmtl Radiator
+Ka 0.10 0.10 0.10
+Kd 0.62 0.69 0.72
+Ks 0.31 0.31 0.31
+Ns 51
+illum 2
+
+newmtl Steel
+Ka 0.10 0.10 0.10
+Kd 0.45 0.5 0.53
+Ks 0.33 0.33 0.33
+Ns 47
+illum 2
+
+newmtl Silver
+Ka 0.10 0.10 0.10
+Kd 0.73 0.76 0.77
+Ks 0.38 0.38 0.38
+Ns 56
+illum 2
+
+newmtl GoldBlanket
+Ka 0.10 0.10 0.10
+Kd 1 0.95 0.87
+Ks 0.26 0.26 0.26
+Ns 43
+illum 2
+map_Kd Textures/spacecraft_gold_blanket.png
+
+newmtl GoldSeam
+Ka 0.10 0.10 0.10
+Kd 0.74 0.55 0.28
+Ks 0.31 0.31 0.31
+Ns 43
+illum 2
+
+newmtl Recess
+Ka 0.10 0.10 0.10
+Kd 0.095 0.11 0.14
+Ks 0.12 0.12 0.12
+Ns 24
+illum 2
+
+newmtl Graphite
+Ka 0.10 0.10 0.10
+Kd 0.19 0.21 0.24
+Ks 0.16 0.16 0.16
+Ns 28
+illum 2
+
+newmtl SolarCells
+Ka 0.10 0.10 0.10
+Kd 0.98 0.99 1
+Ks 0.23 0.23 0.23
+Ns 57
+illum 2
+map_Kd Textures/spacecraft_cells.png
+
+newmtl PanelBack
+Ka 0.10 0.10 0.10
+Kd 0.55 0.51 0.37
+Ks 0.13 0.13 0.13
+Ns 27
+illum 2

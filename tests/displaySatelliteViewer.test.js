@@ -40,8 +40,13 @@ function run() {
   const expectedIds = [
     'starlink_V1',
     'starlink_v2.glb',
+    'starlink_v3.glb',
     'oneweb.glb',
     'o3b.glb',
+    'o3b_mpower.glb',
+    'qianfan',
+    'iridium',
+    'cubesat',
     'ISS.glb',
     'SSL_1300.glb'
   ];
@@ -49,6 +54,44 @@ function run() {
   expectedIds.forEach((id) => assert(modelIds.has(id), `manifest includes ${id}`));
 
   assert.strictEqual(modelIds.size, manifest.models.length, 'display satellite manifest IDs are unique');
+
+  const v3 = manifest.models.find(model => model.id === 'starlink_v3.glb');
+  const bytes = fs.readFileSync(path.join(manifest.basePath, v3.files.glb));
+  assert.strictEqual(bytes.toString('ascii', 0, 4), 'glTF');
+  assert.strictEqual(bytes.readUInt32LE(4), 2);
+  assert.strictEqual(bytes.readUInt32LE(8), bytes.length, 'complete V3 GLB');
+  const gltf = JSON.parse(bytes.toString('utf8', 20, 20 + bytes.readUInt32LE(12)));
+  assert(gltf.buffers.every(buffer => !buffer.uri), 'V3 geometry is embedded');
+  assert(gltf.images.length > 0 && gltf.images.every(image =>
+    !image.uri && gltf.bufferViews[image.bufferView]), 'V3 textures are embedded');
+  const preview = gltf.nodes.find(node => node.name === 'OpenBEXIPreview');
+  assert.strictEqual(gltf.cameras[preview?.camera]?.type, 'perspective', 'V3 provides its opening view');
+
+  const classic = manifest.models.find(model => model.id === 'o3b.glb');
+  const classicBytes = fs.readFileSync(path.join(manifest.basePath, classic.files.glb));
+  const classicGltf = JSON.parse(classicBytes.toString('utf8', 20, 20 + classicBytes.readUInt32LE(12)));
+  const classicPreview = classicGltf.nodes.find(node => node.name === 'OpenBEXIPreview');
+  assert.strictEqual(classicGltf.cameras[classicPreview?.camera]?.type, 'perspective', 'Classic provides its payload view');
+  const reflectors = classicGltf.nodes.filter(node => /^Ka reflector \d+$/.test(node.name));
+  assert.strictEqual(reflectors.length, 12, 'Classic has twelve separately mounted reflectors');
+  const panelCounts = classicGltf.nodes.filter(node => /solar wing$/.test(node.name))
+    .map(wing => wing.children.filter(index => /^Solar panel \d+$/.test(classicGltf.nodes[index].name)).length);
+  assert.deepStrictEqual(panelCounts, [3, 3], 'Classic has three solar panels on each wing');
+  const classicMetadata = JSON.parse(read('json/satellites/O3b.json'))['0'];
+  assert.strictEqual(classicMetadata.orbit.altitude, 8063000, 'Classic uses its nominal MEO altitude in metres');
+
+  for (const [id, axis, extent] of [['qianfan', 0, 10], ['iridium', 0, 9.4], ['cubesat', 2, 0.3405]]) {
+    const entry = manifest.models.find(model => model.id === id);
+    const obj = read(path.join(manifest.basePath, entry.files.obj));
+    const mtl = read(path.join(manifest.basePath, entry.files.mtl));
+    assert(obj.split('\n').includes(`mtllib ${path.basename(entry.files.mtl)}`), `${id} references its material library`);
+    const values = obj.split('\n').filter(line => line.startsWith('v '))
+      .map(line => Number(line.split(/\s+/)[axis + 1]));
+    assert(Math.abs(Math.max(...values) - Math.min(...values) - extent) < 0.0001, `${id} physical extent in metres`);
+    const maps = new Set([...mtl.matchAll(/^map_Kd (.+)$/gm)].map(match => match[1].trim()));
+    assert.deepStrictEqual(maps, new Set(entry.textures.map(texture => path.posix.relative(path.posix.dirname(entry.files.mtl), texture.path))), `${id} texture manifest`);
+    assert.strictEqual(JSON.parse(read(`json/satellites/${id}.json`))['0'].meta.geometry.obj_units, 'm');
+  }
 
   const objRoot = manifest.basePath.replace(/\/$/, '');
   const assetFiles = listFilesRecursive(objRoot).map((filePath) => manifestRelativePath(objRoot, filePath));
@@ -148,7 +191,9 @@ function run() {
     'starlink_V1.obj',
     'starlink_V1.mtl',
     'starlink_v2.glb',
+    'starlink_v3.glb',
     'o3b.glb',
+    'o3b_mpower.glb',
     'oneweb.glb',
     'ISS.glb',
     'SSL_1300.glb'

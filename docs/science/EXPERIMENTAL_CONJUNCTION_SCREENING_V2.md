@@ -6,7 +6,7 @@ Version 2.0 provides **Experimental TLE-based close-approach screening** for eva
 
 The software reports synchronized geometric close approaches. It does not report physical contact, consequence, operational priority, or probability of collision. `collision_probability` and `hard_body_radius_km` are `null`, covariance status is `UNAVAILABLE`, and the UI and exports must display probability as unavailable. No percentage or heuristic is substituted.
 
-The v2.0 capability record is `preview`, with `Experimental` scientific maturity and `non-operational` safety class. The authoritative application record has since advanced to Version 2.3.1 development; that change does not promote the v2.0 scientific claim. Software version, software quality, and scientific maturity are separate claims.
+The v2.0 capability record describes a `preview`. The current 2.6.0 application is in development and the screening feature is classified as experimental and non-operational. [Release metadata](../../release/version.json) · [Feature registry](../../release/feature-flags.json)
 
 ## Supported Calculation
 

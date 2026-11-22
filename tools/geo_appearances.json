@@ -1,0 +1,360 @@
+{
+  "sources": {
+    "boeing": "https://www.boeing.com/content/dam/boeing/v2/company/history/pdf/Boeing_Products.pdf#page=179",
+    "ses": "https://www.ses.com/media-library/satellite-rendering",
+    "sp": "https://boeing.mediaroom.com/01-09-15-Boeing-Completes-World-s-First-All-Electric-Propulsion-Satellites",
+    "sesPair": "https://www.ses.com/media-library/ses2021-media-gallery",
+    "concentrators": "https://science.nasa.gov/wp-content/uploads/2023/09/D-24454_2_-_Solar_Cell_and_Array_Technology__20022.pdf",
+    "intelsat": "https://www.ilslaunch.com/wp-content/uploads/2018/09/IS-22-Mission-Overview-final.pdf",
+    "intelsatImage": "https://www.nasa.gov/wp-content/uploads/2024/01/lithium-ion-cell-balancing-electronics-benefiting-the-satellite-industry.pdf#page=25",
+    "inmarsat": "https://usncursi.org/archive/aps-ursi/2019/abstracts/2344.pdf",
+    "viasat": "https://www.viasat.com/news/press-resources/viasat-3-renderings/",
+    "viasatSize": "https://www.viasat.com/news/latest-news/corporate/2022/viasat-3-achieves-flight-configuration/",
+    "thuraya": "https://boeing.mediaroom.com/2003-06-06-Launch-Set-for-Boeing-Built-Thuraya-2-Mobile-Communications-Satellite",
+    "skyterra": "https://boeing.mediaroom.com/2010-10-19-Boeing-Ships-LightSquareds-SkyTerra-1-Mobile-Communications-Satellite-to-Launch-Site",
+    "mexsat": "https://www.ulalaunch.com/docs/default-source/news-items/av_morelos3_mob.pdf",
+    "msat": "https://ntrs.nasa.gov/api/citations/19940028810/downloads/19940028810.pdf",
+    "e3000": "https://resilience.esa.int/archives/projects/e3000-second-generation-solar-array",
+    "neo": "https://image.contactad.airbus.com/lib/fe2d1171756404747c1678/m/1/4fd52320-6b63-4c82-b676-f253f5cf204a.pdf",
+    "dfh": "https://en.cgwic.com/CommunicationsSatellite/index.html",
+    "goesI": "https://cimss.ssec.wisc.edu/goes/databooks/databook_NASA_I_M_all.pdf",
+    "goesN": "https://www.nasa.gov/wp-content/uploads/2015/03/148786main_goes-n-kit-v10_3.pdf",
+    "mag": "https://www.spaceweather.gov/sites/default/files/images/u33/GOES_VW_Requirements_Workshop_Summary_show.pdf",
+    "goesR": "https://ospo.noaa.gov/resources/documents/GOES-RSeriesDataBook.pdf#page=23",
+    "him": "https://www.data.jma.go.jp/mscweb/en/general/himawari.html",
+    "himSize": "https://www.data.jma.go.jp/mscweb/technotes/msctechrep-sp_201603.pdf",
+    "mtg": "https://www.esa.int/ESA_Multimedia/Images/2022/09/MTG-I_and_MTG-S",
+    "tdrsGen": "https://ntrs.nasa.gov/api/citations/20180007428/downloads/20180007428.pdf#page=13",
+    "tdrsKL": "https://ntrs.nasa.gov/api/citations/20170010208/downloads/20170010208.pdf",
+    "tdrsA": "https://ntrs.nasa.gov/api/citations/19870000738/downloads/19870000738.pdf",
+    "ekran": "https://files.eric.ed.gov/fulltext/ED258832.pdf#page=193",
+    "ekranMuseum": "https://museumgagarin.ru/news/iskusstvennyy_sputnik_zemli_televizionnogo_veshchaniya_ekran/",
+    "intelsatOperator": "https://boeing.mediaroom.com/2012-10-11-Intelsat-Accepts-2nd-On-Orbit-Boeing-702MP-Satellite",
+    "inmarsatFleet": "https://boeing.mediaroom.com/2015-08-29-Boeing-built-Satellite-Will-Create-First-Global-High-Speed-Broadband-Network",
+    "ariane236": "https://visionaespacial.com/wp-content/uploads/2023/03/LAUNCH-KIT_SGDC.pdf#page=4",
+    "ariane206": "https://europeanspaceflight.com/wp-content/uploads/2023/11/VA206-launchkit.pdf#page=7",
+    "lm": "https://news.lockheedmartin.com/2012-05-15-Lockheed-Martin-Orbits-100th-and-101st-Commercial-Geo-Satellites-With-Successful-Launch-of-JCSAT-13-And-VINASAT-2",
+    "lm2100": "https://news.lockheedmartin.com/2018-03-07-Lockheed-Martin-Begins-Assembly-of-JCSAT-17-Commercial-Communications-Satellite",
+    "jcsat17": "https://storage.googleapis.com/studio-design-asset-files/projects/7kadAYozW3/s-1x1_b44af9e3-dfea-4be1-93b6-ccea8fe9acc4.pdf#page=17",
+    "gorizont": "https://files.eric.ed.gov/fulltext/ED258832.pdf#page=195",
+    "ats6": "https://ntrs.nasa.gov/api/citations/19820008277/downloads/19820008277.pdf#page=31"
+  },
+  "models": {
+    "ref-hs-601-22087": {
+      "name": "Boeing / Hughes 601 (HS-601)",
+      "family": "Boeing 601",
+      "buses": ["HS-601"],
+      "appearance": {"body": "601", "wingRows": [1, 1, 1], "dishes": 4},
+      "sources": ["boeing"],
+      "description": "Two stacked equipment modules, opposed solar wings and outboard communications reflectors. Antenna sizes and placement represent a typical 601 payload."
+    },
+    "ref-hs-601hp-24916": {
+      "name": "Boeing / Hughes 601HP (HS-601HP)",
+      "family": "Boeing 601",
+      "buses": ["HS-601HP"],
+      "appearance": {"body": "601", "wingRows": [1, 1, 1, 1], "dishes": 4},
+      "sources": ["boeing"],
+      "description": "High-power 601 with extended solar wings, a separate communications module and side-mounted reflectors. Payload fittings vary by mission."
+    },
+    "boeing-601-msat": {
+      "name": "Boeing / Hughes 601 · MSAT",
+      "family": "Boeing 601",
+      "numbers": [23553, 23846],
+      "appearance": {"body": "601", "wingRows": [1, 1, 1], "dishes": 2, "dishMajor": 5.7, "dishMinor": 5.3},
+      "sources": ["msat", "boeing"],
+      "description": "The MSAT spacecraft carry two 5.7 × 5.3 m springback L-band reflectors on a Hughes 601 bus.",
+      "dimensions": [3.5, 2.7, 22],
+      "dimensionNote": "Body and array dimensions are representative estimates. The two reflector apertures use the published dimensions."
+    },
+    "ref-bss-702-41724": {
+      "name": "Boeing BSS-702 · reference bus",
+      "family": "Boeing 702",
+      "buses": ["BSS-702"],
+      "appearance": {"body": "702", "wingRows": [1, 1, 1, 1], "dishes": 1},
+      "sources": ["boeing"],
+      "description": "Representative 702 body and deployed wings. External payload details for these catalog entries are uncertain."
+    },
+    "ref-bss-702hp-26608": {
+      "name": "Boeing BSS-702HP",
+      "family": "Boeing 702",
+      "buses": ["BSS-702HP"],
+      "appearance": {"body": "702", "wingRows": [1, 1, 1, 1, 1], "dishes": 4, "radiators": true},
+      "sources": ["ses", "inmarsat"],
+      "description": "High-power bus with paired solar wings, folding thermal radiators and side-mounted communications antennas. SES-9 is the visual reference for this family."
+    },
+    "ref-hs-702-26038": {
+      "name": "Boeing / Hughes 702 · concentrator wings",
+      "family": "Boeing 702",
+      "buses": ["HS-702"],
+      "numbers": [26608, 26624, 26724, 26761],
+      "appearance": {"body": "702", "wingRows": [1, 1, 1, 1], "dishes": 4, "radiators": true, "concentrators": true},
+      "sources": ["concentrators", "boeing"],
+      "description": "Early 702 with reflective troughs flanking both solar wings. Galaxy XI is the visual reference."
+    },
+    "boeing-702hp-inmarsat5": {
+      "name": "Boeing BSS-702HP · Inmarsat-5",
+      "family": "Boeing 702",
+      "numbers": [39476, 40384, 40882, 42698],
+      "appearance": {"body": "702", "wingRows": [1, 1, 1, 1, 1], "dishes": 6, "radiators": true, "kaDeck": true},
+      "sources": ["inmarsatFleet", "inmarsat"],
+      "description": "Five panels per solar wing, deployed thermal radiators and a Ka-band payload. The six offset reflectors follow the published Inmarsat-5 F4 configuration."
+    },
+    "ref-bss-702mp-38098": {
+      "name": "Boeing BSS-702MP",
+      "family": "Boeing 702",
+      "buses": ["BSS-702MP"],
+      "appearance": {"body": "702MP", "wingRows": [1, 1, 1, 1], "dishes": 4},
+      "sources": ["intelsatImage", "intelsatOperator", "intelsat"],
+      "description": "Medium-power 702 with paired solar wings and perimeter reflectors. The four-panel Intelsat 21 is the representative configuration."
+    },
+    "boeing-702mp-three-panel": {
+      "name": "Boeing BSS-702MP · Intelsat 22",
+      "family": "Boeing 702",
+      "numbers": [38098],
+      "appearance": {"body": "702MP", "wingRows": [1, 1, 1], "dishes": 4},
+      "sources": ["intelsatOperator", "intelsat"],
+      "description": "Intelsat 22 uses three solar panels on each wing of the 702MP."
+    },
+    "ref-bss-702mp-56370": {
+      "name": "Boeing BSS-702MP+ · ViaSat-3",
+      "family": "Boeing 702",
+      "buses": ["BSS-702MP+"],
+      "appearance": {"body": "702MP+", "wingRows": [1, 3, 3, 1], "dishes": 0, "meshDiameter": 18, "meshOffset": 25, "radiators": true},
+      "sources": ["viasat", "viasatSize"],
+      "description": "Nominal ViaSat-3 design with eight panels on each cross-shaped solar wing and one offset mesh reflector at the end of a long boom.",
+      "dimensions": [7, 3, 43.9],
+      "dimensionNote": "Solar span is the published 144 ft, rounded to 43.9 m. The reflector diameter and position are estimates from operator renderings. Individual deployment anomalies are outside this model."
+    },
+    "ref-bss-702sp-40424": {
+      "name": "Boeing BSS-702SP",
+      "family": "Boeing 702",
+      "buses": ["BSS-702SP"],
+      "appearance": {"body": "702SP", "wingRows": [1, 1, 1, 1], "dishes": 4},
+      "sources": ["sp", "ses"],
+      "description": "Compact all-electric bus with a light radiator face, opposed solar wings and side-mounted reflectors. SES-15 is the representative exterior."
+    },
+    "boeing-702sp-ses-cband": {
+      "name": "Boeing BSS-702SP · SES-20 / SES-21",
+      "family": "Boeing 702",
+      "numbers": [53960, 53961],
+      "appearance": {"body": "702SP", "wingRows": [1, 1, 1], "dishes": 2, "dishMajor": 3.7, "dishMinor": 3},
+      "sources": ["sesPair"],
+      "description": "Twin C-band satellites share a compact 702SP bus with a pair of outboard reflector assemblies. The shared exterior follows SES's deployed illustration."
+    },
+    "ref-hs-gem-26578": {
+      "name": "Boeing GEO-Mobile · Thuraya",
+      "family": "Boeing 702",
+      "buses": ["HS-GEM"],
+      "appearance": {"body": "702", "wingRows": [1, 1, 1, 1, 1], "dishes": 1, "meshDiameter": 12.25, "meshOffset": 9},
+      "sources": ["thuraya"],
+      "description": "GEO-Mobile platform with a deployable 12.25 m L-band mesh reflector on an offset support.",
+      "dimensions": [5.8, 3.2, 40.4],
+      "dimensionNote": "The 12.25 m aperture is published. The central bus and support are estimated independently of the deployed reflector."
+    },
+    "boeing-thuraya-concentrators": {
+      "name": "Boeing GEO-Mobile · Thuraya-1",
+      "family": "Boeing 702",
+      "numbers": [26578],
+      "appearance": {"body": "702", "wingRows": [1, 1, 1, 1], "dishes": 1, "meshDiameter": 12.25, "meshOffset": 9, "concentrators": true},
+      "sources": ["thuraya", "concentrators"],
+      "description": "Early GEO-Mobile bus with a 12.25 m L-band mesh antenna and reflector troughs alongside its solar panels.",
+      "dimensions": [5.8, 3.2, 34],
+      "dimensionNote": "Catalog array span, published antenna aperture and estimated central bus and support."
+    },
+    "boeing-geomobile-22m": {
+      "name": "Boeing GEO-Mobile · 22 m reflector",
+      "family": "Boeing 702",
+      "numbers": [37218, 40946],
+      "appearance": {"body": "702", "wingRows": [1, 1, 1, 1, 1], "dishes": 1, "dishMajor": 2, "meshDiameter": 22, "meshOffset": 15},
+      "sources": ["skyterra", "mexsat"],
+      "description": "A 22 m mesh antenna dominates the SkyTerra-1 and Morelos-3 exteriors. A smaller solid antenna sits opposite the mesh assembly.",
+      "dimensions": [6, 3, 41],
+      "dimensionNote": "Published 22 m aperture and representative catalog wingspan. Secondary antenna, bus depth and support geometry are approximate."
+    },
+    "ref-eurostar-3000-28187": {
+      "name": "Airbus Eurostar E3000",
+      "family": "Eurostar",
+      "buses": ["Eurostar 3000"],
+      "appearance": {"body": "Eurostar", "wingRows": [1, 1, 1, 1], "dishes": 2},
+      "sources": ["ses", "e3000"],
+      "description": "Gold-insulated communications module with two outboard reflectors and articulated solar wings. SES-11 is the representative exterior."
+    },
+    "ref-eurostar-neo-54048": {
+      "name": "Airbus Eurostar Neo",
+      "family": "Eurostar",
+      "buses": ["Eurostar NEO"],
+      "appearance": {"body": "Eurostar", "wingRows": [1, 2, 2, 1], "dishes": 4},
+      "sources": ["neo"],
+      "description": "Modular Eurostar Neo with outboard antennas and widened middle sections on its solar wings. The Airbus product illustration is the representative configuration."
+    },
+    "ref-eurostar-neo-56757": {
+      "name": "Airbus Eurostar Neo · BADR-8",
+      "family": "Eurostar",
+      "buses": ["Eurostar Neo"],
+      "appearance": {"body": "Eurostar", "wingRows": [1, 2, 2, 1], "dishes": 4},
+      "sources": ["neo"],
+      "description": "ArabSat Eurostar Neo platform, represented by the shared Airbus product-line exterior."
+    },
+    "ref-spacebus-neo200-49332": {
+      "name": "Thales Alenia Space Spacebus NEO200",
+      "family": "Spacebus",
+      "buses": ["Spacebus NEO200"],
+      "appearance": {"body": "Spacebus", "wingRows": [1, 1, 1, 1, 1], "dishes": 6},
+      "sources": ["ses"],
+      "description": "Box-shaped service module, separate gold-insulated payload, extended solar yokes and outboard reflectors. SES-17 is the visual reference."
+    },
+    "ref-dfh-4-31395": {
+      "name": "CAST Dongfanghong DFH-4",
+      "family": "Dongfanghong",
+      "buses": ["DFH-4"],
+      "appearance": {"body": "DFH", "wingRows": [1, 1, 1], "dishes": 2, "busDepth": 2.1},
+      "sources": ["dfh"],
+      "description": "Three-axis communications platform with a service module, a payload module and opposed solar wings. Antenna layout varies with the payload.",
+      "dimensions": [3.6, 2.36, 30],
+      "dimensionNote": "CGWIC gives the bus envelope as 2.36 × 2.10 × 3.60 m. The 30 m solar span is representative catalog data."
+    },
+    "goes-i": {
+      "name": "GOES I–M",
+      "family": "GOES",
+      "appearance": {"weather": "GOES I-M", "wingRows": [1, 1], "sail": 17.7, "boom": 3, "wingEnvelope": 9.2},
+      "sources": ["goesI"],
+      "description": "Two-panel solar wing opposite a 17.7 m solar-sail boom, with a separate 3 m magnetometer boom. The 26.9 m tip-to-tip dimension includes the sail and the array.",
+      "dimensions": [3.2, 2.5, 26.9],
+      "dimensionNote": "Published sail reach and total length. The wing and body occupy the remaining 9.2 m."
+    },
+    "goes-n": {
+      "name": "GOES N–P",
+      "family": "GOES",
+      "appearance": {"weather": "GOES N-P", "wingRows": [1], "boom": 8.5, "wingEnvelope": 8.4},
+      "sources": ["goesN", "mag"],
+      "description": "Boeing 601-based weather bus with a single-panel wing, separate imager and sounder housings, and an 8.5 m magnetometer boom.",
+      "dimensions": [4.2, 1.88, 8.4],
+      "dimensionNote": "NASA bus length and width and NOAA magnetometer boom length. Array reach is approximate."
+    },
+    "goes-r": {
+      "name": "GOES-R series",
+      "family": "GOES",
+      "appearance": {"weather": "GOES-R", "wingRows": [1, 1, 1, 1, 1], "boom": 8.5, "wingEnvelope": 12},
+      "sources": ["goesR", "mag"],
+      "description": "Five-panel solar wing with instruments on the inboard Sun Pointing Platform, a separate antenna wing and an 8.5 m magnetometer boom."
+    },
+    "himawari-8-9": {
+      "name": "Himawari 8 and 9",
+      "family": "Himawari",
+      "appearance": {"weather": "Himawari", "wingRows": [1, 1], "wingEnvelope": 8, "busDepth": 2.1},
+      "sources": ["him", "himSize"],
+      "description": "AHI on a raised imager bench, an offset Ka-band dish and a single two-panel solar wing on a triangulated yoke.",
+      "dimensions": [2.9, 2.2, 8],
+      "dimensionNote": "JMA gives a 2.2 × 2.1 × 2.9 m bus and a deployed envelope of approximately 5.1 × 8.0 × 5.3 m."
+    },
+    "mtg-i": {
+      "name": "Meteosat Third Generation Imager",
+      "family": "Meteosat",
+      "appearance": {"weather": "MTG-I", "wingRows": [1]},
+      "sources": ["mtg"],
+      "description": "Opposed single-panel solar wings and a separate instrument module carrying the Flexible Combined Imager and the four Lightning Imager optical heads."
+    },
+    "mtg-s": {
+      "name": "Meteosat Third Generation Sounder",
+      "family": "Meteosat",
+      "appearance": {"weather": "MTG-S", "wingRows": [1]},
+      "sources": ["mtg"],
+      "description": "Opposed single-panel solar wings and a separate instrument module carrying the infrared sounder and the Sentinel-4 spectrometer."
+    },
+    "tdrs-1": {
+      "name": "TDRS generation 1 (A–G)",
+      "family": "TDRS",
+      "appearance": {"relay": 1, "wingRows": [3], "diameter": 4.9},
+      "sources": ["tdrsGen", "tdrsA"],
+      "description": "Two 4.9 m gimbaled single-access reflectors, a separate space-to-ground link dish and a multiple-access antenna deck.",
+      "dimensions": [2.8, 2.6, 17.4],
+      "dimensionNote": "Nominal deployed aperture diameter and catalog solar-array span. The bus envelope, feed supports and array drive are approximate."
+    },
+    "tdrs-2": {
+      "name": "TDRS generation 2 (H–J)",
+      "family": "TDRS",
+      "appearance": {"relay": 2, "wingRows": [1, 1], "diameter": 4.6},
+      "sources": ["tdrsGen", "tdrsKL"],
+      "description": "Two 4.6 m gimbaled single-access reflectors, a separate space-to-ground link dish and a multiple-access antenna deck.",
+      "dimensions": [3.2, 3, 21.0],
+      "dimensionNote": "Nominal deployed aperture diameter and catalog solar-array span. The bus envelope, feed supports and array drive are approximate."
+    },
+    "tdrs-3": {
+      "name": "TDRS generation 3 (K–M)",
+      "family": "TDRS",
+      "appearance": {"relay": 3, "wingRows": [1, 1, 1], "diameter": 4.6},
+      "sources": ["tdrsGen", "tdrsKL"],
+      "description": "Two 4.6 m gimbaled single-access reflectors, a separate space-to-ground link dish and a multiple-access antenna deck.",
+      "dimensions": [3.2, 3, 21.1],
+      "dimensionNote": "Nominal deployed aperture diameter and catalog solar-array span. The bus envelope, feed supports and array drive are approximate."
+    },
+    "ref-ekran-9503": {
+      "name": "Ekran",
+      "family": "Reshetnev",
+      "buses": ["Ekran"],
+      "appearance": {"broadcast": "Ekran", "wingRows": [2]},
+      "sources": ["ekran", "ekranMuseum"],
+      "description": "Cylindrical broadcast satellite with two pairs of solar paddles and a four-section, 96-element helical antenna array."
+    },
+    "ref-gorizont-11158": {
+      "name": "Gorizont",
+      "family": "Reshetnev",
+      "buses": ["Gorizont"],
+      "appearance": {"broadcast": "Gorizont"},
+      "sources": ["gorizont"],
+      "description": "Stepped cylindrical service module, broad paired solar wings and an axial communications reflector with an exposed feed. Fittings follow the deployed drawing in figure 41."
+    },
+    "ref-ats-f-7318": {
+      "name": "NASA Applications Technology Satellite 6 (ATS-6)",
+      "family": "Applications Technology Satellite",
+      "numbers": [7318],
+      "appearance": {"experiment": "ATS-6", "diameter": 9.14},
+      "sources": ["ats6"],
+      "description": "An open mesh parasol separates the Earth-viewing module and its prime-focus feed from the two curved solar paddles.",
+      "dimensions": [8.61, 1.4, 16],
+      "dimensionNote": "NASA figure 1-3 gives the 16 m span and 8.61 m deployed height. The text gives a 9.14 m reflector. The module and truss fittings are estimated."
+    },
+    "ref-spacebus-4000b2-33056": {
+      "name": "Thales Alenia Space Spacebus 4000B2",
+      "family": "Spacebus",
+      "buses": ["Spacebus 4000B2"],
+      "appearance": {"body": "Spacebus", "wingRows": [1, 1, 1], "dishes": 4, "innerDishRatio": 0.62},
+      "sources": ["ariane236"],
+      "description": "Koreasat-7 represents this platform with a gold communications bus, large and small side reflectors, and two solar wings on open yokes. Payload fittings vary by mission."
+    },
+    "ref-spacebus-4000c4-33453": {
+      "name": "Thales Alenia Space Spacebus 4000C4",
+      "family": "Spacebus",
+      "buses": ["Spacebus 4000C4"],
+      "appearance": {"body": "Spacebus", "wingRows": [1, 1, 1, 1], "dishes": 4},
+      "sources": ["ariane236"],
+      "description": "The SGDC launch illustration shows the long bus, four outboard reflectors and opposed solar wings. The shared model represents this communications configuration."
+    },
+    "ref-a2100a-26495": {
+      "name": "Lockheed Martin A2100A",
+      "family": "A2100",
+      "buses": ["A2100A"],
+      "appearance": {"body": "A2100", "wingRows": [1, 1, 1], "dishes": 2},
+      "sources": ["ariane206", "lm"],
+      "description": "Two offset reflectors, an equipment deck and opposed solar arrays follow the VINASAT-2 illustration. Bus dimensions and payload fittings vary across the platform."
+    },
+    "ref-a2100axs-35755": {
+      "name": "Lockheed Martin A2100AXS",
+      "family": "A2100",
+      "buses": ["A2100AXS"],
+      "appearance": {"body": "A2100", "wingRows": [1, 1, 1, 1, 1], "dishes": 4},
+      "sources": ["ariane206", "lm"],
+      "description": "The JCSAT-13 launch illustration shows four side reflectors and a pair of five-panel wings with exposed yokes."
+    },
+    "lm2100-jcsat17": {
+      "name": "Lockheed Martin LM 2100 · JCSAT-17",
+      "family": "LM 2100",
+      "busName": "LM 2100",
+      "numbers": [45245],
+      "appearance": {"body": "LM2100", "wingRows": [1, 1, 1, 1, 1], "dishes": 2, "meshDiameter": 18, "meshOffset": 12},
+      "sources": ["lm2100", "jcsat17"],
+      "description": "Mobile communications spacecraft with an 18 m S-band mesh reflector. The nominal array and smaller payload antennas are representative.",
+      "dimensionNote": "The operator specifies an 18 m reflector. The catalog provides an estimated bus size and array span. Antenna offsets and supports are estimated."
+    }
+  }
+}

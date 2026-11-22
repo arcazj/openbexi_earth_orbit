@@ -13,33 +13,6 @@
         }
     }
 
-    function loadClassicScript(src, timeoutMs) {
-        return new Promise((resolve, reject) => {
-            const script = document.createElement('script');
-            let settled = false;
-            const finish = (error) => {
-                if (settled) return;
-                settled = true;
-                clearTimeout(timeout);
-                if (error) {
-                    script.remove();
-                    reject(error);
-                } else {
-                    resolve(src);
-                }
-            };
-            const timeout = setTimeout(
-                () => finish(new Error(`Timed out loading ${src}`)),
-                timeoutMs
-            );
-            script.async = false;
-            script.src = src;
-            script.onload = () => finish();
-            script.onerror = () => finish(new Error(`Failed to load ${src}`));
-            document.head.appendChild(script);
-        });
-    }
-
     function sourceWithTrailingSlash(source) {
         return source.endsWith('/') ? source : `${source}/`;
     }
@@ -66,21 +39,26 @@
         throw new Error('Three.js sources are unavailable.');
     }
 
-    function hasSatelliteGlobal() {
-        return Boolean(
-            global.satellite?.propagate &&
-            global.satellite?.twoline2satrec &&
-            global.satellite?.json2satrec &&
-            global.satellite?.gstime
-        );
-    }
-
     async function loadSatelliteSource(options, timeoutMs, allowCdn) {
         for (const [name, source] of sourceCandidates(options, allowCdn)) {
+            let timer;
             try {
-                await loadClassicScript(source, timeoutMs);
-                if (hasSatelliteGlobal()) return { source: name, url: source };
-            } catch (error) {}
+                const url = new URL(source, document.baseURI).href;
+                const engine = await Promise.race([
+                    import(url),
+                    new Promise((_, reject) => {
+                        timer = setTimeout(() => reject(new Error(`Timed out loading ${url}`)), timeoutMs);
+                    })
+                ]);
+                if (['propagate', 'twoline2satrec', 'json2satrec', 'gstime'].every(key => typeof engine[key] === 'function')) {
+                    global.satellite = engine;
+                    return { source: name, url: source };
+                }
+            } catch (error) {
+                // Try the next source allowed by the deployment policy.
+            } finally {
+                clearTimeout(timer);
+            }
         }
         throw new Error('satellite.js sources are unavailable.');
     }
@@ -143,12 +121,11 @@
         const allowCdn = policy === 'packaged-first-with-cdn-fallback';
         global.openbexiStartupState = { phase: 'dependencies', errorCode: null };
         try {
-            const [threeSource, satelliteSource] = await Promise.all([
-                resolveThreeSource(options.three, timeoutMs, allowCdn),
-                options.satellite
-                    ? loadSatelliteSource(options.satellite, timeoutMs, allowCdn)
-                    : Promise.resolve(null)
-            ]);
+            const threeSource = await resolveThreeSource(options.three, timeoutMs, allowCdn);
+            injectImportMap(threeSource);
+            const satelliteSource = options.satellite
+                ? await loadSatelliteSource(options.satellite, timeoutMs, allowCdn)
+                : null;
             global.openbexiDependencySources = {
                 deploymentMode,
                 policy,
@@ -158,7 +135,6 @@
                 threeAddonsUrl: threeSource.addons,
                 satelliteUrl: satelliteSource?.url || null
             };
-            injectImportMap(threeSource);
             global.openbexiStartupState.phase = 'module';
             await runTemplateModule(options.templateId, options.moduleLabel);
             global.openbexiStartupState.phase = 'module-loaded';

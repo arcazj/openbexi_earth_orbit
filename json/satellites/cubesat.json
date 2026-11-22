@@ -1,0 +1,15 @@
+{
+  "0": {
+    "name": "CubeSat 3U",
+    "meta": {
+      "name": "Generic 3U CubeSat",
+      "type": "reference platform",
+      "form_factor": "3U",
+      "geometry": { "obj_units": "m", "envelope_m": [0.1, 0.1, 0.3405] },
+      "dimension_note": "The rail envelope follows Cal Poly's 3U specification. Solar boards and end fittings illustrate one possible configuration.",
+      "references": [
+        "https://www.nasa.gov/wp-content/uploads/2018/01/cubesatdesignspecificationrev14_12022-02-09.pdf#page=31"
+      ]
+    }
+  }
+}

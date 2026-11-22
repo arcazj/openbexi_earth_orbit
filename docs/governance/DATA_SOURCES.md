@@ -1,6 +1,6 @@
 # Data sources and scope
 
-2.5 retains the public v2.4 catalog, playback, guide and visual-asset bytes. New scientific additions are frozen numerical holdouts. Owner authorization covers this public GitHub source/prerelease; it does not establish new provider rights or qualify future customer redistribution.
+The 2.6.0 development build uses the existing orbital catalog and JPL playback and guide datasets. Its spacecraft model library adds GCAT-derived platform assignments, original geometry and references for spacecraft exteriors. The recorded 2.5 publication decisions cover their respective releases. [Release policy](RELEASE_POLICY.md)
 
 | Source | Admitted use / limits |
 | --- | --- |
@@ -10,6 +10,8 @@
 | Tracked/launch/decay derivatives | Derived from exact accepted source revisions; prior confirmed events retained; missing elements are not decay evidence |
 | NASA/JPL Horizons | Bounded playback, complete-orbit guide tables and independent-query holdouts; same physical model and no extrapolation beyond playback bounds |
 | Historical SGP4 references | Frozen test inputs/expected vectors with original upstream record; runtime uses MIT satellite.js |
+| GCAT platform catalog | Shared model assignments, representative dimensions and catalog outlines. The bundled profiles credit Jonathan McDowell and the CC BY 4.0 source. |
+| Manufacturer, operator and mission references | Illustrations, flight photographs and published measurements support the spacecraft models. The viewer identifies the reference basis and any estimated exterior details. |
 
 ## Provider access
 

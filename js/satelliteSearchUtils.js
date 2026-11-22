@@ -2,7 +2,7 @@ export function satelliteSearchText(satData) {
     return [
         satData?.satellite_name,
         satData?.name,
-        satData?.norad_id,
+        satData?.norad_id ?? satData?.NORAD_CAT_ID,
         satData?.provider_catalog_id,
         satData?.alpha5_id,
         satData?.orbitType,
@@ -10,6 +10,9 @@ export function satelliteSearchText(satData) {
         satData?.object_type,
         satData?.lifecycle_status,
         satData?.international_designator,
+        satData?.object_id,
+        satData?.owner,
+        satData?.owner_code,
         satData?.company,
         satData?.operator,
         ...(Array.isArray(satData?.tags) ? satData.tags : [])

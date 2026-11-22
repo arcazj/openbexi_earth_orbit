@@ -4,7 +4,9 @@ On 2026-11-08 the owner authorized public GitHub publication of v2.5 under the c
 
 The boundary is new owner-controlled material added after public 2.4.0 commit `f7724f5918349fbc972958f53b01732b9ea1bc2f`. [LICENSE](../../LICENSE) and [LICENSE.md](../../LICENSE.md) are identical. The [prior MIT notice](../../licenses/LEGACY_MIT.txt) is retained verbatim; upstream components, provider data, reference fixtures and legacy visual assets are not relicensed as proprietary. GitHub viewing/forking rights remain. Commercial use of new material requires a separate written agreement; no fees, jurisdiction, customer term or SLA are invented here.
 
-| Review area | Publication disposition |
+The table records the 2.5 publication review. The 2.6 model library has additional original meshes, GCAT-derived profiles and visual references. Their credits are recorded separately. [Current model notices](../THIRD_PARTY_NOTICES.md) · [2.6 runtime SBOM](../../release/evidence/openbexi-node-sbom-2.6.0-development.cdx.json)
+
+| Review area | Disposition at 2.5 publication |
 | --- | --- |
 | First-party model and contact | Owner approved; new material is commercial, source remains visible |
 | Dependencies | Exact versions and upstream notices retained; [runtime SBOM](../../release/evidence/openbexi-node-sbom-2.5.0-development.cdx.json), [full inventory](../../release/evidence/v2.5.0-rights-inventory.json) |

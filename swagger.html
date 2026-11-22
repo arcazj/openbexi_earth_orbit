@@ -483,7 +483,7 @@
     <header class="hero">
       <h1>
         OpenBEXI Earth Orbit API
-        <span class="badge version">2.5.1</span>
+        <span class="badge version">2.6.0</span>
         <span class="badge oas">OAS 3.0.3</span>
       </h1>
       <p class="description">
@@ -514,6 +514,77 @@
       </article>
     </section>
 
+    <!-- Catalog API reference start -->
+    <section id="catalog-models" class="tag-section" aria-labelledby="catalog-models-title">
+      <h2 id="catalog-models-title" class="tag-title">Catalog and models <span>Read-only local API</span></h2>
+      <p>Open the <a href="docs/catalog-api.openapi.json">OpenAPI contract</a> for field types and units, or the <a href="markdown_viewer.html?source=docs/SWAGGER.md&amp;title=Swagger%20API">Python walkthrough</a>.</p>
+      <details class="operation get">
+        <summary><span class="method get">GET</span><span class="path">/api/v1/objects</span><span class="summary-text">Search tracked objects</span></summary>
+        <div class="operation-body"><p>Search the verified local catalog in ascending NORAD order. The first page defaults to current membership. A revision change between pages returns 409. Restart pagination after a server restart.</p>
+          <h3>Parameters</h3>
+          <table class="response-table"><thead><tr><th scope="col">Name</th><th scope="col">Location</th><th scope="col">Description</th></tr></thead><tbody>
+            <tr><td>q</td><td>query</td><td>All whitespace-separated terms must match the record, case-insensitively. Search names, NORAD numbers, owners and International Designators.</td></tr>
+            <tr><td>scope</td><td>query</td><td>Membership in the selected local snapshot. Historical includes decayed and absent records. all, current, historical. Default current.</td></tr>
+            <tr><td>orbit</td><td>query</td><td>Catalog orbit class. all, LEO, MEO, GEO, HEO, DECAYING, OTHER, UNKNOWN. Default all.</td></tr>
+            <tr><td>type</td><td>query</td><td>Tracked object type. all, PAYLOAD, DEBRIS, ROCKET_BODY, MISSION_RELATED, UNKNOWN. Default all.</td></tr>
+            <tr><td>availability</td><td>query</td><td>Availability of current orbital elements. all, positioned, unavailable. Default all.</td></tr>
+            <tr><td>owner</td><td>query</td><td>Exact owner code, case-insensitive.</td></tr>
+            <tr><td>limit</td><td>query</td><td>Maximum records per page in ascending numeric NORAD order. 1–200. Default 50.</td></tr>
+            <tr><td>cursor</td><td>query</td><td>Continuation returned by this server instance. Keep the filters unchanged.</td></tr>
+            <tr><td>If-None-Match</td><td>header</td><td>Previously returned ETag.</td></tr>
+          </tbody></table>
+          <h3>Responses</h3>
+          <table class="response-table"><thead><tr><th scope="col">HTTP status</th><th scope="col">Description</th></tr></thead><tbody>
+            <tr><td>200</td><td>Requested local resource.</td></tr>
+            <tr><td>304</td><td>The supplied If-None-Match matches the representation.</td></tr>
+            <tr><td>400</td><td>Malformed identifier, filter or cursor.</td></tr>
+            <tr><td>405</td><td>This resource is read-only.</td></tr>
+            <tr><td>409</td><td>Catalog generation changed. Restart from the first page.</td></tr>
+            <tr><td>503</td><td>Verified catalog data or model metadata is unavailable.</td></tr>
+          </tbody></table>
+        </div>
+      </details>
+      <details class="operation get">
+        <summary><span class="method get">GET</span><span class="path">/api/v1/objects/{noradId}</span><span class="summary-text">Look up a NORAD object</span></summary>
+        <div class="operation-body"><p>Look up current or historical membership by full decimal NORAD ID. Positioned objects include their validated source OMM. Historical and metadata-only objects have a null epoch and element set.</p>
+          <h3>Parameters</h3>
+          <table class="response-table"><thead><tr><th scope="col">Name</th><th scope="col">Location</th><th scope="col">Description</th></tr></thead><tbody>
+            <tr><td>noradId</td><td>path</td><td>Full NORAD number without leading zeros.</td></tr>
+            <tr><td>If-None-Match</td><td>header</td><td>Previously returned ETag.</td></tr>
+          </tbody></table>
+          <h3>Responses</h3>
+          <table class="response-table"><thead><tr><th scope="col">HTTP status</th><th scope="col">Description</th></tr></thead><tbody>
+            <tr><td>200</td><td>Requested local resource.</td></tr>
+            <tr><td>304</td><td>The supplied If-None-Match matches the representation.</td></tr>
+            <tr><td>400</td><td>Malformed identifier, filter or cursor.</td></tr>
+            <tr><td>404</td><td>Resource is absent from this catalog or model registry.</td></tr>
+            <tr><td>405</td><td>This resource is read-only.</td></tr>
+            <tr><td>503</td><td>Verified catalog data or model metadata is unavailable.</td></tr>
+          </tbody></table>
+        </div>
+      </details>
+      <details class="operation get">
+        <summary><span class="method get">GET</span><span class="path">/api/v1/models/{modelId}</span><span class="summary-text">Get a shared spacecraft model</span></summary>
+        <div class="operation-body"><p>Follow the object's model link to its geometry, materials, textures, dimensions and references. Multiple display profiles and NORAD IDs can identify the same file. An empty reference or dimension list means the model has no such metadata recorded.</p>
+          <h3>Parameters</h3>
+          <table class="response-table"><thead><tr><th scope="col">Name</th><th scope="col">Location</th><th scope="col">Description</th></tr></thead><tbody>
+            <tr><td>modelId</td><td>path</td><td>Identifier from the object's model link.</td></tr>
+            <tr><td>If-None-Match</td><td>header</td><td>Previously returned ETag.</td></tr>
+          </tbody></table>
+          <h3>Responses</h3>
+          <table class="response-table"><thead><tr><th scope="col">HTTP status</th><th scope="col">Description</th></tr></thead><tbody>
+            <tr><td>200</td><td>Requested local resource.</td></tr>
+            <tr><td>304</td><td>The supplied If-None-Match matches the representation.</td></tr>
+            <tr><td>400</td><td>Malformed identifier, filter or cursor.</td></tr>
+            <tr><td>404</td><td>Resource is absent from this catalog or model registry.</td></tr>
+            <tr><td>405</td><td>This resource is read-only.</td></tr>
+            <tr><td>503</td><td>Verified catalog data or model metadata is unavailable.</td></tr>
+          </tbody></table>
+        </div>
+      </details>
+    </section>
+    <!-- Catalog API reference end -->
+
     <section class="tag-section" aria-labelledby="system-tag">
       <h2 id="system-tag" class="tag-title">system <span>Health, version, and local server metadata</span></h2>
 
@@ -538,8 +609,9 @@
               <h3>Example Response</h3>
               <pre><code>{
   "status": "ok",
-  "app": "OpenBEXI Earth Orbit",
-  "version": "2.5.1",
+  "app": "openbexi_earth_orbit",
+  "data_health": { "schemaVersion": 1, "url": "/api/data-update-status", "clock": "wall-utc" },
+  "version": "2.6.0",
   "release_date": null,
   "candidate_date": null,
   "publication_state": "development"
@@ -564,7 +636,7 @@
         </summary>
         <div class="operation-body">
           <h3>Description</h3>
-          <p>Both paths return the selected root's atomic SATCAT-scoped tracked-object manifest only after validating its complete closure, manifest/metadata revision agreement, raw GP/SATCAT bytes against their sidecar hashes, and current source lineage. Every public data route selects the same atomically promoted private runtime candidate, or the checked-in closure when no pointer exists. The server returns the exact manifest/metadata snapshot that passed those checks. Version 2.3.2 retains tracked schema Version 2.3.0; its debris facets, coverage HUD, result views, and map selection are client-derived and do not change this API. It does not claim provider-universe completeness or make metadata-only objects propagatable.</p>
+          <p>Both paths return the selected root's SATCAT-scoped tracked-object manifest after checking chunk closure, revisions, source hashes and GP/SATCAT lineage. Tracked schema version 2.3.0 supplies the counts and descriptors. The browser uses these for the tracked record summary, availability tabs and results filter. Metadata-only records are available for search and inspection.</p>
           <h3>Count Semantics</h3>
           <p><code>history_total</code> is the history-chunk partition used by <code>total = current + history_total</code>. <code>historical</code> counts decay-dated records and <code>absent</code> counts identities removed from current membership by complete guarded reconciliation; both are diagnostics within <code>history_total</code>, can overlap, and must not be added together. The historical Version 2.3.1 frozen snapshot has 70,474 total, 34,960 current, 35,514 history-total/decay-dated, and zero absent records. Availability is separate: 16,470 total/current propagatable records plus 54,004 total metadata-only records, including 18,490 current metadata-only records. Those values are not asserted for a future runtime candidate.</p>
           <h3>Responses</h3>
@@ -615,7 +687,7 @@
           </table>
           <h3>Example Response</h3>
           <pre><code>{
-  "app_version": "2.5.1",
+  "app_version": "2.6.0",
   "api_version": "1.0.0",
   "release_date": null,
   "candidate_date": null,
@@ -624,7 +696,7 @@
   "maturity": "experimental",
   "safety_class": "non-operational",
   "repository": "https://github.com/arcazj/openbexi_earth_orbit",
-  "server": "OpenBEXIHTTP/2.5.1"
+  "server": "OpenBEXIHTTP/2.6.0"
 }</code></pre>
         </div>
       </details>
@@ -732,7 +804,7 @@
         </summary>
         <div class="operation-body">
           <h3>Description</h3>
-          <p>Lists safe JSON metadata files available under <code>json/satellites/</code>.</p>
+          <p>Returns a count and a list of available files under <code>json/satellites/</code>. Each entry includes its name, repository path, API URL and size in bytes.</p>
           <h3>Parameters</h3>
           <p class="empty">No parameters.</p>
           <h3>Responses</h3>
@@ -740,14 +812,11 @@
             <thead><tr><th>Status</th><th>Description</th><th>Content type</th></tr></thead>
             <tbody><tr><td>200</td><td>Metadata file index.</td><td>application/json</td></tr></tbody>
           </table>
-          <h3>Example Response</h3>
+          <h3>Example file entry (excerpt)</h3>
           <pre><code>{
-  "files": [
-    {
-      "name": "starlink_V1.json",
-      "url": "/api/satellite-metadata/starlink_V1.json"
-    }
-  ]
+  "name": "starlink_V1.json",
+  "path": "json/satellites/starlink_V1.json",
+  "url": "/api/satellite-metadata/starlink_V1.json"
 }</code></pre>
         </div>
       </details>
@@ -776,11 +845,12 @@
               <tr><td>404</td><td>Metadata file not found.</td><td>application/json</td></tr>
             </tbody>
           </table>
-          <h3>Example Response</h3>
+          <h3>Example metadata response (excerpt)</h3>
           <pre><code>{
-  "name": "Starlink V1",
-  "model": "obj/starlink_V1.obj",
-  "texture": "obj/Textures/starlink_BaseColor.png"
+  "0": {
+    "name": "Starlink_V1",
+    "meta": { "norad_id": "44713", "bus": "Starlink V1 Bus", "manufacturer": "SpaceX" }
+  }
 }</code></pre>
         </div>
       </details>
@@ -789,11 +859,11 @@
         <summary>
           <span class="method get">GET</span>
           <span class="path">/api/display-satellite-models</span>
-          <span class="summary-text">List GLB and OBJ/MTL satellite models under obj.</span>
+          <span class="summary-text">List spacecraft profiles and their shared model files.</span>
         </summary>
         <div class="operation-body">
           <h3>Description</h3>
-          <p>Returns a live display-model manifest by scanning <code>obj/</code> recursively for every <code>.glb</code> file and every <code>.obj</code> file with a matching <code>.mtl</code>.</p>
+          <p>The server checks the bundled profiles against files under <code>obj/</code> and includes additional GLB files and OBJ/MTL pairs it discovers. Several profile IDs may share the same geometry path. The static viewer reads <code>json/display_satellite_models.json</code>. All paths in the manifest are relative to <code>basePath</code>.</p>
           <h3>Parameters</h3>
           <p class="empty">No parameters.</p>
           <h3>Responses</h3>
@@ -801,7 +871,7 @@
             <thead><tr><th>Status</th><th>Description</th><th>Content type</th></tr></thead>
             <tbody><tr><td>200</td><td>Display satellite model manifest.</td><td>application/json</td></tr></tbody>
           </table>
-          <h3>Example Response</h3>
+          <h3>Example manifest (excerpt)</h3>
           <pre><code>{
   "schemaVersion": 1,
   "basePath": "obj/",
@@ -810,15 +880,15 @@
       "id": "starlink_V1",
       "type": "obj-mtl",
       "files": {
-        "obj": "starlink_V1.obj",
-        "mtl": "starlink_V1.mtl"
+        "obj": "leo/starlink_V1.obj",
+        "mtl": "leo/starlink_V1.mtl"
       }
     },
     {
       "id": "ISS.glb",
       "type": "glb",
       "files": {
-        "glb": "ISS.glb"
+        "glb": "leo/ISS.glb"
       }
     }
   ]
@@ -1007,7 +1077,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "OpenBEXI Earth Orbit API",
-    "version": "2.5.1"
+    "version": "2.6.0"
   },
   "paths": {
     "/api/health": {},
@@ -1042,7 +1112,7 @@
     </section>
 
     <footer>
-      Static local documentation for OpenBEXI Earth Orbit 2.5.1 development. Companion Markdown: <a href="markdown_viewer.html?source=docs/SWAGGER.md&amp;title=Swagger%20API">docs/SWAGGER.md</a>.
+      Static local documentation for OpenBEXI Earth Orbit 2.6.0 development. Companion Markdown: <a href="markdown_viewer.html?source=docs/SWAGGER.md&amp;title=Swagger%20API">docs/SWAGGER.md</a>.
     </footer>
   </main>
 

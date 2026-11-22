@@ -6,8 +6,10 @@ Use `npm ci`, then `npm run check` and the suites in [Testing](TESTING.md) appro
 
 Keep frozen validation artifacts unchanged. Add a fresh holdout round when scientific behavior changes; do not tune against acceptance samples or loosen tolerances for a pass. Document frame, time scale, units, source coverage and numerical limits.
 
+For spacecraft models, check the existing LEO, MEO and GEO profiles before adding a mesh. Map spacecraft with the same exterior to a shared asset, keep the source references with the profile and label estimates or catalog outlines. The generator updates the manifest and compact NORAD index together. [Model references and regeneration](THIRD_PARTY_NOTICES.md)
+
 Treat provider responses and metadata as untrusted. Preserve bounded parsing, provider admission, private candidates, atomic publication, lineage and the static allowlist. Test cancellation, malformed data, partial sources and failure recovery.
 
-Keep credentials, private agreements, runtime pointers/databases and local evidence packages out of Git. Publish only explicitly authorized source/artifacts after [release checks](engineering/RELEASE_CHECKLIST.md). The v2.5 source/prerelease authorization does not deploy Pages, containers or packages.
+Keep credentials, private agreements, runtime pointers and databases, and private run artifacts out of Git. The repository keeps concise public verification records under `release/evidence/`. Source publication and Pages deployment each follow their documented workflow. [Release checklist](engineering/RELEASE_CHECKLIST.md) · [Pages deployment](engineering/PAGES_DEPLOYMENT.md)
 
 Documentation belongs under `docs/` except README, LICENSE, PROMPT_History and ROADMAP. Root `CLAUDE.md` is a short tool-discovery exception; upstream licenses stay in their original vendor paths. Update [the index](README.md), relative links, Help routes and artifact allowlists when moving public documents.

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "version": "2.6.0",
+  "tag": "v2.6.0",
+  "previousTag": "v2.5.1",
+  "previousPublicCommit": "e8d6b9cf55dc4fba4cea4c7a0240d6676b7f79e8",
+  "kind": "development-prerelease",
+  "repository": "arcazj/openbexi_earth_orbit",
+  "visibility": "public",
+  "integratedPullRequests": [46, 47, 51],
+  "downloads": [
+    "openbexi-earth-orbit-2.6.0.zip",
+    "openbexi-earth-orbit-2.6.0.tar.gz",
+    "SHA256SUMS.txt",
+    "release-verification.json",
+    "openbexi-node-sbom-2.6.0.cdx.json"
+  ],
+  "limitations": [
+    "experimental and non-operational",
+    "software-rendered performance targets remain open",
+    "independent scientific and security review pending",
+    "physical GPU, Safari, iOS and full accessibility qualification pending",
+    "legacy asset provenance review incomplete"
+  ]
+}

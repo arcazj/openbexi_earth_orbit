@@ -59,7 +59,7 @@ canvas {
     box-sizing: border-box;
 }
 
-.solar-system-active #trackedCoverageHud {
+.solar-system-active #catalogPanel {
     display: none;
 }
 
@@ -194,7 +194,7 @@ body:has(#dataRefreshStatus:not([hidden])) .tracked-results-drawer {
 
 @media (max-width: 560px) {
     body:has(#dataRefreshStatus:not([hidden])) #controlsContainer {
-        max-height: calc(100vh - var(--data-status-height) - 190px);
+        max-height: calc(100vh - var(--data-status-height) - var(--catalog-panel-top, 100px) - 8px);
     }
 }
 
@@ -1102,42 +1102,9 @@ body:has(#mercatorContainer.fullscreen) #menuToggleBtn {
     white-space: nowrap;
 }
 
-.tracked-coverage-hud {
-    position: fixed;
-    top: 50px;
-    left: 50%;
-    z-index: 2085;
-    width: min(520px, calc(100vw - 360px));
-    min-width: 360px;
-    box-sizing: border-box;
-    transform: translateX(-50%);
-    padding: 8px 10px;
-    border: 1px solid rgba(166, 180, 195, 0.5);
-    border-radius: 6px;
-    background: rgba(10, 14, 19, 0.88);
-    color: #f4f7fa;
-    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.42);
-    backdrop-filter: blur(7px);
-    -webkit-backdrop-filter: blur(7px);
-    pointer-events: none;
-}
-
-.tracked-coverage-hud[hidden] {
-    display: none !important;
-}
-
-.tracked-coverage-hud-header,
-.tracked-coverage-metrics,
-.tracked-coverage-meta {
-    display: flex;
-    align-items: center;
-    gap: 8px 14px;
-}
-
 .tracked-results-open {
     width: 100%;
     min-height: 34px;
-    margin-top: 8px;
 }
 
 .tracked-results-drawer {
@@ -1150,7 +1117,8 @@ body:has(#mercatorContainer.fullscreen) #menuToggleBtn {
     min-height: 260px;
     box-sizing: border-box;
     display: grid;
-    grid-template-rows: auto auto auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto minmax(0, 1fr);
     overflow: hidden;
     border: 1px solid rgba(149, 170, 190, 0.55);
     border-radius: 6px;
@@ -1180,6 +1148,28 @@ body:has(#mercatorContainer.fullscreen) #menuToggleBtn {
 .tracked-results-header span {
     color: #aebbc5;
     font-size: 11px;
+}
+
+.tracked-results-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+}
+
+.tracked-results-search label {
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.tracked-results-search input {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 8px;
+    border: 1px solid #65798c;
+    border-radius: 4px;
+    color: #eef4f8;
+    background: #141e28;
 }
 
 .tracked-results-close {
@@ -1329,56 +1319,6 @@ body:has(#mercatorContainer.fullscreen) #menuToggleBtn {
     }
 }
 
-.tracked-coverage-hud-header {
-    justify-content: space-between;
-    margin-bottom: 5px;
-    font-size: 12px;
-}
-
-.tracked-coverage-state {
-    color: #b8c4ce;
-    font-size: 11px;
-    font-weight: 800;
-}
-
-.tracked-coverage-hud[data-state="verified"] .tracked-coverage-state {
-    color: #60d394;
-}
-
-.tracked-coverage-hud[data-state="partial"] .tracked-coverage-state,
-.tracked-coverage-hud[data-state="loading"] .tracked-coverage-state {
-    color: #ffd166;
-}
-
-.tracked-coverage-hud[data-state="degraded"] .tracked-coverage-state,
-.tracked-coverage-hud[data-state="unavailable"] .tracked-coverage-state {
-    color: #ff6b6b;
-}
-
-.tracked-coverage-metrics {
-    justify-content: space-between;
-    font-size: 12px;
-}
-
-.tracked-coverage-metrics b {
-    font-variant-numeric: tabular-nums;
-}
-
-.tracked-coverage-metrics span:nth-child(2) b {
-    color: #52d6c8;
-}
-
-.tracked-coverage-metrics span:nth-child(3) b {
-    color: #ffb454;
-}
-
-.tracked-coverage-meta {
-    justify-content: space-between;
-    margin-top: 5px;
-    color: #9ca9b5;
-    font: 10px/1.2 "SF Mono", "Roboto Mono", "Fira Mono", Menlo, Consolas, monospace;
-}
-
 .selected-satellite-detail-panel {
     position: fixed;
     top: 52px;
@@ -1402,6 +1342,67 @@ body:has(#mercatorContainer.fullscreen) #menuToggleBtn {
 .selected-satellite-detail-panel[hidden] {
     display: none !important;
 }
+
+.catalog-panel {
+    top: var(--catalog-panel-top, 52px);
+    right: var(--catalog-panel-right, 16px);
+    width: var(--catalog-panel-width, 300px);
+    max-width: calc(100vw - 16px);
+    box-sizing: border-box;
+    max-height: calc(100dvh - var(--catalog-panel-top, 52px) - var(--data-status-height, 0px) - var(--timeline-height, 0px) - 10px);
+    padding: 8px;
+    overflow: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    background-color: rgba(4, 12, 21, 0.88);
+    font-size: 12px;
+}
+
+body:has(#launchTimelineToggle:checked, #reentryTimelineToggle:checked) {
+    --timeline-height: 250px;
+}
+
+.catalog-panel label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.catalog-panel input[type="checkbox"] {
+    margin: 0;
+}
+
+.catalog-panel .ypr-slider-grid label {
+    display: grid;
+    gap: 3px;
+}
+
+.catalog-panel .selected-satellite-detail-scroll {
+    padding: 8px 0 0;
+    max-height: none;
+    overflow: visible;
+}
+
+.catalog-panel .selected-satellite-detail-header {
+    padding: 8px 2px;
+}
+
+#selectedModelViewer, #trackedRecordSummary { margin-top: 8px; }
+.selected-model-viewer-body { padding: 0 8px 8px; }
+.selected-model-viewer-body p { margin: 2px 0 8px; }
+.selected-model-viewer-body a { color: #8ecbff; }
+#selectedModelPreview iframe {
+    display: block;
+    width: 100%;
+    aspect-ratio: 3 / 2;
+    border: 0;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    background: #050914;
+}
+.tracked-record-summary-body { padding: 2px 8px 8px; }
 
 .solar-system-planet-hud {
     border-color: rgba(255, 211, 107, 0.38);
@@ -1532,7 +1533,7 @@ body:has(#mercatorContainer.fullscreen) #menuToggleBtn {
     font-weight: 800;
 }
 
-.selected-satellite-detail-section[open] summary::after {
+.selected-satellite-detail-section[open] > summary::after {
     content: "-";
 }
 
@@ -2893,6 +2894,11 @@ body:has(#controlsContainer.menu-hidden) #menuToggleBtn {
     opacity: 0.5;
 }
 
+#catalogApiExamples[hidden],
+#restApiContent.collapsed {
+    display: none;
+}
+
 .api-docs-link.is-disabled {
     color: #8d9bad;
     pointer-events: none;
@@ -2943,46 +2949,20 @@ body:has(#controlsContainer.menu-hidden) #menuToggleBtn {
 }
 
 @media (max-width: 1280px) {
-    .tracked-coverage-hud-header,
-    .tracked-coverage-metrics,
-    .tracked-coverage-meta {
-        flex-wrap: wrap;
-        gap: 6px 10px;
-    }
-
-    body:has(#controlsContainer:not(.menu-hidden)) .selected-satellite-detail-panel {
+    body:has(#controlsContainer:not(.menu-hidden)) .solar-system-planet-hud {
         display: none !important;
-    }
-}
-
-@media (min-width: 561px) and (max-width: 1280px) {
-    body:has(#controlsContainer:not(.menu-hidden)) .tracked-coverage-hud {
-        left: 400px;
-        right: auto;
-        width: min(520px, calc(100vw - 408px));
-        min-width: 0;
-        transform: none;
-    }
-
-    body:has(#controlsContainer.menu-hidden):has(#selectedSatelliteDetailPanel:not([hidden])) .tracked-coverage-hud {
-        top: 52px;
-        left: 8px;
-        right: auto;
-        width: min(520px, calc(100vw - 392px));
-        min-width: 0;
-        transform: none;
     }
 }
 
 @media (max-width: 560px) {
     #menuToggleBtn {
-        top: 190px;
+        top: calc(var(--catalog-panel-top, 100px) + 10px);
         left: 20px;
     }
 
     #controlsContainer {
-        top: 180px;
-        max-height: calc(100vh - 190px);
+        top: var(--catalog-panel-top, 100px);
+        max-height: calc(100vh - var(--catalog-panel-top, 100px) - 8px);
     }
 
     #timeWarpBox {
@@ -3030,20 +3010,6 @@ body:has(#controlsContainer.menu-hidden) #menuToggleBtn {
         letter-spacing: 0.08em;
     }
 
-    .tracked-coverage-hud {
-        top: 106px;
-        left: 8px;
-        right: 8px;
-        width: auto;
-        min-width: 0;
-        transform: none;
-    }
-
-    .tracked-coverage-metrics {
-        gap: 6px;
-        font-size: 11px;
-    }
-
     .tracked-results-drawer {
         left: 8px;
         right: 8px;
@@ -3059,12 +3025,6 @@ body:has(#controlsContainer.menu-hidden) #menuToggleBtn {
         left: auto;
         max-height: min(42vh, 360px);
         max-width: calc(100vw - 16px);
-    }
-
-    body:has(#controlsContainer.menu-hidden):has(#trackedCoverageHud:not([hidden]))
-    .selected-satellite-detail-panel:not([hidden]) {
-        top: 224px;
-        max-height: min(42vh, calc(100vh - 234px));
     }
 
     .selected-satellite-detail-scroll {
@@ -3123,4 +3083,44 @@ body:has(#controlsContainer.menu-hidden) #menuToggleBtn {
     .full-catalog-token-note {
         align-self: start;
     }
+}
+
+@media (max-width: 760px) {
+    /* Share the available height so the menu and catalog each scroll independently. */
+    #ob_menu {
+        position: absolute;
+        inset: var(--menu-top, 10px) var(--catalog-panel-right, 8px) calc(var(--data-status-height, 0px) + var(--timeline-height, 0px) + 8px) 8px;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+        pointer-events: none;
+    }
+
+    #ob_menu #controlsContainer {
+        position: relative;
+        inset: auto;
+        flex: 0 1 auto;
+        min-height: 0;
+        pointer-events: auto;
+    }
+
+    #ob_menu #controlsContainer.menu-hidden { position: absolute; }
+
+    #catalogPanel {
+        position: relative;
+        inset: auto;
+        flex: 0 0 auto;
+        align-self: flex-end;
+        margin-top: auto;
+        max-height: 40%;
+        max-width: 100%;
+    }
+
+    #catalogPanel .satellite-option-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    #catalogPanel .ypr-slider-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 560px) {
+    #ob_menu { --menu-top: var(--catalog-panel-top, 100px); }
 }

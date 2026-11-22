@@ -1,17 +1,23 @@
 import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import path from 'node:path';
 
 const EPOCH = '2026-08-23T00:00:00Z';
-const LIGHTWEIGHT_DETAILED_MODEL_FIXTURE = path.resolve('obj/starlink_v2.glb');
+const LIGHTWEIGHT_DETAILED_MODEL_FIXTURE = path.resolve('obj/leo/starlink_v2.glb');
 const TRACKED_OBJECT_TYPES = Object.freeze([
   'PAYLOAD', 'DEBRIS', 'ROCKET_BODY', 'MISSION_RELATED', 'UNKNOWN'
 ]);
 
-function boxesIntersect(left, right) {
-  return left.x < right.x + right.width && left.x + left.width > right.x &&
-    left.y < right.y + right.height && left.y + left.height > right.y;
+async function expectCatalogClockAlignment(page) {
+  const catalog = page.locator('#catalogPanel');
+  await expect(catalog).toBeVisible();
+  await expect.poll(() => page.evaluate(() => {
+    const panel = document.getElementById('catalogPanel').getBoundingClientRect();
+    const clock = document.getElementById('utcClockDisplay').getBoundingClientRect();
+    return Math.max(Math.abs(panel.width - clock.width), Math.abs(panel.right - clock.right));
+  })).toBeLessThan(0.05);
 }
 
 function ommRecord({
@@ -603,7 +609,7 @@ function unexpectedConsoleErrors(messages) {
 
 async function bootFilterFixture(page, state, url = '/index.html', options = {}) {
   await page.route('**/node_modules/**', route => route.abort('blockedbyclient'));
-  await page.route('**/obj/ISS.glb', route => route.fulfill({
+  await page.route('**/obj/leo/ISS.glb', route => route.fulfill({
     contentType: 'model/gltf-binary',
     path: LIGHTWEIGHT_DETAILED_MODEL_FIXTURE
   }));
@@ -615,7 +621,7 @@ async function bootFilterFixture(page, state, url = '/index.html', options = {})
   await page.route('**/api/version', route => route.fulfill({
     status: 200,
     contentType: 'application/json',
-    body: JSON.stringify({ version: '2.3.1' })
+    body: JSON.stringify(state.serverVersion ?? { version: '2.3.1' })
   }));
   await page.route('**/api/data-update-status', route => route.fulfill({
     status: 200,
@@ -692,6 +698,14 @@ async function clickCategory(page, category) {
 
 async function clickObjectType(page, objectType) {
   await page.locator(`#objectTypeFilter [data-object-type-filter="${objectType}"]`).click();
+}
+
+async function expectCatalogRevision(page, field, revision) {
+  // Either the manual check or a concurrent scheduled poll can apply the new revision.
+  await expect.poll(() => page.evaluate(async key => {
+    const result = await window.openbexiServerConnection.checkForDataUpdates();
+    return result.status?.[key];
+  }, field)).toBe(revision);
 }
 
 async function expectCatalogCount(page, filtered, total = 9, { partial = false } = {}) {
@@ -981,17 +995,20 @@ async function selectSatellite(page, noradId) {
 }
 
 async function setCheckbox(page, selector, checked) {
-  const menuWasHidden = await page.locator('#controlsContainer').evaluate(element => element.classList.contains('menu-hidden'));
+  const checkbox = page.locator(selector);
+  const menuWasHidden = await checkbox.evaluate(element => Boolean(element.closest('#controlsContainer.menu-hidden')));
   if (menuWasHidden) {
     await page.locator('#menuToggleBtn').click();
   }
-  const checkbox = page.locator(selector);
   const sectionHeader = await checkbox.evaluate(element =>
     element.closest('.menu-accordion-section')?.querySelector('h3[data-collapsible-target]')?.id || null);
   const previousHeader = await page.locator('#controlsContainer h3[aria-expanded="true"]').evaluateAll(headers => headers[0]?.id || null);
   if (sectionHeader && await page.locator(`#${sectionHeader}`).getAttribute('aria-expanded') !== 'true') {
     await page.locator(`#${sectionHeader}`).click();
   }
+  const disclosure = checkbox.locator('xpath=ancestor::details[1]');
+  const initiallyClosed = (await disclosure.count()) > 0 && !(await disclosure.evaluate(element => element.open));
+  if (initiallyClosed) await disclosure.locator(':scope > summary').click();
   if (await checkbox.isChecked() !== checked) {
     const label = checkbox.locator('xpath=ancestor::label[1]');
     const labelIsInViewport = await label.evaluate(element => {
@@ -1005,7 +1022,8 @@ async function setCheckbox(page, selector, checked) {
   }
   if (checked) await expect(page.locator(selector)).toBeChecked();
   else await expect(page.locator(selector)).not.toBeChecked();
-  if (previousHeader && previousHeader !== sectionHeader) await page.locator(`#${previousHeader}`).click();
+  if (initiallyClosed) await disclosure.locator(':scope > summary').click();
+  if (sectionHeader && previousHeader && previousHeader !== sectionHeader) await page.locator(`#${previousHeader}`).click();
   if (menuWasHidden) {
     await page.locator('#menuToggleBtn').click();
     await expect.poll(() => page.locator('#controlsContainer').evaluate(element => element.getBoundingClientRect().right))
@@ -1020,7 +1038,36 @@ async function openDetails(page, selector) {
   }
 }
 
-test('category unions, dependent tags, counts, selection, and GP revisions stay coherent', async ({ page }, testInfo) => {
+for (const connected of [false, true]) {
+  test('REST API accordion and examples with the server ' + (connected ? 'connected' : 'offline'), async ({ page }) => {
+    const state = fixtureState();
+    if (connected) {
+      state.serverHealth = { status: 'ok' };
+      state.serverVersion = { catalog_model_api: '/api/v1/objects' };
+    }
+    await bootFilterFixture(page, state);
+    const header = page.locator('#timelinesAccordionSection + #restApiAccordionSection #restApiAccordionHeader');
+    if (await page.locator('#controlsContainer').evaluate(el => el.classList.contains('menu-hidden'))) {
+      await page.locator('#menuToggleBtn').click();
+    }
+    await expect(header).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator('#restApiContent')).toBeHidden();
+    await header.press('Enter');
+    await expect(page.locator('#restApiContent').getByRole('link', { name: 'OpenAPI JSON' })).toBeVisible();
+    await expect(page.locator('#satelliteAccordionHeader')).toHaveAttribute('aria-expanded', 'false');
+    const example = page.getByRole('link', { name: 'Search GLONASS-K2' });
+    if (connected) {
+      const base = await page.evaluate(() => window.openbexiServerConnection.baseUrl);
+      await expect(example).toHaveAttribute('href', base + '/api/v1/objects?q=GLONASS-K2&orbit=MEO');
+    } else {
+      await expect(page.locator('#catalogApiExamples')).toBeHidden();
+    }
+    await header.press('Space');
+    await expect(page.locator('#restApiContent')).toBeHidden();
+  });
+}
+
+test('category unions, dependent tags, counts and selection stay coherent', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'chromium', 'The full filter transition matrix runs once on desktop Chromium.');
   test.setTimeout(120_000);
   const browserErrors = monitorBrowserErrors(page);
@@ -1173,12 +1220,24 @@ test('category unions, dependent tags, counts, selection, and GP revisions stay 
   await expect(page.getByRole('checkbox', { name: 'LEO OPS' })).toHaveCount(0);
   await expectCatalogCount(page, 2);
 
+  expect(browserErrors.pageErrors).toEqual([]);
+  expect(unexpectedConsoleErrors(browserErrors.consoleErrors)).toEqual([]);
+});
+
+test('selected object details and filters follow GP revisions', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'The selected-object revision matrix runs once on desktop Chromium.');
+  test.setTimeout(120_000);
+  const browserErrors = monitorBrowserErrors(page);
+  const state = fixtureState();
+  await bootFilterFixture(page, state);
+  const search = page.locator('#satelliteSearchInput');
   await clickCategory(page, 'ALL');
   await selectSatellite(page, '110003');
   const detailPanel = page.locator('#selectedSatelliteDetailPanel');
   const canonicalDetails = detailPanel.locator('.selected-satellite-data-section');
   const ommDetails = detailPanel.locator('.selected-satellite-omm-section');
-  await expect(detailPanel).toBeHidden();
+  await expectCatalogClockAlignment(page);
+  await expect(detailPanel).toBeVisible();
   await page.locator('#menuToggleBtn').click();
   await expect(detailPanel).toBeVisible();
   await expect(detailPanel.locator('.selected-satellite-detail-header strong')).toHaveText('ISS (ZARYA)');
@@ -1201,11 +1260,21 @@ test('category unions, dependent tags, counts, selection, and GP revisions stay 
   await expect(ommDetails).toContainText('BSTAR');
 
   await page.locator('#menuToggleBtn').click();
+  await ommDetails.locator('summary').press('Enter');
+  await expect(ommDetails).toHaveJSProperty('open', true);
+  await selectSatellite(page, '110003');
+  await expect(ommDetails).toHaveJSProperty('open', false);
+  await ommDetails.locator('summary').press('Enter');
+  await selectSatellite(page, '110002');
+  await expect(ommDetails).toHaveJSProperty('open', false);
+  await selectSatellite(page, '110003');
+  await expect(ommDetails).toHaveJSProperty('open', false);
+  await ommDetails.locator('summary').press('Enter');
   await setCheckbox(page, '#showOrbitToggle', true);
   await clickCategory(page, 'LEO');
   expect(await page.evaluate(() => window.openbexiSimulation.snapshot().selectedNoradId)).toBe('110003');
   await expect(page.locator('#showOrbitToggle')).toBeChecked();
-  await expect(detailPanel).toBeHidden();
+  await expect(detailPanel).toBeVisible();
   await clickCategory(page, 'GEO');
   await clickCategory(page, 'LEO');
   expect(await pressedCategories(page)).toEqual(['GEO']);
@@ -1220,6 +1289,7 @@ test('category unions, dependent tags, counts, selection, and GP revisions stay 
   await expectCatalogCount(page, 2);
 
   await selectSatellite(page, '110001');
+  await expect(ommDetails).toHaveJSProperty('open', false);
   const geoTag = page.getByRole('checkbox', { name: 'GEO OPS' });
   await setCheckbox(page, '#companyFilter input[value="GEO OPS"]', true);
   const selectedMeshBefore = await page.evaluate(() => window.openbexiSimulation.snapshot().selectedMeshUuid);
@@ -1227,8 +1297,7 @@ test('category unions, dependent tags, counts, selection, and GP revisions stay 
     ? { ...record, satellite_name: 'GEO FIXTURE REVISION' }
     : record);
   state.gpMetadata = gpMetadata('sha256:filter-gp-two');
-  const firstRefresh = await page.evaluate(() => window.openbexiServerConnection.checkForDataUpdates());
-  expect(firstRefresh.changed).toBe(true);
+  await expectCatalogRevision(page, 'gp_revision', state.gpMetadata.catalog_revision);
   await page.waitForFunction(() => document.querySelector('#selectedSatelliteDetailPanel')?.textContent.includes('GEO FIXTURE REVISION'));
   expect(await pressedCategories(page)).toEqual(['GEO']);
   await expect(page.getByRole('checkbox', { name: 'GEO OPS' })).toBeChecked();
@@ -1240,8 +1309,7 @@ test('category unions, dependent tags, counts, selection, and GP revisions stay 
     ? { ...record, orbit_class: 'MEO', type: 'MEO', company: 'MEO OPS' }
     : record);
   state.gpMetadata = gpMetadata('sha256:filter-gp-three');
-  const secondRefresh = await page.evaluate(() => window.openbexiServerConnection.checkForDataUpdates());
-  expect(secondRefresh.changed).toBe(true);
+  await expectCatalogRevision(page, 'gp_revision', state.gpMetadata.catalog_revision);
   await page.waitForFunction(() => window.openbexiSimulation.snapshot().selectedNoradId === null);
   expect(await pressedCategories(page)).toEqual(['GEO']);
   await expect(page.getByRole('checkbox', { name: 'All tags' })).toBeChecked();
@@ -1294,8 +1362,7 @@ test('server lineage incoherence drops a stale tracked overlay and coherent reco
     tracked_source_revision_match: false,
     tracked_revision_match: false
   };
-  const refresh = await page.evaluate(() => window.openbexiServerConnection.checkForDataUpdates());
-  expect(refresh.changed).toBe(true);
+  await expectCatalogRevision(page, 'data_revision', state.dataUpdateStatus.data_revision);
   await page.waitForFunction(() => document.querySelector('#trackedCatalogStatus')?.dataset.state === 'lineage-error');
 
   await expect(page.locator('#trackedCatalogStatus')).toContainText('using GP data only');
@@ -1347,8 +1414,7 @@ test('server lineage incoherence drops a stale tracked overlay and coherent reco
     tracked_source_revision_match: true,
     tracked_revision_match: true
   };
-  const recovery = await page.evaluate(() => window.openbexiServerConnection.checkForDataUpdates());
-  expect(recovery.changed).toBe(true);
+  await expectCatalogRevision(page, 'data_revision', state.dataUpdateStatus.data_revision);
   await page.waitForFunction(() => window.openbexiSimulation.snapshot().trackedCatalogState === 'ready');
   expect(await page.evaluate(() => window.openbexiSimulation.snapshot().trackedCatalogLineageBlocked)).toBe(false);
   await clickObjectType(page, 'DEBRIS');
@@ -1436,15 +1502,8 @@ test('tracked catalog keeps orbit and object taxonomy independent and metadata-o
   await expect(page.locator('#trackedDebrisFacetSummary')).toHaveText(
     '3 matches | 1 positioned | 2 position unavailable'
   );
-  await expect(page.locator('#trackedCoverageHud')).toBeVisible();
-  await expect(page.locator('#trackedCoverageHud')).toHaveAttribute('data-state', 'partial');
-  await expect(page.locator('#trackedCoverageMatched')).toHaveText('3');
-  await expect(page.locator('#trackedCoveragePositioned')).toHaveText('1');
-  await expect(page.locator('#trackedCoverageUnavailable')).toHaveText('2');
-  await expect(page.locator('#trackedCoverageHud')).toHaveAttribute(
-    'aria-label',
-    /3 tracked objects match active filters; 1 positioned; 2 position unavailable/
-  );
+  await expect(page.locator('#trackedCoverageHud')).toHaveCount(0);
+  await page.locator('#trackedRecordSummary > summary').click();
   await expect(page.locator('#trackedCountFiltered')).toHaveText('3');
   await expect(page.locator('#trackedCountPropagatable')).toHaveText('1');
   await expect(page.locator('#trackedCountMetadataOnly')).toHaveText('2');
@@ -1454,6 +1513,7 @@ test('tracked catalog keeps orbit and object taxonomy independent and metadata-o
   await expect(page.locator('#trackedObjectLegend')).toContainText('Payload');
   await expect(page.locator('#trackedObjectLegend')).toContainText('Debris');
   await expect(page.locator('#trackedObjectLegend')).toContainText('Selected');
+  await page.locator('#trackedRecordSummary > summary').click();
   const globeDebrisDiagnostics = await page.evaluate(async () => {
     const diagnostics = (await import('/js/satelliteTLELoader.js')).getSatellitePointCloudDiagnostics();
     return {
@@ -1498,6 +1558,14 @@ test('tracked catalog keeps orbit and object taxonomy independent and metadata-o
   await page.locator('#trackedResultsTabs [data-result-mode="UNAVAILABLE"]').click();
   await expect(page.locator('#trackedResultsCount')).toHaveText('2 results');
   await expect(page.locator('#trackedResultsRows')).toContainText('TINY TRACKED FRAGMENT');
+  const resultsSearch = page.getByRole('searchbox', { name: 'Filter results' });
+  await resultsSearch.fill('fragment tiny');
+  await expect(page.locator('#trackedResultsCount')).toHaveText('1 result');
+  await expect(page.locator('#trackedResultsRows [role="option"]')).toContainText('TINY TRACKED FRAGMENT');
+  await resultsSearch.fill('unlisted-fixture');
+  await expect(page.locator('#trackedResultsEmpty')).toHaveText('No objects match this filter.');
+  await page.getByRole('button', { name: 'Clear results filter' }).click();
+  await expect(page.locator('#trackedResultsCount')).toHaveText('2 results');
   const resultAccessibility = await new AxeBuilder({ page })
     .include('#trackedResultsDrawer')
     .analyze();
@@ -1670,24 +1738,14 @@ test('tracked coverage and virtualized results remain usable on a narrow viewpor
   await clickCategory(page, 'ALL');
   await clickObjectType(page, 'DEBRIS');
   await page.waitForFunction(() => window.openbexiSimulation.snapshot().trackedCatalogState === 'ready');
-  await expect(page.locator('#trackedCoverageHud')).toBeVisible();
-  await expect(page.locator('#trackedCoverageMatched')).toHaveText('3');
-  const [mobileHudBox, mobileControlsBox, mobileMenuToggleBox, mobileTimeWarpBox] = await Promise.all([
-    page.locator('#trackedCoverageHud').boundingBox(),
-    page.locator('#controlsContainer').boundingBox(),
-    page.locator('#menuToggleBtn').boundingBox(),
-    page.locator('#timeWarpBox').boundingBox()
-  ]);
-  expect(mobileHudBox).not.toBeNull();
-  expect(mobileControlsBox).not.toBeNull();
-  expect(mobileMenuToggleBox).not.toBeNull();
-  expect(mobileTimeWarpBox).not.toBeNull();
-  expect(boxesIntersect(mobileHudBox, mobileControlsBox)).toBe(false);
-  expect(boxesIntersect(mobileHudBox, mobileMenuToggleBox)).toBe(false);
-  expect(
-    boxesIntersect(mobileHudBox, mobileTimeWarpBox),
-    `mobile HUD/time controls overlap: ${JSON.stringify({ mobileHudBox, mobileTimeWarpBox })}`
-  ).toBe(false);
+  await expect(page.locator('#trackedCoverageHud')).toHaveCount(0);
+  await expectCatalogClockAlignment(page);
+  const summary = page.locator('#trackedRecordSummary');
+  await summary.locator('summary').click();
+  await expect(summary.locator('#trackedCountFiltered')).toHaveText('3');
+  await expect(summary.locator('#trackedCountPropagatable')).toHaveText('1');
+  await expect(summary.locator('#trackedCountMetadataOnly')).toHaveText('2');
+  await summary.locator('summary').click();
   await page.locator('#openTrackedResults').click();
   const drawer = page.locator('#trackedResultsDrawer');
   await expect(drawer).toBeVisible();
@@ -1702,23 +1760,22 @@ test('tracked coverage and virtualized results remain usable on a narrow viewpor
   expect(drawerBox.y + drawerBox.height).toBeLessThanOrEqual(viewport.height + 1);
   await page.locator('#trackedResultsTabs [data-result-mode="UNAVAILABLE"]').click();
   await expect(page.locator('#trackedResultsCount')).toHaveText('2 results');
+  await page.setViewportSize({ width: 320, height: 720 });
+  const resultsSearch = page.getByRole('searchbox', { name: 'Filter results' });
+  const clearResults = page.getByRole('button', { name: 'Clear results filter' });
+  await expect(resultsSearch).toBeInViewport({ ratio: 1 });
+  await resultsSearch.fill('fragment tiny');
+  await expect(page.locator('#trackedResultsCount')).toHaveText('1 result');
+  await expect(page.locator('#trackedResultsRows [role="option"]')).toContainText('TINY TRACKED FRAGMENT');
+  await expect(clearResults).toBeInViewport({ ratio: 1 });
+  await clearResults.click();
+  await expect(page.locator('#trackedResultsCount')).toHaveText('2 results');
+  await expect(page.locator('#trackedResultsTabs [data-result-mode="UNAVAILABLE"]')).toHaveAttribute('aria-selected', 'true');
   await page.locator('#trackedResultsViewport').press('Escape');
   await expect(drawer).toBeHidden();
 
   await page.setViewportSize({ width: 768, height: 900 });
-  const [tabletHudBox, tabletControlsBox, tabletMenuToggleBox, tabletTimeWarpBox] = await Promise.all([
-    page.locator('#trackedCoverageHud').boundingBox(),
-    page.locator('#controlsContainer').boundingBox(),
-    page.locator('#menuToggleBtn').boundingBox(),
-    page.locator('#timeWarpBox').boundingBox()
-  ]);
-  expect(tabletHudBox).not.toBeNull();
-  expect(tabletControlsBox).not.toBeNull();
-  expect(tabletMenuToggleBox).not.toBeNull();
-  expect(tabletTimeWarpBox).not.toBeNull();
-  expect(boxesIntersect(tabletHudBox, tabletControlsBox)).toBe(false);
-  expect(boxesIntersect(tabletHudBox, tabletMenuToggleBox)).toBe(false);
-  expect(boxesIntersect(tabletHudBox, tabletTimeWarpBox)).toBe(false);
+  await expectCatalogClockAlignment(page);
   await page.locator('#openTrackedResults').click();
   const tabletDrawerBox = await drawer.boundingBox();
   expect(tabletDrawerBox).not.toBeNull();
@@ -1747,19 +1804,7 @@ test('tracked coverage and virtualized results remain usable on a narrow viewpor
   await page.locator('#menuToggleBtn').click();
   const detailPanel = page.locator('#selectedSatelliteDetailPanel');
   await expect(detailPanel).toBeVisible();
-  const [desktopHudBox, detailBox, hiddenMenuToggleBox, desktopTimeWarpBox] = await Promise.all([
-    page.locator('#trackedCoverageHud').boundingBox(),
-    detailPanel.boundingBox(),
-    page.locator('#menuToggleBtn').boundingBox(),
-    page.locator('#timeWarpBox').boundingBox()
-  ]);
-  expect(desktopHudBox).not.toBeNull();
-  expect(detailBox).not.toBeNull();
-  expect(hiddenMenuToggleBox).not.toBeNull();
-  expect(desktopTimeWarpBox).not.toBeNull();
-  expect(boxesIntersect(desktopHudBox, detailBox)).toBe(false);
-  expect(boxesIntersect(desktopHudBox, hiddenMenuToggleBox)).toBe(false);
-  expect(boxesIntersect(desktopHudBox, desktopTimeWarpBox)).toBe(false);
+  await expectCatalogClockAlignment(page);
 
   expect(browserErrors.pageErrors).toEqual([]);
   expect(unexpectedConsoleErrors(browserErrors.consoleErrors)).toEqual([]);
@@ -2181,6 +2226,9 @@ test('historical SATCAT state suppresses a retained same-NORAD GP marker and com
   }
   await expect(page.locator('#conjunctionRunButton')).toBeDisabled();
   await expect(page.locator('#selectedSatelliteDetailPanel')).toContainText('OBJECT_IS_HISTORICAL');
+  await openDetails(page, '#selectedModelViewer');
+  await expect(page.locator('#selectedModelNotice')).toHaveText('No model is available for this object.');
+  await expect(page.locator('#selectedModelPreview iframe')).toHaveCount(0);
 
   expect(browserErrors.pageErrors).toEqual([]);
   expect(unexpectedConsoleErrors(browserErrors.consoleErrors)).toEqual([]);
@@ -2208,8 +2256,7 @@ test('a selected GP model is demoted when current tracked metadata denies orbita
   state.trackedManifest = unavailableFixture.trackedManifest;
   state.trackedChunks = unavailableFixture.trackedChunks;
   state.trackedChunkGates = unavailableFixture.trackedChunkGates;
-  const refresh = await page.evaluate(() => window.openbexiServerConnection.checkForDataUpdates());
-  expect(refresh.changed).toBe(true);
+  await expectCatalogRevision(page, 'tracked_revision', state.trackedManifest.catalog_revision);
   await page.waitForFunction(() => (
     document.querySelector('#selectedSatelliteDetailPanel')
       ?.textContent.includes('CURRENT_CATALOG_HAS_NO_VALIDATED_ELEMENTS')
@@ -2302,6 +2349,349 @@ test('shared category and tag filters restore as the same visible catalog', asyn
 
   expect(browserErrors.pageErrors).toEqual([]);
   expect(unexpectedConsoleErrors(browserErrors.consoleErrors)).toEqual([]);
+});
+
+test('the catalog model preview follows the selected spacecraft only while expanded', async ({ page }) => {
+  const state = fixtureState();
+  state.gpCatalog = [['49332', 'SES-17', '2021-095A'], ['53765', 'EUTELSAT KONNECT VHTS', '2022-110A']]
+    .map(([noradId, name, designator]) => {
+      const record = ommRecord({ noradId, name, orbitClass: 'GEO', company: 'Fixture', meanMotion: 1.0027, inclination: 0.1 });
+      record.object_id = record.international_designator = record.element_set.omm.OBJECT_ID = designator;
+      return record;
+    });
+  state.gpMetadata = gpMetadata('sha256:model-preview', state.gpCatalog.length);
+  const viewerRequests = [];
+  page.on('request', request => {
+    const url = new URL(request.url());
+    if (url.pathname.endsWith('/display_satellite.html')) viewerRequests.push(url);
+  });
+  await bootFilterFixture(page, state, '/index.html?share=1&orbit=GEO&objects=PAYLOAD');
+  const section = page.locator('#selectedModelViewer');
+  const toggle = section.locator('summary');
+  const link = section.getByRole('link');
+  await expect(toggle).toHaveText('Satellite Model Viewer');
+  await expect(section).toHaveJSProperty('open', false);
+  await toggle.press('Enter');
+  await expect(section).toContainText('Select a spacecraft');
+  await expect(link).toHaveText('Browse satellite models');
+  await toggle.press('Enter');
+  await selectSatellite(page, '49332');
+  await expect(section).toHaveJSProperty('open', false);
+  await expect(section.locator('iframe')).toHaveCount(0);
+  expect(viewerRequests).toHaveLength(0);
+  await toggle.press('Enter');
+  const model = section.frameLocator('iframe');
+  await expect(model.locator('#statusMessage')).toContainText('Loaded obj/geo/ses-17.glb');
+  await expect(model.locator('.shell')).toBeHidden();
+  const canvas = model.locator('canvas');
+  await expect(canvas).toBeVisible();
+  await canvas.focus();
+  const beforeRotation = await canvas.screenshot();
+  await canvas.press('Shift+ArrowRight');
+  expect((await canvas.screenshot()).equals(beforeRotation)).toBe(false);
+  await expect(link).toHaveAttribute('href', /display_satellite\.html\?model=geo%2Fses-17\.glb$/);
+  await expect(page.locator('.selected-satellite-omm-section')).toHaveJSProperty('open', false);
+  await selectSatellite(page, '53765');
+  await expect(model.locator('#statusMessage')).toContainText('Loaded obj/geo/ref-spacebus-neo200-49332.glb');
+  await toggle.press('Enter');
+  await expect(section.locator('iframe')).toHaveCount(0);
+  expect(viewerRequests).toHaveLength(2);
+});
+
+test('selected GEO apertures face Earth and the orbit crosses the bus between ephemeris samples', async ({page}, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium');
+  const state = fixtureState();
+  const galaxy = ommRecord({noradId:'54026', name:'GALAXY 33 (G-33)', orbitClass:'GEO',
+    company:'INTELSAT', meanMotion:1.0027, inclination:.1});
+  galaxy.object_id = galaxy.international_designator = galaxy.element_set.omm.OBJECT_ID = '2022-128A';
+  state.gpCatalog = [galaxy];
+  state.gpMetadata = gpMetadata('sha256:geo-visual', 1);
+  await bootFilterFixture(page, state, '/index.html?share=1&sat=54026&orbit=GEO&objects=PAYLOAD&view3D=1&showOrbit=1&time='+EPOCH);
+  await page.waitForFunction(() => window.openbexiSimulation.snapshot().selectedDetailedModelVisible &&
+    !window.openbexiSimulation.snapshot().cameraTransitionActive);
+  for (const time of [EPOCH,'2026-08-23T00:00:37Z']) {
+    await page.evaluate(t=>window.openbexiSimulation.setTime(t),time);
+    const frame = await page.evaluate(async () => {
+      const THREE = await import('three');
+      const {renderer} = window, render = renderer.render, ranges = [];
+      return new Promise(resolve => {
+        renderer.render = function(scene, camera) {
+          render.call(this,scene,camera);
+          ranges.push([camera.near,camera.far]);
+          if (ranges.length < 2) return;
+          renderer.render = render;
+          const model = scene.children.find(o=>o.userData.modelResolution?.assetId==='geo/geostar-3-galaxy-cband.glb');
+          const orbit = scene.getObjectByName('selectedOrbitTrajectoryRoot');
+          const nadir = model.position.clone().normalize().negate();
+          const dish = model.getObjectByName('Communications_reflector');
+          const boresight = new THREE.Vector3(0,0,1).applyQuaternion(dish.getWorldQuaternion(new THREE.Quaternion()));
+          let gap = Infinity;
+          for (const line of orbit.children) {
+            const positions = line.geometry.getAttribute('position');
+            for (let i=0; i<Math.min(positions.count,line.geometry.drawRange.count); i++) {
+              const world = line.localToWorld(new THREE.Vector3().fromBufferAttribute(positions,i));
+              gap = Math.min(gap,world.distanceTo(model.position));
+            }
+          }
+          resolve({ranges, gap, pointing:boresight.dot(nadir)});
+        };
+      });
+    });
+    expect(frame.ranges[0][0]).toBe(frame.ranges[1][1]);
+    expect(frame.ranges[0][0]).toBeGreaterThan(frame.ranges[1][0]*1000);
+    expect(frame.gap).toBeLessThan(1e-7);
+    expect(frame.pointing).toBeGreaterThan(.988);
+  }
+});
+
+test('filtering out a spacecraft close-up restores a clean Earth disk from multiple angles', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'Samples the desktop WebGL framebuffer.');
+  const state = fixtureState();
+  const { gp } = JSON.parse(fs.readFileSync(new URL('./fixtures/oneweb-glonass-passes.json', import.meta.url), 'utf8'));
+  state.gpCatalog = gp;
+  state.gpMetadata = gpMetadata('sha256:globe-depth', gp.length);
+  await bootFilterFixture(page, state);
+  await clickCategory(page, 'ALL');
+  const overviewNear = await page.evaluate(() => window.camera.near);
+  await selectSatellite(page, '44057');
+  await page.waitForFunction(() => {
+    const state = window.openbexiSimulation.snapshot();
+    return state.selectedDetailedModelVisible && !state.cameraTransitionActive;
+  });
+  expect(await page.evaluate(() => window.camera.near)).toBeLessThan(overviewNear);
+  await clickCategory(page, 'MEO');
+  await page.waitForFunction(() => window.openbexiSimulation.snapshot().selectedNoradId === null);
+
+  const result = await page.evaluate(async overviewNear => {
+    const THREE = await import('three');
+    const renderer = window.renderer;
+    const scene = await new Promise(resolve => {
+      const draw = renderer.render;
+      renderer.render = function (scene, camera) {
+        renderer.render = draw;
+        resolve(scene);
+        return draw.call(this, scene, camera);
+      };
+    });
+    const camera = window.camera.clone();
+    const size = 160;
+    const target = new THREE.WebGLRenderTarget(size, size);
+    const originalTarget = renderer.getRenderTarget();
+    function sample(near) {
+      camera.near = near;
+      camera.aspect = 1;
+      camera.updateProjectionMatrix();
+      renderer.render(scene, camera);
+      const pixels = new Uint8Array(32 * 32 * 4);
+      renderer.readRenderTargetPixels(target, 64, 64, 32, 32, pixels);
+      return pixels;
+    }
+    const differences = [];
+    const actualNear = window.camera.near;
+    try {
+      renderer.setRenderTarget(target);
+      for (const position of [[0, 0, 25], [16, 8, -18], [-20, 5, 13]]) {
+        camera.position.set(...position);
+        camera.up.set(0, 1, 0);
+        camera.lookAt(0, 0, 0);
+        const actual = sample(actualNear);
+        const reference = sample(overviewNear);
+        differences.push(actual.filter((value, i) => i % 4 !== 3 && Math.abs(value - reference[i]) > 8).length);
+      }
+    } finally {
+      renderer.setRenderTarget(originalTarget);
+      target.dispose();
+    }
+    return { actualNear, differences };
+  }, overviewNear);
+  expect(result).toEqual({ actualNear: overviewNear, differences: [0, 0, 0] });
+});
+
+test('live tracking keeps OneWeb and GLONASS-K2 views steady through their highest latitudes', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'The camera is sampled on desktop Chromium.');
+  test.setTimeout(120_000);
+  const fixtureUrl = new URL('./fixtures/oneweb-glonass-passes.json', import.meta.url);
+  const { gp, historical } = JSON.parse(fs.readFileSync(fixtureUrl, 'utf8'));
+  const state = fixtureState();
+  state.gpCatalog = gp;
+  state.gpMetadata = gpMetadata('sha256:oneweb-polar-pass', gp.length);
+  state.trackedManifest.history_chunks.push({ id: 'historical-payload', scope: 'HISTORICAL', object_type: 'PAYLOAD' });
+  state.trackedChunks['historical-payload.json'] = {
+    schema_version: '2.3.0', scope: 'HISTORICAL', object_type: 'PAYLOAD', records: [historical]
+  };
+  // Keep real frame timing and run the live clock across the measured polar pass.
+  await page.addInitScript(epoch => { Date.now = () => epoch + Math.round(performance.now()); },
+    Date.parse('2026-11-22T01:00:05Z'));
+  await bootFilterFixture(page, state);
+  await clickCategory(page, 'ALL');
+  await page.locator('#timeWarpNow').click();
+
+  for (const [norad, utc] of [
+    ['44057', '2026-11-22T01:00:14Z'],
+    ['44058', '2026-11-22T01:36:43Z'],
+    ['63130', '2026-11-22T09:32:24Z'],
+    ['25544', '2026-11-22T01:00:14Z']
+  ]) {
+    await selectSatellite(page, norad);
+    await page.waitForFunction(() => {
+      const state = window.openbexiSimulation.snapshot();
+      return state.selectedDetailedModelVisible && !state.cameraTransitionActive;
+    });
+    if (norad === '44058') {
+      await page.locator('#timeWarpPause').click();
+      await expect.poll(() => page.evaluate(() => window.openbexiSimulation.snapshot().speedMultiplier)).toBe(0);
+    }
+    // Start at the same latitude even when the fixture takes longer to load.
+    await page.evaluate(epoch => {
+      const start = performance.now();
+      Date.now = () => epoch + Math.round(performance.now() - start);
+    }, Date.parse(utc));
+    await page.locator('#timeWarpNow').click();
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    const motion = await page.evaluate(async () => {
+      const model = await new Promise(resolve => {
+        const renderer = window.renderer;
+        const render = renderer.render;
+        renderer.render = function(scene, camera) {
+          renderer.render = render;
+          render.call(this, scene, camera);
+          resolve(scene.children.find(child => child.visible && child.userData.modelResolution));
+        };
+      });
+      const frames = [];
+      const end = performance.now() + 1200;
+      do {
+        await new Promise(resolve => requestAnimationFrame(resolve));
+        const state = window.openbexiSimulation.snapshot();
+        frames.push({
+          time: state.timeMs,
+          live: state.live && state.speedMultiplier === 1,
+          orientation: window.camera.quaternion.clone(),
+          attitude: model.quaternion.clone(),
+          satellite: state.selectedPosition,
+          target: state.cameraTarget
+        });
+      } while (frames.length < 6 || performance.now() < end);
+      let maxRate = 0, maxBodyRate = 0, maxCenterError = 0;
+      for (let i = 1; i < frames.length; i++) {
+        const previous = frames[i - 1], current = frames[i];
+        const seconds = (current.time - previous.time) / 1000;
+        if (seconds > 0) {
+          const degrees = previous.orientation.angleTo(current.orientation) * 180 / Math.PI;
+          maxRate = Math.max(maxRate, degrees / seconds);
+          const bodyDegrees = previous.attitude.angleTo(current.attitude) * 180 / Math.PI;
+          maxBodyRate = Math.max(maxBodyRate, bodyDegrees / seconds);
+        }
+        maxCenterError = Math.max(maxCenterError, Math.hypot(...current.target.map((v, j) => v - current.satellite[j])));
+      }
+      return {
+        live: frames.every(frame => frame.live),
+        maxRate, maxBodyRate, maxCenterError,
+        displacement: Math.hypot(...frames[0].satellite.map((v, i) => v - frames.at(-1).satellite[i]))
+      };
+    });
+    expect(motion.live).toBe(true);
+    expect(motion.displacement).toBeGreaterThan(.001);
+    expect(motion.maxCenterError).toBeLessThan(1e-7);
+    // GLONASS-K2 moves about 0.009 degrees/s around Earth. The LEO spacecraft move up to 0.07.
+    const limit = norad === '63130' ? .012 : .10;
+    expect(motion.maxRate, 'inertial camera angular speed for NORAD ' + norad).toBeLessThan(limit);
+    expect(motion.maxBodyRate, 'inertial body angular speed for NORAD ' + norad).toBeLessThan(limit);
+    if (norad === '44057') {
+      const orientation = await page.evaluate(() => window.camera.quaternion.toArray());
+      await page.mouse.move(600, 290);
+      await page.mouse.down();
+      await page.mouse.move(720, 345, { steps: 8 });
+      await page.mouse.up();
+      const manualAngle = await page.evaluate(before => {
+        const q = window.camera.quaternion;
+        return q.angleTo(q.clone().fromArray(before)) * 180 / Math.PI;
+      }, orientation);
+      expect(manualAngle).toBeGreaterThan(2);
+    }
+  }
+
+  await setCheckbox(page, '#includeHistoricalTrackedObjects', true);
+  await selectSatellite(page, '44080');
+  await expect(page.locator('#selectedSatelliteDetailPanel')).toContainText('FLOCK 4A-2');
+  const retired = await page.evaluate(() => window.openbexiSimulation.snapshot());
+  expect(retired.selectedPosition).toBeNull();
+  expect(retired.selectedDetailedModelVisible).toBe(false);
+});
+
+test('O3b mPOWER F7 close-up keeps the orbit smooth when the observer rotates', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'WebGL orbit geometry is measured on desktop Chromium.');
+  const state = fixtureState();
+  const record = ommRecord({noradId:'62362', name:'O3B MPOWER F7', orbitClass:'MEO',
+    company:'SES', meanMotion:5.00115297, inclination:0.0443});
+  record.object_id = record.international_designator = record.element_set.omm.OBJECT_ID = '2024-244A';
+  state.gpCatalog = [record];
+  state.gpMetadata = gpMetadata('sha256:mpower-curve', 1);
+  await bootFilterFixture(page, state, '/index.html?share=1&sat=62362&orbit=MEO&view3D=1&showOrbit=1&time='+EPOCH+'&warp=0');
+  await page.waitForFunction(() => window.openbexiSimulation.snapshot().selectedDetailedModelVisible &&
+    !window.openbexiSimulation.snapshot().cameraTransitionActive);
+
+  async function checkView() {
+    const frame = await page.evaluate(async () => {
+      const THREE = await import('three');
+      const { satellites } = await import('/js/satelliteTLELoader.js');
+      const { eciToSceneVector } = await import('/js/sceneFrame.js');
+      const satrec = satellites.find(s => String(s.norad_id) === '62362').satrec;
+      const { renderer } = window;
+      const render = renderer.render;
+      return new Promise(resolve => {
+        renderer.render = function(scene, camera) {
+          renderer.render = render;
+          render.call(this, scene, camera);
+          const orbit = scene.getObjectByName('selectedOrbitTrajectoryRoot');
+          const chord = new THREE.Line3(), nearest = new THREE.Vector3();
+          const pixelScale = renderer.domElement.height / (2 * Math.tan(THREE.MathUtils.degToRad(camera.getEffectiveFOV()) / 2));
+          let worst = 0;
+          for (const arc of orbit.userData.visibleSegments) {
+            for (let i = 1; i < arc.length; i++) {
+              const a = arc[i - 1], b = arc[i];
+              chord.set(a, b);
+              const when = new Date((a.orbitTimeMs + b.orbitTimeMs) / 2);
+              const actual = eciToSceneVector(new THREE.Vector3(), window.satellite.propagate(satrec, when).position);
+              const error = actual.distanceTo(chord.closestPointToPoint(actual, true, nearest));
+              const distance = camera.position.distanceTo(chord.closestPointToPoint(camera.position, true, nearest));
+              worst = Math.max(worst, pixelScale * error / distance);
+            }
+          }
+          const points = orbit.userData.sourceSegments.flat().map(p=>p.clone().project(camera));
+          const maxScreenCoordinate = Math.max(...points.map(p=>Math.max(Math.abs(p.x),Math.abs(p.y))));
+          resolve({worst, camera:camera.position.toArray(), maxScreenCoordinate, distance:camera.position.distanceTo(orbit.position)});
+        };
+      });
+    });
+    expect(frame.worst).toBeLessThan(0.5);
+    return frame;
+  }
+  const before = await checkView();
+  await page.mouse.move(670, 420);
+  await page.mouse.down();
+  await page.mouse.move(875, 485, {steps:8});
+  await page.mouse.up();
+  expect((await checkView()).camera).not.toEqual(before.camera);
+  if (await page.locator('#controlsContainer').evaluate(el=>el.classList.contains('menu-hidden'))) {
+    await page.locator('#menuToggleBtn').click();
+  }
+  await page.getByRole('button', { name:'View full orbit' }).click();
+  const overview = await checkView();
+  expect(overview.maxScreenCoordinate).toBeLessThan(1);
+  expect(overview.maxScreenCoordinate).toBeGreaterThan(.45);
+  expect(overview.distance).toBeGreaterThan(10);
+  const viewHeader = page.locator('#viewAccordionHeader');
+  if (await viewHeader.getAttribute('aria-expanded') !== 'true') await viewHeader.click();
+  const solarOverview = page.locator('#solarSystemOverviewToggle');
+  await solarOverview.check();
+  await solarOverview.uncheck();
+  const restoredOrbit = await checkView();
+  restoredOrbit.camera.forEach((value, i) => expect(value).toBeCloseTo(overview.camera[i], 7));
+  expect(restoredOrbit.maxScreenCoordinate).toBeCloseTo(overview.maxScreenCoordinate, 4);
+  await page.getByRole('button', { name:'View spacecraft' }).click();
+  expect((await checkView()).distance).toBeCloseTo(0.0001, 6);
+  expect(await page.evaluate(()=>window.openbexiSimulation.snapshot().selectedNoradId)).toBe('62362');
 });
 
 test('known MEO and GEO markers have finite orbital radii and invalid selection is absent from Mercator', async ({ page }, testInfo) => {
@@ -2407,7 +2797,7 @@ test('Mercator overlay and fullscreen stay above operational panels with accessi
       const map = document.querySelector('#mercatorContainer');
       const timeline = [...document.querySelectorAll('.timeline-hud')]
         .find(element => getComputedStyle(element).display !== 'none');
-      const details = document.querySelector('#selectedSatelliteDetailPanel');
+      const details = document.querySelector('#catalogPanel');
       const controls = document.querySelector('#controlsContainer');
       const timeControls = document.querySelector('#timeWarpBox');
       const rect = map.getBoundingClientRect();

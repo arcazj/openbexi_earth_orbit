@@ -29,6 +29,9 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer as _Thread
 from pathlib import Path, PurePosixPath
 from urllib.parse import quote, unquote, urlparse
 
+from services import catalog_api
+from services.catalog_models import model_library
+from services.v21.security import ApiProblem
 from services.v21.api import V21ApiService, configured_authenticator
 from services.v21.feature_flags import load_server_feature_flag
 from services.v21.http_api import V21HttpRouter
@@ -47,6 +50,7 @@ RELEASE_DATE = RELEASE_METADATA.get("releasedAt")
 PUBLICATION_DATE = RELEASE_DATE or CANDIDATE_DATE
 REPO_URL = "https://github.com/arcazj/openbexi_earth_orbit"
 API_V1_VERSION = "1.0.0"
+OBJECT_CATALOG = catalog_api.CatalogCache()
 
 STATIC_ROOT_FILE_ALLOWLIST = frozenset(
     {
@@ -65,9 +69,10 @@ STATIC_DOCUMENT_FILE_ALLOWLIST = frozenset(
     {
         ("docs", "release_notes.md"),
         ("docs", "swagger.md"),
+        ("docs", "catalog-api.openapi.json"),
         ("docs", "third_party_notices.md"),
-        ("vendor", "three", "0.184.0", "license"),
-        ("vendor", "satellite.js", "6.0.2", "license.md"),
+        ("vendor", "three", "0.187.0", "license"),
+        ("vendor", "satellite.js", "7.1.0", "license.md"),
     }
 )
 STATIC_PREFIX_SUFFIX_ALLOWLIST = (
@@ -94,17 +99,16 @@ STATIC_JSON_FILE_ALLOWLIST = frozenset(
 )
 STATIC_VENDOR_FILE_ALLOWLIST = frozenset(
     {
-        ("vendor", "satellite.js", "6.0.2", "satellite.es.js"),
-        ("vendor", "satellite.js", "6.0.2", "satellite.min.js"),
-        ("vendor", "three", "0.184.0", "build", "three.core.js"),
-        ("vendor", "three", "0.184.0", "build", "three.module.js"),
-        ("vendor", "three", "0.184.0", "examples", "jsm", "controls", "orbitcontrols.js"),
-        ("vendor", "three", "0.184.0", "examples", "jsm", "loaders", "gltfloader.js"),
-        ("vendor", "three", "0.184.0", "examples", "jsm", "loaders", "mtlloader.js"),
-        ("vendor", "three", "0.184.0", "examples", "jsm", "loaders", "objloader.js"),
-        ("vendor", "three", "0.184.0", "examples", "jsm", "renderers", "css2drenderer.js"),
-        ("vendor", "three", "0.184.0", "examples", "jsm", "utils", "buffergeometryutils.js"),
-        ("vendor", "three", "0.184.0", "examples", "jsm", "utils", "skeletonutils.js"),
+        ("vendor", "satellite.js", "7.1.0", "satellite.es.js"),
+        ("vendor", "three", "0.187.0", "build", "three.core.js"),
+        ("vendor", "three", "0.187.0", "build", "three.module.js"),
+        ("vendor", "three", "0.187.0", "examples", "jsm", "controls", "orbitcontrols.js"),
+        ("vendor", "three", "0.187.0", "examples", "jsm", "loaders", "gltfloader.js"),
+        ("vendor", "three", "0.187.0", "examples", "jsm", "loaders", "mtlloader.js"),
+        ("vendor", "three", "0.187.0", "examples", "jsm", "loaders", "objloader.js"),
+        ("vendor", "three", "0.187.0", "examples", "jsm", "renderers", "css2drenderer.js"),
+        ("vendor", "three", "0.187.0", "examples", "jsm", "utils", "buffergeometryutils.js"),
+        ("vendor", "three", "0.187.0", "examples", "jsm", "utils", "skeletonutils.js"),
     }
 )
 STATIC_BLOCKED_PARTS = frozenset(
@@ -2040,6 +2044,37 @@ def _metadata_files() -> list[dict[str, object]]:
 
 
 KNOWN_DISPLAY_MODEL_METADATA: dict[str, dict[str, object]] = {
+    "qianfan.obj": {
+        "id": "qianfan",
+        "displayName": "Qianfan",
+        "description": "Flat SpaceSail communications bus with one flexible solar wing. Its estimated deployed span is 10 m.",
+        "tags": ["SpaceSail", "Thousand Sails", "LEO", "G60"],
+        "previewDirection": [0.23, -0.55, 1],
+        "textures": [
+            {"path": "Textures/spacecraft_cells.png"},
+            {"path": "Textures/spacecraft_gold_blanket.png"},
+        ],
+    },
+    "iridium.obj": {
+        "id": "iridium",
+        "displayName": "Iridium NEXT",
+        "description": "L-band communications antenna and four solar panels with a deployed wingspan of 9.4 m.",
+        "tags": ["Iridium", "NEXT", "LEO"],
+        "previewDirection": [0.42, -0.56, 1.1],
+        "textures": [
+            {"path": "Textures/spacecraft_cells.png"},
+            {"path": "Textures/spacecraft_gold_blanket.png"},
+            {"path": "Textures/iridium_l_band_face.png"},
+        ],
+    },
+    "cubesat.obj": {
+        "id": "cubesat",
+        "displayName": "CubeSat 3U",
+        "description": "Generic 100 × 100 × 340.5 mm spacecraft with four dispenser rails and body-mounted solar cells.",
+        "tags": ["3U", "CubeSat", "Reference"],
+        "previewDirection": [1.35, 0.85, 0.85],
+        "textures": [],
+    },
     "starlink_V1.obj": {
         "id": "starlink_V1",
         "displayName": "Starlink V1",
@@ -2086,15 +2121,25 @@ KNOWN_DISPLAY_MODEL_METADATA: dict[str, dict[str, object]] = {
         "description": "GLB Starlink V2 satellite model.",
         "tags": ["Starlink", "GLB", "LEO"],
     },
+    "starlink_v3.glb": {
+        "displayName": "Starlink V3",
+        "description": "Deployed broadband satellite with two solar wings and four backhaul dishes. Dimensions estimated from SpaceX imagery.",
+        "tags": ["Starlink", "V3", "Broadband", "GLB", "LEO"],
+    },
     "oneweb.glb": {
-        "displayName": "OneWeb GLB",
-        "description": "GLB OneWeb satellite model.",
-        "tags": ["OneWeb", "GLB", "LEO"],
+        "displayName": "OneWeb Gen 1",
+        "description": "Arrow spacecraft with two boom-mounted solar panels and two steerable Ka-band gateway dishes.",
+        "tags": ["OneWeb", "Gen 1", "GLB", "LEO"],
     },
     "o3b.glb": {
-        "displayName": "O3b GLB",
-        "description": "GLB O3b satellite model.",
-        "tags": ["O3b", "GLB", "MEO"],
+        "displayName": "O3b Classic",
+        "description": "Thales Alenia Space spacecraft with 12 steerable Ka-band reflectors and two three-panel solar wings.",
+        "tags": ["O3b", "Classic", "GLB", "MEO"],
+    },
+    "o3b_mpower.glb": {
+        "displayName": "O3b mPOWER",
+        "description": "Boeing 702X spacecraft with two octagonal antenna apertures and four solar panels per wing.",
+        "tags": ["O3b", "mPOWER", "GLB", "MEO"],
     },
     "Hubble Space Telescope (A).glb": {
         "displayName": "Hubble Space Telescope (A)",
@@ -2112,12 +2157,17 @@ KNOWN_DISPLAY_MODEL_METADATA: dict[str, dict[str, object]] = {
 DISPLAY_MODEL_PRIORITY = {
     "starlink_V1": 0,
     "starlink_v2.glb": 1,
-    "oneweb.glb": 2,
-    "o3b.glb": 3,
-    "o3b_mpower_hd": 4,
-    "ISS.glb": 5,
-    "International Space Station (ISS) (A).glb": 6,
-    "SSL_1300.glb": 7,
+    "starlink_v3.glb": 2,
+    "oneweb.glb": 3,
+    "o3b.glb": 4,
+    "o3b_mpower.glb": 5,
+    "o3b_mpower_hd": 5,
+    "ISS.glb": 6,
+    "International Space Station (ISS) (A).glb": 7,
+    "SSL_1300.glb": 8,
+    "qianfan": 9,
+    "iridium": 10,
+    "cubesat": 11,
 }
 
 
@@ -2136,8 +2186,22 @@ def _display_model_metadata(relative_path: str) -> dict[str, object]:
 def _display_satellite_model_manifest() -> dict[str, object]:
     obj_dir = ROOT / "obj"
     models: list[dict[str, object]] = []
+    glb_files = sorted(obj_dir.rglob("*.glb"), key=lambda item: item.as_posix().lower())
+    obj_files = sorted(obj_dir.rglob("*.obj"), key=lambda item: item.as_posix().lower())
+    available = {file.relative_to(obj_dir).as_posix() for file in glb_files + obj_files}
+    published = ROOT / "json" / "display_satellite_models.json"
+    listed = set()
+    if published.is_file():
+        for entry in json.loads(published.read_text(encoding="utf-8"))["models"]:
+            files = entry["files"]
+            primary = files.get("glb") or files.get("obj")
+            if primary in available and ("mtl" not in files or (obj_dir / files["mtl"]).is_file()):
+                models.append(entry)
+                listed.add(primary)
 
-    for obj_path in sorted(obj_dir.rglob("*.obj"), key=lambda item: item.as_posix().lower()):
+    for obj_path in obj_files:
+        if obj_path.relative_to(obj_dir).as_posix() in listed:
+            continue
         mtl_path = obj_path.with_suffix(".mtl")
         if not mtl_path.is_file():
             continue
@@ -2158,8 +2222,10 @@ def _display_satellite_model_manifest() -> dict[str, object]:
             }
         )
 
-    for glb_path in sorted(obj_dir.rglob("*.glb"), key=lambda item: item.as_posix().lower()):
+    for glb_path in glb_files:
         glb_relative = glb_path.relative_to(obj_dir).as_posix()
+        if glb_relative in listed:
+            continue
         metadata = _display_model_metadata(glb_relative)
         model_id = str(metadata.pop("id", glb_relative))
         tags = metadata.pop("tags", ["ISS", "GLB", "Module"] if glb_relative.startswith("ISS_High_definition/") else ["GLB"])
@@ -3093,7 +3159,8 @@ def _openapi_document(host: str) -> dict[str, object]:
             },
             "/api/display-satellite-models": {
                 "get": {
-                    "summary": "List GLB and OBJ/MTL satellite models available under obj/",
+                    "summary": "List spacecraft profiles and their shared GLB or OBJ/MTL files",
+                    "description": "Paths are relative to basePath. Several profile IDs can reference the same geometry file. The static viewer reads json/display_satellite_models.json.",
                     "responses": {
                         "200": {
                             "description": "Display satellite model manifest",
@@ -3154,12 +3221,14 @@ def _openapi_document(host: str) -> dict[str, object]:
                 }
             },
             **_openapi_v1_paths(json_object_schema),
+            **catalog_api.CONTRACT["paths"],
         },
         "components": {
             "securitySchemes": {
                 "bearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "opaque local token"}
             },
             "schemas": {
+                **catalog_api.CONTRACT["components"]["schemas"],
                 "Problem": {
                     "type": "object",
                     "required": ["type", "title", "status", "detail", "code"],
@@ -3302,6 +3371,31 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
         self._response_status = HTTPStatus.OK
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
+    def translate_path(self, path):
+        original = super().translate_path(path)
+        if Path(original).is_file():
+            return original
+        resolved = resolve_static_request_path(path)
+        if resolved is None:
+            return original
+        _, parts = resolved
+        if len(parts) == 2 and parts[0] == "obj":
+            name = parts[-1]
+            lookup = Path(name).with_suffix(".obj").name if name.endswith(".mtl") else name
+            if lookup not in KNOWN_DISPLAY_MODEL_METADATA:
+                return original
+            directories = ("leo", "meo", "geo")
+        elif len(parts) == 3 and parts[:2] == ("obj", "Textures"):
+            directories = ("leo/Textures",)
+        else:
+            return original
+        for directory in directories:
+            candidate = (ROOT / "obj" / directory / parts[-1]).resolve()
+            if (ROOT in candidate.parents and candidate.is_file()
+                    and _static_path_parts_are_allowed(candidate.relative_to(ROOT).parts)):
+                return str(candidate)
+        return original
+
     def handle_one_request(self) -> None:
         # Browsers speculatively open sockets without sending a request. Free
         # those slots before the bounded admission wait expires, including
@@ -3337,8 +3431,9 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Methods", "GET,HEAD,POST,DELETE,OPTIONS")
             self.send_header(
                 "Access-Control-Allow-Headers",
-                "Accept,Authorization,Content-Type,Idempotency-Key,Last-Event-ID",
+                "Accept,Authorization,Content-Type,Idempotency-Key,If-None-Match,Last-Event-ID",
             )
+            self.send_header("Access-Control-Expose-Headers", "ETag")
             self.send_header("Access-Control-Max-Age", "600")
         self.send_header("Cache-Control", cache_control_for_path(self.path, self._response_status))
         self.send_header("X-Content-Type-Options", "nosniff")
@@ -3399,6 +3494,12 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
             return
         self.send_error(HTTPStatus.NOT_FOUND, "Unknown API route")
 
+    def do_PUT(self) -> None:
+        if not self._handle_catalog_resource(urlparse(self.path), head_only=False):
+            self.send_error(HTTPStatus.NOT_IMPLEMENTED, "Unsupported method")
+
+    do_PATCH = do_PUT
+
     def list_directory(self, path: str):
         self.send_error(HTTPStatus.NOT_FOUND, "Directory listing is disabled")
         return None
@@ -3410,9 +3511,10 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
         content_type: str = "application/json; charset=utf-8",
         status: HTTPStatus = HTTPStatus.OK,
         head_only: bool = False,
+        headers: dict[str, str] | None = None,
     ) -> None:
         etag = f'"{hashlib.sha256(body).hexdigest()}"'
-        if self.headers.get("If-None-Match") == etag:
+        if status == HTTPStatus.OK and self.command in ("GET", "HEAD") and self.headers.get("If-None-Match") == etag:
             self.send_response(HTTPStatus.NOT_MODIFIED)
             self.send_header("ETag", etag)
             self.end_headers()
@@ -3421,6 +3523,8 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("ETag", etag)
+        for name, value in (headers or {}).items():
+            self.send_header(name, value)
         self.end_headers()
         if not head_only:
             self.wfile.write(body)
@@ -3558,11 +3662,58 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
         self._send_bytes(body, content_type=content_type, head_only=head_only)
         return True
 
+    def _handle_catalog_resource(self, parsed, *, head_only: bool) -> bool:
+        path = parsed.path.rstrip("/")
+        parts = path.split("/")
+        if parts[:3] != ["", "api", "v1"] or len(parts) < 4 or parts[3] not in ("objects", "models"):
+            return False
+        try:
+            if self.command not in ("GET", "HEAD"):
+                raise ApiProblem(405, "METHOD_NOT_ALLOWED", "Read-only resource", "Use GET or HEAD.")
+            if len(parts) == 4 and parts[3] == "objects":
+                query = catalog_api.parse_query(parsed.query)
+                key = None
+            elif len(parts) == 5:
+                if parsed.query:
+                    raise catalog_api.invalid("Detail resources take no query parameters.")
+                key = unquote(parts[4])
+                pattern = catalog_api.MODEL_ID if parts[3] == "models" else catalog_api.OBJECT_ID
+                if not pattern.fullmatch(key):
+                    raise catalog_api.invalid("The resource identifier is malformed.")
+            else:
+                raise ApiProblem(404, "RESOURCE_NOT_FOUND", "Resource not found", "Unknown catalog resource.")
+            if parts[3] == "models":
+                payload = model_library(ROOT).detail(key)
+                if payload is None:
+                    raise ApiProblem(404, "MODEL_NOT_FOUND", "Model not found", "No shared model has this identifier.")
+            else:
+                snapshot = self._tracked_catalog_request_snapshot(head_only=head_only)
+                if snapshot is None:
+                    return True
+                catalog = OBJECT_CATALOG.load(snapshot, _verified_tracked_chunk)
+                payload = (catalog.page(query) if key is None else
+                           catalog.detail(key, lambda row: model_library(ROOT).link(row)))
+            self._send_json(payload, head_only=head_only)
+        except ApiProblem as exc:
+            exc.instance = parsed.path
+            self._send_bytes(_json_bytes(exc.to_dict()), status=exc.status, head_only=head_only,
+                             content_type="application/problem+json; charset=utf-8",
+                             headers={"Allow": "GET, HEAD, OPTIONS"} if exc.status == 405 else None)
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            logging.warning("Catalog resource unavailable: %s", exc)
+            problem = ApiProblem(503, "RESOURCE_UNAVAILABLE", "Resource unavailable",
+                                 "The local resource could not be read.", instance=parsed.path)
+            self._send_bytes(_json_bytes(problem.to_dict()), status=problem.status, head_only=head_only,
+                             content_type="application/problem+json; charset=utf-8")
+        return True
+
     def _handle_api(self, *, head_only: bool) -> bool:
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
         host = safe_request_host(self.headers.get("Host"), self.server.server_port)
 
+        if self._handle_catalog_resource(parsed, head_only=head_only):
+            return True
         if path.startswith("/api/v1"):
             if self.v21_router is not None:
                 self._data_root()
@@ -3609,6 +3760,7 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
                     {
                         "app_version": APP_VERSION,
                         "api_version": API_V1_VERSION,
+                        "catalog_model_api": "/api/v1/objects",
                         "release_date": RELEASE_DATE,
                         "candidate_date": CANDIDATE_DATE,
                         "publication_state": PUBLICATION_STATE,

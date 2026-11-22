@@ -589,14 +589,14 @@ try {
   assert(immutableBuildCommand > 0, 'fresh build job invokes the strict stdlib builder');
   assert.match(
     preBuildJob,
-    /actions\/setup-node@820762786026740c76f36085b0efc47a31fe5020[\s\S]*node-version: 22/,
+    /actions\/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1[\s\S]*node-version: 22/,
     'fresh exact-OID build pins the tested Node 22 toolchain before running the builder'
   );
   assert.deepEqual(
     [...preBuildJob.matchAll(/^\s+- uses: ([^\s]+)/gm)].map((match) => match[1]),
     [
       'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1',
-      'actions/setup-node@820762786026740c76f36085b0efc47a31fe5020'
+      'actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1'
     ],
     'only exact checkout and pinned Node setup actions may precede the deployment build'
   );

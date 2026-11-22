@@ -1,6 +1,6 @@
 # Solar System ephemeris (2.5.1)
 
-2.5 preserves the playback/guide bytes and adds [544 untuned holdout comparisons](../validation/V2_5_ACCEPTANCE.md). The worst sampled playback position error is 69.54 m; the worst guide position error is 70.993 km. Position and velocity max/p95 results are recorded per body in the delivery evidence. These same-provider samples do not constitute independent physical-model or human validation. Playback now loads on first Solar System activation, with a cached pending request and retry control; standalone activation remains immediate.
+The 2.6.0 build passed the 544 frozen JPL comparisons introduced in 2.5. In that sample, the largest playback position error was 69.54 m and the largest guide error was 70.993 km. Both the grid and the comparison samples come from Horizons. The integrated view loads playback data on first Solar System activation and can retry a failed load. The standalone view starts loading immediately. [Sampling and limits](../validation/V2_5_ACCEPTANCE.md) · [2.6.0 regression results](../../release/evidence/v2.6.0-development-checks.json)
 
 Precise mode uses bundled [NASA/JPL Horizons](https://ssd-api.jpl.nasa.gov/doc/horizons.html) geometric position and velocity vectors for Mercury through Neptune and the Moon. Its default coverage is **2020-01-01 through 2035-12-31 UTC**, with six-hour samples, Sun-centered origin (`500@10`), ICRF/J2000 ecliptic axes, and km / km/s units. `TIME_TYPE=UT`, `CAL_TYPE=GREGORIAN`, and `VEC_CORR=NONE` are explicit. There is no light-time or apparent-observer correction.
 

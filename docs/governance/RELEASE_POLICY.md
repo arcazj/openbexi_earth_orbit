@@ -2,9 +2,9 @@
 
 `release/version.json` is authoritative for version, channel, publication state, scientific maturity and safety class. Generate browser metadata with `npm run version:sync`. Package/lock, API docs and flags must agree.
 
-v2.5 is **2.5.0 / development / experimental / non-operational**. A GitHub prerelease can publish development work without setting candidate/released dates or declaring validated science. The npm package stays private to prevent accidental registry publication.
+Version **2.6.0** uses the development channel and the experimental, non-operational classification. GitHub distributes the tagged source and static archives as a prerelease. Candidate and stable release dates are unset. [GitHub release](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/v2.6.0) · [Publication scope](../../release/publication-v2.6.0.json) · [Version metadata](../../release/version.json) · [Local release checks](../../release/evidence/v2.6.0-development-checks.json)
 
-Public source and the commercial model were owner-authorized on 2026-11-08. [The publication record](../../release/publication-v2.5.json) identifies destination, scope and licensor. Prior exact-version approvals and frozen evidence retain their historical meaning; they are not current blanket approvals.
+The owner authorized public source and the commercial model for 2.5 on 2026-11-08. The publication records identify the scope of each historical release. The npm package is private. [2.5 publication record](../../release/publication-v2.5.json) · [2.5.1 publication record](../../release/publication-v2.5.1.json)
 
 Publish only sanitized, verified commits and explicit artifacts. Keep private history, agreements, tokens and runtime state out of public refs/assets. Preserve old public tags and upstream/MIT rights. Do not move existing release tags or overwrite concurrent master work.
 

@@ -35,7 +35,7 @@ test('main application boots with local dependencies and a rendered WebGL canvas
     if (message.type() === 'error') consoleErrors.push(message.text());
   });
   page.on('request', request => {
-    if (request.url().startsWith('https://unpkg.com/')) externalDependencyRequests.push(request.url());
+    if (['unpkg.com', 'cdn.jsdelivr.net'].includes(new URL(request.url()).hostname)) externalDependencyRequests.push(request.url());
   });
   page.on('requestfailed', request => {
     // A successful fast health check replaces the loading icon before its

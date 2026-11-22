@@ -177,52 +177,6 @@ export function satelliteMenuLoader() {
                 <input id="trackedDesignatorFacet" type="search" maxlength="64" autocomplete="off" placeholder="Example: 1999-025">
               </label>
             </section>
-
-            <div id="trackedCatalogStatus" class="tracked-catalog-status" role="status" aria-live="polite">Current orbital catalog</div>
-            <dl id="trackedCatalogCounts" class="tracked-catalog-counts" aria-label="Tracked catalog counts">
-              <div><dt>Tracked</dt><dd id="trackedCountTotal">0</dd></div>
-              <div><dt>Matches</dt><dd id="trackedCountFiltered">0</dd></div>
-              <div><dt>Current</dt><dd id="trackedCountCurrent">0</dd></div>
-              <div><dt>History</dt><dd id="trackedCountHistorical">0</dd></div>
-              <div><dt>Positioned</dt><dd id="trackedCountPropagatable">0</dd></div>
-              <div><dt>Position unavailable</dt><dd id="trackedCountMetadataOnly">0</dd></div>
-              <div><dt>Visible</dt><dd id="trackedCountRenderReady">0</dd></div>
-              <div><dt>Quarantine</dt><dd id="trackedCountQuarantine">0</dd></div>
-            </dl>
-            <ul id="trackedObjectLegend" class="tracked-object-legend" aria-label="Tracked-object color key" aria-description="Colors identify markers on the globe and map. Shapes are additional cues on the detailed map.">
-              <li><span class="tracked-marker tracked-marker-payload" aria-hidden="true"></span>Payload</li>
-              <li><span class="tracked-marker tracked-marker-debris" aria-hidden="true"></span>Debris</li>
-              <li><span class="tracked-marker tracked-marker-rocket" aria-hidden="true"></span>Rocket body</li>
-              <li><span class="tracked-marker tracked-marker-mission" aria-hidden="true"></span>Mission</li>
-              <li><span class="tracked-marker tracked-marker-unknown" aria-hidden="true"></span>Unknown</li>
-              <li><span class="tracked-marker tracked-marker-selected" aria-hidden="true"></span>Selected</li>
-            </ul>
-            <button id="openTrackedResults" class="tracked-results-open" type="button">Browse catalog results</button>
-          </div>
-
-          <div id="selectedSatelliteControls" class="satellite-option-grid" aria-label="Selected tracked-object options" aria-hidden="true" hidden>
-            <label><input type="checkbox" id="showYPRToggle"> Yaw-Pitch-Roll</label>
-            <label class="checkbox-row"><input type="checkbox" id="showFootprintCheckbox"><span>Show Footprint</span></label>
-            <label class="checkbox-row"><input type="checkbox" id="showOnlySelectedSatellite" checked><span>Show only selected object</span></label>
-            <label><input type="checkbox" id="showOrbitFrameToggle"> Orbit Frame (LVLH)</label>
-            <label><input type="checkbox" id="showOrbitToggle"> Show Orbit</label>
-          </div>
-
-          <div id="yprSlidersRow" class="ypr-slider-grid">
-            <label>Yaw:
-              <input type="range" id="yawSlider" min="-180" max="180" step="0.1" value="0">
-              <span id="yawVal">0</span>
-            </label>
-
-            <label>Pitch:
-              <input type="range" id="pitchSlider" min="-180" max="180" step="0.1" value="0">
-              <span id="pitchVal">0</span>
-            </label>
-
-            <label>Roll:
-              <input type="range" id="rollSlider" min="-180" max="180" step="0.1" value="0">
-              <span id="rollVal">0</span>
-            </label>
           </div>
         </div>
       </section>
@@ -395,6 +349,24 @@ export function satelliteMenuLoader() {
         </div>
       </section>
 
+      <section id="restApiAccordionSection" class="menu-accordion-section">
+        <h3 id="restApiAccordionHeader" role="button" tabindex="0" aria-controls="restApiContent" aria-expanded="false" data-collapsible-target="restApiContent" class="section-heading menu-accordion-heading" data-default-collapsed="true">
+          <span>REST API</span>
+          <span class="toggle-icon">v</span>
+        </h3>
+        <div id="restApiContent" class="collapsible-content api-docs-panel collapsed" aria-labelledby="restApiAccordionHeader">
+          <div class="api-docs-link-list">
+            <a class="api-docs-link" href="swagger.html#catalog-models" target="_blank" rel="noopener noreferrer">Endpoint reference</a>
+            <a class="api-docs-link" href="docs/catalog-api.openapi.json" target="_blank" rel="noopener noreferrer">OpenAPI JSON</a>
+          </div>
+          <p id="catalogApiStatus" class="menu-helper">Start the local Python server to open the catalog and model examples.</p>
+          <div id="catalogApiExamples" class="api-docs-link-list" hidden>
+            <a class="api-docs-link" data-catalog-route="/api/v1/objects?q=GLONASS-K2&amp;orbit=MEO" target="_blank" rel="noopener noreferrer">Search GLONASS-K2</a>
+            <a class="api-docs-link" data-catalog-route="/api/v1/models/meo.o3b" target="_blank" rel="noopener noreferrer">O3b Classic model</a>
+          </div>
+        </div>
+      </section>
+
       <section id="shareAccordionSection" class="menu-accordion-section menu-section-share">
         <h3 id="shareAccordionHeader" role="button" tabindex="0" aria-controls="shareContent" aria-expanded="false" data-collapsible-target="shareContent" class="section-heading menu-accordion-heading menu-accordion-heading-share" data-default-collapsed="true">
           <span>Share</span>
@@ -466,5 +438,67 @@ export function satelliteMenuLoader() {
         </div>
       </section>
     </div>
-  </div>`;
+  </div>
+  <aside id="catalogPanel" class="selected-satellite-detail-panel catalog-panel" aria-label="Tracked object catalog">
+    <button id="openTrackedResults" class="tracked-results-open satellite-shortcut-button" type="button" aria-controls="trackedResultsDrawer" aria-expanded="false">Browse catalog results</button>
+    <div id="selectedSatelliteControls" class="satellite-option-grid" aria-label="Selected tracked-object options" aria-hidden="true" hidden>
+      <label><input type="checkbox" id="showYPRToggle"> Yaw-Pitch-Roll</label>
+      <label class="checkbox-row"><input type="checkbox" id="showFootprintCheckbox"><span>Show Footprint</span></label>
+      <label class="checkbox-row"><input type="checkbox" id="showOnlySelectedSatellite" checked><span>Show only selected object</span></label>
+      <label><input type="checkbox" id="showOrbitFrameToggle"> Orbit Frame (LVLH)</label>
+      <label><input type="checkbox" id="showOrbitToggle"> Show Orbit</label>
+      <button id="orbitViewButton" type="button" class="satellite-shortcut-button">View full orbit</button>
+    </div>
+
+    <div id="yprSlidersRow" class="ypr-slider-grid">
+      <label>Yaw:
+        <input type="range" id="yawSlider" min="-180" max="180" step="0.1" value="0">
+        <span id="yawVal">0</span>
+      </label>
+
+      <label>Pitch:
+        <input type="range" id="pitchSlider" min="-180" max="180" step="0.1" value="0">
+        <span id="pitchVal">0</span>
+      </label>
+
+      <label>Roll:
+        <input type="range" id="rollSlider" min="-180" max="180" step="0.1" value="0">
+        <span id="rollVal">0</span>
+      </label>
+    </div>
+    <details id="selectedModelViewer" class="selected-satellite-detail-section">
+      <summary><span>Satellite Model Viewer</span></summary>
+      <div class="selected-model-viewer-body">
+        <p id="selectedModelNotice">Select a spacecraft to preview its model.</p>
+        <div id="selectedModelPreview"></div>
+        <a id="selectedModelViewerLink" href="display_satellite.html" target="_blank" rel="noopener noreferrer">Browse satellite models</a>
+      </div>
+    </details>
+    <section id="selectedSatelliteDetailPanel" aria-live="polite" hidden></section>
+    <details id="trackedRecordSummary" class="selected-satellite-detail-section">
+      <summary><span>Tracked record summary</span></summary>
+      <div class="tracked-record-summary-body">
+        <div id="trackedCatalogStatus" class="tracked-catalog-status" role="status" aria-live="polite">Current orbital catalog</div>
+        <div id="trackedSnapshotInfo" class="tracked-catalog-status"></div>
+        <dl id="trackedCatalogCounts" class="tracked-catalog-counts" aria-label="Tracked catalog counts">
+          <div><dt>Tracked</dt><dd id="trackedCountTotal">0</dd></div>
+          <div><dt>Matches</dt><dd id="trackedCountFiltered">0</dd></div>
+          <div><dt>Current</dt><dd id="trackedCountCurrent">0</dd></div>
+          <div><dt>History</dt><dd id="trackedCountHistorical">0</dd></div>
+          <div><dt>Positioned</dt><dd id="trackedCountPropagatable">0</dd></div>
+          <div><dt>Position unavailable</dt><dd id="trackedCountMetadataOnly">0</dd></div>
+          <div><dt>Visible</dt><dd id="trackedCountRenderReady">0</dd></div>
+          <div><dt>Quarantine</dt><dd id="trackedCountQuarantine">0</dd></div>
+        </dl>
+        <ul id="trackedObjectLegend" class="tracked-object-legend" aria-label="Tracked-object color key" aria-description="Colors identify markers on the globe and map. Shapes are additional cues on the detailed map.">
+          <li><span class="tracked-marker tracked-marker-payload" aria-hidden="true"></span>Payload</li>
+          <li><span class="tracked-marker tracked-marker-debris" aria-hidden="true"></span>Debris</li>
+          <li><span class="tracked-marker tracked-marker-rocket" aria-hidden="true"></span>Rocket body</li>
+          <li><span class="tracked-marker tracked-marker-mission" aria-hidden="true"></span>Mission</li>
+          <li><span class="tracked-marker tracked-marker-unknown" aria-hidden="true"></span>Unknown</li>
+          <li><span class="tracked-marker tracked-marker-selected" aria-hidden="true"></span>Selected</li>
+        </ul>
+      </div>
+    </details>
+  </aside>`;
 }

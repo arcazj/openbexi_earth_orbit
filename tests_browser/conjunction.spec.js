@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import path from 'node:path';
 
 const ENFORCE_TIMING_BUDGETS = process.env.OPENBEXI_ENFORCE_TIMING_BUDGETS === '1';
-const LIGHTWEIGHT_DETAILED_MODEL_FIXTURE = path.resolve('obj/starlink_v2.glb');
+const LIGHTWEIGHT_DETAILED_MODEL_FIXTURE = path.resolve('obj/leo/starlink_v2.glb');
 
 function emptyTrackedManifestFixture() {
   const quarantineBody = JSON.stringify({ schema_version: '2.3.2', records: [] });
@@ -544,13 +544,13 @@ test('selected satellite screening runs in a Worker and renders a conjunction ev
   const wallStartedAt = Date.now();
   page.on('request', request => {
     if (request.url().includes('satellite.js')) satelliteRuntimeRequests.push(request.url());
-    if (request.url().includes('/three/0.184.0/')) threeRuntimeRequests.push(request.url());
+    if (request.url().includes('/three/0.187.0/')) threeRuntimeRequests.push(request.url());
   });
   await bootWithLocalDependencies(page, { initialOrbitSelection: ['MEO', 'LEO'] });
   const dependencySources = await page.evaluate(() => window.openbexiDependencySources);
-  expect(dependencySources.satelliteUrl).toContain('/vendor/satellite.js/6.0.2/satellite.min.js');
-  expect(dependencySources.threeCoreUrl).toContain('/vendor/three/0.184.0/build/three.module.js');
-  expect(dependencySources.threeAddonsUrl).toContain('/vendor/three/0.184.0/examples/jsm/');
+  expect(dependencySources.satelliteUrl).toContain('/vendor/satellite.js/7.1.0/satellite.es.js');
+  expect(dependencySources.threeCoreUrl).toContain('/vendor/three/0.187.0/build/three.module.js');
+  expect(dependencySources.threeAddonsUrl).toContain('/vendor/three/0.187.0/examples/jsm/');
   const beforeScreening = await collectBrowserEvidence(page);
 
   const issShortcut = await expectIssShortcutForInitialLeoSelection(page);
@@ -653,10 +653,10 @@ test('selected satellite screening runs in a Worker and renders a conjunction ev
   if (ENFORCE_TIMING_BUDGETS) {
     expect(responsiveness?.maxIntervalGapMs).toBeLessThanOrEqual(2_500);
   }
-  expect(satelliteRuntimeRequests.some(url => url.endsWith('/vendor/satellite.js/6.0.2/satellite.es.js'))).toBe(true);
+  expect(satelliteRuntimeRequests.some(url => url.endsWith('/vendor/satellite.js/7.1.0/satellite.es.js'))).toBe(true);
   expect(satelliteRuntimeRequests.some(url => url.includes('/node_modules/satellite.js/'))).toBe(false);
-  expect(threeRuntimeRequests.some(url => url.endsWith('/vendor/three/0.184.0/build/three.module.js'))).toBe(true);
-  expect(threeRuntimeRequests.some(url => url.endsWith('/vendor/three/0.184.0/examples/jsm/controls/OrbitControls.js'))).toBe(true);
+  expect(threeRuntimeRequests.some(url => url.endsWith('/vendor/three/0.187.0/build/three.module.js'))).toBe(true);
+  expect(threeRuntimeRequests.some(url => url.endsWith('/vendor/three/0.187.0/examples/jsm/controls/OrbitControls.js'))).toBe(true);
   expect(statusText).toContain('partial result');
   expect(statusText).toMatch(
     /state propagations failed|additional events omitted by the result limit|element sets exceed the screening-time freshness policy|element epochs occur after the screening window/
@@ -697,7 +697,7 @@ test('mobile conjunction workflow screens, renders, and fits without horizontal 
   test.skip(testInfo.project.name !== 'mobile-chromium', 'This workflow targets the mobile profile.');
   test.setTimeout(180_000);
   const browserErrors = monitorBrowserErrors(page);
-  await page.route('**/obj/ISS.glb', route => route.fulfill({
+  await page.route('**/obj/leo/ISS.glb', route => route.fulfill({
     contentType: 'model/gltf-binary',
     path: LIGHTWEIGHT_DETAILED_MODEL_FIXTURE
   }));

@@ -14,9 +14,28 @@ npm run rehearse:rollback
 
 Browser coverage uses Chromium, mobile emulation, Firefox and Playwright WebKit. Install engines with `npx playwright install chromium firefox webkit`. CI installs platform dependencies. Linux Firefox runs under Xvfb with software WebGL explicitly enabled in its isolated test profile; a rendered-pixel preflight fails immediately if WebGL 2 is unavailable. This is functional coverage, not physical-GPU qualification. Profile skips are explicit; mobile emulation and Playwright WebKit do not qualify physical iOS/Safari.
 
+## 2.6.0 verification
+
+The release verification record covers the integrated dependency updates and the tagged build. [Exact-commit results and downloads](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/v2.6.0)
+
+### Local baseline before dependency integration
+
+| Check | November 22 development build |
+| --- | --- |
+| JavaScript and Python | All 71 JavaScript test files passed. Python had 202 passes and one directory-symlink test skipped for a missing Windows privilege. |
+| Browsers | 113 cases across Chromium desktop and mobile, Firefox and WebKit. All 89 applicable cases passed across the matrix and single-worker confirmation. The other 24 were profile-specific skips. |
+| Catalog and scene | The globe matched the reference image at three angles after filtering a OneWeb close-up. Tests also cover panel alignment, high-latitude tracking, GEO pointing and orbit centering. |
+| Model library | All 27,400 payloads resolved to a model. The 1,308 physical files have distinct hashes and every file has a catalog assignment. Viewer checks loaded prototype and production Kuipers, AMC-14, AMC-21 and SES-17. The SES-17 asset measures 46 m tip to tip. Five other Spacebus NEO spacecraft share the family model. |
+| Satellite Model Viewer | Opening the packaged app with SES-17 selected left the preview collapsed above Catalog data. Expanding it loaded one preview. The full viewer's diagnostic panel measured 316 px on desktop and 296 px at a 320 px viewport, with no horizontal overflow. |
+| Local API | Current OMM retrieval, historical records, shared models, pagination across revisions, read-only methods and the offline reference were checked. |
+| Numerical checks | 544 frozen JPL Horizons and 48 SGP4 comparisons passed. |
+| Package and recovery | Verified 1,479 packaged files against the manifest and rehearsed rollback. Release engineering passed. The npm audit found zero vulnerabilities. |
+
+The initial browser run passed 86 cases. Two panel-order checks had loaded the previous order before the layout moved. The offline catalog screening case exceeded its time limit with two workers. All three passed in the final single-worker run with retries disabled. That run also covered keyboard rotation, closing the preview and switching between shared models. [2.6.0 local regression results](../release/evidence/v2.6.0-development-checks.json)
+
 ## 2.5 evidence
 
-The [delivery checks](../release/evidence/v2.5.0-delivery-1-checks.json) preserve the pre-publication implementation record and earlier failures. Their old branch names, pending approvals and private local paths are historical evidence, not current publication instructions. The [publication record](../release/publication-v2.5.1.json) defines the new authorized scope; final exact-commit CI and source/artifact checks are linked in the GitHub release.
+The [delivery checks](../release/evidence/v2.5.0-delivery-1-checks.json) preserve the pre-publication implementation record and earlier failures. The [2.5.1 publication record](../release/publication-v2.5.1.json) describes that release’s scope. Its GitHub release links to the CI and artifact checks for the published commit.
 
 | Check | Recorded delivery result |
 | --- | --- |
@@ -33,7 +52,7 @@ The [delivery checks](../release/evidence/v2.5.0-delivery-1-checks.json) preserv
 
 Validate first MEO render; Globe/Mercator switching; canonical search/selection; tracked matches/positioned/unavailable counts; filters and virtualized results; direct map picking; shared URLs; orbit display; launch and confirmed-decay timelines; models; stars and Mars; Solar System precise/educational modes and bounded playback. Startup opens Tracked Objects - Matches and only one menu section expands at a time. Check clock, selection, camera and filters survive coherent data revision changes.
 
-For 2.5.1 playback, check true 1 sec/s against elapsed frame time, UTC resynchronization, pause/resume, explicit accelerated units, reverse playback, restored Live/historical state and JPL boundary stops. `liveTime.spec.js` covers integrated and standalone controls in all four profiles, including the educational default, unchanged illustrative radii, all physical body radii, close focus and mode restoration, all five units, no-seek unit changes, signed rate and pause preservation, native keyboard selection, readable announcements, scoped automated accessibility and a 320 px viewport. Physical touch/assistive-technology qualification remains pending. Nominal spin tests cover periods/direction only; absolute body attitude is not qualified.
+For playback, check true 1 sec/s against elapsed frame time, UTC resynchronization, pause/resume, explicit accelerated units, reverse playback, restored Live/historical state and JPL boundary stops. `liveTime.spec.js` covers integrated and standalone controls in all four profiles, including the educational default, illustrative radii, all physical body radii, close focus and mode restoration, all five units, no-seek unit changes, signed rate and pause preservation, native keyboard selection, readable announcements, scoped automated accessibility and a 320 px viewport. Physical touch and assistive-technology qualification remain pending. Nominal spin tests cover periods and direction.
 
 README and Releases History open rendered Markdown in `markdown_viewer.html`. Verify `swagger.html`, the rendered API reference, required notices, keyboard focus and narrow layout from the built artifact as well as the source server. Only explicitly allowlisted Markdown is publicly served; roadmap, prompt history, credentials and private storage stay unavailable through the application server.
 

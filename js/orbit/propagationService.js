@@ -16,7 +16,7 @@ import {
 } from '../domain/orbitalPolicy.js';
 
 export const TLE_PROPAGATION_SERVICE_VERSION = '2.0.0';
-export const SATELLITE_JS_VERSION = '6.0.2';
+export const SATELLITE_JS_VERSION = '7.1.0';
 export const DEFAULT_MINIMUM_ORBIT_RADIUS_KM = 6378.137;
 
 export const PROPAGATION_ERROR_CODE = Object.freeze({

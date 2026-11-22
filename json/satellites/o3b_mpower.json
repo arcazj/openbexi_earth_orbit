@@ -1,0 +1,18 @@
+{
+  "0": {
+    "name": "O3b mPOWER",
+    "meta": {
+      "name": "O3b mPOWER",
+      "type": "platform",
+      "manufacturer": "Boeing",
+      "operator": "SES",
+      "bus": "Boeing 702X",
+      "orbital_slot": { "nominal": "Equatorial MEO, approximately 8000 km" },
+      "geometry": { "glb_units": "m" }
+    },
+    "payload": {
+      "band": "Ka",
+      "antenna_type": "Electronically steered phased array"
+    }
+  }
+}

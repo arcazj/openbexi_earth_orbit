@@ -8,10 +8,10 @@ function run() {
   assert(moduleStart >= 0, 'index.html contains the deferred main module template');
   assert(indexHtml.includes('openbexiBootFromTemplate'), 'index.html boots the deferred module after dependency resolution');
   assert(indexHtml.includes('content="packaged-first-with-cdn-fallback"'), 'source entrypoint explicitly declares its local-first dependency policy');
-  assert(indexHtml.includes('./vendor/three/0.184.0/build/three.module.js'), 'index.html declares packaged Three.js');
-  assert(indexHtml.includes('https://unpkg.com/three@0.184.0/build/three.module.js'), 'source policy retains an exact Three.js CDN fallback');
-  assert(indexHtml.includes('./vendor/satellite.js/6.0.2/satellite.min.js'), 'index.html declares packaged satellite.js');
-  assert(indexHtml.includes('https://unpkg.com/satellite.js@6.0.2/dist/satellite.min.js'), 'source policy retains an exact satellite.js CDN fallback');
+  assert(indexHtml.includes('./vendor/three/0.187.0/build/three.module.js'), 'index.html declares packaged Three.js');
+  assert(indexHtml.includes('https://unpkg.com/three@0.187.0/build/three.module.js'), 'source policy retains an exact Three.js CDN fallback');
+  assert(indexHtml.includes('./vendor/satellite.js/7.1.0/satellite.es.js'), 'index.html declares packaged satellite.js');
+  assert(indexHtml.includes('https://cdn.jsdelivr.net/npm/satellite.js@7.1.0/+esm'), 'source policy retains an exact satellite.js CDN fallback');
   const dependencyBootstrap = fs.readFileSync('js/dependencyBootstrap.js', 'utf8');
   const staticBuilder = fs.readFileSync('scripts/build-static.mjs', 'utf8');
   assert(dependencyBootstrap.includes("throw new Error('Three.js sources are unavailable.')"), 'dependency bootstrap fails closed when neither exact source loads');

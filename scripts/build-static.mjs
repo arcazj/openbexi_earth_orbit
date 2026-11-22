@@ -39,9 +39,9 @@ const TRACKED_OBSERVATION_STATUSES = new Set([
 const TRACKED_MEMBERSHIP_STATUSES = new Set(['PRESENT', 'ABSENT']);
 const TRACKED_HISTORICAL_LIFECYCLE_STATUSES = new Set(['DECAYED', 'ABSENT', 'RETIRED']);
 const STATIC_RUNTIME_REPLACEMENTS = Object.freeze(new Map([
-  ['https://unpkg.com/three@0.184.0/build/three.module.js', './vendor/three/0.184.0/build/three.module.js'],
-  ['https://unpkg.com/three@0.184.0/examples/jsm/', './vendor/three/0.184.0/examples/jsm/'],
-  ['https://unpkg.com/satellite.js@6.0.2/dist/satellite.min.js', './vendor/satellite.js/6.0.2/satellite.min.js'],
+  ['https://unpkg.com/three@0.187.0/build/three.module.js', './vendor/three/0.187.0/build/three.module.js'],
+  ['https://unpkg.com/three@0.187.0/examples/jsm/', './vendor/three/0.187.0/examples/jsm/'],
+  ['https://cdn.jsdelivr.net/npm/satellite.js@7.1.0/+esm', './vendor/satellite.js/7.1.0/satellite.es.js'],
   ['https://raw.githubusercontent.com/arcazj/openbexi_earth_orbit/master/', './']
 ]));
 const FORBIDDEN_TOP_LEVEL = new Set([
@@ -76,10 +76,9 @@ export const REQUIRED_STATIC_RUNTIME_PATHS = Object.freeze([
   'json/tracked/TRACKED.meta.json',
   'json/tle/TLE.json',
   'json/tle/TLE.meta.json',
-  'vendor/satellite.js/6.0.2/satellite.es.js',
-  'vendor/satellite.js/6.0.2/satellite.min.js',
-  'vendor/three/0.184.0/build/three.module.js',
-  'vendor/three/0.184.0/examples/jsm/controls/OrbitControls.js'
+  'vendor/satellite.js/7.1.0/satellite.es.js',
+  'vendor/three/0.187.0/build/three.module.js',
+  'vendor/three/0.187.0/examples/jsm/controls/OrbitControls.js'
 ]);
 
 function decodeStrictUtf8Json(body, label) {

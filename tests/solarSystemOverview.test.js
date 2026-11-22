@@ -54,8 +54,8 @@ function run() {
   const integration = fs.readFileSync('docs/TESTING.md', 'utf8');
 
   assert(html.includes('<title>OpenBEXI Solar System Overview</title>'), 'SolarSystemOverview.html has the expected title');
-  assert(html.includes('"three": "./vendor/three/0.184.0/build/three.module.js"'), 'SolarSystemOverview uses Three.js 0.184.0');
-  assert(html.includes('"three/addons/": "./vendor/three/0.184.0/examples/jsm/"'), 'SolarSystemOverview uses matching Three.js addons version');
+  assert(html.includes('"three": "./vendor/three/0.187.0/build/three.module.js"'), 'SolarSystemOverview uses Three.js 0.187.0');
+  assert(html.includes('"three/addons/": "./vendor/three/0.187.0/examples/jsm/"'), 'SolarSystemOverview uses matching Three.js addons version');
   assert(standalone.includes("import { OrbitControls } from 'three/addons/controls/OrbitControls.js';"), 'SolarSystemOverview imports OrbitControls');
   assert(standalone.includes('SOLAR_SYSTEM_PLANETS'), 'standalone shares the planet catalog');
   assert(indexHtml.includes("from './js/solarSystemOverviewLoader.js'"), 'index integrates the reusable Solar System overview module');
@@ -195,7 +195,7 @@ function run() {
 
   const release = JSON.parse(fs.readFileSync('release/version.json', 'utf8'));
   assert(indexHtml.includes('const versionNumber = APP_VERSION;'), 'index.html uses authoritative browser release metadata');
-  assert.strictEqual(release.version, '2.5.1', 'Solar System remains available in Version 2.5.1');
+  assert.strictEqual(release.version, '2.6.0', 'Solar System remains available in Version 2.6.0');
 
   assert(
     readme.includes('bounded JPL-derived Solar System ephemeris'),

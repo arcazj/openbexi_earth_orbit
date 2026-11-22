@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="openbexi-dependency-policy" content="packaged-first-with-cdn-fallback">
     <title>Satellite Model Viewer</title>
+    <script>
+        if (new URLSearchParams(location.search).get('embed') === '1') {
+            document.documentElement.classList.add('model-embed');
+        }
+    </script>
     <style>
         :root {
             color-scheme: dark;
@@ -60,7 +65,7 @@
             inset: 18px;
             z-index: 2;
             display: grid;
-            grid-template-columns: minmax(280px, 390px) minmax(280px, 360px);
+            grid-template-columns: minmax(280px, 390px) minmax(264px, 316px);
             justify-content: space-between;
             gap: 18px;
             pointer-events: none;
@@ -124,6 +129,32 @@
         .toolbar {
             grid-template-columns: 1fr auto;
         }
+
+        #catalogScope {
+            width: 100%;
+            min-height: 38px;
+            margin-bottom: 8px;
+            padding: 0 10px;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: #172333;
+            color: var(--ink);
+            font: inherit;
+        }
+
+        .catalog-pages {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px;
+        }
+
+        .catalog-pages button {
+            min-height: 28px;
+            font-size: 12px;
+        }
+
+        .catalog-pages button:disabled { opacity: .45; cursor: default; }
 
         .custom-row {
             grid-template-columns: 1fr auto;
@@ -230,6 +261,11 @@
             margin-top: 5px;
         }
 
+        .model-card > .model-meta,
+        .model-card > .model-desc {
+            display: block;
+        }
+
         .pill {
             display: inline-flex;
             align-items: center;
@@ -254,32 +290,68 @@
 
         .diagnostics {
             align-self: start;
+            display: flex;
+            flex-direction: column;
+            max-height: calc(100dvh - 88px);
+        }
+
+        .diagnostics .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 8px 12px;
+        }
+
+        #copyDiagnosticsBtn {
+            padding: 4px 9px;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .diagnostics .panel-body {
+            min-height: 0;
+            padding: 3px 12px 8px;
+            overflow-y: auto;
         }
 
         .diagnostics-grid {
             display: grid;
-            gap: 9px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            column-gap: 12px;
+            margin: 0;
         }
 
         .diagnostic-item {
+            grid-column: 1 / -1;
+            min-width: 0;
             display: grid;
-            gap: 3px;
-            padding: 10px;
-            border: 1px solid rgba(210, 232, 255, 0.12);
-            border-radius: 14px;
-            background: rgba(255, 255, 255, 0.055);
+            grid-template-columns: 5.4rem minmax(0, 1fr);
+            align-items: baseline;
+            gap: 6px;
+            padding: 4px 0;
+            border-bottom: 1px solid rgba(181, 215, 255, 0.14);
+            font-size: 12px;
+            line-height: 1.35;
+        }
+
+        .diagnostic-metric {
+            grid-column: auto;
+            grid-template-columns: minmax(0, 1fr) auto;
+            font-variant-numeric: tabular-nums;
         }
 
         .diagnostic-label {
             color: var(--muted);
-            font-size: 11px;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
         }
 
         .diagnostic-value {
+            margin: 0;
             overflow-wrap: anywhere;
-            font-size: 13px;
+        }
+
+        .diagnostic-value a {
+            color: var(--accent);
         }
 
         .status-bar {
@@ -328,6 +400,7 @@
         }
 
         @media (max-width: 900px) {
+            .diagnostics { max-height: none; }
             body {
                 overflow-x: hidden;
                 overflow-y: auto;
@@ -402,6 +475,19 @@
                 grid-template-columns: 1fr;
             }
         }
+        .model-embed body { overflow: hidden; }
+        .model-embed .shell, .model-embed .status-bar.success { display: none; }
+        .model-embed .status-bar {
+            position: fixed;
+            inset: auto 4px 4px;
+            width: auto;
+            margin: 0;
+            padding: 5px 8px;
+            transform: none;
+            border-radius: 6px;
+            pointer-events: none;
+        }
+        .model-embed .status-bar .pill { display: none; }
     </style>
     <script src="./js/dependencyBootstrap.js"></script>
 </head>
@@ -410,21 +496,40 @@
     <section class="panel">
         <header class="panel-header">
             <h1>Satellite Model Viewer</h1>
-            <p class="subtle">Manifest-backed loader for every tracked OBJ/MTL and GLB model under <code>./obj</code>.</p>
+            <p class="subtle">Select an orbit catalog to search shared models by spacecraft name or NORAD ID.</p>
         </header>
         <div class="panel-body">
+            <select id="catalogScope" aria-label="Browse satellite catalog" disabled>
+                <option value="models">Model library</option>
+                <optgroup label="Current spacecraft">
+                    <option value="leo">Current LEO spacecraft</option>
+                    <option value="meo">Current MEO spacecraft</option>
+                    <option value="geo">Current GEO spacecraft</option>
+                </optgroup>
+                <optgroup label="Historical spacecraft">
+                    <option value="leo-history">Historical LEO spacecraft</option>
+                    <option value="history">Historical MEO spacecraft</option>
+                    <option value="geo-history">Historical GEO spacecraft</option>
+                </optgroup>
+            </select>
             <div class="toolbar">
-                <input id="modelSearchInput" type="search" autocomplete="off" placeholder="Search models, type, or tag">
+                <input id="modelSearchInput" type="search" aria-label="Search catalog" autocomplete="off" placeholder="Search models, type, or tag">
                 <button id="reloadBtn" type="button">Reload</button>
             </div>
-            <div id="modelCount" class="model-count">Loading manifest...</div>
+            <div class="catalog-pages">
+                <div id="modelCount" class="model-count" aria-live="polite">Loading manifest...</div>
+                <div id="pageControls" hidden>
+                    <button id="previousPage" type="button" aria-label="Previous page">Previous</button>
+                    <button id="nextPage" type="button" aria-label="Next page">Next</button>
+                </div>
+            </div>
             <div id="modelList" class="model-list" aria-label="Available satellite models"></div>
 
             <div class="custom-row">
-                <input id="customModelInput" type="text" placeholder="Custom: ISS.glb or starlink_V1.obj, starlink_V1.mtl">
+                <input id="customModelInput" type="text" placeholder="Custom model, e.g. leo/ISS.glb">
                 <button id="loadCustomBtn" type="button" class="primary">Load Custom</button>
             </div>
-            <p class="hint">Custom models load from <code>./obj</code>. Use comma or pipe to specify a custom MTL for OBJ files.</p>
+            <p class="hint">Enter a path relative to <code>obj/</code>. For an OBJ, you can add its material after a comma, for example <code>leo/starlink_V1.obj, leo/starlink_V1.mtl</code>. A pipe also works.</p>
 
             <div class="view-controls" aria-label="View controls">
                 <button id="resetViewBtn" type="button">Reset View</button>
@@ -440,11 +545,10 @@
     <aside class="panel diagnostics">
         <header class="panel-header">
             <h2>Model Diagnostics</h2>
-            <p class="subtle">Files, textures, bounds, mesh counts, and load warnings for the selected asset.</p>
+            <button id="copyDiagnosticsBtn" type="button" aria-label="Copy diagnostics">Copy</button>
         </header>
         <div class="panel-body">
-            <div id="diagnosticsGrid" class="diagnostics-grid"></div>
-            <button id="copyDiagnosticsBtn" type="button" style="width:100%; margin-top:12px;">Copy Diagnostics</button>
+            <dl id="diagnosticsGrid" class="diagnostics-grid"></dl>
         </div>
     </aside>
 </main>
@@ -464,6 +568,7 @@
     const DISPLAY_MODEL_API_URL = '/api/display-satellite-models';
     const DISPLAY_MODEL_MANIFEST_URL = 'json/display_satellite_models.json';
     const DEFAULT_MODEL_ID = 'starlink_V1';
+    const embedded = document.documentElement.classList.contains('model-embed');
     const FALLBACK_MODEL_MANIFEST = Object.freeze({
         schemaVersion: 1,
         basePath: 'obj/',
@@ -474,12 +579,12 @@
                 type: 'obj-mtl',
                 description: 'OBJ/MTL Starlink satellite model.',
                 tags: ['Starlink', 'OBJ', 'MTL', 'LEO'],
-                files: { obj: 'starlink_V1.obj', mtl: 'starlink_V1.mtl' },
+                files: { obj: 'leo/starlink_V1.obj', mtl: 'leo/starlink_V1.mtl' },
                 textures: [
-                    { path: 'Textures/starlink_BaseColor.png', required: false },
-                    { path: 'Textures/starlink_Checker_Roughness.png', required: false },
-                    { path: 'Textures/starlink_Metallic.png', required: false },
-                    { path: 'Textures/starlink_Normal.png', required: false }
+                    { path: 'leo/Textures/starlink_BaseColor.png', required: false },
+                    { path: 'leo/Textures/starlink_Checker_Roughness.png', required: false },
+                    { path: 'leo/Textures/starlink_Metallic.png', required: false },
+                    { path: 'leo/Textures/starlink_Normal.png', required: false }
                 ]
             },
             {
@@ -488,25 +593,43 @@
                 type: 'glb',
                 description: 'GLB Starlink V2 satellite model.',
                 tags: ['Starlink', 'GLB', 'LEO'],
-                files: { glb: 'starlink_v2.glb' },
+                files: { glb: 'leo/starlink_v2.glb' },
+                textures: []
+            },
+            {
+                id: 'starlink_v3.glb',
+                displayName: 'Starlink V3',
+                type: 'glb',
+                description: 'Deployed broadband satellite with two solar wings and four backhaul dishes. Dimensions estimated from SpaceX imagery.',
+                tags: ['Starlink', 'V3', 'Broadband', 'GLB', 'LEO'],
+                files: { glb: 'leo/starlink_v3.glb' },
                 textures: []
             },
             {
                 id: 'oneweb.glb',
-                displayName: 'OneWeb GLB',
+                displayName: 'OneWeb Gen 1',
                 type: 'glb',
-                description: 'GLB OneWeb satellite model.',
-                tags: ['OneWeb', 'GLB', 'LEO'],
-                files: { glb: 'oneweb.glb' },
+                description: 'Arrow spacecraft with two boom-mounted solar panels and two steerable Ka-band gateway dishes.',
+                tags: ['OneWeb', 'Gen 1', 'GLB', 'LEO'],
+                files: { glb: 'leo/oneweb.glb' },
                 textures: []
             },
             {
                 id: 'o3b.glb',
-                displayName: 'O3b GLB',
+                displayName: 'O3b Classic',
                 type: 'glb',
-                description: 'GLB O3b satellite model.',
-                tags: ['O3b', 'GLB', 'MEO'],
-                files: { glb: 'o3b.glb' },
+                description: 'Thales Alenia Space spacecraft with 12 steerable Ka-band reflectors and two three-panel solar wings.',
+                tags: ['O3b', 'Classic', 'GLB', 'MEO'],
+                files: { glb: 'meo/o3b.glb' },
+                textures: []
+            },
+            {
+                id: 'o3b_mpower.glb',
+                displayName: 'O3b mPOWER',
+                type: 'glb',
+                description: 'Boeing 702X spacecraft with two octagonal antenna apertures and four solar panels per wing.',
+                tags: ['O3b', 'mPOWER', 'GLB', 'MEO'],
+                files: { glb: 'meo/o3b_mpower.glb' },
                 textures: []
             },
             {
@@ -515,22 +638,63 @@
                 type: 'glb',
                 description: 'GLB International Space Station model.',
                 tags: ['ISS', 'GLB', 'Station', 'LEO'],
-                files: { glb: 'ISS.glb' },
+                files: { glb: 'leo/ISS.glb' },
                 textures: []
             },
             {
                 id: 'SSL_1300.glb',
                 displayName: 'SSL 1300',
                 type: 'glb',
-                description: 'GLB SSL 1300 satellite bus model.',
+                description: 'Space Systems/Loral 1300 in the Intelsat 20 configuration, with cruciform solar wings and five communications reflectors.',
                 tags: ['SSL', 'GLB', 'GEO'],
-                files: { glb: 'SSL_1300.glb' },
+                files: { glb: 'geo/SSL_1300.glb' },
+                textures: []
+            },
+            {
+                id: 'qianfan',
+                displayName: 'Qianfan',
+                type: 'obj-mtl',
+                description: 'Flat SpaceSail communications bus with one flexible solar wing. Its estimated deployed span is 10 m.',
+                tags: ['SpaceSail', 'Thousand Sails', 'LEO', 'G60'],
+                previewDirection: [0.23, -0.55, 1],
+                files: { obj: 'leo/qianfan.obj', mtl: 'leo/qianfan.mtl' },
+                textures: [
+                    { path: 'leo/Textures/spacecraft_cells.png' },
+                    { path: 'leo/Textures/spacecraft_gold_blanket.png' }
+                ]
+            },
+            {
+                id: 'iridium',
+                displayName: 'Iridium NEXT',
+                type: 'obj-mtl',
+                description: 'L-band communications antenna and four solar panels with a deployed wingspan of 9.4 m.',
+                tags: ['Iridium', 'NEXT', 'LEO'],
+                previewDirection: [0.42, -0.56, 1.1],
+                files: { obj: 'leo/iridium.obj', mtl: 'leo/iridium.mtl' },
+                textures: [
+                    { path: 'leo/Textures/spacecraft_cells.png' },
+                    { path: 'leo/Textures/spacecraft_gold_blanket.png' },
+                    { path: 'leo/Textures/iridium_l_band_face.png' }
+                ]
+            },
+            {
+                id: 'cubesat',
+                displayName: 'CubeSat 3U',
+                type: 'obj-mtl',
+                description: 'Generic 100 × 100 × 340.5 mm spacecraft with four dispenser rails and body-mounted solar cells.',
+                tags: ['3U', 'CubeSat', 'Reference'],
+                previewDirection: [1.35, 0.85, 0.85],
+                files: { obj: 'leo/cubesat.obj', mtl: 'leo/cubesat.mtl' },
                 textures: []
             }
         ]
     });
 
     const dom = {
+        catalogScope: document.getElementById('catalogScope'),
+        pageControls: document.getElementById('pageControls'),
+        previousPage: document.getElementById('previousPage'),
+        nextPage: document.getElementById('nextPage'),
         modelSearchInput: document.getElementById('modelSearchInput'),
         modelList: document.getElementById('modelList'),
         modelCount: document.getElementById('modelCount'),
@@ -553,10 +717,16 @@
     const state = {
         manifest: FALLBACK_MODEL_MANIFEST,
         models: [],
+        profilesById: new Map(),
+        scope: 'models',
+        orbitModels: [],
+        membersByNorad: new Map(),
+        page: 0,
         selectedEntry: null,
+        selectedMember: null,
         currentModel: null,
         lastDiagnostics: null,
-        lastWarnings: [],
+        loadingManager: null,
         lastScaleInfo: null,
         wireframe: false,
         darkBackground: true
@@ -582,6 +752,7 @@
 
     const axesHelper = new THREE.AxesHelper(1);
     const gridHelper = new THREE.GridHelper(8, 16, 0x7cbde8, 0x29425d);
+    axesHelper.visible = gridHelper.visible = !embedded;
     gridHelper.position.y = -1;
     scene.add(axesHelper);
     scene.add(gridHelper);
@@ -594,6 +765,11 @@
     const rimLight = new THREE.DirectionalLight(0x8fd3ff, 1.8);
     rimLight.position.set(-5, 2, -4);
     scene.add(rimLight);
+
+    const previewFill = new THREE.DirectionalLight(0xe2e9f2, 1.15);
+    previewFill.position.set(-2, -5, 3);
+    previewFill.visible = false;
+    scene.add(previewFill);
 
     function escapeHtml(value) {
         return String(value ?? '')
@@ -624,6 +800,7 @@
 
     function normalizeManifestEntry(entry) {
         const files = entry.files || {};
+        const direction = entry.previewDirection;
         const supportedTypes = new Set(['glb', 'glb-group', 'obj-mtl']);
         const type = supportedTypes.has(entry.type) ? entry.type : 'obj-mtl';
         const id = entry.id || files.glb || files.obj || files.glbs?.[0] || entry.displayName;
@@ -633,6 +810,8 @@
             type,
             description: entry.description || '',
             tags: Array.isArray(entry.tags) ? entry.tags : [],
+            previewDirection: Array.isArray(direction) && direction.length === 3 &&
+                direction.every(Number.isFinite) && direction.some(value => value !== 0) ? direction : null,
             files,
             textures: Array.isArray(entry.textures) ? entry.textures : [],
             custom: Boolean(entry.custom)
@@ -671,7 +850,39 @@
             entry.description,
             ...(entry.tags || []),
             ...Object.values(entry.files || {})
-        ].join(' ').toLowerCase();
+        ].join(' ').toLowerCase().replace(/\b03b\b/g, 'o3b');
+    }
+
+    function modelFileKey(entry) {
+        if (entry.type === 'glb-group') {
+            return JSON.stringify([...new Set((entry.files.glbs || []).map(stripObjPrefix))].sort());
+        }
+        return stripObjPrefix(entry.files.glb || entry.files.obj);
+    }
+
+    function indexModelLibrary(entries) {
+        const byFile = new Map();
+        for (const raw of entries) {
+            const profile = normalizeManifestEntry(raw);
+            profile.searchText = modelSearchText(profile);
+            const key = modelFileKey(profile);
+            if (!byFile.has(key)) byFile.set(key, []);
+            byFile.get(key).push(profile);
+        }
+        state.models = [];
+        state.profilesById.clear();
+        for (const [file, profiles] of byFile) {
+            // Generated profiles retain their IDs and names even when they share a mesh.
+            const primary = profiles.find(profile => profile.id === file) || profiles[0];
+            const model = { ...primary, searchText: profiles.map(profile => profile.searchText).join('\n') };
+            state.models.push(model);
+            for (const profile of profiles) {
+                state.profilesById.set(profile.id, { model, profile });
+            }
+        }
+        // Keep the original library models on the first page.
+        state.models.sort((a, b) => Number(a.id.includes('/')) - Number(b.id.includes('/'))
+            || (a.id.includes('/') ? nameOrder.compare(a.displayName, b.displayName) : 0));
     }
 
     async function fetchModelManifest(url) {
@@ -697,7 +908,7 @@
                 try {
                     state.manifest = await fetchModelManifest(source.url);
                     setStatus('success', source.label, `Loaded <code>${escapeHtml(source.url)}</code>.`);
-                    state.models = (state.manifest.models || []).map(normalizeManifestEntry);
+                    indexModelLibrary(state.manifest.models || []);
                     renderModelList();
                     return;
                 } catch (error) {
@@ -708,26 +919,175 @@
         } catch (error) {
             state.manifest = FALLBACK_MODEL_MANIFEST;
             setStatus('warning', 'Manifest', `Using embedded fallback manifest. <code>${escapeHtml(error.message)}</code>`);
-            state.models = (state.manifest.models || []).map(normalizeManifestEntry);
+            const entries = [...state.manifest.models];
+            try {
+                const { orbitLibraryEntries } = await import('./js/satelliteModelResolver.js');
+                const sources = await Promise.allSettled(['leo','meo','geo'].map(async orbit => {
+                    const response = await fetch('json/satellites/' + orbit + '.json');
+                    if (!response.ok) throw new Error(orbit);
+                    return orbitLibraryEntries(orbit.toUpperCase(), await response.json());
+                }));
+                for (const source of sources) {
+                    if (source.status === 'fulfilled') entries.push(...source.value);
+                }
+            } catch (catalogError) {
+                console.warn('Orbit profile registry unavailable', catalogError);
+            }
+            indexModelLibrary(entries);
             renderModelList();
         }
     }
 
+    const pageSize = 40;
+    const nameOrder = new Intl.Collator('en', { numeric: true });
+    let trackedLoader;
+    let scopeRequest = 0;
+
+    function catalogEntries() {
+        return state.scope === 'models' ? state.models : state.orbitModels;
+    }
+
+    function groupSpacecraft(records, resolveSatelliteModel) {
+        const groups = new Map();
+        for (const record of records) {
+            const resolved = state.profilesById.get(resolveSatelliteModel(record).assetId);
+            if (!resolved) throw new Error('Missing model for NORAD ' + record.norad_id);
+            const { model, profile } = resolved;
+            if (!groups.has(model.id)) {
+                groups.set(model.id, { profile, members: [] });
+            }
+            const group = groups.get(model.id);
+            if (profile.id === model.id) group.profile = profile;
+            group.members.push({
+                name: record.satellite_name,
+                norad: String(record.norad_id),
+                profileId: resolved.profile.id,
+                searchText: (record.satellite_name + ' NORAD ' + record.norad_id).toLowerCase(),
+                profileText: profile.searchText
+            });
+        }
+        return state.models.filter(model => groups.has(model.id)).map(model => {
+            const { profile, members } = groups.get(model.id);
+            const entry = { ...model, displayName: profile.displayName, tags: profile.tags,
+                description: profile.description, searchText: profile.searchText, members };
+            for (const member of members) state.membersByNorad.set(member.norad, { entry, member });
+            return entry;
+        });
+    }
+
+    async function browseCatalog(scope, requestedNorad, requestedModel) {
+        const request = ++scopeRequest;
+        state.scope = scope;
+        state.orbitModels = [];
+        state.membersByNorad.clear();
+        state.page = 0;
+        state.loadingManager = null;
+        clearCurrentModel();
+        state.selectedEntry = null;
+        state.selectedMember = null;
+        dom.catalogScope.value = scope;
+        dom.modelSearchInput.value = '';
+        dom.modelSearchInput.placeholder = scope === 'models' ? 'Search models, type, or tag' : 'Search by name, NORAD ID, or platform';
+        renderModelList();
+        if (scope === 'models') {
+            loadSelectedModel(DEFAULT_MODEL_ID);
+            return;
+        }
+        const historical = scope === 'history' || scope.endsWith('-history');
+        const orbit = scope === 'history' ? 'MEO' : scope.split('-')[0].toUpperCase();
+        const params = new URLSearchParams(window.location.search);
+        params.set('catalog', scope);
+        if (requestedModel && !requestedNorad) params.set('model', requestedModel);
+        else params.delete('model');
+        if (requestedNorad) params.set('norad', requestedNorad);
+        else params.delete('norad');
+        window.history.replaceState(null, '', window.location.pathname + '?' + params);
+        dom.diagnosticsGrid.replaceChildren();
+        state.lastDiagnostics = null;
+        dom.modelCount.textContent = `Loading ${orbit} spacecraft…`;
+        setStatus('loading', 'Catalog', 'Loading tracked spacecraft…');
+        try {
+            const [tracked, { resolveSatelliteModel }] = await Promise.all([
+                import('./js/trackedObjectCatalog.js'), import('./js/satelliteModelResolver.js')
+            ]);
+            if (request !== scopeRequest) return;
+            trackedLoader ??= tracked.createTrackedObjectCatalogLoader();
+            const { records } = await trackedLoader.load({ objectTypes: ['PAYLOAD'], includeHistorical: historical });
+            if (request !== scopeRequest) return;
+            state.orbitModels = groupSpacecraft(records.filter(record => record.object_type === 'PAYLOAD'
+                && record.orbit_class === orbit && tracked.isHistoricalTrackedRecord(record) === historical), resolveSatelliteModel);
+            const target = state.membersByNorad.get(requestedNorad);
+            const modelId = target?.entry.id || state.profilesById.get(requestedModel)?.model.id;
+            const index = state.orbitModels.findIndex(entry => entry.id === modelId);
+            if (index >= 0) state.page = Math.floor(index / pageSize);
+            renderModelList();
+            if (requestedNorad && !target) {
+                setStatus('warning', 'Catalog', `NORAD ${escapeHtml(requestedNorad)} is absent from this catalog.`);
+            } else if (index < 0 && requestedModel) {
+                setStatus('warning', 'Catalog', `Model ${escapeHtml(requestedModel)} is absent from this catalog.`);
+            } else if (state.orbitModels.length) {
+                loadSelectedModel(state.orbitModels[Math.max(0, index)].id, target?.member);
+            } else {
+                setStatus('success', 'Catalog', `No ${historical ? 'historical ' : ''}${orbit} spacecraft in the published catalog.`);
+            }
+        } catch (error) {
+            if (request !== scopeRequest) return;
+            dom.modelCount.textContent = orbit + ' catalog unavailable';
+            setStatus('error', 'Catalog', `Could not load the tracked catalog. <code>${escapeHtml(error.message)}</code>`);
+        }
+    }
+
+    function matchingModels(query) {
+        const norad = /^(?:norad\s*#?\s*)?(\d+)$/.exec(query)?.[1];
+        const exact = state.membersByNorad.get(norad);
+        if (exact) return [{ ...exact, count: 1 }];
+        const matches = [];
+        for (const entry of catalogEntries()) {
+            let members = entry.members;
+            if (query && !entry.searchText.includes(query)) {
+                members = members?.filter(member => member.searchText.includes(query) || member.profileText.includes(query));
+                if (!members?.length) continue;
+            }
+            matches.push({ entry, count: members?.length || 0, member: members?.length === 1 ? members[0] : null });
+        }
+        return matches;
+    }
+
     function renderModelList() {
-        const query = dom.modelSearchInput.value.trim().toLowerCase();
-        const filtered = state.models.filter(entry => !query || modelSearchText(entry).includes(query));
-        dom.modelCount.textContent = `${filtered.length} of ${state.models.length} models`;
-        dom.modelList.innerHTML = filtered.map(entry => {
-            const activeClass = state.selectedEntry?.id === entry.id ? ' active' : '';
+        const query = dom.modelSearchInput.value.trim().toLowerCase().replace(/\b03b\b/g, 'o3b');
+        const filtered = matchingModels(query);
+        state.page = Math.min(state.page, Math.max(0, Math.ceil(filtered.length / pageSize) - 1));
+        const paged = filtered.length > pageSize;
+        const start = paged ? state.page * pageSize : 0;
+        const visible = paged ? filtered.slice(start, start + pageSize) : filtered;
+        const pageLabel = paged ? `${start + 1}–${start + visible.length} of ` : '';
+        const modelCount = `${filtered.length.toLocaleString()} ${filtered.length === 1 ? 'model' : 'models'}`;
+        const spacecraftCount = filtered.reduce((sum, row) => sum + row.count, 0);
+        dom.modelCount.textContent = pageLabel + modelCount
+            + (state.scope === 'models' ? '' : ` · ${spacecraftCount.toLocaleString()} spacecraft`);
+        dom.pageControls.hidden = !paged;
+        dom.previousPage.disabled = !start;
+        dom.nextPage.disabled = start + pageSize >= filtered.length;
+        dom.modelList.innerHTML = visible.map(({ entry, count, member }) => {
+            const active = state.selectedEntry?.id === entry.id;
+            const spacecraft = member || (active && !query ? state.selectedMember : null);
             const files = modelRequiredFiles(entry).map(file => `<code>${escapeHtml(file)}</code>`).join(', ');
-            const tags = [entry.type.toUpperCase(), ...(entry.tags || []).slice(0, 3)].join(' / ');
+            const format = entry.type.toUpperCase();
+            const tags = entry.tags.filter(tag => !['OBJ', 'MTL', format].includes(String(tag).toUpperCase())).slice(0, 3);
+            if (entry.members) {
+                const total = entry.members.length.toLocaleString();
+                tags.unshift((count === entry.members.length ? total : `${count.toLocaleString()} of ${total}`) + ' spacecraft');
+            }
             return `
-                <button type="button" class="model-card${activeClass}" data-model-id="${escapeHtml(entry.id)}">
+                <button type="button" class="model-card${active ? ' active' : ''}" aria-pressed="${active}"
+                        data-model-id="${escapeHtml(entry.id)}" data-model-type="${escapeHtml(entry.type)}"
+                        ${spacecraft ? `data-norad="${escapeHtml(spacecraft.norad)}"` : ''}>
                     <span class="model-name">
                         <span>${escapeHtml(entry.displayName)}</span>
-                        <span class="pill">${escapeHtml(entry.type.toUpperCase())}</span>
+                        <span class="pill">${escapeHtml(format)}</span>
                     </span>
-                    <span class="model-meta">${escapeHtml(tags)}</span>
+                    ${tags.length ? `<span class="model-meta">${escapeHtml(tags.join(' / '))}</span>` : ''}
+                    ${spacecraft ? `<span class="model-meta">${escapeHtml(spacecraft.name)} · NORAD ${escapeHtml(spacecraft.norad)}</span>` : ''}
                     <span class="model-desc">${escapeHtml(entry.description || 'No description available.')}</span>
                     <span class="model-meta">${files}</span>
                 </button>
@@ -746,6 +1106,9 @@
         const modelFile = parts[0];
         const mtlFile = parts[1];
         if (!modelFile) return null;
+        const known = state.profilesById.get(modelFile)?.model || state.models.find(entry => entry.id === stripExtension(modelFile)
+            || entry.files.obj === modelFile || entry.files.glb === modelFile);
+        if (known && (!mtlFile || known.files.mtl === mtlFile || known.files.mtl?.endsWith('/' + mtlFile))) return known;
 
         if (/\.glb$/i.test(modelFile)) {
             return normalizeManifestEntry({
@@ -772,25 +1135,23 @@
         });
     }
 
-    function createLoadingManager(entry) {
+    function createLoadingManager() {
         const warnings = [];
         const manager = new THREE.LoadingManager();
+        const complete = new Promise(resolve => { manager.onLoad = resolve; });
         manager.onStart = url => {
+            if (state.loadingManager !== manager) return;
             setStatus('loading', 'Loading', `Loading <code>${escapeHtml(url)}</code>...`);
         };
         manager.onError = url => {
             warnings.push(`Failed dependency: ${url}`);
         };
-        manager.onLoad = () => {
-            if (warnings.length) {
-                setStatus('warning', 'Loaded', `Loaded with ${warnings.length} warning(s): ${escapeHtml(warnings.join('; '))}`);
-            }
-        };
         manager.onProgress = (url, loaded, total) => {
+            if (state.loadingManager !== manager) return;
             const suffix = total ? ` (${loaded}/${total})` : '';
             setStatus('loading', 'Loading', `Loading <code>${escapeHtml(url)}</code>${suffix}...`);
         };
-        return { manager, warnings, entry };
+        return { manager, warnings, complete };
     }
 
     function materialColorLooksBlack(material) {
@@ -940,6 +1301,8 @@
             type: entry.type,
             asset: modelAssetPath(entry),
             requiredFiles: modelRequiredFiles(entry),
+            dimensionNote: typeof root.userData.dimensionNote === 'string' ? root.userData.dimensionNote : '',
+            visualReferences: Array.isArray(root.userData.visualReferences) ? root.userData.visualReferences : [],
             meshCount,
             materialCount: materials.size,
             textureCount: textures.size,
@@ -995,8 +1358,35 @@
         gridHelper.position.y = -Math.max(safeDiameter * 0.48, 0.75);
         camera.near = Math.max(distance / 10000, 0.0001);
         camera.far = distance * 100;
-        camera.updateProjectionMatrix();
         camera.position.set(0, safeDiameter * 0.24, distance);
+        const previewCamera = root.getObjectByName('OpenBEXIPreview');
+        previewFill.visible = Boolean(previewCamera?.isPerspectiveCamera);
+        if (previewCamera?.isPerspectiveCamera) {
+            // Fit the authored view between the side panels, or across the canvas on mobile.
+            const centerX = window.innerWidth / 2;
+            const leftEdge = dom.modelList.closest('.panel').getBoundingClientRect().right;
+            const rightEdge = dom.diagnosticsGrid.closest('.panel').getBoundingClientRect().left;
+            const gap = 2 * Math.min(centerX - leftEdge, rightEdge - centerX);
+            const viewWidth = gap > 0 ? gap : window.innerWidth;
+            const halfFov = THREE.MathUtils.degToRad(camera.fov / 2);
+            const fitDistance = safeDiameter * 0.55 * window.innerHeight / (viewWidth * Math.tan(halfFov));
+            const previewDistance = Math.max(distance, fitDistance);
+            previewCamera.getWorldDirection(camera.position).multiplyScalar(-previewDistance);
+            camera.near = Math.max(previewCamera.near * root.scale.x, previewDistance / 1000);
+            camera.far = previewDistance * 100;
+        }
+        if (embedded) {
+            // Fit the centered bounds in both dimensions of the catalog panel.
+            camera.lookAt(0, 0, 0);
+            const bounds = new THREE.Box3(size.clone().multiplyScalar(-0.5), size.clone().multiplyScalar(0.5));
+            bounds.applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(camera.quaternion.clone().invert()));
+            const halfHeight = Math.max(bounds.max.y, bounds.max.x / camera.aspect);
+            const fit = bounds.max.z + 1.10 * halfHeight / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+            camera.position.setLength(Math.max(fit, 0.05));
+            camera.near = camera.position.length() / 1000;
+            camera.far = camera.position.length() * 100;
+        }
+        camera.updateProjectionMatrix();
         controls.target.set(0, 0, 0);
         controls.update();
         return safeDiameter;
@@ -1034,50 +1424,75 @@
             ['Asset', `<code>${escapeHtml(diagnostics.asset)}</code>`],
             ['Type', escapeHtml(diagnostics.type.toUpperCase())],
             ['Required files', requiredHtml],
-            ['Meshes', escapeHtml(diagnostics.meshCount)],
-            ['Materials', escapeHtml(diagnostics.materialCount)],
-            ['Textures loaded', escapeHtml(diagnostics.textureCount)],
-            ['Triangles', escapeHtml(diagnostics.triangleCount.toLocaleString())],
+            ['Meshes', escapeHtml(diagnostics.meshCount), true],
+            ['Materials', escapeHtml(diagnostics.materialCount), true],
+            ['Textures loaded', escapeHtml(diagnostics.textureCount), true],
+            ['Triangles', escapeHtml(diagnostics.triangleCount.toLocaleString()), true],
             ['Bounds', escapeHtml(`${formatNumber(diagnostics.size[0])} x ${formatNumber(diagnostics.size[1])} x ${formatNumber(diagnostics.size[2])}`)],
             ['Diameter', escapeHtml(formatNumber(diagnostics.diameter))],
             ['Original diameter', escapeHtml(formatNumber(diagnostics.originalDiameter))],
             ['Display scale', escapeHtml(`${formatNumber(diagnostics.displayScale, 2)}x${diagnostics.normalizedForDisplay ? ' normalized' : ''}`)],
             ['Warnings', warningHtml]
         ];
-        dom.diagnosticsGrid.innerHTML = items.map(([label, value]) => `
-            <div class="diagnostic-item">
-                <span class="diagnostic-label">${escapeHtml(label)}</span>
-                <span class="diagnostic-value">${value}</span>
+        if (diagnostics.referenceStatus) items.splice(2, 0, ['Reference basis', escapeHtml(diagnostics.referenceStatus)]);
+        if (diagnostics.dimensionNote) items.splice(2, 0, ['Model dimensions', escapeHtml(diagnostics.dimensionNote)]);
+        const links = (diagnostics.visualReferences || [])
+            .filter(url => typeof url === 'string' && URL.canParse(url))
+            .map(url => new URL(url))
+            .filter(url => url.protocol === 'https:');
+        if (links.length) {
+            const html = links.map(url =>
+                `<a href="${escapeHtml(url.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url.hostname.replace(/^www\./, ''))}</a>`
+            ).join(' · ');
+            items.splice(2, 0, ['Design references', html]);
+        }
+        dom.diagnosticsGrid.innerHTML = items.map(([label, value, metric]) => `
+            <div class="diagnostic-item${metric ? ' diagnostic-metric' : ''}">
+                <dt class="diagnostic-label">${escapeHtml(label)}</dt>
+                <dd class="diagnostic-value">${value}</dd>
             </div>
         `).join('');
     }
 
-    async function loadObjMtl(entry, manager) {
+    async function loadObjMtl(entry, manager, warnings) {
         const basePath = state.manifest.basePath || 'obj/';
         const mtlLoader = new MTLLoader(manager);
         mtlLoader.setPath(basePath);
-        mtlLoader.setResourcePath(basePath);
+        mtlLoader.setResourcePath(basePath + entry.files.mtl.slice(0, entry.files.mtl.lastIndexOf('/') + 1));
 
         let materials = null;
         try {
             materials = await mtlLoader.loadAsync(entry.files.mtl);
             materials.preload();
         } catch (error) {
-            state.lastWarnings.push(`MTL not loaded: ${basePath}${entry.files.mtl}`);
+            warnings.push(`MTL not loaded: ${basePath}${entry.files.mtl}`);
             console.warn(`MTL load failed for ${basePath}${entry.files.mtl}; loading OBJ with fallback material.`, error);
         }
 
         const objLoader = new OBJLoader(manager);
         objLoader.setPath(basePath);
         if (materials) objLoader.setMaterials(materials);
-        return objLoader.loadAsync(entry.files.obj);
+        const root = await objLoader.loadAsync(entry.files.obj);
+        if (entry.previewDirection) {
+            // OBJ cannot embed a camera. Use the same authored view as the GLB fitting path.
+            const preview = new THREE.PerspectiveCamera(45, 1, 0.01, 100);
+            preview.name = 'OpenBEXIPreview';
+            preview.position.fromArray(entry.previewDirection);
+            preview.lookAt(0, 0, 0);
+            root.add(preview);
+        }
+        return root;
     }
 
     async function loadGlb(entry, manager) {
         const loader = new GLTFLoader(manager);
         loader.setPath(state.manifest.basePath || 'obj/');
         const gltf = await loader.loadAsync(entry.files.glb);
-        return gltf.scene || gltf.scenes?.[0] || new THREE.Group();
+        const root = gltf.scene || gltf.scenes?.[0] || new THREE.Group();
+        const { dimensionNote, visualReferences } = gltf.userData || {};
+        if (typeof dimensionNote === 'string') root.userData.dimensionNote = dimensionNote;
+        if (Array.isArray(visualReferences)) root.userData.visualReferences = visualReferences;
+        return root;
     }
 
     async function loadGlbGroup(entry, manager) {
@@ -1096,23 +1511,79 @@
         return group;
     }
 
-    async function loadModel(entry) {
+    let geoReferenceRegistry;
+    async function refreshGeoReferences() {
+        const entry = state.selectedEntry, member = state.selectedMember, diagnostics = state.lastDiagnostics;
+        const id = member?.profileId || entry?.id || '';
+        if (!diagnostics || !(id.startsWith('geo/') || id === 'SSL_1300.glb')) return;
+        try {
+            geoReferenceRegistry ??= fetch('json/satellites/geo.json').then(response => {
+                if (!response.ok) throw new Error(response.status);
+                return response.json();
+            }).catch(error => { geoReferenceRegistry = null; throw error; });
+            const meta = (await geoReferenceRegistry)[id]?.meta;
+            if (!meta || entry !== state.selectedEntry || member !== state.selectedMember || diagnostics !== state.lastDiagnostics) return;
+            const flight = Object.entries(meta.flight_references || {}).find(([, ids]) => ids.includes(Number(member?.norad)));
+            updateDiagnostics({...diagnostics, referenceStatus: meta.reference_status,
+                dimensionNote: meta.dimension_note,
+                visualReferences: [...new Set([...(flight ? [flight[0]] : []), ...(meta.references || [])])]});
+        } catch {
+            // The GLB's embedded sources remain available in standalone/offline use.
+        }
+    }
+
+    async function loadModel(entry, member = null, reload = false) {
         if (!entry) return;
-        clearCurrentModel();
+        const reuse = !reload && (state.currentModel || state.loadingManager) && state.selectedEntry
+            && modelFileKey(state.selectedEntry) === modelFileKey(entry);
         state.selectedEntry = entry;
-        state.lastWarnings = [];
+        state.selectedMember = member;
         renderModelList();
+        const params = new URLSearchParams(window.location.search);
+        if (entry.members) params.set('catalog', state.scope);
+        else params.delete('catalog');
+        if (member) {
+            params.set('norad', member.norad);
+            params.delete('model');
+        } else {
+            params.set('model', entry.id);
+            params.delete('norad');
+        }
+        history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
+        if (reuse) {
+            refreshGeoReferences();
+            return;
+        }
+        clearCurrentModel();
         setStatus('loading', 'Loading', `Loading <code>${escapeHtml(modelAssetPath(entry))}</code>...`);
 
-        const { manager, warnings } = createLoadingManager(entry);
+        const { manager, warnings, complete } = createLoadingManager();
+        state.loadingManager = manager;
+        // Keep the batch open across the MTL and OBJ requests until their textures settle.
+        const asset = modelAssetPath(entry);
+        manager.itemStart(asset);
         let root;
-        if (entry.type === 'glb') {
-            root = await loadGlb(entry, manager);
-        } else if (entry.type === 'glb-group') {
-            root = await loadGlbGroup(entry, manager);
-        } else {
-            root = await loadObjMtl(entry, manager);
+        try {
+            if (entry.type === 'glb') {
+                root = await loadGlb(entry, manager);
+            } else if (entry.type === 'glb-group') {
+                root = await loadGlbGroup(entry, manager);
+            } else {
+                root = await loadObjMtl(entry, manager, warnings);
+            }
+        } catch (error) {
+            if (state.loadingManager !== manager) return;
+            state.loadingManager = null;
+            throw error;
+        } finally {
+            manager.itemEnd(asset);
         }
+        await complete;
+        if (state.loadingManager !== manager) {
+            disposeObject(root);
+            return;
+        }
+        state.loadingManager = null;
 
         prepareObject(root);
         state.currentModel = root;
@@ -1121,23 +1592,21 @@
         state.lastScaleInfo = normalizeModelForDisplay(root);
         fitCameraToObject(root);
 
-        const allWarnings = [...new Set([...state.lastWarnings, ...warnings])];
+        const allWarnings = [...new Set(warnings)];
         const diagnostics = collectObjectDiagnostics(root, entry, allWarnings, state.lastScaleInfo);
         updateDiagnostics(diagnostics);
+        refreshGeoReferences();
         setStatus(
             allWarnings.length ? 'warning' : 'success',
             allWarnings.length ? 'Loaded' : 'Ready',
             `Loaded <code>${escapeHtml(modelAssetPath(entry))}</code>. Meshes: <code>${diagnostics.meshCount}</code>, triangles: <code>${diagnostics.triangleCount.toLocaleString()}</code>.`
         );
-
-        const params = new URLSearchParams(window.location.search);
-        params.set('model', entry.id);
-        history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
     }
 
-    function loadSelectedModel(id) {
-        const entry = state.models.find(model => model.id === id) || state.selectedEntry || state.models[0];
-        loadModel(entry).catch(error => {
+    function loadSelectedModel(id, member, reload = false) {
+        const entry = catalogEntries().find(model => model.id === id) || state.selectedEntry || catalogEntries()[0];
+        if (!entry) return;
+        return loadModel(entry, member, reload).catch(error => {
             console.error(error);
             setStatus('error', 'Error', `Failed to load <code>${escapeHtml(modelAssetPath(entry))}</code>: <code>${escapeHtml(error.message)}</code>`);
             updateDiagnostics({
@@ -1181,6 +1650,10 @@
     }
 
     function resetView() {
+        if (state.currentModel?.getObjectByName('OpenBEXIPreview')?.isPerspectiveCamera) {
+            fitCameraToObject(state.currentModel);
+            return;
+        }
         camera.position.set(0, 1.2, 6);
         controls.target.set(0, 0, 0);
         controls.update();
@@ -1188,7 +1661,7 @@
 
     function selectInitialModel() {
         const requestedModel = new URLSearchParams(window.location.search).get('model') || DEFAULT_MODEL_ID;
-        return state.models.find(entry => entry.id === requestedModel)
+        return state.profilesById.get(requestedModel)?.model
             || catalogEntryFromCustom(requestedModel)
             || state.models.find(entry => entry.id === DEFAULT_MODEL_ID)
             || state.models[0];
@@ -1210,8 +1683,15 @@
             warnings: []
         });
         await loadModelManifest();
+        dom.catalogScope.disabled = false;
+        const params = new URLSearchParams(window.location.search);
+        if ([...dom.catalogScope.options].some(option => option.value !== 'models' && option.value === params.get('catalog'))) {
+            await browseCatalog(params.get('catalog'), params.get('norad'), params.get('model'));
+            return;
+        }
         const initialEntry = selectInitialModel();
         if (initialEntry) {
+            state.page = Math.max(0, Math.floor(state.models.indexOf(initialEntry) / pageSize));
             await loadModel(initialEntry);
         }
     }
@@ -1219,10 +1699,21 @@
     dom.modelList.addEventListener('click', event => {
         const button = event.target.closest('[data-model-id]');
         if (!button) return;
-        loadSelectedModel(button.dataset.modelId);
+        loadSelectedModel(button.dataset.modelId, state.membersByNorad.get(button.dataset.norad)?.member);
     });
-    dom.modelSearchInput.addEventListener('input', renderModelList);
-    dom.reloadBtn.addEventListener('click', () => loadSelectedModel(state.selectedEntry?.id));
+    dom.modelSearchInput.addEventListener('input', () => { state.page = 0; renderModelList(); });
+    dom.catalogScope.addEventListener('change', () => browseCatalog(dom.catalogScope.value));
+    for (const [button, step] of [[dom.previousPage, -1], [dom.nextPage, 1]]) {
+        button.addEventListener('click', () => {
+            state.page += step;
+            renderModelList();
+            dom.modelList.scrollTop = 0;
+        });
+    }
+    dom.reloadBtn.addEventListener('click', () => {
+        if (state.scope !== 'models' && !state.selectedEntry) browseCatalog(state.scope);
+        else loadSelectedModel(state.selectedEntry?.id, state.selectedMember, true);
+    });
     dom.loadCustomBtn.addEventListener('click', loadCustomModel);
     dom.customModelInput.addEventListener('keydown', event => {
         if (event.key === 'Enter') loadCustomModel();
@@ -1247,6 +1738,10 @@
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
+        if (embedded && state.currentModel) {
+            fitCameraToObject(state.currentModel);
+            renderer.render(scene, camera);
+        }
     });
 
     function animate() {
@@ -1255,11 +1750,27 @@
         renderer.render(scene, camera);
     }
 
-    init().catch(error => {
+    const initialized = init().catch(error => {
         console.error(error);
         setStatus('error', 'Error', `Viewer initialization failed: <code>${escapeHtml(error.message)}</code>`);
     });
-    animate();
+    if (embedded) {
+        // The inset is a static model. Draw when the camera moves or the model finishes loading.
+        controls.enableDamping = false;
+        renderer.domElement.tabIndex = 0;
+        renderer.domElement.setAttribute('aria-label', 'Spacecraft model. Drag or use Shift and the arrow keys to rotate.');
+        controls.listenToKeyEvents(renderer.domElement);
+        const draw = () => renderer.render(scene, camera);
+        controls.addEventListener('change', draw);
+        initialized.then(draw);
+        window.addEventListener('pagehide', () => {
+            controls.dispose();
+            renderer.dispose();
+            renderer.forceContextLoss();
+        }, { once: true });
+    } else {
+        animate();
+    }
 </script>
 <script>
     window.openbexiBootFromTemplate({
@@ -1269,12 +1780,12 @@
         timeoutMs: 2500,
         three: {
             cdn: {
-                core: 'https://unpkg.com/three@0.184.0/build/three.module.js',
-                addons: 'https://unpkg.com/three@0.184.0/examples/jsm/'
+                core: 'https://unpkg.com/three@0.187.0/build/three.module.js',
+                addons: 'https://unpkg.com/three@0.187.0/examples/jsm/'
             },
             local: {
-                core: './vendor/three/0.184.0/build/three.module.js',
-                addons: './vendor/three/0.184.0/examples/jsm/'
+                core: './vendor/three/0.187.0/build/three.module.js',
+                addons: './vendor/three/0.187.0/examples/jsm/'
             },
             probePaths: [
                 'controls/OrbitControls.js',

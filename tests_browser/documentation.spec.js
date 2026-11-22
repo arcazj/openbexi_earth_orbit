@@ -1,11 +1,15 @@
 import { expect, test } from '@playwright/test';
+import { APP_VERSION } from '../js/releaseVersion.js';
 
 test('moved Help pages resolve links and retain accuracy and upstream notices', async ({ page, request }) => {
     const failures = [];
     page.on('pageerror', error => failures.push(error.message));
     await page.goto('/markdown_viewer.html?source=docs/RELEASE_NOTES.md');
     const content = page.locator('#markdownContent');
-    await expect(content).toContainText('v2.5');
+    await expect(content.getByRole('heading', { level: 2 }).first()).toContainText(`v${APP_VERSION}`);
+    const modelViewer = await content.getByRole('link', { name: 'Satellite Model Viewer', exact: true }).getAttribute('href');
+    expect(new URL(modelViewer).pathname).toBe('/display_satellite.html');
+    expect((await request.head(modelViewer)).status()).toBe(200);
     const license = content.getByRole('link', { name: 'license', exact: true });
     const licenseUrl = await license.getAttribute('href');
     expect(new URL(licenseUrl).searchParams.get('source')).toBe('LICENSE.md');
@@ -15,7 +19,31 @@ test('moved Help pages resolve links and retain accuracy and upstream notices', 
     await expect(content).toContainText('Nothing in this notice excludes or limits liability');
     await page.goto('/markdown_viewer.html?source=docs/THIRD_PARTY_NOTICES.md');
     await expect(content).toContainText('Historical MIT notice');
-    for (const url of ['/docs/SWAGGER.md', '/licenses/LEGACY_MIT.txt', '/vendor/three/0.184.0/LICENSE', '/vendor/satellite.js/6.0.2/LICENSE.md']) {
+    await page.goto('/markdown_viewer.html?source=docs/SWAGGER.md');
+    const apiReference = await content.getByRole('link', { name: 'Rendered local Markdown reference' }).getAttribute('href');
+    await page.goto(apiReference);
+    await expect(page.locator('#rawDocumentLink')).toHaveAttribute('href', 'docs/SWAGGER.md');
+    await expect(content.getByRole('heading', { name: 'Satellite model manifest' })).toBeVisible();
+    await page.goto('/swagger.html');
+    const catalogReference = page.locator('#catalog-models');
+    const schemaUrl = await catalogReference.getByRole('link', { name: 'OpenAPI contract' }).getAttribute('href');
+    const schema = await (await request.get(schemaUrl)).json();
+    const live = await (await request.get('/openapi.json')).json();
+    for (const [path, definition] of Object.entries(schema.paths)) {
+        expect(live.paths[path]).toEqual(definition);
+        await expect(catalogReference.getByText(path, { exact: true })).toBeVisible();
+    }
+    const operation = page.locator('details.operation').filter({ has: page.getByText('/api/display-satellite-models', { exact: true }) });
+    const example = JSON.parse(await operation.locator('pre code').textContent());
+    const manifestResponse = await request.get('/api/display-satellite-models');
+    expect(manifestResponse.status()).toBe(200);
+    const manifest = await manifestResponse.json();
+    expect(example.basePath).toBe(manifest.basePath);
+    expect(example.models.length).toBeGreaterThan(0);
+    for (const profile of example.models) {
+        expect(manifest.models.find(entry => entry.id === profile.id)?.files, profile.id).toEqual(profile.files);
+    }
+    for (const url of ['/docs/SWAGGER.md', '/licenses/LEGACY_MIT.txt', '/vendor/three/0.187.0/LICENSE', '/vendor/satellite.js/7.1.0/LICENSE.md']) {
         expect((await request.get(url)).status(), url).toBe(200);
     }
     for (const url of ['/ROADMAP.md', '/PROMPT_History.md', '/docs/engineering/THREAT_MODEL.md', '/commercial/COMMERCIAL_AGREEMENT_DRAFT.md']) {

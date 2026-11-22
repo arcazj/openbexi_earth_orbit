@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import * as satellite from 'satellite.js';
+import * as browserEngine from '../vendor/satellite.js/7.1.0/satellite.es.js';
 import { checkHorizons } from '../scripts/check-v25-science.mjs';
 
 const manifestBytes = fs.readFileSync('validation/v2.5.0/manifest.json');
@@ -33,6 +34,10 @@ for (const fixture of corpus.cases) {
         const record = satellite.json2satrec(fixture.omm);
         const state = satellite.sgp4(record, sample.minutesSinceEpoch);
         assert.equal(record.error, 0);
+        const browserRecord = browserEngine.json2satrec(fixture.omm);
+        const browserState = browserEngine.sgp4(browserRecord, sample.minutesSinceEpoch);
+        assert.equal(browserRecord.error, 0);
+        assert.deepEqual(browserState, state, `${fixture.name} packaged engine at ${sample.minutesSinceEpoch} minutes`);
         const distance = (vector, expected) => Math.hypot(...['x', 'y', 'z'].map((axis, i) => vector[axis] - expected[i]));
         const position = distance(state.position, sample.positionKm);
         const velocity = distance(state.velocity, sample.velocityKmS);

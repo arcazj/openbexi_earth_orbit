@@ -19,7 +19,7 @@ test('Solar System modes, UTC scrubber, following and legacy restoration', async
     await openSolar(page);
     await expect(page.locator('#solarEducational')).not.toBeChecked();
     await expect(page.locator('#solarCoverage')).toContainText('Precise');
-    await expect(page.locator('#trackedCoverageHud')).toBeHidden();
+    await expect(page.locator('#catalogPanel')).toBeHidden();
     await page.locator('#solarDate').fill('2026-06-07T09:00');
     await page.locator('#solarDate').press('Tab');
     await expect.poll(async () => (await snapshot(page)).dateUtc).toBe('2026-06-07T09:00:00.000Z');
@@ -108,7 +108,7 @@ test('full JPL guides span both playback edges, fit the viewport and stay cached
     await page.locator('#menuToggleBtn').click();
     const loadedRequests = requests.length;
     await page.locator('#solarSystemExitButton').click();
-    await expect(page.locator('#trackedCoverageHud')).toBeVisible();
+    await expect(page.locator('#catalogPanel')).toBeVisible();
     await page.locator('#solarSystemOverviewToggle').check();
     await expect(page.locator('#solarOrbitGuideStatus')).toContainText('one revolution');
     expect(requests.length).toBe(loadedRequests);

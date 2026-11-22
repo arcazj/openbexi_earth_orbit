@@ -1,0 +1,1047 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "OpenBEXI catalog and model API",
+    "version": "1.0.0",
+    "description": "Local read-only resources included in OpenBEXI Earth Orbit 2.6.0."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8000"
+    }
+  ],
+  "paths": {
+    "/api/v1/objects": {
+      "get": {
+        "operationId": "searchCatalogObjects",
+        "tags": [
+          "Catalog and models"
+        ],
+        "summary": "Search tracked objects",
+        "description": "Search the verified local catalog in ascending NORAD order. The first page defaults to current membership. A revision change between pages returns 409. Restart pagination after a server restart.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Requested local resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogPage"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Digest of the response representation."
+              }
+            }
+          },
+          "304": {
+            "description": "The supplied If-None-Match matches the representation."
+          },
+          "400": {
+            "description": "Malformed identifier, filter or cursor.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogProblem"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "This resource is read-only.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogProblem"
+                }
+              }
+            },
+            "headers": {
+              "Allow": {
+                "schema": {
+                  "type": "string",
+                  "example": "GET, HEAD, OPTIONS"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Catalog generation changed. Restart from the first page.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogProblem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Verified catalog data or model metadata is unavailable.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogProblem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "operationId": "searchCatalogObjectsHead",
+        "tags": [
+          "Catalog and models"
+        ],
+        "summary": "Read headers for this resource",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Requested local resource.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Digest of the response representation."
+              }
+            }
+          },
+          "304": {
+            "description": "The supplied If-None-Match matches the representation."
+          },
+          "400": {
+            "description": "Malformed identifier, filter or cursor."
+          },
+          "405": {
+            "description": "This resource is read-only.",
+            "headers": {
+              "Allow": {
+                "schema": {
+                  "type": "string",
+                  "example": "GET, HEAD, OPTIONS"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Catalog generation changed. Restart from the first page."
+          },
+          "503": {
+            "description": "Verified catalog data or model metadata is unavailable."
+          }
+        }
+      },
+      "parameters": [
+        {
+          "name": "q",
+          "in": "query",
+          "required": false,
+          "description": "All whitespace-separated terms must match the record, case-insensitively. Search names, NORAD numbers, owners and International Designators.",
+          "schema": {
+            "type": "string",
+            "maxLength": 256
+          }
+        },
+        {
+          "name": "scope",
+          "in": "query",
+          "required": false,
+          "description": "Membership in the selected local snapshot. Historical includes decayed and absent records.",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "all",
+              "current",
+              "historical"
+            ],
+            "default": "current"
+          }
+        },
+        {
+          "name": "orbit",
+          "in": "query",
+          "required": false,
+          "description": "Catalog orbit class.",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "all",
+              "LEO",
+              "MEO",
+              "GEO",
+              "HEO",
+              "DECAYING",
+              "OTHER",
+              "UNKNOWN"
+            ],
+            "default": "all"
+          }
+        },
+        {
+          "name": "type",
+          "in": "query",
+          "required": false,
+          "description": "Tracked object type.",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "all",
+              "PAYLOAD",
+              "DEBRIS",
+              "ROCKET_BODY",
+              "MISSION_RELATED",
+              "UNKNOWN"
+            ],
+            "default": "all"
+          }
+        },
+        {
+          "name": "availability",
+          "in": "query",
+          "required": false,
+          "description": "Availability of current orbital elements.",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "all",
+              "positioned",
+              "unavailable"
+            ],
+            "default": "all"
+          }
+        },
+        {
+          "name": "owner",
+          "in": "query",
+          "required": false,
+          "description": "Exact owner code, case-insensitive.",
+          "schema": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "description": "Maximum records per page in ascending numeric NORAD order.",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200,
+            "default": 50
+          }
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "description": "Continuation returned by this server instance. Keep the filters unchanged.",
+          "schema": {
+            "type": "string",
+            "maxLength": 1024
+          }
+        },
+        {
+          "name": "If-None-Match",
+          "in": "header",
+          "required": false,
+          "description": "Previously returned ETag.",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/api/v1/objects/{noradId}": {
+      "get": {
+        "operationId": "getCatalogObject",
+        "tags": [
+          "Catalog and models"
+        ],
+        "summary": "Look up a NORAD object",
+        "description": "Look up current or historical membership by full decimal NORAD ID. Positioned objects include their validated source OMM. Historical and metadata-only objects have a null epoch and element set.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Requested local resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogDetail"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Digest of the response representation."
+              }
+            }
+          },
+          "304": {
+            "description": "The supplied If-None-Match matches the representation."
+          },
+          "400": {
+            "description": "Malformed identifier, filter or cursor.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource is absent from this catalog or model registry.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogProblem"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "This resource is read-only.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogProblem"
+                }
+              }
+            },
+            "headers": {
+              "Allow": {
+                "schema": {
+                  "type": "string",
+                  "example": "GET, HEAD, OPTIONS"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Verified catalog data or model metadata is unavailable.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogProblem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "operationId": "getCatalogObjectHead",
+        "tags": [
+          "Catalog and models"
+        ],
+        "summary": "Read headers for this resource",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Requested local resource.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Digest of the response representation."
+              }
+            }
+          },
+          "304": {
+            "description": "The supplied If-None-Match matches the representation."
+          },
+          "400": {
+            "description": "Malformed identifier, filter or cursor."
+          },
+          "404": {
+            "description": "Resource is absent from this catalog or model registry."
+          },
+          "405": {
+            "description": "This resource is read-only.",
+            "headers": {
+              "Allow": {
+                "schema": {
+                  "type": "string",
+                  "example": "GET, HEAD, OPTIONS"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Verified catalog data or model metadata is unavailable."
+          }
+        }
+      },
+      "parameters": [
+        {
+          "name": "noradId",
+          "in": "path",
+          "required": true,
+          "description": "Full NORAD number without leading zeros.",
+          "schema": {
+            "type": "string",
+            "description": "Canonical decimal NORAD catalog number.",
+            "pattern": "^[1-9][0-9]{0,8}$",
+            "example": "63130"
+          }
+        },
+        {
+          "name": "If-None-Match",
+          "in": "header",
+          "required": false,
+          "description": "Previously returned ETag.",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/api/v1/models/{modelId}": {
+      "get": {
+        "operationId": "getCatalogModel",
+        "tags": [
+          "Catalog and models"
+        ],
+        "summary": "Get a shared spacecraft model",
+        "description": "Follow the object's model link to its geometry, materials, textures, dimensions and references. Multiple display profiles and NORAD IDs can identify the same file. An empty reference or dimension list means the model has no such metadata recorded.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Requested local resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogModel"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Digest of the response representation."
+              }
+            }
+          },
+          "304": {
+            "description": "The supplied If-None-Match matches the representation."
+          },
+          "400": {
+            "description": "Malformed identifier, filter or cursor.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource is absent from this catalog or model registry.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogProblem"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "This resource is read-only.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogProblem"
+                }
+              }
+            },
+            "headers": {
+              "Allow": {
+                "schema": {
+                  "type": "string",
+                  "example": "GET, HEAD, OPTIONS"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Verified catalog data or model metadata is unavailable.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogProblem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "operationId": "getCatalogModelHead",
+        "tags": [
+          "Catalog and models"
+        ],
+        "summary": "Read headers for this resource",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Requested local resource.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Digest of the response representation."
+              }
+            }
+          },
+          "304": {
+            "description": "The supplied If-None-Match matches the representation."
+          },
+          "400": {
+            "description": "Malformed identifier, filter or cursor."
+          },
+          "404": {
+            "description": "Resource is absent from this catalog or model registry."
+          },
+          "405": {
+            "description": "This resource is read-only.",
+            "headers": {
+              "Allow": {
+                "schema": {
+                  "type": "string",
+                  "example": "GET, HEAD, OPTIONS"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Verified catalog data or model metadata is unavailable."
+          }
+        }
+      },
+      "parameters": [
+        {
+          "name": "modelId",
+          "in": "path",
+          "required": true,
+          "description": "Identifier from the object's model link.",
+          "schema": {
+            "type": "string",
+            "description": "Stable identifier for one shared primary model file.",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,159}$",
+            "example": "meo.glonass-k2"
+          }
+        },
+        {
+          "name": "If-None-Match",
+          "in": "header",
+          "required": false,
+          "description": "Previously returned ETag.",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    }
+  },
+  "components": {
+    "schemas": {
+      "CatalogProblem": {
+        "type": "object",
+        "required": [
+          "type",
+          "title",
+          "status",
+          "detail",
+          "code"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          }
+        }
+      },
+      "CatalogObject": {
+        "type": "object",
+        "required": [
+          "norad_id",
+          "name",
+          "international_designator",
+          "owner",
+          "object_type",
+          "orbit_class",
+          "lifecycle_status",
+          "scope",
+          "availability",
+          "source",
+          "unavailable_reason",
+          "href"
+        ],
+        "properties": {
+          "norad_id": {
+            "type": "string",
+            "description": "Canonical decimal NORAD catalog number.",
+            "pattern": "^[1-9][0-9]{0,8}$",
+            "example": "63130"
+          },
+          "name": {
+            "type": "string",
+            "description": "Provider object name.",
+            "nullable": true
+          },
+          "international_designator": {
+            "type": "string",
+            "description": "International Designator (COSPAR).",
+            "nullable": true
+          },
+          "owner": {
+            "type": "string",
+            "description": "Provider owner code.",
+            "nullable": true
+          },
+          "object_type": {
+            "type": "string",
+            "enum": [
+              "PAYLOAD",
+              "DEBRIS",
+              "ROCKET_BODY",
+              "MISSION_RELATED",
+              "UNKNOWN"
+            ]
+          },
+          "orbit_class": {
+            "type": "string",
+            "enum": [
+              "LEO",
+              "MEO",
+              "GEO",
+              "HEO",
+              "DECAYING",
+              "OTHER",
+              "UNKNOWN",
+              null
+            ],
+            "nullable": true
+          },
+          "lifecycle_status": {
+            "type": "string",
+            "description": "Provider lifecycle classification."
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "current",
+              "historical"
+            ]
+          },
+          "availability": {
+            "type": "string",
+            "description": "Positioned means the local snapshot has elements for client propagation.",
+            "enum": [
+              "positioned",
+              "unavailable"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "description": "Provider provenance label.",
+            "nullable": true
+          },
+          "unavailable_reason": {
+            "type": "string",
+            "description": "Reason the current local catalog cannot supply elements.",
+            "nullable": true
+          },
+          "href": {
+            "type": "string",
+            "description": "Object detail URL relative to the API origin."
+          }
+        }
+      },
+      "CatalogPage": {
+        "type": "object",
+        "required": [
+          "catalog_revision",
+          "gp_revision",
+          "items",
+          "next_cursor"
+        ],
+        "properties": {
+          "catalog_revision": {
+            "type": "string",
+            "description": "SHA-256 of the published generation.",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "gp_revision": {
+            "type": "string",
+            "description": "SHA-256 of the published generation.",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogObject"
+            }
+          },
+          "next_cursor": {
+            "type": "string",
+            "description": "Opaque continuation. Null on the last page.",
+            "nullable": true
+          }
+        }
+      },
+      "CatalogOMM": {
+        "type": "object",
+        "required": [
+          "EPOCH",
+          "NORAD_CAT_ID",
+          "CENTER_NAME",
+          "REF_FRAME",
+          "TIME_SYSTEM",
+          "MEAN_ELEMENT_THEORY",
+          "MEAN_MOTION",
+          "ECCENTRICITY",
+          "INCLINATION",
+          "RA_OF_ASC_NODE",
+          "ARG_OF_PERICENTER",
+          "MEAN_ANOMALY"
+        ],
+        "properties": {
+          "CCSDS_OMM_VERS": {
+            "type": "string"
+          },
+          "OBJECT_NAME": {
+            "type": "string"
+          },
+          "OBJECT_ID": {
+            "type": "string",
+            "nullable": true
+          },
+          "NORAD_CAT_ID": {
+            "type": "string",
+            "description": "Canonical decimal NORAD catalog number.",
+            "pattern": "^[1-9][0-9]{0,8}$",
+            "example": "63130"
+          },
+          "EPOCH": {
+            "type": "string",
+            "description": "Orbital element epoch in UTC.",
+            "format": "date-time"
+          },
+          "CENTER_NAME": {
+            "type": "string",
+            "enum": [
+              "EARTH"
+            ]
+          },
+          "REF_FRAME": {
+            "type": "string",
+            "enum": [
+              "TEME"
+            ]
+          },
+          "TIME_SYSTEM": {
+            "type": "string",
+            "enum": [
+              "UTC"
+            ]
+          },
+          "MEAN_ELEMENT_THEORY": {
+            "type": "string",
+            "enum": [
+              "SGP4"
+            ]
+          },
+          "MEAN_MOTION": {
+            "type": "number",
+            "description": "Revolutions per day."
+          },
+          "ECCENTRICITY": {
+            "type": "number",
+            "description": "Dimensionless."
+          },
+          "INCLINATION": {
+            "type": "number",
+            "description": "Degrees."
+          },
+          "RA_OF_ASC_NODE": {
+            "type": "number",
+            "description": "Degrees."
+          },
+          "ARG_OF_PERICENTER": {
+            "type": "number",
+            "description": "Degrees."
+          },
+          "MEAN_ANOMALY": {
+            "type": "number",
+            "description": "Degrees."
+          },
+          "MEAN_MOTION_DOT": {
+            "type": "number",
+            "description": "Published first derivative coefficient in rev/day², using the provider convention."
+          },
+          "MEAN_MOTION_DDOT": {
+            "type": "number",
+            "description": "Published second derivative coefficient in rev/day³, using the provider convention."
+          },
+          "BSTAR": {
+            "type": "number",
+            "description": "SGP4 drag term in inverse Earth radii."
+          },
+          "EPHEMERIS_TYPE": {
+            "type": "integer"
+          },
+          "CLASSIFICATION_TYPE": {
+            "type": "string"
+          },
+          "ELEMENT_SET_NO": {
+            "type": "integer"
+          },
+          "REV_AT_EPOCH": {
+            "type": "integer"
+          }
+        },
+        "additionalProperties": true
+      },
+      "CatalogDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/CatalogObject"
+          },
+          {
+            "type": "object",
+            "required": [
+              "catalog_revision",
+              "gp_revision",
+              "epoch",
+              "element_set",
+              "model"
+            ],
+            "properties": {
+              "catalog_revision": {
+                "type": "string",
+                "description": "SHA-256 of the published generation.",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "gp_revision": {
+                "type": "string",
+                "description": "SHA-256 of the published generation.",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "epoch": {
+                "type": "string",
+                "description": "Element epoch in UTC.",
+                "nullable": true,
+                "format": "date-time"
+              },
+              "element_set": {
+                "type": "object",
+                "required": [
+                  "format",
+                  "source",
+                  "omm"
+                ],
+                "properties": {
+                  "format": {
+                    "type": "string",
+                    "enum": [
+                      "OMM"
+                    ]
+                  },
+                  "source": {
+                    "type": "string",
+                    "description": "Element provider.",
+                    "nullable": true
+                  },
+                  "omm": {
+                    "$ref": "#/components/schemas/CatalogOMM"
+                  }
+                },
+                "nullable": true
+              },
+              "model": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "href"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "Stable identifier for one shared primary model file.",
+                    "pattern": "^[a-z0-9][a-z0-9._-]{0,159}$",
+                    "example": "meo.glonass-k2"
+                  },
+                  "href": {
+                    "type": "string",
+                    "description": "Model resource URL relative to the API origin."
+                  }
+                },
+                "nullable": true,
+                "description": "Registered payload geometry. Null when no matching assignment exists."
+              }
+            }
+          }
+        ]
+      },
+      "CatalogModel": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "format",
+          "description",
+          "files",
+          "textures",
+          "reference_status",
+          "dimensions",
+          "notes",
+          "references"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable identifier for one shared primary model file.",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,159}$",
+            "example": "meo.glonass-k2"
+          },
+          "name": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "glb",
+              "obj-mtl"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "files": {
+            "type": "object",
+            "minProperties": 1,
+            "description": "File roles glb or obj and mtl. URLs are relative to the API origin and served by the default static host.",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "textures": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "url",
+                "required"
+              ],
+              "properties": {
+                "url": {
+                  "type": "string"
+                },
+                "required": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "reference_status": {
+            "type": "string",
+            "description": "Profile's published reference or illustration classification, when recorded.",
+            "nullable": true
+          },
+          "dimensions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "values_m",
+                "basis"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Measurement label from the source profile or embedded metadata."
+                },
+                "values_m": {
+                  "type": "array",
+                  "items": {
+                    "type": "number",
+                    "description": "Metres, in source axis order."
+                  }
+                },
+                "basis": {
+                  "type": "string",
+                  "enum": [
+                    "profile",
+                    "nominal",
+                    "representative",
+                    "estimate"
+                  ]
+                }
+              }
+            }
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "Recorded model approximations or qualification of dimensions."
+            }
+          },
+          "references": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "url",
+                "basis"
+              ],
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "description": "Source URL."
+                },
+                "basis": {
+                  "type": "string",
+                  "description": "What the reference supports.",
+                  "nullable": true
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

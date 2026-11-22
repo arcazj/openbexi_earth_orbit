@@ -7,6 +7,7 @@
 
 import * as THREE from 'three';
 import { fetchJSON } from './SatelliteConfigurationLoader.js';
+import { catalogModel, modelAssetPaths } from './satelliteModelResolver.js';
 import { KM_TO_SCENE_UNITS, EARTH_SCENE_RADIUS, EARTH_RADIUS_KM } from './SatelliteConstantLoader.js';
 
 /* ─────────────────────────── Config & constants ─────────────────────────── */
@@ -20,7 +21,7 @@ export const METERS_TO_UNITS = appWindow.METERS_TO_SCENE_UNITS || (KM_TO_SCENE_U
 export const SATELLITE_MODELS_BASE_URL =
     appWindow.SATELLITE_MODELS_BASE_URL || 'json/satellites/';
 
-// Flat OBJ/MTL asset base (all files live directly under /obj)
+// Base for catalog assets, including nested GLB collections.
 export const SATELLITE_OBJ_BASE_URL =
     appWindow.SATELLITE_OBJ_BASE_URL  || 'obj/';
 
@@ -303,11 +304,11 @@ function setTextureAnisotropy(material) {
 
 // Return directory and filenames (we use setPath(dir), so we pass filenames only)
 function resolveModelPaths(fileBase) {
-    const dir = SATELLITE_OBJ_BASE_URL; // e.g., 'obj/'
+    const { dir, fileName } = resolveFilePathAndName(fileBase);
     return {
         dir,
-        mtlName: `${fileBase}.mtl`,
-        objName: `${fileBase}.obj`,
+        mtlName: `${fileName}.mtl`,
+        objName: `${fileName}.obj`,
     };
 }
 
@@ -528,7 +529,8 @@ export async function showSatellite(noradId, scene, updatedNoradId, options = {}
     clearCurrentDetailedSat(scene);
 
     const resolvedId = options.assetId || updatedNoradId || noradId;
-    const metadataId = options.metadataId || resolvedId;
+    const catalogEntry = catalogModel(resolvedId);
+    const metadataId = options.metadataId || catalogEntry?.metadataId || resolvedId;
     const extMatch = /^(.*)\.([^.]+)$/.exec(resolvedId);
     const baseName = extMatch ? extMatch[1] : resolvedId;
     const extension = extMatch ? extMatch[2] : '';
@@ -547,7 +549,7 @@ export async function showSatellite(noradId, scene, updatedNoradId, options = {}
     try {
         // Load metadata JSON first (use your existing CORS-safe fetchJSON)
         const raw = await (globalThis.window?.fetchJSON || fetchJSON)(jsonUrl);
-        sat = Array.isArray(raw) ? raw[0] : Object.values(raw)[0];
+        sat = ['leo','meo','geo'].includes(metadataId) ? raw[resolvedId] : Object.values(raw)[0];
         if (!sat) {
             console.warn(`[${noradId}] No satellite record in JSON at ${jsonUrl}`);
         }
@@ -557,14 +559,15 @@ export async function showSatellite(noradId, scene, updatedNoradId, options = {}
 
     const meta = sat?.meta || sat || {};
 
+    const catalogPath = options.attemptedPaths?.[0] || modelAssetPaths(catalogEntry, SATELLITE_OBJ_BASE_URL)[0]
+        || (/^(?:leo|meo|geo)\//.test(resolvedId) ? SATELLITE_OBJ_BASE_URL + resolvedId : null);
     let loaderFn = loadOBJWithMTL;
-    let loaderArg = baseName;
+    let loaderArg = catalogPath?.replace(/\.obj$/i, '') || baseName;
     if (options.kind === 'glb' || extLower === 'glb') {
         loaderFn = loadGLB;
-        loaderArg = resolvedId;
+        loaderArg = catalogPath || resolvedId;
     } else if (options.kind === 'obj-mtl' || extLower === 'obj') {
         loaderFn = loadOBJWithMTL;
-        loaderArg = baseName;
     } else if (extension) {
         console.warn(`[${resolvedId}] Unsupported extension "${extension}". Defaulting to OBJ/MTL.`);
     }

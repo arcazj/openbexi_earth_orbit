@@ -1,0 +1,19 @@
+{
+  "0": {
+    "name": "Qianfan",
+    "meta": {
+      "name": "Qianfan (SpaceSail)",
+      "type": "platform",
+      "operator": "Shanghai Spacecom Satellite Technology",
+      "bus": "Qianfan flat-panel platform",
+      "orbital_slot": { "nominal": "Low Earth orbit" },
+      "geometry": { "obj_units": "m", "estimated_deployed_span_m": 10 },
+      "dimension_note": "The deployed span is a catalog estimate for Qianfan-1. Figure 5 shows the antenna deck and folding wing.",
+      "references": [
+        "https://arxiv.org/pdf/2409.20432#page=4",
+        "https://planet4589.org/space/gcat/tsv/cat/satcat.tsv"
+      ]
+    },
+    "payload": { "mission": "Broadband communications", "antenna_type": "Earth-facing flat panel" }
+  }
+}
