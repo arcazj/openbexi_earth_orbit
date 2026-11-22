@@ -700,6 +700,14 @@ async function clickObjectType(page, objectType) {
   await page.locator(`#objectTypeFilter [data-object-type-filter="${objectType}"]`).click();
 }
 
+async function expectCatalogRevision(page, field, revision) {
+  // Either the manual check or a concurrent scheduled poll can apply the new revision.
+  await expect.poll(() => page.evaluate(async key => {
+    const result = await window.openbexiServerConnection.checkForDataUpdates();
+    return result.status?.[key];
+  }, field)).toBe(revision);
+}
+
 async function expectCatalogCount(page, filtered, total = 9, { partial = false } = {}) {
   const count = page.locator('#satelliteCountDisplay');
   await expect(count).toHaveText(partial
@@ -998,6 +1006,9 @@ async function setCheckbox(page, selector, checked) {
   if (sectionHeader && await page.locator(`#${sectionHeader}`).getAttribute('aria-expanded') !== 'true') {
     await page.locator(`#${sectionHeader}`).click();
   }
+  const disclosure = checkbox.locator('xpath=ancestor::details[1]');
+  const initiallyClosed = (await disclosure.count()) > 0 && !(await disclosure.evaluate(element => element.open));
+  if (initiallyClosed) await disclosure.locator(':scope > summary').click();
   if (await checkbox.isChecked() !== checked) {
     const label = checkbox.locator('xpath=ancestor::label[1]');
     const labelIsInViewport = await label.evaluate(element => {
@@ -1011,6 +1022,7 @@ async function setCheckbox(page, selector, checked) {
   }
   if (checked) await expect(page.locator(selector)).toBeChecked();
   else await expect(page.locator(selector)).not.toBeChecked();
+  if (initiallyClosed) await disclosure.locator(':scope > summary').click();
   if (sectionHeader && previousHeader && previousHeader !== sectionHeader) await page.locator(`#${previousHeader}`).click();
   if (menuWasHidden) {
     await page.locator('#menuToggleBtn').click();
@@ -1055,7 +1067,7 @@ for (const connected of [false, true]) {
   });
 }
 
-test('category unions, dependent tags, counts, selection, and GP revisions stay coherent', async ({ page }, testInfo) => {
+test('category unions, dependent tags, counts and selection stay coherent', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'chromium', 'The full filter transition matrix runs once on desktop Chromium.');
   test.setTimeout(120_000);
   const browserErrors = monitorBrowserErrors(page);
@@ -1208,6 +1220,17 @@ test('category unions, dependent tags, counts, selection, and GP revisions stay 
   await expect(page.getByRole('checkbox', { name: 'LEO OPS' })).toHaveCount(0);
   await expectCatalogCount(page, 2);
 
+  expect(browserErrors.pageErrors).toEqual([]);
+  expect(unexpectedConsoleErrors(browserErrors.consoleErrors)).toEqual([]);
+});
+
+test('selected object details and filters follow GP revisions', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'The selected-object revision matrix runs once on desktop Chromium.');
+  test.setTimeout(120_000);
+  const browserErrors = monitorBrowserErrors(page);
+  const state = fixtureState();
+  await bootFilterFixture(page, state);
+  const search = page.locator('#satelliteSearchInput');
   await clickCategory(page, 'ALL');
   await selectSatellite(page, '110003');
   const detailPanel = page.locator('#selectedSatelliteDetailPanel');
@@ -1274,8 +1297,7 @@ test('category unions, dependent tags, counts, selection, and GP revisions stay 
     ? { ...record, satellite_name: 'GEO FIXTURE REVISION' }
     : record);
   state.gpMetadata = gpMetadata('sha256:filter-gp-two');
-  const firstRefresh = await page.evaluate(() => window.openbexiServerConnection.checkForDataUpdates());
-  expect(firstRefresh.changed).toBe(true);
+  await expectCatalogRevision(page, 'gp_revision', state.gpMetadata.catalog_revision);
   await page.waitForFunction(() => document.querySelector('#selectedSatelliteDetailPanel')?.textContent.includes('GEO FIXTURE REVISION'));
   expect(await pressedCategories(page)).toEqual(['GEO']);
   await expect(page.getByRole('checkbox', { name: 'GEO OPS' })).toBeChecked();
@@ -1287,8 +1309,7 @@ test('category unions, dependent tags, counts, selection, and GP revisions stay 
     ? { ...record, orbit_class: 'MEO', type: 'MEO', company: 'MEO OPS' }
     : record);
   state.gpMetadata = gpMetadata('sha256:filter-gp-three');
-  const secondRefresh = await page.evaluate(() => window.openbexiServerConnection.checkForDataUpdates());
-  expect(secondRefresh.changed).toBe(true);
+  await expectCatalogRevision(page, 'gp_revision', state.gpMetadata.catalog_revision);
   await page.waitForFunction(() => window.openbexiSimulation.snapshot().selectedNoradId === null);
   expect(await pressedCategories(page)).toEqual(['GEO']);
   await expect(page.getByRole('checkbox', { name: 'All tags' })).toBeChecked();
@@ -1341,10 +1362,7 @@ test('server lineage incoherence drops a stale tracked overlay and coherent reco
     tracked_source_revision_match: false,
     tracked_revision_match: false
   };
-  // The scheduled poll may apply the revision before the manual check runs.
-  await expect.poll(() => page.evaluate(async () =>
-    (await window.openbexiServerConnection.checkForDataUpdates()).revision
-  )).toBe(state.dataUpdateStatus.data_revision);
+  await expectCatalogRevision(page, 'data_revision', state.dataUpdateStatus.data_revision);
   await page.waitForFunction(() => document.querySelector('#trackedCatalogStatus')?.dataset.state === 'lineage-error');
 
   await expect(page.locator('#trackedCatalogStatus')).toContainText('using GP data only');
@@ -1396,9 +1414,7 @@ test('server lineage incoherence drops a stale tracked overlay and coherent reco
     tracked_source_revision_match: true,
     tracked_revision_match: true
   };
-  await expect.poll(() => page.evaluate(async () =>
-    (await window.openbexiServerConnection.checkForDataUpdates()).revision
-  )).toBe(state.dataUpdateStatus.data_revision);
+  await expectCatalogRevision(page, 'data_revision', state.dataUpdateStatus.data_revision);
   await page.waitForFunction(() => window.openbexiSimulation.snapshot().trackedCatalogState === 'ready');
   expect(await page.evaluate(() => window.openbexiSimulation.snapshot().trackedCatalogLineageBlocked)).toBe(false);
   await clickObjectType(page, 'DEBRIS');
@@ -2240,8 +2256,7 @@ test('a selected GP model is demoted when current tracked metadata denies orbita
   state.trackedManifest = unavailableFixture.trackedManifest;
   state.trackedChunks = unavailableFixture.trackedChunks;
   state.trackedChunkGates = unavailableFixture.trackedChunkGates;
-  const refresh = await page.evaluate(() => window.openbexiServerConnection.checkForDataUpdates());
-  expect(refresh.changed).toBe(true);
+  await expectCatalogRevision(page, 'tracked_revision', state.trackedManifest.catalog_revision);
   await page.waitForFunction(() => (
     document.querySelector('#selectedSatelliteDetailPanel')
       ?.textContent.includes('CURRENT_CATALOG_HAS_NO_VALIDATED_ELEMENTS')
