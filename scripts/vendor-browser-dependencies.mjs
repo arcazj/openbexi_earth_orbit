@@ -7,8 +7,7 @@ const DEPENDENCIES = Object.freeze([
   {
     packageName: 'satellite.js',
     files: [
-      { source: 'dist/satellite.es.js', target: 'satellite.es.js' },
-      { source: 'dist/satellite.min.js', target: 'satellite.min.js' },
+      { bundle: true, target: 'satellite.es.js' },
       { source: 'LICENSE.md', target: 'LICENSE.md' }
     ],
     module: 'satellite.es.js',
@@ -43,6 +42,30 @@ function sha256(file) {
   return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 }
 
+// v7 ships ESM source. The page and its Worker share the same offline JavaScript engine.
+async function satelliteBundle(sourceRoot, version) {
+  const { build } = await import('esbuild');
+  const result = await build({
+    stdin: {
+      contents: [
+        "export * from './ext.js';",
+        "export * from './io.js';",
+        "export * from './propagation.js';",
+        "export * from './transforms.js';"
+      ].join('\n'),
+      resolveDir: path.join(sourceRoot, 'dist')
+    },
+    bundle: true,
+    format: 'esm',
+    platform: 'browser',
+    target: 'es2022',
+    minify: true,
+    banner: { js: `/*! satellite.js ${version} | MIT | see LICENSE.md */` },
+    write: false
+  });
+  return result.outputFiles[0].contents;
+}
+
 function fail(message) {
   console.error(`Vendored browser dependency: ${message}`);
   process.exitCode = 1;
@@ -75,6 +98,8 @@ for (const dependency of DEPENDENCIES) {
   const sourceRoot = path.resolve('node_modules', packageName);
   const targetRoot = path.resolve('vendor', packageName, version);
   const targetManifest = path.join(targetRoot, MANIFEST_FILE);
+  const installed = fs.existsSync(sourceRoot);
+  const bundle = installed && files.some(file => file.bundle) ? await satelliteBundle(sourceRoot, version) : null;
 
   if (syncMode) {
     if (!fs.existsSync(sourceRoot)) {
@@ -84,11 +109,10 @@ for (const dependency of DEPENDENCIES) {
     fs.mkdirSync(targetRoot, { recursive: true });
     const hashes = {};
     for (const file of files) {
-      const source = path.join(sourceRoot, file.source);
       const target = path.join(targetRoot, file.target);
-      if (!fs.existsSync(source)) throw new Error(`Installed ${packageName} package is missing ${file.source}.`);
       fs.mkdirSync(path.dirname(target), { recursive: true });
-      fs.copyFileSync(source, target);
+      if (file.bundle) fs.writeFileSync(target, bundle);
+      else fs.copyFileSync(path.join(sourceRoot, file.source), target);
       hashes[file.target] = sha256(target);
     }
 
@@ -134,8 +158,10 @@ for (const dependency of DEPENDENCIES) {
       fail(`${packageName}/${file.target} does not match its committed SHA-256.`);
     }
 
-    const installedSource = path.join(sourceRoot, file.source);
-    if (fs.existsSync(installedSource) && sha256(installedSource) !== actualHash) {
+    if (!installed) continue;
+    if (file.bundle) {
+      if (!fs.readFileSync(target).equals(bundle)) fail(`${packageName}/${file.target} differs from the locked package build.`);
+    } else if (sha256(path.join(sourceRoot, file.source)) !== actualHash) {
       fail(`${packageName}/${file.target} differs from installed ${packageName}@${version}.`);
     }
   }

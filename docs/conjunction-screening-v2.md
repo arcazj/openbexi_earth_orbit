@@ -11,7 +11,7 @@ All propagated states explicitly use:
 - UTC timestamps at JavaScript millisecond resolution.
 - The SGP4-native TEME frame.
 - Kilometers for position and kilometers per second for velocity.
-- The pinned `satellite.js` 6.0.2 implementation.
+- The pinned `satellite.js` 7.1.0 implementation.
 
 The propagation service returns `{ ok: true, value }` or `{ ok: false, error }`. Errors identify the stage, object, element set, timestamp, propagator code when available, and whether the failure is recoverable.
 

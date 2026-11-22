@@ -9,7 +9,7 @@ import {
 } from './conjunctionWorkerProtocol.js';
 
 export const DEFAULT_SATELLITE_MODULE_URL = new URL(
-    '../../vendor/satellite.js/6.0.2/satellite.es.js',
+    '../../vendor/satellite.js/7.1.0/satellite.es.js',
     import.meta.url
 ).href;
 

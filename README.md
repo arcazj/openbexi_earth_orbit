@@ -1,6 +1,6 @@
 # OpenBEXI Earth Orbit
 
-Interactive Earth-orbit visualization, tracked-object search and Solar System time exploration. **2.6.0 is in development, experimental and non-operational.** See the [release notes](docs/RELEASE_NOTES.md) for this version.
+Interactive Earth-orbit visualization, tracked-object search and Solar System time exploration. **2.6.0 is an experimental, non-operational development prerelease.** [Release notes](docs/RELEASE_NOTES.md) · [Downloads and SHA-256 checksums](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/v2.6.0)
 
 ## Live Demo
 
@@ -30,7 +30,7 @@ These screenshots show earlier Earth, Starlink and OneWeb views. The catalog con
 
 ## Requirements
 
-Node 20–24 with npm 10+, Python 3 (CI uses 3.12), and a modern WebGL 2 browser. CI uses Node 22. See [dependencies](docs/engineering/DEPENDENCIES.md) and [licensing](LICENSE.md) before reuse.
+Use Node 20.19+, 22.13+ or 24.x with npm 10+, Python 3 (CI uses 3.12), and a modern WebGL 2 browser. CI uses Node 22. See [dependencies](docs/engineering/DEPENDENCIES.md) and [licensing](LICENSE.md) before reuse.
 
 ## Quick Start
 

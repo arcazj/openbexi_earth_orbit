@@ -2,7 +2,7 @@
   "version": "2.6.0",
   "localDate": "2026-11-22",
   "publicationState": "development",
-  "source": "Local uncommitted release preparation",
+  "source": "Local baseline before the v2.6.0 dependency integrations",
   "platform": {
     "os": "Windows x64",
     "node": "24.22.1",

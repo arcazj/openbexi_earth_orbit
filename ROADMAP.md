@@ -1,8 +1,8 @@
 # OpenBEXI Earth Orbit Roadmap
 
-**2.6.0 is in development, experimental and non-operational.**
+**2.6.0 is an experimental, non-operational development prerelease.**
 
-## Prepared for 2.6.0
+## Delivered in 2.6.0
 
 | Area | Implemented and checked locally |
 | --- | --- |
@@ -13,7 +13,7 @@
 | AMC spacecraft | Eighteen cataloged spacecraft use eleven illustrated exteriors. The library distinguishes the compact C-band configuration, hybrid A2100s, Alcatel Spacebus payloads and the two-reflector AMC-21. |
 | Globe and orbit | The selected orbit crosses the spacecraft center. A face-on view shows the full orbit. Live tracking follows high-latitude OneWeb and GLONASS-K2 passes. Filtering out a spacecraft restores the globe camera's depth precision. GEO pointing was checked on Galaxy 33. |
 
-The local release build and rollback rehearsal passed. The 2.6.0 tree is uncommitted. A release commit, CI against that commit, a tag and publication are pending. [Local regression results](release/evidence/v2.6.0-development-checks.json) · [Release checklist](docs/engineering/RELEASE_CHECKLIST.md)
+The GitHub prerelease provides runnable static archives, checksums and the verification record for the tagged commit. [2.6.0 downloads](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/v2.6.0) · [Local regression results](release/evidence/v2.6.0-development-checks.json) · [Release checklist](docs/engineering/RELEASE_CHECKLIST.md)
 
 ## Delivered in 2.5
 

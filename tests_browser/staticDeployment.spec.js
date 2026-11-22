@@ -141,8 +141,8 @@ test('curated static artifact boots offline and screens the full catalog in its 
   ));
 
   const sources = await page.evaluate(() => window.openbexiDependencySources);
-  expect(sources.threeCoreUrl).toContain('/vendor/three/0.184.0/build/three.module.js');
-  expect(sources.satelliteUrl).toContain('/vendor/satellite.js/6.0.2/satellite.min.js');
+  expect(sources.threeCoreUrl).toContain('/vendor/three/0.187.0/build/three.module.js');
+  expect(sources.satelliteUrl).toContain('/vendor/satellite.js/7.1.0/satellite.es.js');
   await expect(page.locator('body > canvas:not(#mercatorCanvas)').first()).toBeVisible();
 
   const issShortcut = await includeLeoAndEnableIssShortcut(page);
@@ -166,7 +166,7 @@ test('curated static artifact boots offline and screens the full catalog in its 
   await expect(page.locator('#catalogPanel')).toBeVisible();
 
   expect(network.requests.some(url => url.endsWith('/js/conjunction/conjunctionWorker.js'))).toBe(true);
-  expect(network.requests.some(url => url.endsWith('/vendor/satellite.js/6.0.2/satellite.es.js'))).toBe(true);
+  expect(network.requests.some(url => url.endsWith('/vendor/satellite.js/7.1.0/satellite.es.js'))).toBe(true);
   expect(network.requests.some(url => new URL(url).pathname.endsWith('/icons/ob_satellite.png'))).toBe(true);
   expect(network.requests.some(url => url.includes('/node_modules/'))).toBe(false);
   expect(network.requests.every(url => new URL(url).origin === origin)).toBe(true);

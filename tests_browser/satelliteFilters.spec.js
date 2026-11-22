@@ -1341,8 +1341,10 @@ test('server lineage incoherence drops a stale tracked overlay and coherent reco
     tracked_source_revision_match: false,
     tracked_revision_match: false
   };
-  const refresh = await page.evaluate(() => window.openbexiServerConnection.checkForDataUpdates());
-  expect(refresh.changed).toBe(true);
+  // The scheduled poll may apply the revision before the manual check runs.
+  await expect.poll(() => page.evaluate(async () =>
+    (await window.openbexiServerConnection.checkForDataUpdates()).revision
+  )).toBe(state.dataUpdateStatus.data_revision);
   await page.waitForFunction(() => document.querySelector('#trackedCatalogStatus')?.dataset.state === 'lineage-error');
 
   await expect(page.locator('#trackedCatalogStatus')).toContainText('using GP data only');
@@ -1394,8 +1396,9 @@ test('server lineage incoherence drops a stale tracked overlay and coherent reco
     tracked_source_revision_match: true,
     tracked_revision_match: true
   };
-  const recovery = await page.evaluate(() => window.openbexiServerConnection.checkForDataUpdates());
-  expect(recovery.changed).toBe(true);
+  await expect.poll(() => page.evaluate(async () =>
+    (await window.openbexiServerConnection.checkForDataUpdates()).revision
+  )).toBe(state.dataUpdateStatus.data_revision);
   await page.waitForFunction(() => window.openbexiSimulation.snapshot().trackedCatalogState === 'ready');
   expect(await page.evaluate(() => window.openbexiSimulation.snapshot().trackedCatalogLineageBlocked)).toBe(false);
   await clickObjectType(page, 'DEBRIS');

@@ -14,7 +14,11 @@ npm run rehearse:rollback
 
 Browser coverage uses Chromium, mobile emulation, Firefox and Playwright WebKit. Install engines with `npx playwright install chromium firefox webkit`. CI installs platform dependencies. Linux Firefox runs under Xvfb with software WebGL explicitly enabled in its isolated test profile; a rendered-pixel preflight fails immediately if WebGL 2 is unavailable. This is functional coverage, not physical-GPU qualification. Profile skips are explicit; mobile emulation and Playwright WebKit do not qualify physical iOS/Safari.
 
-## 2.6.0 local regression results
+## 2.6.0 verification
+
+The release verification record covers the integrated dependency updates and the tagged build. [Exact-commit results and downloads](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/v2.6.0)
+
+### Local baseline before dependency integration
 
 | Check | November 22 development build |
 | --- | --- |

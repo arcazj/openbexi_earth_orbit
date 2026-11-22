@@ -1,6 +1,6 @@
 # Release notes
 
-## v2.6.0 — development, unreleased
+## v2.6.0 — development prerelease
 
 - The local server adds read-only catalog search, NORAD lookup and shared spacecraft model resources under `/api/v1`. Open **REST API** below **Timelines** for the endpoint reference and downloadable OpenAPI contract. The section starts collapsed. [Catalog and model API](SWAGGER.md#catalog-and-models)
 
@@ -12,7 +12,9 @@
 - The two original Kuiper prototypes and the production Amazon Leo spacecraft have separate shared models. Eighteen AMC spacecraft now resolve to eleven illustrated exteriors, including AMC-14 in the MEO catalog and the former AMC-12 and AMC-23 under their later names. The viewer and API expose the design sources and estimated details. [Model references](THIRD_PARTY_NOTICES.md)
 - The Satellite Model Viewer groups current and historical LEO, MEO and GEO spacecraft by shared hardware. Starlink V1, V2 and V3 each have one primary model. The V1 geometry, material and four textures match the originals byte for byte. Revised GEO exteriors include Intelsat 23, 25 and 28 and Galaxy 17, 33 and 34. Diagnostics identify reference imagery, estimated dimensions and catalog outlines. [Satellite Model Viewer](../display_satellite.html) · [Spacecraft model references](THIRD_PARTY_NOTICES.md)
 
-Local regression coverage includes filter changes during close-up tracking, pixel comparisons of the globe at three viewing angles, shared model assignments, and the catalog API against the bundled data. Release CI against a final commit is pending.
+The page and conjunction Worker share the packaged satellite.js 7.1.0 engine. Three.js 0.187.0 supplies the globe and model viewer. The catalog result rows expose all visible columns to assistive technology.
+
+Regression coverage includes filter changes during close-up tracking, pixel comparisons of the globe at three viewing angles, shared model assignments, and the catalog API against the bundled data. The GitHub release includes the tested commit, CI run, runnable archives and their SHA-256 checksums. [Downloads](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/v2.6.0)
 
 ## v2.5.1 — development prerelease
 

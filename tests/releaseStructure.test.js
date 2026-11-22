@@ -131,10 +131,10 @@ function dependencyVersion(packageJson, name) {
 
 function assertThreeVendoredFirstWithCdnFallback(html, fileName) {
   assert(html.includes('./js/dependencyBootstrap.js'), `${fileName} loads the dependency bootstrap`);
-  assert(html.includes('./vendor/three/0.184.0/build/three.module.js'), `${fileName} declares the vendored Three.js core`);
-  assert(html.includes('./vendor/three/0.184.0/examples/jsm/'), `${fileName} declares the vendored Three.js addons`);
-  assert(html.includes('https://unpkg.com/three@0.184.0/build/three.module.js'), `${fileName} declares an exact Three.js CDN fallback`);
-  assert(html.includes('https://unpkg.com/three@0.184.0/examples/jsm/'), `${fileName} declares matching CDN addons`);
+  assert(html.includes('./vendor/three/0.187.0/build/three.module.js'), `${fileName} declares the vendored Three.js core`);
+  assert(html.includes('./vendor/three/0.187.0/examples/jsm/'), `${fileName} declares the vendored Three.js addons`);
+  assert(html.includes('https://unpkg.com/three@0.187.0/build/three.module.js'), `${fileName} declares an exact Three.js CDN fallback`);
+  assert(html.includes('https://unpkg.com/three@0.187.0/examples/jsm/'), `${fileName} declares matching CDN addons`);
   assert(!html.includes('node_modules/three'), `${fileName} does not depend on generated Three.js files`);
   assert(html.includes('openbexiBootFromTemplate'), `${fileName} boots after dependency resolution`);
   assert(html.includes('type="text/openbexi-module"'), `${fileName} defers the main module until the import map is selected`);
@@ -200,10 +200,10 @@ function run() {
     'source index explicitly selects packaged dependencies before the CDN fallback'
   );
   assertThreeVendoredFirstWithCdnFallback(displaySatelliteHtml, 'display_satellite.html');
-  assert.strictEqual(dependencyVersion(packageJson, 'three'), '0.184.0', 'package.json pins verified Three.js 0.184.0');
-  assert.strictEqual(dependencyVersion(packageJson, 'satellite.js'), '6.0.2', 'package.json pins satellite.js 6.0.2');
-  assert(indexHtml.includes('./vendor/satellite.js/6.0.2/satellite.min.js'), 'index.html declares vendored satellite.js');
-  assert(indexHtml.includes('https://unpkg.com/satellite.js@6.0.2/dist/satellite.min.js'), 'index.html declares an exact satellite.js CDN fallback');
+  assert.strictEqual(dependencyVersion(packageJson, 'three'), '0.187.0', 'package.json pins verified Three.js 0.187.0');
+  assert.strictEqual(dependencyVersion(packageJson, 'satellite.js'), '7.1.0', 'package.json pins satellite.js 7.1.0');
+  assert(indexHtml.includes('./vendor/satellite.js/7.1.0/satellite.es.js'), 'index.html declares vendored satellite.js');
+  assert(indexHtml.includes('https://cdn.jsdelivr.net/npm/satellite.js@7.1.0/+esm'), 'index.html declares an exact satellite.js CDN fallback');
   assert(!indexHtml.includes('node_modules/satellite.js'), 'index.html does not depend on generated satellite.js files');
   assert(fs.existsSync('js/dependencyBootstrap.js'), 'dependency bootstrap file exists');
 

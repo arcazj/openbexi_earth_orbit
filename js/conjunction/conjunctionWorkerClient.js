@@ -15,7 +15,7 @@ import {
 
 const DEFAULT_WORKER_URL = new URL('./conjunctionWorker.js', import.meta.url);
 const DEFAULT_SATELLITE_MODULE_URL = new URL(
-    '../../vendor/satellite.js/6.0.2/satellite.es.js',
+    '../../vendor/satellite.js/7.1.0/satellite.es.js',
     import.meta.url
 ).href;
 const DEFAULT_CATALOG_CHUNK_SIZE = 512;

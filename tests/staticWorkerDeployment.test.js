@@ -28,7 +28,7 @@ try {
     path.join(deploymentRoot, 'js', 'conjunction', 'conjunctionWorkerClient.js'),
     'utf8'
   );
-  const vendoredModulePath = 'vendor/satellite.js/6.0.2/satellite.es.js';
+  const vendoredModulePath = 'vendor/satellite.js/7.1.0/satellite.es.js';
   assert(workerSource.includes(vendoredModulePath), 'Worker defaults to the vendored satellite.js module');
   assert(clientSource.includes(vendoredModulePath), 'Worker client sends the vendored satellite.js module URL');
   assert(!workerSource.includes('node_modules'), 'Worker source has no node_modules dependency');
@@ -36,15 +36,15 @@ try {
 
   for (const htmlFile of ['index.html', 'display_satellite.html']) {
     const html = await fs.readFile(path.join(deploymentRoot, htmlFile), 'utf8');
-    assert(html.includes('./vendor/three/0.184.0/build/three.module.js'));
-    assert(html.includes('./vendor/three/0.184.0/examples/jsm/'));
-    assert(html.includes('./vendor/satellite.js/6.0.2/satellite.min.js') || htmlFile === 'display_satellite.html');
+    assert(html.includes('./vendor/three/0.187.0/build/three.module.js'));
+    assert(html.includes('./vendor/three/0.187.0/examples/jsm/'));
+    assert(html.includes('./vendor/satellite.js/7.1.0/satellite.es.js') || htmlFile === 'display_satellite.html');
     assert(!html.includes('node_modules'), `${htmlFile} has no generated-package runtime dependency`);
   }
 
   const workerModule = await import(`${pathToFileURL(stagedWorker).href}?clean-static-deployment=1`);
   assert(
-    workerModule.DEFAULT_SATELLITE_MODULE_URL.endsWith('/vendor/satellite.js/6.0.2/satellite.es.js'),
+    workerModule.DEFAULT_SATELLITE_MODULE_URL.endsWith('/vendor/satellite.js/7.1.0/satellite.es.js'),
     'Worker resolves its default satellite.js URL inside the static deployment'
   );
 
@@ -63,7 +63,7 @@ try {
     deploymentRoot,
     'vendor',
     'three',
-    '0.184.0',
+    '0.187.0',
     'build',
     'three.module.js'
   );

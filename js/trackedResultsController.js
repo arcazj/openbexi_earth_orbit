@@ -33,7 +33,7 @@ const DRAWER_MARKUP = `
         <button type="button" data-result-sort="type" aria-label="Sort by Type">Type</button>
         <button type="button" data-result-sort="owner" aria-label="Sort by Owner">Owner</button>
         <button type="button" data-result-sort="orbit" aria-label="Sort by Orbit">Orbit</button>
-        <button type="button" data-result-sort="rcs" aria-label="Sort by RCS">RCS m2</button>
+        <button type="button" data-result-sort="rcs" aria-label="Sort by RCS m²">RCS m²</button>
         <button type="button" data-result-sort="availability" aria-label="Sort by Availability">Availability</button>
     </div>
     <div id="trackedResultsViewport" class="tracked-results-viewport" role="listbox" aria-label="Tracked-object catalog results" tabindex="0">
@@ -128,10 +128,6 @@ export function createTrackedResultsController(options = {}) {
             button.setAttribute('aria-selected', String(
                 selectedNoradId !== null && selectedNoradId !== undefined && String(selectedNoradId) === row.norad
             ));
-            button.setAttribute('aria-label',
-                `${row.name}, NORAD ${row.norad}, ${formatResultType(row.type)}, ` +
-                `${row.orbit}, ${row.availability}`
-            );
             if (index === activeIndex) button.classList.add('is-active');
             [
                 row.name,

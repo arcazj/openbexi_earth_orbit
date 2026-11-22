@@ -98,7 +98,7 @@
     }
   ],
   "vendorManifests": [
-    "vendor/satellite.js/6.0.2/manifest.json",
-    "vendor/three/0.184.0/manifest.json"
+    "vendor/satellite.js/7.1.0/manifest.json",
+    "vendor/three/0.187.0/manifest.json"
   ]
 }

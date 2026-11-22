@@ -5,8 +5,8 @@ The commercial notice covers new owner-controlled material introduced after the 
 | Material | Origin and terms | Scope |
 | --- | --- | --- |
 | Application through 2.4.0 (`f7724f5`) | [Historical MIT notice](../licenses/LEGACY_MIT.txt) | Retained legacy material; original copyright line preserved |
-| Three.js 0.184.0 | MIT, [notice](../vendor/three/0.184.0/LICENSE) | Browser runtime |
-| satellite.js 6.0.2 | MIT, [notice](../vendor/satellite.js/6.0.2/LICENSE.md) | Browser propagation |
+| Three.js 0.187.0 | MIT, [notice](../vendor/three/0.187.0/LICENSE) | Browser runtime |
+| satellite.js 7.1.0 | MIT, [notice](../vendor/satellite.js/7.1.0/LICENSE.md) | Browser propagation |
 | Python | PSF license and interpreter component notices | Interpreter is not bundled; local server uses the standard library |
 | python-sgp4 2.25 | MIT, [retained notice](../validation/v2.5.0/PYTHON_SGP4_LICENSE.txt) | Optional development generator; original synthetic OMM inputs and frozen numerical output |
 | Playwright / axe-core tooling | Apache-2.0 / MPL-2.0 and locked transitive terms | Development only; see [inventory](../release/evidence/v2.5.0-rights-inventory.json) |

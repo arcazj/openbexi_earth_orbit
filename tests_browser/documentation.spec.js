@@ -43,7 +43,7 @@ test('moved Help pages resolve links and retain accuracy and upstream notices', 
     for (const profile of example.models) {
         expect(manifest.models.find(entry => entry.id === profile.id)?.files, profile.id).toEqual(profile.files);
     }
-    for (const url of ['/docs/SWAGGER.md', '/licenses/LEGACY_MIT.txt', '/vendor/three/0.184.0/LICENSE', '/vendor/satellite.js/6.0.2/LICENSE.md']) {
+    for (const url of ['/docs/SWAGGER.md', '/licenses/LEGACY_MIT.txt', '/vendor/three/0.187.0/LICENSE', '/vendor/satellite.js/7.1.0/LICENSE.md']) {
         expect((await request.get(url)).status(), url).toBe(200);
     }
     for (const url of ['/ROADMAP.md', '/PROMPT_History.md', '/docs/engineering/THREAT_MODEL.md', '/commercial/COMMERCIAL_AGREEMENT_DRAFT.md']) {

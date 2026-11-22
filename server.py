@@ -71,8 +71,8 @@ STATIC_DOCUMENT_FILE_ALLOWLIST = frozenset(
         ("docs", "swagger.md"),
         ("docs", "catalog-api.openapi.json"),
         ("docs", "third_party_notices.md"),
-        ("vendor", "three", "0.184.0", "license"),
-        ("vendor", "satellite.js", "6.0.2", "license.md"),
+        ("vendor", "three", "0.187.0", "license"),
+        ("vendor", "satellite.js", "7.1.0", "license.md"),
     }
 )
 STATIC_PREFIX_SUFFIX_ALLOWLIST = (
@@ -99,17 +99,16 @@ STATIC_JSON_FILE_ALLOWLIST = frozenset(
 )
 STATIC_VENDOR_FILE_ALLOWLIST = frozenset(
     {
-        ("vendor", "satellite.js", "6.0.2", "satellite.es.js"),
-        ("vendor", "satellite.js", "6.0.2", "satellite.min.js"),
-        ("vendor", "three", "0.184.0", "build", "three.core.js"),
-        ("vendor", "three", "0.184.0", "build", "three.module.js"),
-        ("vendor", "three", "0.184.0", "examples", "jsm", "controls", "orbitcontrols.js"),
-        ("vendor", "three", "0.184.0", "examples", "jsm", "loaders", "gltfloader.js"),
-        ("vendor", "three", "0.184.0", "examples", "jsm", "loaders", "mtlloader.js"),
-        ("vendor", "three", "0.184.0", "examples", "jsm", "loaders", "objloader.js"),
-        ("vendor", "three", "0.184.0", "examples", "jsm", "renderers", "css2drenderer.js"),
-        ("vendor", "three", "0.184.0", "examples", "jsm", "utils", "buffergeometryutils.js"),
-        ("vendor", "three", "0.184.0", "examples", "jsm", "utils", "skeletonutils.js"),
+        ("vendor", "satellite.js", "7.1.0", "satellite.es.js"),
+        ("vendor", "three", "0.187.0", "build", "three.core.js"),
+        ("vendor", "three", "0.187.0", "build", "three.module.js"),
+        ("vendor", "three", "0.187.0", "examples", "jsm", "controls", "orbitcontrols.js"),
+        ("vendor", "three", "0.187.0", "examples", "jsm", "loaders", "gltfloader.js"),
+        ("vendor", "three", "0.187.0", "examples", "jsm", "loaders", "mtlloader.js"),
+        ("vendor", "three", "0.187.0", "examples", "jsm", "loaders", "objloader.js"),
+        ("vendor", "three", "0.187.0", "examples", "jsm", "renderers", "css2drenderer.js"),
+        ("vendor", "three", "0.187.0", "examples", "jsm", "utils", "buffergeometryutils.js"),
+        ("vendor", "three", "0.187.0", "examples", "jsm", "utils", "skeletonutils.js"),
     }
 )
 STATIC_BLOCKED_PARTS = frozenset(

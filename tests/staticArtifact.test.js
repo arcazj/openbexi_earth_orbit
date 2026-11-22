@@ -131,8 +131,8 @@ assert.throws(
   'the static build fails closed when the tracked-object manifest is absent'
 );
 assert.throws(
-  () => assertRequiredStaticRuntimePaths(REQUIRED_STATIC_RUNTIME_PATHS.filter(path => path !== 'vendor/three/0.184.0/build/three.module.js')),
-  /vendor\/three\/0\.184\.0\/build\/three\.module\.js/,
+  () => assertRequiredStaticRuntimePaths(REQUIRED_STATIC_RUNTIME_PATHS.filter(path => path !== 'vendor/three/0.187.0/build/three.module.js')),
+  /vendor\/three\/0\.187\.0\/build\/three\.module\.js/,
   'the static build fails closed when a packaged dependency is absent'
 );
 const firstBuild = buildStaticArtifact();
@@ -210,8 +210,8 @@ for (const descriptor of Object.values(guideManifest.bodies)) {
   assert.strictEqual(record.bytes, descriptor.bytes);
 }
 assert(manifestPaths.has('.nojekyll'), 'artifact disables Jekyll path rewriting');
-assert(manifestPaths.has('vendor/satellite.js/6.0.2/satellite.es.js'));
-assert(manifestPaths.has('vendor/three/0.184.0/build/three.module.js'));
+assert(manifestPaths.has('vendor/satellite.js/7.1.0/satellite.es.js'));
+assert(manifestPaths.has('vendor/three/0.187.0/build/three.module.js'));
 assert(manifestPaths.has('json/gp/GP.json'), 'artifact packages the primary GP catalog');
 assert(manifestPaths.has('json/gp/GP.meta.json'), 'artifact packages GP provenance beside the catalog');
 assert(manifestPaths.has('json/launches/launches.json'), 'artifact packages the SATCAT-backed launch timeline');
@@ -228,8 +228,8 @@ assert(manifestPaths.has('js/orbit/satelliteMotionInterpolator.js'), 'artifact p
 assert(!manifestPaths.has('js/satelliteCategoryFilter.js'), 'artifact excludes the deprecated v2.2 category compatibility module');
 assert(manifestPaths.has('js/simulationClock.js'), 'artifact packages the authoritative simulation clock');
 assert(manifestPaths.has('js/trackedObjectCatalog.js'), 'artifact packages the lazy tracked-object loader');
-assert(!manifestPaths.has('vendor/satellite.js/6.0.2/manifest.json'));
-assert(!manifestPaths.has('vendor/three/0.184.0/manifest.json'));
+assert(!manifestPaths.has('vendor/satellite.js/7.1.0/manifest.json'));
+assert(!manifestPaths.has('vendor/three/0.187.0/manifest.json'));
 
 const trackedManifest = JSON.parse(
   fs.readFileSync(path.join(outputRoot, 'json', 'tracked', 'TRACKED.manifest.json'), 'utf8')
@@ -1010,6 +1010,7 @@ for (const relative of outputFiles.filter(file => /\.(?:css|html|js|mjs)$/i.test
   const source = fs.readFileSync(file, 'utf8');
   assert(!source.includes('/node_modules/'), `${relative} contains a node_modules runtime URL`);
   assert(!source.includes('https://unpkg.com/'), `${relative} contains an unpkg runtime URL`);
+  assert(!source.includes('https://cdn.jsdelivr.net/'), `${relative} contains a jsDelivr runtime URL`);
   assert(!source.includes('raw.githubusercontent.com/'), `${relative} contains a mutable raw-GitHub runtime URL`);
   assert(!source.includes('placehold.co'), `${relative} contains a remote placeholder fallback`);
   assert(!source.includes('PROMPT_History.md'), `${relative} contains a source-only prompt-history URL`);
