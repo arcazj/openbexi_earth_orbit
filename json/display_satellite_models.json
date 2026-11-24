@@ -169,6 +169,15 @@
       "files": { "obj": "leo/cubesat.obj", "mtl": "leo/cubesat.mtl" },
       "textures": []
     },
+    {
+      "id": "mep.glb",
+      "displayName": "Mission Extension Pod (MEP)",
+      "type": "glb",
+      "description": "Standalone Space Logistics propulsion pod with deployed arrays, client adapter and articulated thruster. Exterior proportions and absolute dimensions are estimated from manufacturer illustrations.",
+      "tags": ["MEP", "Space Logistics", "Satellite life extension"],
+      "files": {"glb": "geo/mep.glb"},
+      "textures": []
+    },
     {"id": "meo/gps-i.glb", "displayName": "GPS Block I", "type": "glb", "description": "First-generation NAVSTAR navigation bus with two solar wings.", "tags": ["MEO", "GPS"], "files": {"glb": "meo/gps-i.glb"}, "textures": []},
     {"id": "meo/gps-ii.glb", "displayName": "GPS Block II", "type": "glb", "description": "NAVSTAR Block II bus with a navigation antenna deck and twin solar wings.", "tags": ["MEO", "GPS"], "files": {"glb": "meo/gps-ii.glb"}, "textures": []},
     {"id": "meo/gps-iia.glb", "displayName": "GPS Block IIA", "type": "glb", "description": "Block IIA navigation bus with two opposed solar wings.", "tags": ["MEO", "GPS"], "files": {"glb": "meo/gps-ii.glb"}, "textures": []},
@@ -640,6 +649,10 @@
     {"id": "geo/amc-hybrid-ka-ku.glb", "displayName": "AMC-15 and AMC-16", "type": "glb", "description": "Representative deployed exterior based on Lockheed Martin's AMC-15 hybrid Ka/Ku spacecraft illustration.", "tags": ["GEO", "Lockheed Martin A2100"], "files": {"glb": "geo/amc-hybrid-ka-ku.glb"}, "textures": []},
     {"id": "geo/amc-21-geostar.glb", "displayName": "AMC-21", "type": "glb", "description": "Representative deployed exterior based on Orbital ATK's AMC-21 spacecraft data sheet.", "tags": ["GEO", "Orbital STAR-2"], "files": {"glb": "geo/amc-21-geostar.glb"}, "textures": []},
     {"id": "geo/amc-23-spacebus.glb", "displayName": "AMC-23 (GE-23 / Eutelsat 174A)", "type": "glb", "description": "Representative deployed exterior based on Alcatel's AMC-23 illustration.", "tags": ["GEO", "Alcatel Spacebus 4000C3"], "files": {"glb": "geo/amc-23-spacebus.glb"}, "textures": []},
+    {"id": "geo/astra-3b.glb", "displayName": "SES ASTRA 3B", "type": "glb", "description": "Representative deployed exterior based on EADS Astrium artwork of Astra 3B.", "tags": ["GEO", "Eurostar 3000M"], "files": {"glb": "geo/astra-3b.glb"}, "textures": []},
+    {"id": "geo/mev.glb", "displayName": "Mission Extension Vehicle (MEV-1 / MEV-2)", "type": "glb", "description": "Representative deployed exterior based on the ILS MEV-1 launch rendering, Space Logistics cleanroom photography and the MEV team's imager paper.", "tags": ["GEO", "Northrop Grumman GEOStar-3 MEV"], "files": {"glb": "geo/mev.glb"}, "textures": []},
+    {"id": "geo/intelsat-10-02.glb", "displayName": "Intelsat 10-02", "type": "glb", "description": "Representative deployed exterior based on MEV-2's on-orbit image of Intelsat 10-02 and the deployed spacecraft artwork.", "tags": ["GEO", "Airbus / Astrium Eurostar 3000"], "files": {"glb": "geo/intelsat-10-02.glb"}, "textures": []},
+    {"id": "geo/horizons-3e.glb", "displayName": "Horizons 3e (Intelsat / SKY Perfect JSAT)", "type": "glb", "description": "Representative deployed exterior based on Boeing’s deployed Horizons 3e artwork published by JSAT International and the supplied aft close-up.", "tags": ["GEO", "Boeing 702MP"], "files": {"glb": "geo/horizons-3e.glb"}, "textures": []},
     {"id": "leo/aqua.glb", "displayName": "Aqua", "type": "glb", "description": "NASA Earth-observation spacecraft with an instrument deck and a single solar wing.", "tags": ["LEO", "Earth Observing System"], "files": {"glb": "leo/aqua.glb"}, "textures": []},
     {"id": "leo/aura.glb", "displayName": "Aura", "type": "glb", "description": "NASA Earth-observation spacecraft with an instrument deck and a single solar wing.", "tags": ["LEO", "Earth Observing System"], "files": {"glb": "leo/aura.glb"}, "textures": []},
     {"id": "leo/dragon-1.glb", "displayName": "Dragon 1", "type": "glb", "description": "SpaceX capsule and trunk in orbital configuration.", "tags": ["LEO", "Dragon"], "files": {"glb": "leo/dragon-1.glb"}, "textures": []},

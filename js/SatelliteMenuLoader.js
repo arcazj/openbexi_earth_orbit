@@ -4,6 +4,47 @@
 // -------------------------------------------------------------------
 
 import { APP_VERSION } from './releaseVersion.js';
+import { lifeExtensionFamily } from './lifeExtensionCatalog.js';
+
+export function syncSelectedModelPreview() {
+    const section = document.getElementById('selectedModelViewer');
+    const host = document.getElementById('selectedModelPreview');
+    const link = document.getElementById('selectedModelViewerLink');
+    if (!section.open || !link.search) {
+        if (host.firstElementChild) host.replaceChildren();
+        return;
+    }
+    const url = new URL(link.href);
+    url.searchParams.set('embed', '1');
+    if (host.firstElementChild?.src === url.href) return;
+    const frame = document.createElement('iframe');
+    frame.title = 'Interactive satellite model';
+    frame.src = url.href;
+    host.replaceChildren(frame);
+}
+
+export function updateSelectedModelPreview(record, resolution, clock, orientation = {}) {
+    const link = document.getElementById('selectedModelViewerLink');
+    const notice = document.getElementById('selectedModelNotice');
+    const url = new URL('display_satellite.html', document.baseURI);
+    const mission = lifeExtensionFamily(record) && record?.norad_id;
+    if (mission) {
+        url.searchParams.set('catalog', 'life-extension');
+        url.searchParams.set('norad', record.norad_id);
+    } else if (resolution?.found) {
+        url.searchParams.set('model', resolution.assetId);
+        if (record?.norad_id) url.searchParams.set('norad', record.norad_id);
+    }
+    if (url.search && clock && !clock.live) url.searchParams.set('at', new Date(clock.timeMs).toISOString());
+    if (url.search) for (const key of ['yawDeg','pitchDeg','rollDeg']) {
+        if (Number.isFinite(orientation[key]) && orientation[key] !== 0) url.searchParams.set(key, orientation[key]);
+    }
+    link.href = url.href;
+    link.textContent = mission || resolution?.found ? 'Open full viewer' : 'Browse satellite models';
+    notice.hidden = Boolean(mission || resolution?.found);
+    notice.textContent = record ? 'No model is available for this object.' : 'Select a spacecraft to preview its model.';
+    syncSelectedModelPreview();
+}
 
 export function satelliteMenuLoader() {
     return /* html */ `
@@ -444,6 +485,7 @@ export function satelliteMenuLoader() {
     <div id="selectedSatelliteControls" class="satellite-option-grid" aria-label="Selected tracked-object options" aria-hidden="true" hidden>
       <label><input type="checkbox" id="showYPRToggle"> Yaw-Pitch-Roll</label>
       <label class="checkbox-row"><input type="checkbox" id="showFootprintCheckbox"><span>Show Footprint</span></label>
+      <div id="publishedFootprintNotice" class="footprint-notice" role="status" hidden></div>
       <label class="checkbox-row"><input type="checkbox" id="showOnlySelectedSatellite" checked><span>Show only selected object</span></label>
       <label><input type="checkbox" id="showOrbitFrameToggle"> Orbit Frame (LVLH)</label>
       <label><input type="checkbox" id="showOrbitToggle"> Show Orbit</label>
@@ -466,6 +508,7 @@ export function satelliteMenuLoader() {
         <span id="rollVal">0</span>
       </label>
     </div>
+    <section id="selectedComparison" aria-label="Spacecraft comparison" hidden></section>
     <details id="selectedModelViewer" class="selected-satellite-detail-section">
       <summary><span>Satellite Model Viewer</span></summary>
       <div class="selected-model-viewer-body">

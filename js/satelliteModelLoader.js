@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import { fetchJSON } from './SatelliteConfigurationLoader.js';
 import { catalogModel, modelAssetPaths } from './satelliteModelResolver.js';
+import { attachmentAt, attachmentPeer, serviceAttachments } from './lifeExtensionCatalog.js';
 import { KM_TO_SCENE_UNITS, EARTH_SCENE_RADIUS, EARTH_RADIUS_KM } from './SatelliteConstantLoader.js';
 
 /* ─────────────────────────── Config & constants ─────────────────────────── */
@@ -466,19 +467,24 @@ async function loadOBJWithMTL(fileBase, meta, { usePlaceholderOnFailure = true }
 }
 
 /* ─────────────────────────── GLB loading core ───────────────────────────── */
-async function loadGLB(filePathOrBase, meta, { usePlaceholderOnFailure = true } = {}) {
+async function readGlbScene(filePathOrBase) {
     const { dir, fileName } = resolveFilePathAndName(filePathOrBase);
 
     const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
     const loader = new GLTFLoader();
     loader.setPath(dir);
 
-    let gltf;
+    const gltf = await loader.loadAsync(fileName);
+    return gltf.scene || gltf.scenes?.[0] || new THREE.Group();
+}
+
+async function loadGLB(filePathOrBase, meta, { usePlaceholderOnFailure = true } = {}) {
+    let sceneRoot;
     try {
-        gltf = await loader.loadAsync(fileName);
+        sceneRoot = await readGlbScene(filePathOrBase);
     } catch (e) {
         console.error(
-            `[${filePathOrBase}] GLB load failed (${dir + fileName}).`
+            `[${filePathOrBase}] GLB load failed.`
             + (usePlaceholderOnFailure ? ' Using placeholder.' : ''),
             e
         );
@@ -486,7 +492,6 @@ async function loadGLB(filePathOrBase, meta, { usePlaceholderOnFailure = true } 
         return placeholderCube(0.5);
     }
 
-    const sceneRoot = gltf.scene || gltf.scenes?.[0] || new THREE.Group();
     const root = new THREE.Group();
     root.add(sceneRoot);
 
@@ -516,6 +521,52 @@ async function loadGLB(filePathOrBase, meta, { usePlaceholderOnFailure = true } 
     }
 
     return root;
+}
+
+async function enableServiceAttachment(root, norad, missions, options) {
+    const { addCompanionModel } = await import('./lifeExtensionViewer.js');
+    const { readExtensionView } = await import('./lifeExtensionView.js');
+    const isCurrent = options.shouldAttach || (() => true);
+    let clientModel, previous, lastRecord, lastMinute, evaluation = 0, request = 0, retryAt = 0;
+    root.updateServicingTime = async timeMs => {
+        if (!isCurrent()) return;
+        const record = attachmentAt(norad,timeMs,missions);
+        const minute = record?.kind==='MEV' ? Math.floor(timeMs/60000) : null;
+        const retry = retryAt && performance.now()>=retryAt;
+        if (record===lastRecord && minute===lastMinute && !retry) return;
+        lastRecord=record;lastMinute=minute;
+        if (retry) retryAt=performance.now()+60000;
+        const sample = ++evaluation;
+        const evidence = record?.kind==='MEV' && await readExtensionView(record.vehicle.key,record.vehicle.name,new Date(timeMs));
+        if (sample!==evaluation || !isCurrent()) return;
+        const attachment = evidence?.tleDisagreement ? undefined : record;
+        if (attachment===previous && !retry) return;
+        const token = ++request;
+        const stillCurrent = () => token===request && isCurrent();
+        previous = attachment;
+        retryAt = 0;
+        if (clientModel) {
+            delete root.children[0].userData.attachedHostFrame;
+            clientModel.removeFromParent();
+            disposeObject3D(clientModel);
+            clientModel = null;
+        }
+        const view = {attachment, selectedKey:norad, companion:attachment && attachmentPeer(attachment,norad), shownPair:false};
+        root.userData.servicing = view;
+        options.onConfigurationChange?.(root);
+        if (!attachment) return;
+        const companion = await addCompanionModel(root.children[0],view,profile => readGlbScene(profile.attemptedPaths[0]),
+            disposeObject3D,stillCurrent);
+        if (!stillCurrent()) {
+            if (companion) {companion.removeFromParent();disposeObject3D(companion);}
+            return;
+        }
+        clientModel = companion;
+        if (clientModel) prepareModelForSelectedView(clientModel);
+        else retryAt = performance.now()+60000;
+        options.onConfigurationChange?.(root);
+    };
+    await root.updateServicingTime(options.timeMs ?? Date.now());
 }
 
 /* ───────────────────────── Singleton state ──────────────────────────────── */
@@ -610,6 +661,9 @@ export async function showSatellite(noradId, scene, updatedNoradId, options = {}
         );
     }
 
+    const id = String(noradId);
+    const missions = serviceAttachments.filter(record => record.host.key === id || record.vehicle.key === id);
+    if (missions.length) await enableServiceAttachment(root,id,missions,options);
     const visibilityDiagnostics = prepareModelForSelectedView(root);
     console.info(
         `[${noradId}] Model visibility diagnostics for "${resolvedId}".`,

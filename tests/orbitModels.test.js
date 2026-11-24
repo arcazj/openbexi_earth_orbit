@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { orbitLibraryEntries, resolveSatelliteModel } from '../js/satelliteModelResolver.js';
+import { extensionFamilies } from '../js/lifeExtensionCatalog.js';
 
 const read = file => JSON.parse(fs.readFileSync(file, 'utf8'));
 const models = new Map(read('json/display_satellite_models.json').models.map(model => [model.id, model]));
@@ -65,7 +66,10 @@ for (const orbit of ['leo', 'meo', 'geo']) {
     }
   }
 }
-assert.deepEqual(assignedFiles, physicalFiles, 'Every published mesh is assigned to a catalog payload');
+for (const family of Object.values(extensionFamilies)) {
+  if (family.model) meshPaths(models.get(family.model)).forEach(file => assignedFiles.add(file));
+}
+assert.deepEqual(assignedFiles, physicalFiles, 'Every published mesh belongs to a catalog payload or a documented mission family');
 let records = 0;
 for (const chunk of [...tracked.chunks, ...tracked.history_chunks].filter(c => c.object_type === 'PAYLOAD')) {
   for (const record of read(chunk.path).records.filter(r => ['LEO', 'MEO', 'GEO'].includes(r.orbit_class))) {
@@ -106,6 +110,34 @@ function geometryFor(norad_id) {
 
 const viaSat = geometryFor(66454);
 const pathFor = id => resolveSatelliteModel({norad_id:id}).attemptedPaths[0];
+assert.equal(pathFor(46113), pathFor(44625));
+assert.equal(pathFor(28358), 'obj/geo/intelsat-10-02.glb');
+assert.equal(pathFor(43633),'obj/geo/horizons-3e.glb');
+assert.equal(pathFor(38749),'obj/geo/ref-bss-702mp-38098.glb');
+const horizons=geometryFor(43633);
+for (let i=1;i<=4;i++) {
+  assert.equal(horizons('Reflector '+i+' pale perimeter frame').length,1);
+  assert(horizons('Reflector '+i+' carbon aperture')[0].translation[2]<0);
+}
+assert.equal(horizons('Photovoltaic cell strings').length,8);
+assert.equal(horizons('Radiator tile mosaic').length,4);
+assert.equal(horizons('Inspection_aft').length,1);
+const mev = geometryFor(46113);
+assert.equal(mev('Solar cell panel').length, 10);
+assert.equal(mev('Docking contact pad').length, 3);
+assert.equal(mev('Camera objective').length + mev('Docking camera objective').length, 10);
+assert(mev('MEV docking plane')[0].translation[2] < mev('Capture probe head')[0].translation[2]);
+assert.equal(geometryFor(28358)('Intelsat side reflector').length, 2);
+assert.equal(pathFor(36581), 'obj/geo/astra-3b.glb');
+assert.equal(pathFor(37775), 'obj/geo/ref-eurostar-3000m-36581.glb');
+const astra3b = geometryFor(36581);
+for (const part of ['Aft reflector hinge', 'Main reflector']) {
+  const assemblies = astra3b(part);
+  assert.equal(assemblies.length, 4);
+  assert(assemblies.every(node => node.translation[2] < 0), part + ' sits aft of the bus midpoint');
+}
+const wingTips = astra3b('Solar array tip rail').map(node => Math.abs(node.translation[0]) + node.scale[0] / 2);
+assert.deepEqual(wingTips, [19.9, 19.9]);
 assert.equal(pathFor(49332), 'obj/geo/ses-17.glb');
 for (const id of [53765,54259,55508,57045,60086]) {
   assert.equal(pathFor(id), 'obj/geo/ref-spacebus-neo200-49332.glb');

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { eciToSceneVector } from './sceneFrame.js';
-import { applyOrbitDistanceFade, refineOrbitForView } from './orbit/selectedOrbitCurve.js';
+import { applyOrbitDistanceFade, refineOrbitForView, sampleOrbitRevolution } from './orbit/selectedOrbitCurve.js';
 import {
     satelliteConfig,
     fetchJSON,
@@ -922,33 +922,8 @@ export function generateOrbitScenePointSegments(satrec, simDate = new Date(), op
     const sampleCount = Number.isInteger(numPoints) && numPoints > 0
         ? numPoints
         : getOrbitSampleCount(periodMinutes);
-    const deltaT = periodMinutes / sampleCount;
-    // On a selected trajectory put the seam half a revolution away. Secular
-    // perturbations mean that a one-period track does not close exactly.
-    const startTime = new Date(new Date(simDate).getTime() -
-        (options.centerOnEpoch ? Math.floor(sampleCount / 2) * deltaT * 60000 : 0));
-    const segments = [];
-    let currentSegment = [];
-
-    const finishSegment = () => {
-        if (currentSegment.length > 1) {
-            segments.push(currentSegment);
-        }
-        currentSegment = [];
-    };
-
-    for (let i = 0; i <= sampleCount; i++) {
-        const timeMs = Math.trunc(startTime.getTime() + i * deltaT * 60000);
-        const sample = orbitPointAt(satrec, timeMs, satLib, minRadiusKm);
-        if (!sample) {
-            finishSegment();
-            continue;
-        }
-        currentSegment.push(sample);
-    }
-    finishSegment();
-
-    return segments;
+    return sampleOrbitRevolution(new Date(simDate).getTime(), periodMinutes, sampleCount, options.centerOnEpoch,
+        timeMs => orbitPointAt(satrec, timeMs, satLib, minRadiusKm));
 }
 
 export function generateOrbitScenePoints(satrec, simDate = new Date(), options = {}) {

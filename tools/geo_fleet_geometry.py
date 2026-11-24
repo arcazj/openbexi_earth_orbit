@@ -2,8 +2,14 @@
 import math
 
 if __package__:
+    from .astra_3b import spacecraft as astra_3b
+    from .horizons_3e import spacecraft as horizons_3e
+    from .mev import spacecraft as mission_extension_vehicle
     from .geo_geometry import deployed_radiators, equipment_bus, mesh_antenna, solar_wings, tilt_x
 else:
+    from astra_3b import spacecraft as astra_3b
+    from horizons_3e import spacecraft as horizons_3e
+    from mev import spacecraft as mission_extension_vehicle
     from geo_geometry import deployed_radiators, equipment_bus, mesh_antenna, solar_wings, tilt_x
 
 
@@ -238,6 +244,59 @@ def ses17_spacecraft(g, rows, height, width, span):
 
 def fleet_spacecraft(g, spec, length, width, span):
     body = spec["body"]
+    if body == "intelsat-10-02":
+        depth = spec["busDepth"]
+        equipment_bus(g, length, width, depth, "Eurostar", blanket_material="Gold multilayer insulation")
+        solar_wings(g, width, span, 2.55, spec["wingRows"], cell_material="Indigo photovoltaic cells")
+        for side in (-1, 1):
+            # Separate blanket leaves around the aft deck leave the docking ring exposed.
+            for bay in (-1, 1):
+                g.part("Aft thermal blanket leaf", "blanketed chassis", "Silver multilayer insulation",
+                       (width*.42, depth*.42, .10), (bay*width*.245, side*depth*.245, -length*.478))
+            g.part("Service bay insulation", "foil-box", "Silver multilayer insulation",
+                   (width*.83, .025, length*.24), (0, side*depth*.465, -length*.29))
+            for z in (.015, .19, .36):
+                g.part("Radiator cross seam", "box", "Structural alloy", (.019, depth*.79, .017),
+                       (side*width*.525, 0, z*length))
+            for end in (-1, 1):
+                g.rod("Aft deck corner brace", (end*width*.45,side*depth*.43,-length*.47),
+                      (end*width*.30,side*depth*.27,-length*.51), .045)
+            for row in range(1, len(spec["wingRows"])):
+                root = width/2 + width*.63
+                x = side*(root + row*(span/2-root)/len(spec["wingRows"]))
+                for y in (-.91, .91):
+                    g.rod("Solar wing hinge barrel", (x,y-.12,0), (x,y+.12,0), .075, "Structural alloy")
+        # The MEV-2 flight photograph resolves the flat-sided reflector backs,
+        # crossed support struts and centered aft engine inside the adapter.
+        for side, breadth in ((1,2.38),(-1,2.05)):
+            y, z = side*(depth/2+.88+breadth/2), length*.30
+            g.part("Intelsat side reflector", "rounded reflector shell", "White reflector coating",
+                   (2.22,breadth,.72), (0,y,z), tilt_x(side*.075), sides=48)
+            # Ribs follow the shallow convex back, leaving the illuminated face clear.
+            def back(point, rise):
+                return (point[0], y+point[1], z+rise+side*.075*point[1])
+
+            for ray in range(8):
+                angle = math.tau*ray/8
+                outer = (.88*math.cos(angle), breadth*.40*math.sin(angle))
+                knee = (outer[0]*.55, outer[1]*.55)
+                g.rod("Reflector back rib", back((0,0),-.047), back(knee,-.016), .034, "Equipment panels")
+                g.rod("Reflector outer rib", back(knee,-.016), back(outer,.06), .026, "Equipment panels")
+            for dx in (-.48,.48):
+                g.rod("Crossed reflector strut", (dx,side*depth*.48,z-.33), (-dx,y-side*breadth*.36,z-.035), .058)
+                g.rod("Reflector support strut", (dx,side*depth*.48,z+.11), (dx,y-side*breadth*.36,z-.035), .047)
+            horn = (.12,y-side*breadth*.30,z+.68)
+            g.rod("Offset feed arm", (.32,side*depth*.44,z+.30), horn, .055)
+            g.part("Offset feed horn", "frustum", "Gold thermal foil", (.19,.19,.23), horn)
+        g.part("Apogee engine bell", "frustum", "Thermal blanket", (.56,.56,.40), (0,0,-length*.50))
+        g.part("Apogee nozzle lip", "annulus", "Structural alloy", (.55,.55,.035), (0,0,-length*.50-.20), sides=40)
+        return
+    if body == "mev":
+        return mission_extension_vehicle(g, spec, length, width, span)
+    if body == "astra-3b":
+        return astra_3b(g,spec,length,width,span)
+    if body == "horizons-3e":
+        return horizons_3e(g,spec,length,width,span)
     if body == "ses-17":
         return ses17_spacecraft(g,spec["wingRows"],length,width,span)
     if body == "skynet-spinner":

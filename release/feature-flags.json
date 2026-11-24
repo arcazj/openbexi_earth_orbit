@@ -8,7 +8,8 @@
       "enabled": true,
       "enabledChannels": [
         "development",
-        "preview"
+        "preview",
+        "stable"
       ],
       "scope": "browser",
       "scientificMaturity": "Experimental",
@@ -26,7 +27,8 @@
       "description": "Authenticated durable server-side full-catalog close-approach screening",
       "enabled": true,
       "enabledChannels": [
-        "development"
+        "development",
+        "stable"
       ],
       "scope": "server",
       "scientificMaturity": "Experimental",
@@ -44,7 +46,8 @@
       "description": "Lazy browser access to the provider-tracked object inventory with metadata-only safety boundaries",
       "enabled": true,
       "enabledChannels": [
-        "development"
+        "development",
+        "stable"
       ],
       "scope": "browser",
       "scientificMaturity": "Experimental",

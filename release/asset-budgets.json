@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "policy": "regression-ceiling",
   "files": {
-    "index.html": 327000,
+    "index.html": 329000,
     "json/gp/GP.json": 28000000,
     "json/launches/launches.json": 10500000,
     "json/tle/TLE.json": 11000000,
@@ -26,8 +26,8 @@
         "js/domain/index.js",
         "js/satelliteCategoryFilter.js"
       ],
-      "maxBytes": 979000,
-      "note": "The catalog API accordion brings the uncompressed browser modules to 978,141 bytes on Windows. Its OpenAPI schema and reference load on demand."
+      "maxBytes": 1089500,
+      "note": "Includes spacecraft comparison, TLE position readouts, dated docking configurations, TLE snapshots and individual orbit paths."
     },
     "vendoredBrowserRuntime": {
       "roots": ["vendor"],

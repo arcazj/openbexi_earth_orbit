@@ -9,9 +9,6 @@ on:
 permissions:
   contents: read
 
-env:
-  OPENBEXI_PYTHON_COMMAND: python
-
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -35,7 +32,8 @@ jobs:
           node-version: 22
           cache: npm
 
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      - id: python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12'
 
@@ -43,7 +41,12 @@ jobs:
         run: npm run check:release-tree -- --tree HEAD --require-clean
 
       - name: Verify configured Python interpreter
-        run: node scripts/python.mjs -c "import sys; assert sys.version_info[:2] == (3, 12), sys.version; print(sys.version)"
+        shell: bash
+        env:
+          OPENBEXI_PYTHON_COMMAND: ${{ steps.python.outputs.python-path }}
+        run: |
+          node scripts/python.mjs -c "import sys; assert sys.version_info[:2] == (3, 12), sys.version; print(sys.version)"
+          printf 'OPENBEXI_PYTHON_COMMAND=%s\n' "$OPENBEXI_PYTHON_COMMAND" >> "$GITHUB_ENV"
 
       - name: Install locked dependencies
         run: npm ci
@@ -87,7 +90,8 @@ jobs:
           node-version: 22
           cache: npm
 
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      - id: python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12'
 
@@ -98,7 +102,12 @@ jobs:
         run: npx playwright install --with-deps chromium firefox webkit
 
       - name: Verify configured Python interpreter
-        run: node scripts/python.mjs -c "import sys; assert sys.version_info[:2] == (3, 12), sys.version; print(sys.version)"
+        shell: bash
+        env:
+          OPENBEXI_PYTHON_COMMAND: ${{ steps.python.outputs.python-path }}
+        run: |
+          node scripts/python.mjs -c "import sys; assert sys.version_info[:2] == (3, 12), sys.version; print(sys.version)"
+          printf 'OPENBEXI_PYTHON_COMMAND=%s\n' "$OPENBEXI_PYTHON_COMMAND" >> "$GITHUB_ENV"
 
       - name: Run browser smoke test
         if: matrix.browser != 'firefox'

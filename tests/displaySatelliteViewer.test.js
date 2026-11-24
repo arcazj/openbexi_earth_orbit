@@ -159,9 +159,6 @@ function run() {
     'setWireframeMode',
     'createLoadingManager',
     'LoadingManager',
-    'GLTFLoader',
-    'MTLLoader',
-    'OBJLoader',
     'modelSearchInput',
     'modelList',
     'modelCount',
@@ -175,6 +172,9 @@ function run() {
   ].forEach((needle) => {
     assert(html.includes(needle), `display_satellite.html includes ${needle}`);
   });
+  for (const loader of ['GLTFLoader', 'MTLLoader', 'OBJLoader']) {
+    assert(read('js/spacecraftMesh.js').includes(loader), `shared model loader includes ${loader}`);
+  }
 
   [
     '/api/display-satellite-models',

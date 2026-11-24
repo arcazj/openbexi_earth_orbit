@@ -1,6 +1,6 @@
 # Data sources and scope
 
-The 2.6.0 development build uses the existing orbital catalog and JPL playback and guide datasets. Its spacecraft model library adds GCAT-derived platform assignments, original geometry and references for spacecraft exteriors. The recorded 2.5 publication decisions cover their respective releases. [Release policy](RELEASE_POLICY.md)
+The 2.6.0 release uses the existing orbital catalog and JPL playback and guide datasets. Its spacecraft model library adds GCAT-derived platform assignments, original geometry and references for spacecraft exteriors. The recorded 2.5 publication decisions cover their respective releases. [Release policy](RELEASE_POLICY.md)
 
 | Source | Admitted use / limits |
 | --- | --- |

@@ -2,10 +2,12 @@ import * as THREE from 'three';
 import { EARTH_RADIUS_KM } from './SatelliteConstantLoader.js';
 import { eciToSceneVector } from './sceneFrame.js';
 import { mercatorPixelFromLonLat } from './orbit/orbitLinkGeometry.js';
+import { publishedBeam, PublishedBeamLayer, showBeamNotice } from './publishedBeamFootprints.js';
 
 let _scene;
 let _earthMesh;
 let footprintMesh3D;
+let publishedLayer, notice, mapNotice;
 const footprintSatellitePositionKm = new THREE.Vector3();
 const footprintSatellitePositionScene = new THREE.Vector3();
 
@@ -82,6 +84,10 @@ const footprintFragmentShader = `
 export function initFootprintRenderer(scene, earthMesh) {
     _scene = scene;
     _earthMesh = earthMesh;
+    publishedLayer?.clear();
+    publishedLayer = new PublishedBeamLayer(earthMesh);
+    notice = globalThis.document?.getElementById('publishedFootprintNotice');
+    mapNotice = globalThis.document?.getElementById('mercatorBeamNotice');
 
     if (!footprintMesh3D && _earthMesh) {
         // The footprint will be rendered on a sphere that is slightly larger than Earth
@@ -168,8 +174,17 @@ function drawMercator(ctx, path) {
  * @param {number} gmstRad The current GMST in radians.
  * @param {object} options Additional options including `showFootprint`, `mercatorCtx`, `simDate`, and an optional propagated state.
  */
-export function updateFootprints(selectedSat, gmstRad, { showFootprint, mercatorCtx, simDate, propagation = undefined }) {
+export function updateFootprints(selectedSat, gmstRad, { showFootprint, mercatorCtx, simDate, propagation = undefined, selection = selectedSat, servicing }) {
     if (!footprintMesh3D) return;
+    const beam = showFootprint ? publishedBeam(selection?.norad_id, servicing) : null;
+    publishedLayer.set(beam);
+    showBeamNotice(notice, beam, showFootprint && selectedSat ? 'Geometric visibility to the horizon.' : '');
+    showBeamNotice(mapNotice, beam);
+    if (beam) {
+        footprintMesh3D.visible = false;
+        publishedLayer.drawMap(mercatorCtx);
+        return;
+    }
 
     if (!selectedSat || !selectedSat.satrec || !showFootprint) {
         footprintMesh3D.visible = false;

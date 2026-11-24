@@ -18,7 +18,7 @@ Browser coverage uses Chromium, mobile emulation, Firefox and Playwright WebKit.
 
 Catalog visibility tests use the epoch in their synthetic OMM data. The HEO regression also checks two invalid propagation times and the return to a valid position. Live tracking uses an advancing clock across measured passes.
 
-The release verification record covers the integrated dependency updates and the tagged build. [Exact-commit results and downloads](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/v2.6.0)
+The official release verification record identifies the tested Git commit, CI run, archive checksums and rollback result. The November 24 comparison fixtures preserve the public elements for Horizons 3e, Optus D3 and MEV-1. [Exact-commit results and downloads](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/2.6.0) · [Archived CelesTrak elements](../release/evidence/v2.6.0-celestrak-2026-11-24.tle)
 
 ### Local baseline before dependency integration
 

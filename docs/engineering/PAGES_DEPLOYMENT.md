@@ -1,6 +1,6 @@
 # GitHub Pages deployment
 
-Pages deployment requires a manual workflow dispatch for a specific commit. The local 2.6.0 development build has no deployment record. The previously published 2.5.1 GitHub release has its own source publication record. [Release policy](../governance/RELEASE_POLICY.md) · [2.5.1 publication record](../../release/publication-v2.5.1.json)
+Pages deployment requires a manual workflow dispatch for a specific commit. GitHub release publication and Pages deployment are separate operations. The previously published 2.5.1 GitHub release has its own source publication record. [Release policy](../governance/RELEASE_POLICY.md) · [2.5.1 publication record](../../release/publication-v2.5.1.json)
 
 ## Exact-commit workflow
 

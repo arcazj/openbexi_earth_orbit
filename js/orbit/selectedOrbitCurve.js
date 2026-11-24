@@ -1,5 +1,24 @@
 import { Line3, MathUtils, Sphere, Vector3 } from 'three';
 
+export function sampleOrbitRevolution(epochMs, periodMinutes, count, centered, sampleAt) {
+    const step = periodMinutes * 60000 / count;
+    // Keep the seam away from the selected UTC. SGP4's one-revolution track
+    // need not close exactly and invalid samples must break the line.
+    const middle = centered ? Math.floor(count/2) : 0;
+    const segments = [];
+    let points = [];
+    for (let i = 0; i <= count; i++) {
+        const point = sampleAt(Math.trunc(epochMs+(i-middle)*step));
+        if (point) points.push(point);
+        else {
+            if (points.length > 1) segments.push(points);
+            points = [];
+        }
+    }
+    if (points.length > 1) segments.push(points);
+    return segments;
+}
+
 export function fullOrbitCameraFrame(segments, normal, camera) {
     if (!normal || !segments?.length) return null;
     const bounds = new Sphere().setFromPoints(segments.flat());
