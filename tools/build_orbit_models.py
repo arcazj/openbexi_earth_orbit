@@ -16,9 +16,13 @@ from pathlib import Path
 if __package__:
     from .geo_geometry import ats6, communications_spacecraft, ekran, gorizont, tdrs, weather_spacecraft
     from .geo_fleet_geometry import fleet_spacecraft
+    from .horizons_3e import engine_bell, gantry_plate, petal_frame
+    from .spacecraft_textures import blanket_maps, blue_solar_cells, horizons_solar_cells, pod_solar_cells, radiator_mosaic, reflector_composite
 else:
     from geo_geometry import ats6, communications_spacecraft, ekran, gorizont, tdrs, weather_spacecraft
     from geo_fleet_geometry import fleet_spacecraft
+    from horizons_3e import engine_bell, gantry_plate, petal_frame
+    from spacecraft_textures import blanket_maps, blue_solar_cells, horizons_solar_cells, pod_solar_cells, radiator_mosaic, reflector_composite
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "json/satellites"
@@ -38,6 +42,19 @@ SURFACES = {
     "Reference blue": ([.16, .39, .55], .12, .58),
     "Gold insulation": ([.87, .74, .55], .45, .57),
     "Gold thermal foil": ([.96, .54, .10], .27, .44),
+    "Gold multilayer insulation": ([.80, .40, .048], .40, .69),
+    "Silver multilayer insulation": ([.49, .53, .57], .60, .57),
+    "Black multilayer insulation": ([.065, .074, .085], .35, .63),
+    "Charcoal thermal blanket": ([.055, .051, .054], .18, .78),
+    "Silver thermal panel": ([.55, .62, .70], .50, .34),
+    "White reflector coating": ([.88, .90, .91], .035, .52),
+    "Blue photovoltaic cells": ([1, 1, 1], .10, .55),
+    "Indigo photovoltaic cells": ([1, 1, 1], .13, .49),
+    "Pod photovoltaic cells": ([1, 1, 1], .20, .51),
+    "Copper-traced photovoltaic cells": ([1, 1, 1], .09, .52),
+    "Silver radiator mosaic": ([1, 1, 1], .16, .49),
+    "Woven reflector composite": ([1, 1, 1], .19, .55),
+    "Nozzle liner": ([.24, .113, .071], .55, .49),
     "Radiator tiles": ([.78, .79, .80], .20, .52),
     "Antenna face": ([.50, .51, .48], .30, .53),
     "Concentrator film": ([.80, .84, .88], .66, .26),
@@ -98,6 +115,22 @@ class Surface:
         for i in range(1, len(points)-1):
             self.indices.extend((start, start+i, start+i+1))
 
+    def planar_tangents(self):
+        # The blanket faces have flat normals, independent vertices and affine
+        # UVs. Resolve the texture U direction and the UV winding on each face.
+        tangents = [None] * len(self.points)
+        for start in range(0, len(self.indices), 3):
+            a, b, c = self.indices[start:start+3]
+            edge_b = [end-origin for origin,end in zip(self.points[a], self.points[b])]
+            edge_c = [end-origin for origin,end in zip(self.points[a], self.points[c])]
+            ub, vb = (end-origin for origin,end in zip(self.uvs[a], self.uvs[b]))
+            uc, vc = (end-origin for origin,end in zip(self.uvs[a], self.uvs[c]))
+            determinant = ub * vc - uc * vb
+            tangent = unit([(vc*x - vb*y) / determinant for x,y in zip(edge_b, edge_c)])
+            for vertex in (a, b, c):
+                tangents[vertex] = (*tangent, math.copysign(1, determinant))
+        return tangents
+
 
 @lru_cache(maxsize=None)
 def primitive(kind, sides=24):
@@ -114,6 +147,18 @@ def primitive(kind, sides=24):
             for i in range(4):
                 j = (i+1) % 4
                 s.face([bottom[i], bottom[j], top[j], top[i]], uvs=uv)
+    elif kind == "blanketed chassis":
+        # Cut corners expose the edges of the thermal blankets and their seams.
+        outline = [(-.40,-.50),(.40,-.50),(.50,-.40),(.50,.40),
+                   (.40,.50),(-.40,.50),(-.50,.40),(-.50,-.40)]
+        low = [(x,y,-.5) for x,y in outline]
+        high = [(x,y,.5) for x,y in outline]
+        cap_uv = [(x+.5,y+.5) for x,y in outline]
+        s.face(high, uvs=cap_uv)
+        s.face(low[::-1], uvs=cap_uv[::-1])
+        for i in range(len(low)):
+            j = (i+1) % len(low)
+            s.face([low[i],low[j],high[j],high[i]], uvs=[(0,0),(1,0),(1,1),(0,1)])
     elif kind == "quilted foil":
         # Raised folds give an insulated panel changing highlights as the viewer rotates it.
         for row in range(3):
@@ -173,9 +218,10 @@ def primitive(kind, sides=24):
         p = [(.5,.5,.5),(-.5,-.5,.5),(-.5,.5,-.5),(.5,-.5,-.5)]
         for a,b,c in [(0,2,1),(0,1,3),(0,3,2),(1,2,3)]:
             s.face([p[a],p[b],p[c]])
-    elif kind == "annulus":
+    elif kind in ("annulus","thin annulus"):
         outer_low, outer_high = ring(sides,.5,-.5), ring(sides,.5,.5)
-        inner_low, inner_high = ring(sides,.32,-.5), ring(sides,.32,.5)
+        inner = .465 if kind == "thin annulus" else .32
+        inner_low, inner_high = ring(sides,inner,-.5), ring(sides,inner,.5)
         for i in range(sides):
             j = (i+1) % sides
             s.face([outer_low[i],outer_low[j],outer_high[j],outer_high[i]])
@@ -196,22 +242,60 @@ def primitive(kind, sides=24):
                     k=(j+1)%6
                     s.face([rings[-1][j],points[j],points[k],rings[-1][k]])
             rings.append(points)
-    elif kind in ("paraboloid", "shaped reflector", "net reflector"):
+    elif kind == "bowed panel":
+        # Rolled thin sheet, convex across its width. The side strips close the
+        # cut edges so the side profile and highlights both follow the curvature.
+        def section(i):
+            x = i / sides - .5
+            z = .5 - 2*x*x
+            return (x,-.5,z), (x,.5,z), (x,-.5,z-.06), (x,.5,z-.06)
+
+        for i in range(sides):
+            a, b, e, f = section(i)
+            c, d, h, k = section(i+1)
+            left, right = unit((4*a[0],0,1)), unit((4*c[0],0,1))
+            s.face([a,c,d,b], [left,right,right,left])
+            s.face([f,k,h,e], [tuple(-v for v in n) for n in (left,right,right,left)])
+            s.face([e,h,c,a])
+            s.face([b,d,k,f])
+            if i == 0:
+                s.face([e,a,b,f])
+            if i == sides-1:
+                s.face([c,h,k,d])
+    elif kind == "petal reflector frame":
+        petal_frame(s,sides)
+    elif kind == "pierced gantry plate":
+        gantry_plate(s)
+    elif kind in ("bell jacket","bell interior"):
+        engine_bell(s,sides,interior=kind=="bell interior")
+    elif kind in ("paraboloid", "shaped reflector", "net reflector", "reflector shell", "rounded reflector shell", "composite reflector shell"):
         # Ring depth follows r squared. Smooth normals hold across the front of the aperture.
         previous = None
         for band in range(1,7):
             radius = band / 12
             current = ring(sides, radius, .80 * radius**2)
-            if kind == "shaped reflector":
+            if kind in ("shaped reflector", "rounded reflector shell"):
                 # Orbital's superelliptical single shells have four rounded corners.
-                current = [(radius * math.copysign(abs(x/radius)**.62,x),
-                            radius * math.copysign(abs(y/radius)**.62,y),z) for x,y,z in current]
+                exponent = .40 if kind == "rounded reflector shell" else .62
+                current = [(radius * math.copysign(abs(x/radius)**exponent,x),
+                            radius * math.copysign(abs(y/radius)**exponent,y),z) for x,y,z in current]
             for i in range(sides):
                 j = (i + 1) % sides
                 face = [(0,0,0), current[i], current[j]] if previous is None else [
                     previous[i], current[i], current[j], previous[j]]
                 uv = [(4*(x+.5),4*(y+.5)) for x,y,_ in face] if kind == "net reflector" else None
-                s.face(face, [unit((-1.6*x,-1.6*y,1)) for x,y,_ in face], uv)
+                if kind == "composite reflector shell":
+                    uv = [(x+.5,y+.5) for x,y,_ in face]
+                normals = [unit((-1.6*x,-1.6*y,1)) for x,y,_ in face]
+                s.face(face, normals, uv)
+                if kind in ("reflector shell", "rounded reflector shell", "composite reflector shell"):
+                    thickness = .045
+                    s.face([(x,y,z-thickness) for x,y,z in reversed(face)],
+                           [tuple(-v for v in n) for n in reversed(normals)],uvs=uv[::-1] if uv else None)
+                    if band == 6:
+                        a, b = current[i], current[j]
+                        s.face([(a[0],a[1],a[2]-thickness), (b[0],b[1],b[2]-thickness), b, a],
+                               uvs=[(0,0),(1,0),(1,1),(0,1)] if uv else None)
             previous = current
     elif kind == "dish":
         # Shallow, concave reflector with a finished rim and a continuous back.
@@ -267,11 +351,24 @@ class Glb:
         fmt = "H" if index else "f"
         view = self.buffer_view(struct.pack("<"+str(len(flat))+fmt,*flat),34963 if index else 34962)
         a = {"bufferView":view,"componentType":5123 if index else 5126,"count":len(rows),
-             "type":{1:"SCALAR",2:"VEC2",3:"VEC3"}[size]}
+             "type":{1:"SCALAR",2:"VEC2",3:"VEC3",4:"VEC4"}[size]}
         if bounds:
             a.update(min=list(map(min,zip(*rows))),max=list(map(max,zip(*rows))))
         self.g["accessors"].append(a)
         return len(self.g["accessors"])-1
+
+    def texture(self, png, panel=False):
+        view = self.buffer_view(png)
+        images = self.g.setdefault("images", [])
+        textures = self.g.setdefault("textures", [])
+        texture = {"source":len(images)}
+        if panel:
+            # Clamp each laminate or blanket to its own UV rectangle.
+            self.g.setdefault("samplers", [{"magFilter":9729,"minFilter":9987,"wrapS":33071,"wrapT":33071}])
+            texture["sampler"] = 0
+        textures.append(texture)
+        images.append({"bufferView":view,"mimeType":"image/png"})
+        return {"index":len(textures)-1}
 
     def material(self, name):
         if name not in self.materials:
@@ -283,14 +380,22 @@ class Glb:
                 else:
                     filename = "spacecraft_cells.png" if name == "Solar cells" else "spacecraft_gold_blanket.png"
                     image = (ROOT/"obj/leo/Textures"/filename).read_bytes()
-                view = self.buffer_view(image)
-                images = self.g.setdefault("images", [])
-                textures = self.g.setdefault("textures", [])
-                pbr["baseColorTexture"] = {"index":len(textures)}
-                textures.append({"source":len(images)})
-                images.append({"bufferView":view,"mimeType":"image/png"})
+                pbr["baseColorTexture"] = self.texture(image)
             self.materials[name] = len(self.g["materials"])
             material = {"name":name,"pbrMetallicRoughness":pbr}
+            if name in ("Blue photovoltaic cells", "Indigo photovoltaic cells"):
+                pbr["baseColorTexture"] = self.texture(blue_solar_cells(indigo=name == "Indigo photovoltaic cells"), panel=True)
+            if name == "Pod photovoltaic cells":
+                pbr["baseColorTexture"] = self.texture(pod_solar_cells(), panel=True)
+            maps = {"Copper-traced photovoltaic cells":horizons_solar_cells,
+                    "Silver radiator mosaic":radiator_mosaic,"Woven reflector composite":reflector_composite}
+            if name in maps:
+                pbr["baseColorTexture"] = self.texture(maps[name](),panel=True)
+            if name in ("Gold multilayer insulation", "Silver multilayer insulation", "Black multilayer insulation", "Charcoal thermal blanket"):
+                normals, roughness = blanket_maps()
+                strength = .30 if name=="Charcoal thermal blanket" else .60
+                material["normalTexture"] = {**self.texture(normals, panel=True), "scale":strength}
+                pbr["metallicRoughnessTexture"] = self.texture(roughness, panel=True)
             if name in ("Gold mesh","Relay mesh","Antenna face","Carbon reflector"):
                 material["doubleSided"] = True
             if name in ("Gold mesh","Relay mesh"):
@@ -309,6 +414,9 @@ class Glb:
         mesh_key = (key,material)
         if mesh_key not in self.meshes:
             entry = {**self.geometries[key],"material":self.material(material)}
+            if "normalTexture" in self.g["materials"][entry["material"]]:
+                tangents = primitive(kind, sides).planar_tangents()
+                entry["attributes"] = {**entry["attributes"], "TANGENT":self.accessor(tangents, 4)}
             self.meshes[mesh_key] = len(self.g["meshes"])
             self.g["meshes"].append({"name":name,"primitives":[entry]})
         node = {"name":name,"mesh":self.meshes[mesh_key],"scale":scale,"translation":xyz}
@@ -322,12 +430,30 @@ class Glb:
         center = [(x+y)/2 for x,y in zip(start,end)]
         self.part(name,"cylinder",material,(diameter,diameter,length),center,aim_z(delta),8)
 
+    def inspection_camera(self, key, label, target, direction, radius):
+        direction = unit(direction)
+        self.g["nodes"].append({"name":"Inspection_"+key,"camera":0,"rotation":aim_z(direction),
+            "translation":[t+d*radius*3.2 for t,d in zip(target,direction)],
+            "extras":{"inspectionView":key,"label":label,"target":target,"radius":radius}})
+
     def bytes(self):
         view = (.35,-.62,1.12)
+        appearance = self.profile.get("appearance", {})
         if self.profile["design"].startswith("geo-"):
-            view = self.profile.get("appearance", {}).get("previewDirection", (.30,-.76,.95))
-        self.g["nodes"].append({"name":"OpenBEXIPreview","camera":0,"rotation":aim_z(view),
-                                "translation":[10*x for x in view]})
+            view = appearance.get("previewDirection", (.30,-.76,.95))
+        preview = {"name":"OpenBEXIPreview","camera":0,"rotation":aim_z(view),"translation":[10*x for x in view]}
+        if "previewUp" in appearance:
+            # Roll the embedded camera about its optical axis to project the
+            # requested spacecraft up vector vertically in a glTF viewer.
+            up = appearance["previewUp"]
+            x,y,z,w = preview["rotation"]
+            right = (1-2*(y*y+z*z), 2*(x*y+w*z), 2*(x*z-w*y))
+            vertical = (2*(x*y-w*z), 1-2*(x*x+z*z), 2*(y*z+w*x))
+            roll = math.atan2(-sum(a*b for a,b in zip(up,right)), sum(a*b for a,b in zip(up,vertical))) / 2
+            sine, cosine = math.sin(roll), math.cos(roll)
+            preview["rotation"] = (x*cosine+y*sine, y*cosine-x*sine, z*cosine+w*sine, w*cosine-z*sine)
+            preview["extras"] = {"previewUp":up}
+        self.g["nodes"].append(preview)
         # Profile labels and provenance can differ while every vertex, material and
         # transform is identical. Those profiles share a single physical GLB.
         fingerprint = hashlib.sha256(json.dumps(self.g,separators=(",",":")).encode())
@@ -341,6 +467,9 @@ class Glb:
                               "catalogCredit":"Jonathan McDowell, GCAT, CC BY 4.0. Adapted spacecraft profiles.",
                               "source":"https://planet4589.org/space/gcat/index.html",
                               "catalogLicense":"https://creativecommons.org/licenses/by/4.0/"})
+        if "modelCredit" in self.profile:
+            self.g["extras"] = {"units": "m", "representation": self.profile["description"],
+                                **self.profile["modelCredit"]}
         if self.profile["meta"].get("references"):
             self.g["extras"]["visualReferences"] = self.profile["meta"]["references"]
             self.g["extras"]["dimensionNote"] = self.profile["meta"]["dimension_note"]
@@ -785,6 +914,12 @@ def main():
             if header.get("asset",{}).get("generator") in ("OpenBEXI orbit model builder","OpenBEXI MEO model builder"):
                 path.unlink()
     print(f"Cataloged {len(entries)} profiles using {len(unique)} unique generated meshes.")
+    if "geo" in requested:
+        if __package__:
+            from .spacecraft_wavefront import build
+        else:
+            from spacecraft_wavefront import build
+        build()
 
 
 if __name__ == "__main__":

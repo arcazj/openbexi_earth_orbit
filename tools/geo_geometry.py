@@ -11,7 +11,7 @@ def tilt_x(angle):
 
 
 def solar_wings(g, width, extent, chord, rows, count=2, concentrators=False, white_tips=False, row_offsets=None,
-                drive_extension=0):
+                drive_extension=0, cell_material="Solar cells"):
     reach = (extent - width) / count
     yoke = min(reach*.19, width*.63) + drive_extension
     pitch = (reach-yoke) / len(rows)
@@ -29,7 +29,7 @@ def solar_wings(g, width, extent, chord, rows, count=2, concentrators=False, whi
             for row in range(abreast):
                 y = (row-(abreast-1)/2 + (row_offsets[station] if row_offsets else 0))*chord
                 g.part("Solar panel frame", "box", "Graphite", (pitch*.99,chord*.99,thickness), (x,y,0))
-                g.part("Solar cell panel", "panel", "Solar cells",
+                g.part("Solar cell panel", "panel", cell_material,
                        (pitch*.962,chord*.95,thickness*.25), (x,y,thickness*.50))
                 g.part("Rear array substrate", "box", "Array backsheet", (pitch*.96,chord*.95,thickness*.15),
                        (x,y,-thickness*.53))
@@ -45,12 +45,15 @@ def solar_wings(g, width, extent, chord, rows, count=2, concentrators=False, whi
                     y = sign*(chord/2 + film*math.cos(angle)/2)
                     g.part("Solar concentrator mirror", "box", "Concentrator film",
                            (pitch*.987,film,thickness*.35), (x,y,.5*film*math.sin(angle)), tilt_x(sign*angle))
+    return pitch
 
 
-def equipment_bus(g, height, width, depth, family):
+def equipment_bus(g, height, width, depth, family, blanket_material=None):
     gold = family in ("601","Eurostar","Spacebus","DFH","weather","702MP+")
     bottom = "Gold insulation" if gold else "Graphite"
     top = "Gold insulation" if family in ("Eurostar","Spacebus","DFH","702MP+") else "Equipment panels"
+    if blanket_material:
+        bottom = top = blanket_material
     g.part("Service module", "foil-box", bottom, (width*.92,depth*.90,height*.41), (0,0,-height*.285))
     g.part("Payload module", "foil-box", top, (width,depth,height*.59), (0,0,height*.205))
     g.part("Module interface", "box", "Structural alloy", (width*1.015,depth*1.012,height*.024), (0,0,-height*.093))

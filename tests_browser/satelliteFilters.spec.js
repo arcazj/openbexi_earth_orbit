@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { astra3b, mev2, intelsat } from '../tests/fixtures/lifeExtensionTles.js';
 import AxeBuilder from '@axe-core/playwright';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -2354,6 +2355,90 @@ test('shared category and tag filters restore as the same visible catalog', asyn
   expect(unexpectedConsoleErrors(browserErrors.consoleErrors)).toEqual([]);
 });
 
+test('the right-hand comparison follows the primary selection and the main simulation clock', async ({page}) => {
+  const state=fixtureState();
+  state.gpCatalog=[intelsat,astra3b].map(row=>ommRecord({noradId:row.norad_id,name:row.satellite_name,
+    orbitClass:'GEO', company:'Fixture', meanMotion:1.0027, inclination:.04}));
+  state.gpMetadata=gpMetadata('sha256:compare-map',2);
+  await page.route('**/json/tle/TLE.json',route=>route.fulfill({json:[intelsat,astra3b,mev2]}));
+  await page.clock.setFixedTime(new Date('2026-11-24T12:00:00Z'));
+  await bootFilterFixture(page,state,'/index.html?share=1&orbit=GEO&objects=PAYLOAD&time=2026-11-24T12:00:00Z&warp=0',{useFixtureEpoch:false});
+  await selectSatellite(page,'28358');
+  const panel=page.locator('#selectedComparison');
+  await panel.getByRole('button',{name:'Compare with MEV-2'}).click();
+  await expect(panel.locator('[data-distance]')).toHaveText('Docked');
+  await expect(panel.locator('time')).toContainText('Paused');
+  const search=panel.getByLabel('Find comparison object by name or NORAD ID');
+  await search.fill('36581');await search.press('Enter');
+  await expect(panel.locator('[data-distance]')).toHaveText('17,830 km');
+  await expect(panel.getByRole('link',{name:'Open full comparison'})).toHaveAttribute('href',/compare=36581.*at=/);
+  const main=page.getByRole('region',{name:'Main spacecraft comparison view'});
+  await expect(main.locator('canvas')).toBeVisible();
+  await main.getByRole('button',{name:'Behind Intelsat 10-02',exact:true}).click();
+  await expect(main.locator('.pair-tag:visible')).toHaveCount(1);
+  await expect(main.locator('.pair-tag:visible')).toContainText('ASTRA 3B');
+  await main.getByRole('button',{name:'Reveal both'}).click();
+  await expect(panel.getByRole('button',{name:'Side view'})).toHaveAttribute('aria-pressed','true');
+  await main.getByLabel('Show Earth',{exact:true}).check();
+  await main.getByRole('button',{name:'View full orbit'}).click();
+  await main.getByLabel('Show Orbit',{exact:true}).check();
+  await expect(panel.getByLabel('Show Orbit',{exact:true})).toBeChecked();
+  await expect(main.locator('.pair-orbit-legend li')).toHaveCount(2);
+  await expect(panel.getByRole('button',{name:'View full orbit'})).toHaveAttribute('aria-pressed','true');
+  await panel.getByRole('button',{name:'Resume live'}).click();
+  await expect(panel.locator('time')).toContainText('Live');
+  await expect(panel.getByRole('link',{name:'Open full comparison'})).not.toHaveAttribute('href',/at=/);
+  await main.getByRole('button',{name:'Back to map'}).click();
+  await expect(main).toBeHidden();
+  await selectSatellite(page,'36581');
+  await expect(main.locator('.pair-stage')).toHaveCount(0);
+  await expect(panel.getByRole('button',{name:'Compare with MEV-2'})).toHaveCount(0);
+});
+
+test('the globe filters life-extension missions and keeps the documented client when orbit elements age', async ({ page }) => {
+  const state = fixtureState();
+  const sourceRequests = [];
+  page.on('request', request => { if (/satbeams\.com/i.test(request.url())) sourceRequests.push(request.url()); });
+  state.gpCatalog = [['46113','MEV-2','2020-056B'], ['28358','INTELSAT 10-02','2004-022A'], ['36581','ASTRA 3B','2010-021A']]
+    .map(([noradId, name, designator]) => {
+      const row = ommRecord({ noradId, name, orbitClass: 'GEO', company: 'Fixture', meanMotion: 1.0027, inclination: .04 });
+      row.object_id = row.international_designator = row.element_set.omm.OBJECT_ID = designator;
+      row.element_set.epoch = row.element_set.omm.EPOCH = '2026-11-18T07:56:38.672Z';
+      return row;
+    });
+  state.gpMetadata = gpMetadata('sha256:servicing', 3);
+  await page.route('**/json/tle/TLE.json', route => route.fulfill({ json: [mev2, intelsat] }));
+  await page.clock.setFixedTime(new Date('2026-11-24T12:00:00Z'));
+  await bootFilterFixture(page, state, '/index.html?share=1&orbit=GEO&objects=PAYLOAD&time=2026-11-24T12:00:00Z&warp=0', { useFixtureEpoch: false });
+  await setCheckbox(page, '#companyFilter input[value="Satellite life extension"]', true);
+  await expect.poll(() => page.evaluate(() => window.openbexiSimulation.snapshot().visibleNoradIds)).toEqual(['46113']);
+  await selectSatellite(page, '46113');
+  await expect(page.locator('#selectedModelViewerLink')).toHaveAttribute('href', /catalog=life-extension&norad=46113/);
+  const detail = page.locator('.selected-satellite-source-detail');
+  await expect(detail).toContainText('MEV-2 + Intelsat 10-02', { timeout: 45000 });
+  await expect(page.locator('#showFootprintCheckbox')).not.toBeChecked();
+  await setCheckbox(page, '#showFootprintCheckbox', true);
+  await expect(page.locator('#publishedFootprintNotice')).toContainText('Intelsat 10-02 · Beam 5491. Published footprint unavailable');
+  await expect(page.locator('#publishedFootprintNotice a')).toHaveAttribute('href', /beam=5491&norad=28358/);
+  await page.evaluate(() => window.openbexiSimulation.setTime('2026-12-24T12:00:00Z'));
+  await expect(detail).toContainText('MEV-2 + Intelsat 10-02');
+  await expect(page.locator('#publishedFootprintNotice a')).toHaveAttribute('href',/beam=5491/);
+  await page.evaluate(() => window.openbexiSimulation.setTime('2026-11-24T12:00:00Z'));
+  await setCheckbox(page, '#companyFilter input[value="Satellite life extension"]', false);
+  for (const [id, beam] of [['28358','5491'],['36581','6252']]) {
+    await selectSatellite(page,id);
+    if (id==='28358') await expect(detail).toContainText(/INTELSAT 10-02 \+ MEV-2/i);
+    await expect(page.locator('#publishedFootprintNotice')).toContainText('Beam '+beam+'. Published footprint unavailable');
+  }
+  await setCheckbox(page, '#viewMercatorToggle', true);
+  await expect(page.locator('#mercatorBeamNotice a')).toBeVisible();
+  await expect(page.locator('#mercatorBeamNotice a')).toHaveAttribute('href', /beam=6252&norad=36581/);
+  await page.getByRole('button',{name:'Exit full-screen Mercator map'}).click();
+  await setCheckbox(page, '#showFootprintCheckbox', false);
+  await expect(page.locator('#publishedFootprintNotice')).toBeHidden();
+  expect(sourceRequests).toEqual([]);
+});
+
 test('the catalog model preview follows the selected spacecraft only while expanded', async ({ page }) => {
   const state = fixtureState();
   state.gpCatalog = [['49332', 'SES-17', '2021-095A'], ['53765', 'EUTELSAT KONNECT VHTS', '2022-110A']]
@@ -2392,7 +2477,7 @@ test('the catalog model preview follows the selected spacecraft only while expan
   const beforeRotation = await canvas.screenshot();
   await canvas.press('Shift+ArrowRight');
   expect((await canvas.screenshot()).equals(beforeRotation)).toBe(false);
-  await expect(link).toHaveAttribute('href', /display_satellite\.html\?model=geo%2Fses-17\.glb$/);
+  await expect(link).toHaveAttribute('href', /display_satellite\.html\?model=geo%2Fses-17\.glb&norad=49332(?:&at=|$)/);
   await expect(page.locator('.selected-satellite-omm-section')).toHaveJSProperty('open', false);
   await selectSatellite(page, '53765');
   await expect(model.locator('#statusMessage')).toContainText('Loaded obj/geo/ref-spacebus-neo200-49332.glb');

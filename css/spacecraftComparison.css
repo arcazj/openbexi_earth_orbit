@@ -1,0 +1,135 @@
+.spacecraft-comparison {
+    --pair-gold: #ffd58e;
+    --pair-blue: #9edfff;
+    min-width: 0;
+    font: inherit;
+}
+.spacecraft-comparison [hidden], .pair-workspace [hidden] { display: none !important; }
+.spacecraft-comparison h3 { font-size: 1rem; margin: 0 0 .5rem; color: inherit; }
+.spacecraft-comparison input[data-search], .spacecraft-comparison [data-copy-field] {
+    box-sizing: border-box; width: 100%; padding: .5rem .6rem; font: inherit; font-size: .85rem;
+    border: 1px solid #41556b; border-radius: .45rem; color: #eef6ff; background: #0d1826;
+}
+.spacecraft-comparison button, .spacecraft-comparison [data-expand] {
+    border: 1px solid #405368; border-radius: .45rem; padding: .35rem .52rem; background: #162535;
+    color: #e4effa; font: inherit; font-size: .78rem; line-height: 1.35; text-align: left; cursor: pointer;
+}
+.spacecraft-comparison button:disabled { opacity: .45; cursor: default; }
+.spacecraft-comparison :focus-visible, .pair-stage canvas:focus-visible { outline: 2px solid #9edfff; outline-offset: 2px; }
+.spacecraft-comparison [data-partner] { background: #253d4e; color: #c5ebff; margin: 0 0 .4rem; }
+.spacecraft-comparison .pair-results { max-height: 13rem; overflow-y: auto; margin: .25rem 0; font-size: .82rem; }
+.pair-results button { display: flex; width: 100%; justify-content: space-between; gap: .3rem; align-items: center; margin: .16rem 0; }
+.pair-results small { flex-shrink: 0; color: #abc1d2; }
+.pair-content { margin-top: .7rem; }
+.pair-heading, .pair-time, .pair-earth, .pair-actions {
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .35rem;
+}
+.pair-heading { margin: .4rem 0; }
+.pair-heading [data-names] { font-weight: 600; font-size: .87rem; overflow-wrap: anywhere; }
+.pair-heading [data-end], .pair-time [data-clock] { padding: .2rem .4rem; font-size: .7rem; }
+.pair-measure { display: grid; justify-items: start; gap: .1rem; margin: .65rem 0 .35rem; }
+.pair-measure span, .pair-time time { color: #b9cbd9; font-size: .76rem; }
+.pair-measure strong { font-size: clamp(1.18rem,2vw,1.7rem); font-variant-numeric: tabular-nums; font-weight: 650; }
+.pair-time time { font-variant-numeric: tabular-nums; }
+.pair-positions { margin: .55rem 0; color: #ccdae6; font-size: .76rem; font-variant-numeric: tabular-nums; }
+.pair-positions p { white-space: pre-line; margin: .2rem 0; }
+.pair-views, .pair-actions { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: .3rem; margin: .5rem 0; }
+.pair-views button[aria-pressed=true] { border-color: #ffcd79; color: #ffdda3; background: #332c22; }
+.pair-earth { justify-content: flex-start; gap: .7rem; margin: .45rem 0; }
+.pair-earth label { display: inline-flex; align-items: center; gap: .25rem; font-size: .8rem; }
+.pair-earth input { width: 1rem; height: 1rem; min-height: 1rem; margin: 0; accent-color: #ffd58e; }
+.spacecraft-comparison p, .spacecraft-comparison details, .spacecraft-comparison [data-copy-status] { font-size: .78rem; line-height: 1.45; overflow-wrap: anywhere; }
+.spacecraft-comparison .pair-status { margin: .25rem 0; color: #ffdda3; }
+.spacecraft-comparison details { margin: .5rem 0; }
+.spacecraft-comparison a { color: #a9dfff; }
+.pair-stage { position: relative; overflow: hidden; isolation: isolate; width: 100%; height: clamp(180px,26vh,275px);
+    border: 1px solid #35475a; border-radius: .65rem; background: #060d18; color: #ecf5ff; }
+.pair-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; }
+.pair-stage[aria-busy=true]::before { content: 'Loading comparison…'; position: absolute; top: 48%; width: 100%;
+    text-align: center; color: #bbcee0; font: 13px system-ui,sans-serif; }
+.pair-stage[aria-busy=true] > * { visibility: hidden; }
+.pair-stage.pair-inspecting canvas { cursor: grab; touch-action: none; }
+.pair-inspecting canvas:active { cursor: grabbing; }
+.pair-stage.pair-inspecting::after { content: ''; position: absolute; left: 50%; top: 9%; bottom: 9%; border-left: 1px solid #3c4c5c; pointer-events: none; }
+.pair-tag, .pair-leader, .pair-dot, .pair-line-value { position: absolute; left: 0; top: 0; pointer-events: none; }
+.pair-0 { --pair-ink: #ffcf7c; }
+.pair-1 { --pair-ink: #92dbff; }
+.pair-tag { z-index: 3; box-sizing: border-box; max-width: 88%; padding: .22rem .44rem; border: 1px solid var(--pair-ink);
+    border-radius: .35rem; background: #0b1625ed; font: 500 12px/1.3 system-ui,sans-serif; color: var(--pair-ink); text-align: center; overflow-wrap: anywhere; }
+.pair-tag b { font-weight: 600; }
+.pair-tag[data-focus] { pointer-events: auto; cursor: pointer; }
+.pair-tag:focus-visible { outline: 2px solid white; outline-offset: 2px; }
+.pair-stage.pair-inspecting.pair-shared::after { display: none; }
+.pair-orbit-legend { display: flex; flex-wrap: wrap; gap: .25rem 1.2rem; list-style: none; margin: 0; padding: .32rem .65rem;
+    background: #0d1824; color: #e2eef5; font: 12px/1.4 system-ui,sans-serif; }
+.pair-orbit-legend li { display: inline-flex; align-items: center; gap: .4rem; }
+.pair-orbit-legend li::before { content: ''; width: .45rem; height: .45rem; flex: none; border-radius: 50%; background: var(--pair-ink); }
+.pair-orbit-legend .pair-1::before { border-radius: 0; }
+.pair-show-tracks li::before { width: 1.4rem; height: 0; background: none; border-radius: 0; border-top: 2px solid var(--pair-ink); }
+.pair-show-tracks li.pair-1::before { border-top-style: dashed; }
+.pair-tag small { display: block; font-size: 10px; color: #e1eaf3; }
+.pair-leader { height: 1px; background: var(--pair-ink); transform-origin: 0 0; opacity: .82; }
+.pair-dot { width: 7px; height: 7px; box-sizing: border-box; margin: -3.5px; border: 2px solid var(--pair-ink); border-radius: 50%; background: #071222; }
+.pair-dot.pair-1 { border-radius: 0; }
+.pair-line-value { transform: translateX(-50%); background: #0b1625eb; color: #edf6ff; padding: 2px 5px; font: 600 12px/1.4 system-ui,sans-serif; border-radius: .25rem; }
+.pair-inspecting .pair-tag { max-width: 46%; }
+.pair-inspecting .pair-dot, .pair-inspecting .pair-leader { display: none; }
+#selectedComparison { margin-top: .5rem; padding: .6rem .5rem; border-top: 1px solid #405367; }
+#viewerComparison { margin: 0 0 .8rem; padding-bottom: .55rem; border-bottom: 1px solid #3a4b5c; }
+#comparisonStageHost:empty, #mapComparisonStageHost:empty { display: none; }
+.pair-workspace {
+    display: flex; flex-direction: column; box-sizing: border-box; width: 100%; height: 100%; overflow: hidden;
+    border: 1px solid #35475a; border-radius: .65rem; background: #060d18; color: #eaf3fb;
+}
+.pair-workspace .pair-stage { flex: 1 1 auto; min-height: 0; border: 0; border-radius: 0; }
+.pair-camera-toolbar { flex: none; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+    gap: .4rem .8rem; padding: .48rem .6rem; border-bottom: 1px solid #34475d; background: #101e2c; font: 13px/1.35 system-ui,sans-serif; }
+.pair-main-presets, .pair-main-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .28rem; }
+.pair-camera-toolbar button { width: auto; min-height: 30px; min-width: 0; padding: .26rem .5rem; border: 1px solid #40556b;
+    border-radius: .35rem; background: #142334; color: #deedf8; font: inherit; cursor: pointer; }
+.pair-camera-toolbar button[aria-pressed=true] { border-color: #ffcd79; background: #342c21; color: #ffdda3; }
+.pair-camera-toolbar button:disabled { opacity: .43; cursor: default; }
+.pair-camera-toolbar label { display: inline-flex; gap: .32rem; align-items: center; white-space: nowrap; font: inherit; }
+.pair-camera-toolbar input { width: 1rem; min-height: 1rem; margin: 0; accent-color: #ffd58e; }
+.pair-camera-toolbar :focus-visible { outline: 2px solid #a8dfff; outline-offset: 2px; }
+.pair-camera-toolbar [data-back] { color: #c2e8ff; }
+#mapComparisonStageHost {
+    position: fixed; z-index: 2094; left: 400px; right: calc(var(--catalog-panel-width,300px) + var(--catalog-panel-right,16px) + 10px);
+    top: var(--catalog-panel-top,90px); bottom: calc(var(--data-status-height,0px) + var(--timeline-height,0px) + 10px);
+}
+body:has(#controlsContainer.menu-hidden) #mapComparisonStageHost { left: 10px; }
+body.pair-full-active > canvas { visibility: hidden; }
+.pair-full-active .shell > section, .pair-full-active .diagnostics .panel-body > :not(#viewerComparison),
+.pair-full-active #copyDiagnosticsBtn, .pair-full-active > canvas, .pair-full-active .status-bar { display: none; }
+@media (min-width: 901px) {
+    .pair-full-active .shell { display: flex; justify-content: flex-end; }
+    .pair-full-active .diagnostics { width: 320px; max-height: calc(100dvh - 36px); }
+    #comparisonStageHost { position: fixed; inset: 18px 350px 18px 18px; }
+}
+@media (max-width: 900px) {
+    .pair-full-active { display: flex; flex-direction: column; }
+    #comparisonStageHost { order: -1; flex: none; box-sizing: border-box; width: calc(100% - 20px);
+        height: clamp(330px,58dvh,570px); margin: 10px 10px 0; }
+    .pair-full-active .shell { flex: none; }
+    .pair-full-active .diagnostics { overflow: visible; }
+}
+@media (max-width: 1100px) {
+    .map-pair-active #controlsContainer, .map-pair-active #menuToggleBtn { visibility: hidden; }
+    .map-pair-active #mapComparisonStageHost, body.map-pair-active:has(#controlsContainer.menu-hidden) #mapComparisonStageHost {
+        left: 8px;
+    }
+}
+@media (max-width: 760px) {
+    .map-pair-active { --comparison-panel-height: clamp(130px,30dvh,265px); }
+    .map-pair-active #mapComparisonStageHost, body.map-pair-active:has(#controlsContainer.menu-hidden) #mapComparisonStageHost {
+        right: 8px; top: var(--catalog-panel-top,86px);
+        bottom: calc(var(--comparison-panel-height) + var(--data-status-height,0px) + 14px);
+    }
+    .map-pair-active #catalogPanel { position: fixed; left: 8px; right: 8px; top: auto;
+        bottom: calc(var(--data-status-height,0px) + 7px); width: auto; height: var(--comparison-panel-height); max-height: none; }
+    .map-pair-active #catalogPanel > :not(#selectedComparison) { display: none; }
+    .map-pair-active #selectedComparison { border: 0; margin: 0; padding: 0; }
+    .pair-camera-toolbar { gap: .3rem; padding: .35rem; }
+    .pair-main-presets { width: 100%; }
+    .pair-camera-toolbar button { min-height: 32px; font-size: .75rem; }
+}

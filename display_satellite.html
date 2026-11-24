@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="openbexi-dependency-policy" content="packaged-first-with-cdn-fallback">
     <title>Satellite Model Viewer</title>
+    <link rel="stylesheet" href="css/spacecraftComparison.css">
     <script>
         if (new URLSearchParams(location.search).get('embed') === '1') {
             document.documentElement.classList.add('model-embed');
@@ -475,6 +476,29 @@
                 grid-template-columns: 1fr;
             }
         }
+        .service-panel { margin-bottom: 1rem; }
+        .earth-options { min-inline-size: 0; margin: .3rem 0 .65rem; border: 0; border-bottom: 1px solid var(--line); padding: .35rem 0 .65rem; }
+        .earth-options label { display: inline-flex; gap: .35rem; align-items: center; margin-right: .8rem; font-size: .84rem; }
+        .earth-options input { width: 1rem; min-height: 1rem; margin: 0; accent-color: #ffd17c; }
+        .earth-options p { margin: .45rem 0 0; font-size: .78rem; line-height: 1.4; }
+        #modelPositionTle { margin-top: .4rem; font-size: .78rem; }
+        #modelPositionTle pre { overflow-x: auto; font-size: .7rem; }
+        #earthCameraControls { margin-top: .45rem; }
+        #earthCameraControls button { padding: .35rem .5rem; font-size: .76rem; }
+        #earthCameraControls button[aria-pressed="true"], #modelInspectionViews button[aria-pressed="true"] { border-color: #ffd17c; color: #ffe1a9; }
+        .earth-options a, #wavefrontDownload { color: #9bd6ff; }
+        #wavefrontDownload { display: inline-block; margin: 0 0 .6rem; font-size: .84rem; }
+        #wavefrontDownload[hidden] { display: none; }
+        #modelInspectionViews { display:flex; flex-wrap:wrap; gap:.4rem; margin-bottom:.6rem; }
+        #modelInspectionViews[hidden] { display:none; }
+        .service-panel h3 { margin: 0 0 .35rem; font-size: 1rem; }
+        .service-panel p, .service-panel details { margin: .45rem 0; font-size: .82rem; line-height: 1.45; }
+        .service-panel summary { cursor: pointer; }
+        .service-panel a { color: #93cfff; }
+        .service-panel pre { max-width: 100%; overflow-x: auto; padding: .4rem; background: #101923; font-size: .73rem; }
+        #serviceCaption { display: none; }
+        .model-embed #serviceCaption:not([hidden]) { display: block; position: fixed; left: .45rem; bottom: .4rem;
+            padding: .22rem .45rem; font-size: .7rem; background: #101923df; color: white; border-radius: .25rem; pointer-events: none; }
         .model-embed body { overflow: hidden; }
         .model-embed .shell, .model-embed .status-bar.success { display: none; }
         .model-embed .status-bar {
@@ -506,6 +530,9 @@
                     <option value="meo">Current MEO spacecraft</option>
                     <option value="geo">Current GEO spacecraft</option>
                 </optgroup>
+                <optgroup label="Mission">
+                    <option value="life-extension">Satellite life extension</option>
+                </optgroup>
                 <optgroup label="Historical spacecraft">
                     <option value="leo-history">Historical LEO spacecraft</option>
                     <option value="history">Historical MEO spacecraft</option>
@@ -513,7 +540,7 @@
                 </optgroup>
             </select>
             <div class="toolbar">
-                <input id="modelSearchInput" type="search" aria-label="Search catalog" autocomplete="off" placeholder="Search models, type, or tag">
+                <input id="modelSearchInput" type="search" aria-label="Search catalog" autocomplete="off" placeholder="Search models, or enter a NORAD ID and press Enter">
                 <button id="reloadBtn" type="button">Reload</button>
             </div>
             <div class="catalog-pages">
@@ -548,11 +575,30 @@
             <button id="copyDiagnosticsBtn" type="button" aria-label="Copy diagnostics">Copy</button>
         </header>
         <div class="panel-body">
+            <section id="viewerComparison" aria-label="Spacecraft comparison" hidden></section>
+            <fieldset class="earth-options" aria-label="Orbital view">
+                <label><input type="checkbox" id="modelEarth">Show Earth</label>
+                <label><input type="checkbox" id="modelFootprint" disabled>Show footprint</label>
+                <div id="earthCameraControls" hidden>
+                    <button type="button" data-earth-camera="inspect" aria-pressed="false">Earth behind spacecraft</button>
+                    <button type="button" data-earth-camera="overview" aria-pressed="false">Fit Earth and spacecraft</button>
+                </div>
+                <p id="modelEarthStatus" role="status" hidden></p>
+                <p id="modelOrbitPosition" aria-live="off" hidden></p>
+                <p id="modelCameraDistance" aria-live="off" hidden></p>
+                <details id="modelPositionTle" hidden><summary>Position TLE</summary><pre></pre></details>
+                <p id="modelBeamNotice" role="status" hidden></p>
+            </fieldset>
+            <a id="wavefrontDownload" download hidden></a>
+            <div id="modelInspectionViews" role="group" aria-label="Spacecraft detail views" hidden></div>
+            <section id="servicePanel" class="service-panel" aria-live="polite" hidden></section>
             <dl id="diagnosticsGrid" class="diagnostics-grid"></dl>
         </div>
     </aside>
 </main>
 
+<section id="comparisonStageHost" aria-label="Main spacecraft comparison view"></section>
+<div id="serviceCaption" hidden></div>
 <div id="statusBar" class="status-bar">
     <span id="statusPill" class="pill">Idle</span>
     <span id="statusMessage" class="status-message">Preparing viewer...</span>
@@ -561,9 +607,11 @@
 <script id="display-satellite-main-module" type="text/openbexi-module">
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-    import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
-    import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+    import { disposeObject, loadGlb, loadGlbGroup, loadObjMtl } from './js/spacecraftMesh.js';
+    import { mountSpacecraftComparison } from './js/spacecraftComparisonPanel.js';
+    import { comparisonObject } from './js/comparisonCatalog.js';
+    import { uniqueModelNorad } from './js/satelliteModelResolver.js';
+    import { attachmentAt, extensionFamilies, lifeExtensionFamily, lifeExtensionSearchText, MEP_ASSET, MEV_ASSET, mevFlights } from './js/lifeExtensionCatalog.js';
 
     const DISPLAY_MODEL_API_URL = '/api/display-satellite-models';
     const DISPLAY_MODEL_MANIFEST_URL = 'json/display_satellite_models.json';
@@ -738,7 +786,7 @@
     const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.001, 100000);
     camera.position.set(0, 1.2, 6);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -756,20 +804,103 @@
     gridHelper.position.y = -1;
     scene.add(axesHelper);
     scene.add(gridHelper);
-    scene.add(new THREE.HemisphereLight(0xe8f5ff, 0x142033, 1.8));
+    const earthBox = document.getElementById('modelEarth');
+    const initialComparisonUrl = new URL(location.href);
+    let singleEarthPreference = false;
+    const comparison = !embedded && mountSpacecraftComparison(document.getElementById('viewerComparison'), {
+        library:()=>state.manifest,
+        stageHost:document.getElementById('comparisonStageHost'), initialUrl:initialComparisonUrl, earth:()=>earthBox.checked,
+        onActive(active) {
+            if (active && !document.body.classList.contains('pair-full-active')) singleEarthPreference=earthBox.checked;
+            document.body.classList.toggle('pair-full-active',active);
+            document.querySelector('.diagnostics h2').textContent=active ? 'Spacecraft comparison' : 'Model Diagnostics';
+            if (active) earthView?.reset();
+            else {
+                const url=new URL(location.href);
+                for (const key of ['compare','view','orbits','zoom','primaryZoom','tleRevision','spin','footprint']) url.searchParams.delete(key);
+                url.hash=''; history.replaceState(null,'',url);
+                earthBox.checked=singleEarthPreference;
+                earthBox.dispatchEvent(new Event('change'));
+                if (!state.selectedEntry && !state.loadingManager) loadSingleSelection(url.searchParams);
+            }
+        },
+        onLink(url) {if (url.href!==location.href) history.replaceState(null,'',url);}
+    });
+    function comparisonPrimary(entry,member) {
+        if (!comparison) return;
+        const id=member?.norad || uniqueModelNorad(entry);
+        const model=member?.profileId || (entry.family==='MEP' ? MEP_ASSET : entry.id);
+        comparison.setPrimary(comparisonObject(id || 'model:'+model, member?.name || entry.displayName, model));
+    }
+    const wavefrontDownload = document.getElementById('wavefrontDownload');
+    const inspectionViews = document.getElementById('modelInspectionViews');
+    let earthView, earthModule;
+    function viewportWidth() {
+        const midpoint = window.innerWidth/2;
+        const left = dom.modelList.closest('.panel').getBoundingClientRect().right;
+        const right = dom.diagnosticsGrid.closest('.panel').getBoundingClientRect().left;
+        const gap = 2*Math.min(midpoint-left, right-midpoint);
+        return gap > 0 ? gap : window.innerWidth;
+    }
+    function syncEarth() {
+        if (comparison?.active) return;
+        return earthView?.refresh({root: state.currentModel, entry: state.selectedEntry, member: state.selectedMember,
+            view: state.lastDiagnostics?.servicing, scaleInfo: state.lastScaleInfo});
+    }
+    earthBox.addEventListener('change', async () => {
+        inspectionViews.hidden=earthBox.checked || !inspectionViews.childElementCount;
+        const url = new URL(window.location.href);
+        if (earthBox.checked) url.searchParams.set('earth', '1');
+        else url.searchParams.delete('earth');
+        history.replaceState(null, '', url);
+        if (!earthBox.checked) {
+            earthView?.reset();
+            const detail=url.searchParams.get('detail');
+            if (detail) Array.from(inspectionViews.children).find(b=>b.dataset.detail===detail)?.click();
+            return;
+        }
+        try {
+            earthModule ??= import('./js/modelViewerEarth.js');
+            const {createModelEarthView} = await earthModule;
+            earthView ??= createModelEarthView({scene, camera, controls, axes: axesHelper, grid: gridHelper, viewportWidth,
+                redraw: () => { if (embedded) renderer.render(scene, camera); }});
+            await syncEarth();
+        } catch {
+            earthModule = null;
+            const status = document.getElementById('modelEarthStatus');
+            status.hidden = false;
+            status.textContent = 'Earth view could not load. Toggle Show Earth to retry.';
+        }
+    });
+    if (!initialComparisonUrl.searchParams.has('compare') && initialComparisonUrl.searchParams.get('earth') === '1') {
+        earthBox.checked = true;
+        earthBox.dispatchEvent(new Event('change'));
+    }
+    function updateDownload(entry, view) {
+        const file = view?.shownPair && view.client?.norad === '28358' ? 'geo/intelsat-10-02.glb' : entry?.files.glb;
+        const name = {'geo/mep.glb':'Mission Extension Pod', 'geo/intelsat-10-02.glb':'Intelsat 10-02',
+            'geo/horizons-3e.glb':'Horizons 3e'}[file];
+        wavefrontDownload.hidden = !name;
+        if (!name) { wavefrontDownload.removeAttribute('href'); return; }
+        wavefrontDownload.href = 'obj/exports/'+file.slice(4,-4)+'.zip';
+        wavefrontDownload.textContent = 'Download '+name+' OBJ with materials';
+    }
+    const studioLights = new THREE.Group();
+    scene.add(studioLights);
+    studioLights.add(new THREE.HemisphereLight(0xe8f5ff, 0x142033, 1.8));
 
     const keyLight = new THREE.DirectionalLight(0xffffff, 3.1);
     keyLight.position.set(4, 6, 8);
-    scene.add(keyLight);
+    studioLights.add(keyLight);
 
     const rimLight = new THREE.DirectionalLight(0x8fd3ff, 1.8);
     rimLight.position.set(-5, 2, -4);
-    scene.add(rimLight);
+    studioLights.add(rimLight);
 
     const previewFill = new THREE.DirectionalLight(0xe2e9f2, 1.15);
     previewFill.position.set(-2, -5, 3);
     previewFill.visible = false;
-    scene.add(previewFill);
+    studioLights.add(previewFill);
 
     function escapeHtml(value) {
         return String(value ?? '')
@@ -819,6 +950,7 @@
     }
 
     function modelAssetPath(entry) {
+        if (entry.type === 'position') return 'TLE position marker';
         const basePath = state.manifest.basePath || 'obj/';
         if (entry.type === 'glb') return `${basePath}${entry.files.glb}`;
         if (entry.type === 'glb-group') return `${basePath}${entry.id} (${entry.files.glbs?.length || 0} GLB components)`;
@@ -942,6 +1074,15 @@
     const nameOrder = new Intl.Collator('en', { numeric: true });
     let trackedLoader;
     let scopeRequest = 0;
+    let inspectAlone = false;
+    const servicePanel = document.getElementById('servicePanel');
+    const serviceCaption = document.getElementById('serviceCaption');
+
+    function clearServicePanel() {
+        servicePanel.hidden = serviceCaption.hidden = true;
+        servicePanel.replaceChildren();
+        serviceCaption.textContent = '';
+    }
 
     function catalogEntries() {
         return state.scope === 'models' ? state.models : state.orbitModels;
@@ -962,7 +1103,8 @@
                 name: record.satellite_name,
                 norad: String(record.norad_id),
                 profileId: resolved.profile.id,
-                searchText: (record.satellite_name + ' NORAD ' + record.norad_id).toLowerCase(),
+                family: lifeExtensionFamily(record),
+                searchText: (record.satellite_name + ' NORAD ' + record.norad_id + ' ' + lifeExtensionSearchText(record)).toLowerCase(),
                 profileText: profile.searchText
             });
         }
@@ -975,26 +1117,65 @@
         });
     }
 
+    function serviceDirectory(records, resolveSatelliteModel) {
+        const vehicles = records.filter(record => lifeExtensionFamily(record));
+        const listed = new Set(vehicles.map(record => String(record.norad_id)));
+        for (const [norad, flight] of Object.entries(mevFlights)) {
+            if (!listed.has(norad)) vehicles.push({ norad_id: norad, satellite_name: flight.name, object_type: 'PAYLOAD', orbit_class: 'GEO' });
+        }
+        const modeled = vehicles.filter(record => resolveSatelliteModel(record).assetId === MEV_ASSET);
+        const entries = groupSpacecraft(modeled, resolveSatelliteModel);
+        // Keep an unassigned family searchable without assigning an anonymous
+        // launch object, a host's TLE or another spacecraft's geometry to it.
+        const addRecord = (key, record) => {
+            const family = extensionFamilies[key];
+            const id = record ? String(record.norad_id) : null;
+            const member = id ? { name: record.satellite_name, norad: id, family: key } : null;
+            const entry = { id: 'mission-' + (id || key.toLowerCase()), type: 'mission', family: key,
+                displayName: member?.name || family.name + ' (' + key + ')', files: {}, tags: [family.role],
+                description: family.description || family.role, members: member ? [member] : [],
+                searchText: [family.name, key, family.role, 'Satellite life extension', member?.name, id].join(' ').toLowerCase() };
+            const model = state.profilesById.get(family.model)?.model;
+            if (model) Object.assign(entry, {type: model.type, files: model.files, description: model.description});
+            if (member) {
+                member.searchText = member.profileText = entry.searchText;
+                state.membersByNorad.set(id, { entry, member });
+            }
+            entries.push(entry);
+        };
+        for (const record of vehicles) {
+            if (!state.membersByNorad.has(String(record.norad_id))) addRecord(lifeExtensionFamily(record), record);
+        }
+        for (const key of ['MEP', 'MRV']) {
+            if (!vehicles.some(record => lifeExtensionFamily(record) === key)) addRecord(key);
+        }
+        return entries;
+    }
+
     async function browseCatalog(scope, requestedNorad, requestedModel) {
+        if (!requestedNorad && !requestedModel && comparison) comparison.setPrimary(null);
         const request = ++scopeRequest;
         state.scope = scope;
         state.orbitModels = [];
         state.membersByNorad.clear();
         state.page = 0;
         state.loadingManager = null;
+        inspectAlone = false;
+        clearServicePanel();
         clearCurrentModel();
         state.selectedEntry = null;
         state.selectedMember = null;
         dom.catalogScope.value = scope;
         dom.modelSearchInput.value = '';
-        dom.modelSearchInput.placeholder = scope === 'models' ? 'Search models, type, or tag' : 'Search by name, NORAD ID, or platform';
+        dom.modelSearchInput.placeholder = scope === 'models' ? 'Search models, or enter a NORAD ID and press Enter' : 'Search by name, NORAD ID, or platform';
         renderModelList();
         if (scope === 'models') {
             loadSelectedModel(DEFAULT_MODEL_ID);
             return;
         }
         const historical = scope === 'history' || scope.endsWith('-history');
-        const orbit = scope === 'history' ? 'MEO' : scope.split('-')[0].toUpperCase();
+        const serviceScope = scope === 'life-extension';
+        const orbit = serviceScope ? 'life-extension' : scope === 'history' ? 'MEO' : scope.split('-')[0].toUpperCase();
         const params = new URLSearchParams(window.location.search);
         params.set('catalog', scope);
         if (requestedModel && !requestedNorad) params.set('model', requestedModel);
@@ -1012,12 +1193,20 @@
             ]);
             if (request !== scopeRequest) return;
             trackedLoader ??= tracked.createTrackedObjectCatalogLoader();
-            const { records } = await trackedLoader.load({ objectTypes: ['PAYLOAD'], includeHistorical: historical });
+            let directoryAvailable = true;
+            const { records } = await trackedLoader.load({ objectTypes: ['PAYLOAD'], includeHistorical: historical }).catch(error => {
+                if (!serviceScope) throw error;
+                directoryAvailable = false;
+                return { records: [] };
+            });
             if (request !== scopeRequest) return;
-            state.orbitModels = groupSpacecraft(records.filter(record => record.object_type === 'PAYLOAD'
-                && record.orbit_class === orbit && tracked.isHistoricalTrackedRecord(record) === historical), resolveSatelliteModel);
+            state.directoryAvailable = directoryAvailable;
+            const payloads = records.filter(record => record.object_type === 'PAYLOAD' &&
+                tracked.isHistoricalTrackedRecord(record) === historical);
+            state.orbitModels = serviceScope ? serviceDirectory(payloads, resolveSatelliteModel)
+                : groupSpacecraft(payloads.filter(record => record.orbit_class === orbit), resolveSatelliteModel);
             const target = state.membersByNorad.get(requestedNorad);
-            const modelId = target?.entry.id || state.profilesById.get(requestedModel)?.model.id;
+            const modelId = target?.entry.id || state.profilesById.get(requestedModel)?.model.id || requestedModel;
             const index = state.orbitModels.findIndex(entry => entry.id === modelId);
             if (index >= 0) state.page = Math.floor(index / pageSize);
             renderModelList();
@@ -1026,7 +1215,8 @@
             } else if (index < 0 && requestedModel) {
                 setStatus('warning', 'Catalog', `Model ${escapeHtml(requestedModel)} is absent from this catalog.`);
             } else if (state.orbitModels.length) {
-                loadSelectedModel(state.orbitModels[Math.max(0, index)].id, target?.member);
+                const entry = state.orbitModels[Math.max(0, index)];
+                await loadSelectedModel(entry.id, target?.member || (serviceScope ? entry.members[0] : null));
             } else {
                 setStatus('success', 'Catalog', `No ${historical ? 'historical ' : ''}${orbit} spacecraft in the published catalog.`);
             }
@@ -1044,6 +1234,14 @@
         const matches = [];
         for (const entry of catalogEntries()) {
             let members = entry.members;
+            if (members?.length && (state.scope === 'life-extension' || entry.id === MEV_ASSET)) {
+                for (const member of members) {
+                    if (!query || member.searchText.includes(query) || (!/\bmev[- ]?\d/.test(query) && entry.searchText.includes(query))) {
+                        matches.push({ entry, member, count: 1 });
+                    }
+                }
+                continue;
+            }
             if (query && !entry.searchText.includes(query)) {
                 members = members?.filter(member => member.searchText.includes(query) || member.profileText.includes(query));
                 if (!members?.length) continue;
@@ -1061,7 +1259,8 @@
         const start = paged ? state.page * pageSize : 0;
         const visible = paged ? filtered.slice(start, start + pageSize) : filtered;
         const pageLabel = paged ? `${start + 1}–${start + visible.length} of ` : '';
-        const modelCount = `${filtered.length.toLocaleString()} ${filtered.length === 1 ? 'model' : 'models'}`;
+        const noun = state.scope === 'life-extension' ? ['entry', 'entries'] : ['model', 'models'];
+        const modelCount = `${filtered.length.toLocaleString()} ${noun[filtered.length === 1 ? 0 : 1]}`;
         const spacecraftCount = filtered.reduce((sum, row) => sum + row.count, 0);
         dom.modelCount.textContent = pageLabel + modelCount
             + (state.scope === 'models' ? '' : ` · ${spacecraftCount.toLocaleString()} spacecraft`);
@@ -1069,12 +1268,12 @@
         dom.previousPage.disabled = !start;
         dom.nextPage.disabled = start + pageSize >= filtered.length;
         dom.modelList.innerHTML = visible.map(({ entry, count, member }) => {
-            const active = state.selectedEntry?.id === entry.id;
+            const active = state.selectedEntry?.id === entry.id && (!member || state.selectedMember?.norad === member.norad);
             const spacecraft = member || (active && !query ? state.selectedMember : null);
             const files = modelRequiredFiles(entry).map(file => `<code>${escapeHtml(file)}</code>`).join(', ');
-            const format = entry.type.toUpperCase();
+            const format = entry.type === 'mission' ? 'Mission' : entry.type.toUpperCase();
             const tags = entry.tags.filter(tag => !['OBJ', 'MTL', format].includes(String(tag).toUpperCase())).slice(0, 3);
-            if (entry.members) {
+            if (entry.members?.length && !member) {
                 const total = entry.members.length.toLocaleString();
                 tags.unshift((count === entry.members.length ? total : `${count.toLocaleString()} of ${total}`) + ' spacecraft');
             }
@@ -1083,11 +1282,11 @@
                         data-model-id="${escapeHtml(entry.id)}" data-model-type="${escapeHtml(entry.type)}"
                         ${spacecraft ? `data-norad="${escapeHtml(spacecraft.norad)}"` : ''}>
                     <span class="model-name">
-                        <span>${escapeHtml(entry.displayName)}</span>
+                        <span>${escapeHtml(member?.family ? member.name : entry.displayName)}</span>
                         <span class="pill">${escapeHtml(format)}</span>
                     </span>
                     ${tags.length ? `<span class="model-meta">${escapeHtml(tags.join(' / '))}</span>` : ''}
-                    ${spacecraft ? `<span class="model-meta">${escapeHtml(spacecraft.name)} · NORAD ${escapeHtml(spacecraft.norad)}</span>` : ''}
+                    ${spacecraft ? `<span class="model-meta">${member?.family ? '' : escapeHtml(spacecraft.name) + ' · '}NORAD ${escapeHtml(spacecraft.norad)}</span>` : ''}
                     <span class="model-desc">${escapeHtml(entry.description || 'No description available.')}</span>
                     <span class="model-meta">${files}</span>
                 </button>
@@ -1316,31 +1515,63 @@
         };
     }
 
-    function disposeMaterial(material) {
-        if (!material) return;
-        Object.keys(material).forEach(key => {
-            const value = material[key];
-            if (value?.isTexture) value.dispose();
-        });
-        material.dispose?.();
-    }
-
-    function disposeObject(root) {
-        root?.traverse(child => {
-            child.geometry?.dispose?.();
-            if (Array.isArray(child.material)) {
-                child.material.forEach(disposeMaterial);
-            } else {
-                disposeMaterial(child.material);
-            }
-        });
-    }
-
     function clearCurrentModel() {
+        earthView?.reset();
+        updateDownload(null);
+        inspectionViews.replaceChildren();
+        inspectionViews.hidden=true;
         if (!state.currentModel) return;
         scene.remove(state.currentModel);
         disposeObject(state.currentModel);
         state.currentModel = null;
+    }
+
+    function orientModelPreview(root) {
+        studioLights.quaternion.identity();
+        const previewUp = root.getObjectByName('OpenBEXIPreview')?.userData?.previewUp;
+        if (Array.isArray(previewUp) && previewUp.length === 3 && previewUp.every(Number.isFinite)) {
+            const up = new THREE.Vector3(...previewUp);
+            if (up.lengthSq() > 0) {
+                // Use the artwork's vertical in the Y-up turntable. Turn the
+                // lights partway with it to illuminate both deck and side panels.
+                const turn = new THREE.Quaternion().setFromUnitVectors(up.normalize(), camera.up);
+                root.quaternion.premultiply(turn);
+                studioLights.quaternion.slerp(turn, 0.55);
+            }
+        }
+    }
+
+    function showInspectionViews(root,params) {
+        const url=new URL(location.href);
+        let selected;
+        root.traverse(node=>{
+            const {inspectionView,label,target,radius}=node.userData;
+            if (!node.isCamera || !inspectionView || !Array.isArray(target) || !(radius>0)) return;
+            const button=document.createElement('button');
+            button.type='button';button.textContent=label;
+            button.dataset.detail=inspectionView;
+            button.setAttribute('aria-pressed','false');
+            button.addEventListener('click',()=>{
+                if (earthBox.checked || root!==state.currentModel) return;
+                const point=root.localToWorld(new THREE.Vector3().fromArray(target));
+                const direction=node.getWorldPosition(new THREE.Vector3()).sub(point).normalize();
+                const fit=Math.min(1,viewportWidth()/window.innerHeight);
+                const halfAngle=Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov/2))*fit);
+                const distance=radius*root.getWorldScale(new THREE.Vector3()).x/Math.sin(halfAngle);
+                controls.target.copy(point);
+                camera.position.copy(point).addScaledVector(direction,distance);
+                camera.near=distance/2000;camera.far=distance*100;
+                camera.updateProjectionMatrix();controls.update();
+                for (const preset of inspectionViews.children) preset.setAttribute('aria-pressed',String(preset===button));
+                const current=new URL(location.href);
+                current.searchParams.set('detail',inspectionView);history.replaceState(null,'',current);
+            });
+            inspectionViews.append(button);
+            if (params.get('detail')===inspectionView) selected=button;
+        });
+        inspectionViews.hidden=earthBox.checked || !inspectionViews.childElementCount;
+        if (selected && !inspectionViews.hidden) selected.click();
+        else if (!selected && url.searchParams.has('detail')) {url.searchParams.delete('detail');history.replaceState(null,'',url);}
     }
 
     function fitCameraToObject(root) {
@@ -1363,11 +1594,7 @@
         previewFill.visible = Boolean(previewCamera?.isPerspectiveCamera);
         if (previewCamera?.isPerspectiveCamera) {
             // Fit the authored view between the side panels, or across the canvas on mobile.
-            const centerX = window.innerWidth / 2;
-            const leftEdge = dom.modelList.closest('.panel').getBoundingClientRect().right;
-            const rightEdge = dom.diagnosticsGrid.closest('.panel').getBoundingClientRect().left;
-            const gap = 2 * Math.min(centerX - leftEdge, rightEdge - centerX);
-            const viewWidth = gap > 0 ? gap : window.innerWidth;
+            const viewWidth = viewportWidth();
             const halfFov = THREE.MathUtils.degToRad(camera.fov / 2);
             const fitDistance = safeDiameter * 0.55 * window.innerHeight / (viewWidth * Math.tan(halfFov));
             const previewDistance = Math.max(distance, fitDistance);
@@ -1454,63 +1681,6 @@
         `).join('');
     }
 
-    async function loadObjMtl(entry, manager, warnings) {
-        const basePath = state.manifest.basePath || 'obj/';
-        const mtlLoader = new MTLLoader(manager);
-        mtlLoader.setPath(basePath);
-        mtlLoader.setResourcePath(basePath + entry.files.mtl.slice(0, entry.files.mtl.lastIndexOf('/') + 1));
-
-        let materials = null;
-        try {
-            materials = await mtlLoader.loadAsync(entry.files.mtl);
-            materials.preload();
-        } catch (error) {
-            warnings.push(`MTL not loaded: ${basePath}${entry.files.mtl}`);
-            console.warn(`MTL load failed for ${basePath}${entry.files.mtl}; loading OBJ with fallback material.`, error);
-        }
-
-        const objLoader = new OBJLoader(manager);
-        objLoader.setPath(basePath);
-        if (materials) objLoader.setMaterials(materials);
-        const root = await objLoader.loadAsync(entry.files.obj);
-        if (entry.previewDirection) {
-            // OBJ cannot embed a camera. Use the same authored view as the GLB fitting path.
-            const preview = new THREE.PerspectiveCamera(45, 1, 0.01, 100);
-            preview.name = 'OpenBEXIPreview';
-            preview.position.fromArray(entry.previewDirection);
-            preview.lookAt(0, 0, 0);
-            root.add(preview);
-        }
-        return root;
-    }
-
-    async function loadGlb(entry, manager) {
-        const loader = new GLTFLoader(manager);
-        loader.setPath(state.manifest.basePath || 'obj/');
-        const gltf = await loader.loadAsync(entry.files.glb);
-        const root = gltf.scene || gltf.scenes?.[0] || new THREE.Group();
-        const { dimensionNote, visualReferences } = gltf.userData || {};
-        if (typeof dimensionNote === 'string') root.userData.dimensionNote = dimensionNote;
-        if (Array.isArray(visualReferences)) root.userData.visualReferences = visualReferences;
-        return root;
-    }
-
-    async function loadGlbGroup(entry, manager) {
-        const loader = new GLTFLoader(manager);
-        loader.setPath(state.manifest.basePath || 'obj/');
-        const group = new THREE.Group();
-        group.name = entry.displayName || entry.id;
-        const glbFiles = Array.isArray(entry.files.glbs) ? entry.files.glbs : [];
-        const scenes = await Promise.all(glbFiles.map(async file => {
-            const gltf = await loader.loadAsync(file);
-            const sceneRoot = gltf.scene || gltf.scenes?.[0] || new THREE.Group();
-            sceneRoot.name = file.split('/').pop() || file;
-            return sceneRoot;
-        }));
-        scenes.forEach(sceneRoot => group.add(sceneRoot));
-        return group;
-    }
-
     let geoReferenceRegistry;
     async function refreshGeoReferences() {
         const entry = state.selectedEntry, member = state.selectedMember, diagnostics = state.lastDiagnostics;
@@ -1532,14 +1702,29 @@
         }
     }
 
-    async function loadModel(entry, member = null, reload = false) {
+    async function flightEvidence(member, reload, params) {
+        const { selectionExtensionView } = await import('./js/lifeExtensionView.js');
+        const chosen = Date.parse(params.get('at'));
+        return selectionExtensionView(member.norad, member.name, Number.isFinite(chosen) ? new Date(chosen) : new Date(), reload);
+    }
+
+    async function loadModel(entry, member = null, reload = false, togglePair = false) {
         if (!entry) return;
-        const reuse = !reload && (state.currentModel || state.loadingManager) && state.selectedEntry
-            && modelFileKey(state.selectedEntry) === modelFileKey(entry);
+        const params = new URLSearchParams(window.location.search);
+        const key = member?.norad || uniqueModelNorad(entry) || 'model:'+entry.id;
+        const instant = Date.parse(params.get('at'));
+        const attachment = attachmentAt(key,Number.isFinite(instant) ? instant : Date.now());
+        const flight = attachment ? {norad:key,name:entry.displayName} : member;
+        const pod = entry.family === 'MEP' || entry.id === MEP_ASSET;
+        const service = attachment || pod || member?.family || entry.type === 'mission' || entry.id === MEV_ASSET;
+        const reuse = !service && !reload && entry.type !== 'position' && (state.currentModel || state.loadingManager) && state.selectedEntry
+            && !state.lastDiagnostics?.servicing && !state.selectedMember?.family && state.selectedEntry.type !== 'mission' && modelFileKey(state.selectedEntry) === modelFileKey(entry);
+        if (!togglePair) inspectAlone = false;
         state.selectedEntry = entry;
         state.selectedMember = member;
+        comparisonPrimary(entry,member);
         renderModelList();
-        const params = new URLSearchParams(window.location.search);
+        if (member || params.get('model') !== entry.id) params.delete('object');
         if (entry.members) params.set('catalog', state.scope);
         else params.delete('catalog');
         if (member) {
@@ -1549,12 +1734,29 @@
             params.set('model', entry.id);
             params.delete('norad');
         }
-        history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
+        if (!comparison?.active) history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
         if (reuse) {
             refreshGeoReferences();
+            syncEarth();
             return;
         }
         clearCurrentModel();
+        clearServicePanel();
+        dom.diagnosticsGrid.replaceChildren();
+        state.lastDiagnostics = null;
+        if (entry.type === 'mission') {
+            const token = {};
+            state.loadingManager = token;
+            const ui = await import('./js/lifeExtensionViewer.js');
+            const view = member && await flightEvidence(member, reload, params);
+            if (state.loadingManager !== token) return;
+            state.loadingManager = null;
+            ui.showFamily(servicePanel, entry.family, member, state.directoryAvailable);
+            if (view) ui.showFlightEvidence(servicePanel, serviceCaption, view);
+            syncEarth();
+            setStatus('success', 'Mission', 'Mission information · no dedicated 3D model.');
+            return;
+        }
         setStatus('loading', 'Loading', `Loading <code>${escapeHtml(modelAssetPath(entry))}</code>...`);
 
         const { manager, warnings, complete } = createLoadingManager();
@@ -1562,16 +1764,30 @@
         // Keep the batch open across the MTL and OBJ requests until their textures settle.
         const asset = modelAssetPath(entry);
         manager.itemStart(asset);
-        let root;
+        let root, view, serviceUi, clientEntry;
         try {
-            if (entry.type === 'glb') {
-                root = await loadGlb(entry, manager);
+            if (entry.type === 'position') {
+                const geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3()]);
+                root = new THREE.Points(geometry, new THREE.PointsMaterial({color:0xffcf78, size:7, sizeAttenuation:false, toneMapped:false}));
+            } else if (entry.type === 'glb') {
+                root = await loadGlb(entry, manager, state.manifest.basePath);
             } else if (entry.type === 'glb-group') {
-                root = await loadGlbGroup(entry, manager);
+                root = await loadGlbGroup(entry, manager, state.manifest.basePath);
             } else {
-                root = await loadObjMtl(entry, manager, warnings);
+                root = await loadObjMtl(entry, manager, warnings, state.manifest.basePath);
+            }
+            if (service && state.loadingManager === manager) {
+                serviceUi = await import('./js/lifeExtensionViewer.js');
+                if (flight) view = await flightEvidence(flight, reload, params);
+                if (view?.attachment && !inspectAlone) {
+                    await serviceUi.addCompanionModel(root, view, profile => {
+                        clientEntry = state.profilesById.get(profile.assetId)?.model;
+                        return loadGlb(clientEntry, manager, state.manifest.basePath);
+                    }, disposeObject, () => state.loadingManager === manager);
+                }
             }
         } catch (error) {
+            if (root) disposeObject(root);
             if (state.loadingManager !== manager) return;
             state.loadingManager = null;
             throw error;
@@ -1590,23 +1806,35 @@
         setWireframeMode(state.wireframe);
         scene.add(root);
         state.lastScaleInfo = normalizeModelForDisplay(root);
-        fitCameraToObject(root);
-
         const allWarnings = [...new Set(warnings)];
         const diagnostics = collectObjectDiagnostics(root, entry, allWarnings, state.lastScaleInfo);
+        if (view) {
+            serviceUi.showFlightEvidence(servicePanel, serviceCaption, view);
+            diagnostics.servicing = view;
+            diagnostics.model = serviceCaption.textContent;
+            if (view.shownPair) diagnostics.requiredFiles.push(...modelRequiredFiles(clientEntry));
+        } else if (pod) serviceUi.showFamily(servicePanel, 'MEP', member, state.directoryAvailable);
+        else if (serviceUi) serviceUi.showFlightLinks(servicePanel);
+        orientModelPreview(root);
+        fitCameraToObject(root);
+        if (!embedded && !comparison?.active) showInspectionViews(root,params);
         updateDiagnostics(diagnostics);
+        updateDownload(entry, view);
+        syncEarth();
         refreshGeoReferences();
         setStatus(
             allWarnings.length ? 'warning' : 'success',
             allWarnings.length ? 'Loaded' : 'Ready',
-            `Loaded <code>${escapeHtml(modelAssetPath(entry))}</code>. Meshes: <code>${diagnostics.meshCount}</code>, triangles: <code>${diagnostics.triangleCount.toLocaleString()}</code>.`
+            entry.type === 'position' ? `NORAD ${escapeHtml(member.norad)} · Position marker. Spacecraft geometry is unavailable.`
+                : `Loaded <code>${escapeHtml(modelAssetPath(entry))}</code>. Meshes: <code>${diagnostics.meshCount}</code>, triangles: <code>${diagnostics.triangleCount.toLocaleString()}</code>.`
         );
     }
 
-    function loadSelectedModel(id, member, reload = false) {
+    function loadSelectedModel(id, member, reload = false, togglePair = false) {
         const entry = catalogEntries().find(model => model.id === id) || state.selectedEntry || catalogEntries()[0];
         if (!entry) return;
-        return loadModel(entry, member, reload).catch(error => {
+        return loadModel(entry, member, reload, togglePair).catch(error => {
+            if (state.selectedEntry !== entry || state.selectedMember !== (member || null)) return;
             console.error(error);
             setStatus('error', 'Error', `Failed to load <code>${escapeHtml(modelAssetPath(entry))}</code>: <code>${escapeHtml(error.message)}</code>`);
             updateDiagnostics({
@@ -1649,7 +1877,15 @@
         }
     }
 
+    function clearInspectionView() {
+        const url=new URL(location.href);
+        if (url.searchParams.has('detail')) {url.searchParams.delete('detail');history.replaceState(null,'',url);}
+        for (const preset of inspectionViews.children) preset.setAttribute('aria-pressed','false');
+    }
+
     function resetView() {
+        clearInspectionView();
+        if (earthView?.preset('inspect')) return;
         if (state.currentModel?.getObjectByName('OpenBEXIPreview')?.isPerspectiveCamera) {
             fitCameraToObject(state.currentModel);
             return;
@@ -1665,6 +1901,57 @@
             || catalogEntryFromCustom(requestedModel)
             || state.models.find(entry => entry.id === DEFAULT_MODEL_ID)
             || state.models[0];
+    }
+
+    async function openNorad(id) {
+        if (comparison) comparison.setPrimary(/^[1-9]\d{0,8}$/.test(id) ? comparisonObject(id) : null);
+        if (Object.hasOwn(mevFlights,id)) return browseCatalog('life-extension',id);
+        const token = {};
+        state.loadingManager = token;
+        clearCurrentModel();
+        clearServicePanel();
+        state.selectedEntry = state.selectedMember = state.lastDiagnostics = null;
+        dom.diagnosticsGrid.replaceChildren();
+        dom.modelSearchInput.value = '';
+        const url = new URL(window.location.href);
+        for (const key of ['model','object','catalog']) url.searchParams.delete(key);
+        url.searchParams.set('norad',id);
+        history.replaceState(null,'',url);
+        renderModelList();
+        if (!/^[1-9]\d{0,8}$/.test(id)) {
+            state.loadingManager = null;
+            setStatus('warning','NORAD','Enter a valid numeric NORAD catalog ID.');
+            return;
+        }
+        setStatus('loading','NORAD','Finding spacecraft '+id+'…');
+        try {
+            const {resolveSatelliteModel} = await import('./js/satelliteModelResolver.js');
+            let record = {norad_id:id};
+            let resolved = resolveSatelliteModel(record);
+            if (!state.profilesById.has(resolved.assetId)) {
+                const {loadPublishedTles} = await import('./js/publishedTleCatalog.js');
+                record = (await loadPublishedTles()).records.get(id) || record;
+                resolved = resolveSatelliteModel(record);
+            }
+            if (token !== state.loadingManager) return;
+            const profile = state.profilesById.get(resolved.assetId);
+            state.loadingManager = null;
+            if (!profile) {
+                if (record.tle_line1 && record.tle_line2) {
+                    const name = record.satellite_name || 'NORAD '+id;
+                    const entry = {id:'position-'+id, displayName:name, type:'position', files:{}, tags:[], textures:[]};
+                    await loadModel(entry, {norad:id, name});
+                } else setStatus('warning','NORAD','No spacecraft model or published TLE for NORAD '+id+'.');
+                return;
+            }
+            state.page = Math.max(0,Math.floor(state.models.indexOf(profile.model)/pageSize));
+            await loadSelectedModel(profile.model.id, {norad:id, name:record.satellite_name || profile.profile.displayName,
+                profileId:resolved.assetId, family:lifeExtensionFamily(record)});
+        } catch {
+            if (state.loadingManager !== token) return;
+            state.loadingManager = null;
+            setStatus('warning','NORAD','Spacecraft lookup unavailable for NORAD '+id+'.');
+        }
     }
 
     async function init() {
@@ -1685,8 +1972,23 @@
         await loadModelManifest();
         dom.catalogScope.disabled = false;
         const params = new URLSearchParams(window.location.search);
+        if (comparison && params.has('compare')) {
+            const id=params.get('norad') || params.get('object');
+            const model=params.get('model');
+            if (id || model) comparison.setPrimary(comparisonObject(id || 'model:'+model,
+                state.profilesById.get(model)?.profile.displayName,model));
+        }
+        if (comparison?.active) return;
+        await loadSingleSelection(params);
+    }
+
+    async function loadSingleSelection(params) {
         if ([...dom.catalogScope.options].some(option => option.value !== 'models' && option.value === params.get('catalog'))) {
             await browseCatalog(params.get('catalog'), params.get('norad'), params.get('model'));
+            return;
+        }
+        if (params.has('norad') || params.has('object')) {
+            await openNorad(params.get('norad') ?? params.get('object'));
             return;
         }
         const initialEntry = selectInitialModel();
@@ -1696,12 +1998,21 @@
         }
     }
 
+    servicePanel.addEventListener('click', event => {
+        if (!event.target.closest('[data-toggle-pair]')) return;
+        inspectAlone = !inspectAlone;
+        loadSelectedModel(state.selectedEntry.id, state.selectedMember, false, true);
+    });
     dom.modelList.addEventListener('click', event => {
         const button = event.target.closest('[data-model-id]');
         if (!button) return;
         loadSelectedModel(button.dataset.modelId, state.membersByNorad.get(button.dataset.norad)?.member);
     });
     dom.modelSearchInput.addEventListener('input', () => { state.page = 0; renderModelList(); });
+    dom.modelSearchInput.addEventListener('keydown', event => {
+        const id = dom.modelSearchInput.value.trim();
+        if (event.key === 'Enter' && state.scope === 'models' && /^\d+$/.test(id)) openNorad(id);
+    });
     dom.catalogScope.addEventListener('change', () => browseCatalog(dom.catalogScope.value));
     for (const [button, step] of [[dom.previousPage, -1], [dom.nextPage, 1]]) {
         button.addEventListener('click', () => {
@@ -1720,7 +2031,10 @@
     });
     dom.resetViewBtn.addEventListener('click', resetView);
     dom.autoFitBtn.addEventListener('click', () => {
-        if (state.currentModel) fitCameraToObject(state.currentModel);
+        if (!earthView?.preset() && state.currentModel) {
+            clearInspectionView();
+            fitCameraToObject(state.currentModel);
+        }
     });
     dom.toggleAxesBtn.addEventListener('click', () => {
         axesHelper.visible = !axesHelper.visible;
@@ -1738,6 +2052,7 @@
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
+        if (earthView?.active) { earthView.preset(); return; }
         if (embedded && state.currentModel) {
             fitCameraToObject(state.currentModel);
             renderer.render(scene, camera);
@@ -1746,6 +2061,7 @@
 
     function animate() {
         requestAnimationFrame(animate);
+        if (comparison?.active) return;
         controls.update();
         renderer.render(scene, camera);
     }

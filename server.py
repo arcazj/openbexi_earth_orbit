@@ -75,6 +75,11 @@ STATIC_DOCUMENT_FILE_ALLOWLIST = frozenset(
         ("vendor", "satellite.js", "7.1.0", "license.md"),
     }
 )
+STATIC_MODEL_DOWNLOADS = frozenset({
+    ("obj", "exports", "horizons-3e.zip"),
+    ("obj", "exports", "mep.zip"),
+    ("obj", "exports", "intelsat-10-02.zip"),
+})
 STATIC_PREFIX_SUFFIX_ALLOWLIST = (
     (("css",), frozenset({".css"})),
     (("data", "ephemeris"), frozenset({".json"})),
@@ -1882,7 +1887,7 @@ def _static_path_parts_are_allowed(parts: tuple[str, ...]) -> bool:
 
     if len(parts) == 1:
         return lowered[0] in STATIC_ROOT_FILE_ALLOWLIST
-    if lowered in STATIC_DOCUMENT_FILE_ALLOWLIST:
+    if lowered in STATIC_DOCUMENT_FILE_ALLOWLIST or lowered in STATIC_MODEL_DOWNLOADS:
         return True
     if lowered in STATIC_JSON_FILE_ALLOWLIST:
         return True
@@ -3859,6 +3864,8 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
         return False
 
     def guess_type(self, path: str) -> str:
+        if path.endswith(".zip"):
+            return "application/zip"
         if path.endswith(".glb"):
             return "model/gltf-binary"
         if path.endswith(".gltf"):

@@ -7,6 +7,7 @@
     <meta name="openbexi-deployment-mode" content="server-capable">
     <meta name="openbexi-dependency-policy" content="packaged-first-with-cdn-fallback">
     <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/spacecraftComparison.css">
     <script src="./js/dependencyBootstrap.js"></script>
 </head>
 
@@ -20,6 +21,7 @@
     </div>
 </div>
 <div id="ob_menu"></div>
+<section id="mapComparisonStageHost" aria-label="Main spacecraft comparison view"></section>
 <aside id="dataRefreshStatus" class="data-refresh-banner" aria-label="Satellite data status" hidden>
     <span class="data-refresh-indicator" aria-hidden="true"></span>
     <span id="dataRefreshSummary" role="status" aria-live="polite" aria-atomic="true"></span>
@@ -37,6 +39,7 @@
     <div class="mapBackground">
         <canvas id="mercatorCanvas"></canvas>
     </div>
+    <div id="mercatorBeamNotice" class="footprint-notice" hidden></div>
     <button id="mercatorExitFullscreenButton" class="mercator-fullscreen-exit" type="button"
             aria-label="Exit full-screen Mercator map" title="Exit full-screen Mercator map">&times;</button>
 </div>
@@ -80,7 +83,7 @@
         checkFileExists
     } from './js/SatelliteConfigurationLoader.js';
 
-    import { satelliteMenuLoader } from './js/SatelliteMenuLoader.js';
+    import { satelliteMenuLoader, syncSelectedModelPreview, updateSelectedModelPreview } from './js/SatelliteMenuLoader.js';
 
     import {
         showSatellite,
@@ -227,6 +230,8 @@
         trackedObjectMatchesFilters,
         trackedObjectType
     } from './js/trackedObjectCatalog.js';
+    import { extensionFamilies, lifeExtensionFamily, LIFE_EXTENSION_TAG } from './js/lifeExtensionCatalog.js';
+    import { mountSpacecraftComparison } from './js/spacecraftComparisonPanel.js';
     import {
         APP_VERSION,
         checkServerConnectionWithFallback,
@@ -545,6 +550,7 @@
     let selectFirstStarlinkButton, selectIssButton, showOnlySelectedSatelliteCheckbox, selectedSatelliteControls;
     let filterEmptyState, resetFiltersButton, resetFiltersEmptyButton, selectedSatelliteDetailPanel;
     let selectedDetailMarkup = '';
+    let mapComparison;
     let includeHistoricalTrackedObjectsCheckbox, trackedCatalogStatusElement;
     let trackedDebrisFacetsElement, trackedDebrisFacetSummaryElement, resetTrackedDebrisFacetsButton;
     let trackedPositionFacetElement, trackedRcsFacetElement, trackedOwnerFacetElement;
@@ -1738,6 +1744,7 @@
                 .flatMap(s => [
                     s.company,
                     s.operator,
+                    lifeExtensionFamily(s) && LIFE_EXTENSION_TAG,
                     ...(Array.isArray(s.tags) ? s.tags : [])
                 ])
                 .filter(tag => tag && tag !== 'N/A' &&
@@ -2608,6 +2615,7 @@
         const displayedInternationalDesignator = internationalDesignator ?? objectId;
         const rows = [
             ['NORAD ID', satData.norad_id ?? meta.norad_id],
+            ['Life-extension role', extensionFamilies[lifeExtensionFamily(satData)]?.role],
             ['International designator', displayedInternationalDesignator],
             ['Orbit type', satData.orbitType ?? satData.orbit_class ?? satData.type ?? meta.orbital_slot?.nominal],
             ['Inclination (deg)', satData.inclination_deg ?? satData.inclination ?? elementSet.omm?.INCLINATION],
@@ -2648,6 +2656,12 @@
 
     function selectedSatelliteModelSourceDetail(satData, modelResolution) {
         if (!satData) return null;
+        const flight = detailedSatelliteModel?.userData?.servicing;
+        if (flight?.attachment && flight.selectedKey === String(satData.norad_id)) {
+            return flight.shownPair
+                ? `${satData.satellite_name} + ${flight.companion.name}. Documented attachment since ${flight.attachment.docked.slice(0,10)}. Representative docking orientation.`
+                : `${satData.satellite_name} alone. ${flight.modelError ? 'Companion geometry unavailable.' : 'Loading companion geometry.'}`;
+        }
         const assetId = String(modelResolution?.assetId || '').toLowerCase();
         const metadataId = String(modelResolution?.metadataId || '').toLowerCase();
         if (modelResolution?.found && (
@@ -2689,35 +2703,17 @@
         selectedSatelliteDetailPanel?.querySelector('.selected-satellite-omm-section')?.removeAttribute('open');
     }
 
-    function syncSelectedModelPreview() {
-        const section = document.getElementById('selectedModelViewer');
-        const host = document.getElementById('selectedModelPreview');
-        const link = document.getElementById('selectedModelViewerLink');
-        if (!section.open || !link.search) {
-            if (host.firstElementChild) host.replaceChildren();
-            return;
-        }
-        const url = new URL(link.href);
-        url.searchParams.set('embed', '1');
-        if (host.firstElementChild?.src === url.href) return;
-        const frame = document.createElement('iframe');
-        frame.title = 'Interactive satellite model';
-        frame.src = url.href;
-        host.replaceChildren(frame);
+    function refreshViewerLink(satData = currentSelectedSatellite, resolution = satData && resolveSatelliteModel(satData)) {
+        const orientation = selectedSatelliteOrientationBias(String(satData?.norad_id) === '25544');
+        updateSelectedModelPreview(satData, resolution, simulationClock.state(), orientation);
+        mapComparison?.setPrimary(satData?.norad_id ? {key:String(satData.norad_id),name:satData.satellite_name,
+            model:resolution?.assetId} : null);
     }
 
     function updateSelectedSatelliteDetailPanel(satData = currentSelectedSatellite) {
         if (!selectedSatelliteDetailPanel) return;
         const resolution = satData ? resolveSatelliteModel(satData) : null;
-        const link = document.getElementById('selectedModelViewerLink');
-        const notice = document.getElementById('selectedModelNotice');
-        const url = new URL('display_satellite.html', document.baseURI);
-        if (resolution?.found) url.searchParams.set('model', resolution.assetId);
-        link.href = url.href;
-        link.textContent = resolution?.found ? 'Open full viewer' : 'Browse satellite models';
-        notice.hidden = Boolean(resolution?.found);
-        notice.textContent = satData ? 'No model is available for this object.' : 'Select a spacecraft to preview its model.';
-        syncSelectedModelPreview();
+        refreshViewerLink(satData, resolution);
         if (!satData) {
             selectedSatelliteDetailPanel.hidden = true;
             selectedSatelliteDetailPanel.innerHTML = '';
@@ -4179,7 +4175,10 @@
 
     function setSolarSystemEarthLayerVisibility(active) {
         document.body.classList.toggle('solar-system-active', active);
-        if (active) document.getElementById('selectedModelViewer')?.removeAttribute('open');
+        if (active) {
+            document.getElementById('selectedModelViewer')?.removeAttribute('open');
+            if (mapComparison?.active) mapComparison.end();
+        }
         if (earthMesh) earthMesh.visible = !active;
         if (moon) moon.visible = !active;
         if (mars) mars.visible = !active;
@@ -4681,7 +4680,28 @@
         resetFiltersButton = document.getElementById('resetFiltersButton');
         resetFiltersEmptyButton = document.getElementById('resetFiltersEmptyButton');
         selectedSatelliteDetailPanel = document.getElementById('selectedSatelliteDetailPanel');
+        mapComparison = mountSpacecraftComparison(document.getElementById('selectedComparison'), {
+            stageHost:document.getElementById('mapComparisonStageHost'),
+            initialUrl:new URL(location.href),
+            orbits:()=>simParams.showOrbit,
+            onOrbitsChange(checked) {
+                if (showOrbitToggle.checked===checked) return;
+                showOrbitToggle.checked=checked;
+                showOrbitToggle.dispatchEvent(new Event('change'));
+            },
+            onActive(active) {
+                document.body.classList.toggle('map-pair-active',active);
+                if (active) return;
+                const url=new URL(location.href);
+                if (!url.searchParams.has('compare')) return;
+                for (const key of ['compare','compareView','earth','orbits','zoom','primaryZoom','tleRevision','spin','footprint']) url.searchParams.delete(key);
+                url.hash=''; history.replaceState(null,'',url);
+            },
+            getClock: () => simulationClock.state(), rows: () => satellites,
+            changeClock: pause => { if (pause) simulationClock.setRate(0); else simulationClock.goLive(); updateTimeWarpControls(); }
+        });
         document.getElementById('selectedModelViewer').addEventListener('toggle', syncSelectedModelPreview);
+        document.getElementById('selectedModelViewerLink').addEventListener('click', () => refreshViewerLink());
         solarSystemPlanetHudElement = document.getElementById('solarSystemPlanetHud');
         selectedSatelliteControls = document.getElementById('selectedSatelliteControls');
 
@@ -4937,6 +4957,7 @@
 
         showOrbitToggle.addEventListener('change', (e) => {
             const wantOrbit = e.target.checked;
+            if (mapComparison?.active) mapComparison.setOrbits(wantOrbit);
 
             if (!wantOrbit) {
                 simParams.showOrbit = false;
@@ -5289,7 +5310,7 @@
             if (verifiedModel.exists) {
                 await loadAndDisplayDetailedSatellite(tleSatData.norad_id, tleSatData, verifiedModel, selectionToken);
                 if (selectionToken !== satelliteModelLoadToken || currentSelectedSatellite !== tleSatData) return;
-                if (simParams.showOnlySelectedSatellite) updateSatelliteList();
+                if (simParams.showOnlySelectedSatellite || detailedSatelliteModel?.userData.servicing?.shownPair) updateSatelliteList();
             } else {
                 const checkedPaths = (verifiedModel.checkedPaths || [])
                     .map(check => `${check.path}:${check.ok ? 'ok' : 'missing'}`)
@@ -5329,6 +5350,13 @@
             metadataId: resolvedModel.metadataId,
             kind: resolvedModel.kind,
             attemptedPaths: resolvedModel.attemptedPaths,
+            timeMs: simulationClock.state().timeMs,
+            onConfigurationChange: model => {
+                if (detailedSatelliteModel === model && isCurrentSelection()) {
+                    updateSelectedSatelliteDetailPanel(tleSatData);
+                    updateSatelliteList();
+                }
+            },
             shouldAttach: isCurrentSelection,
             usePlaceholderOnFailure: false
         });
@@ -5341,6 +5369,7 @@
         if (hasVisibleModel) {
             detailedSatelliteModel = newModel;
             detailedSatelliteModel.userData.noradId = noradId;
+            if (newModel.userData.servicing) updateSelectedSatelliteDetailPanel(tleSatData);
             detailedSatelliteModel.userData.modelResolution = resolvedModel;
             console.info(
                 `[model] ${tleSatData.satellite_name}: confirmed visible detailed model.`,
@@ -6346,6 +6375,8 @@
         const noradToRepresentative = new Map(
             filteredTLEs.map(s => [s.norad_id?.toString(), s])
         );
+        const servicing = detailedSatelliteModel?.userData.servicing;
+        const renderedClient = servicing?.shownPair ? servicing.companion.key : null;
 
         satellites.forEach(s => {
             if (!s.mesh) return;
@@ -6358,7 +6389,7 @@
             const isDetailedModelForThisSat =
                 detailedSatelliteModel &&
                 detailedSatelliteModel.userData &&
-                detailedSatelliteModel.userData.noradId === s.norad_id.toString();
+                (detailedSatelliteModel.userData.noradId === s.norad_id.toString() || renderedClient === s.norad_id.toString());
 
             let includedInDisplay = isVisibleInFilter;
 
@@ -6516,6 +6547,7 @@
         const clockState = simulationClock.tick(dtReal);
         simParams.timeWarp = clockState.rate;
         SIM_DATE.setTime(clockState.timeMs);
+        detailedSatelliteModel?.updateServicingTime?.(clockState.timeMs);
         simParams.simDate = SIM_DATE; // keep external readers happy
         if (simParams.solarSystemOverview) {
             updateSolarSystemOverview(solarSystemOverview, SIM_DATE, { clockBoundary: clockState.boundary });
@@ -6623,12 +6655,15 @@
             }
         }
 
-        updateFootprints(propagatableSelectedSatellite, gmstNow, {
+        const footprintOptions = {
+            selection: currentSelectedSatellite,
+            servicing: detailedSatelliteModel?.userData.servicing,
             showFootprint: !!simParams.showFootprint && !simParams.solarSystemOverview,
             mercatorCtx: null,
             simDate: SIM_DATE,
             propagation: selectedPropagation
-        });
+        };
+        updateFootprints(propagatableSelectedSatellite, gmstNow, footprintOptions);
 
         drawDayNight3D(scene, earthMesh, SIM_DATE, {
             showDayNight: simParams.showDayNight,
@@ -6694,20 +6729,9 @@
                             realTimeMs: nowPerf
                         });
                         const mercatorUsesEarthSatellites = simParams.otherSelection !== 'Mars';
-                        if (mercatorUsesEarthSatellites && simParams.showFootprint) {
-                            updateFootprints(propagatableSelectedSatellite, gmstNow, {
-                                showFootprint: true,
-                                mercatorCtx,
-                                simDate: SIM_DATE,
-                                propagation: selectedPropagation
-                            });
-                        } else if (mercatorUsesEarthSatellites) {
-                            updateFootprints(propagatableSelectedSatellite, gmstNow, {
-                                showFootprint: false,
-                                mercatorCtx,
-                                simDate: SIM_DATE,
-                                propagation: selectedPropagation
-                            });
+                        if (mercatorUsesEarthSatellites && footprintOptions.showFootprint) {
+                            footprintOptions.mercatorCtx = mercatorCtx;
+                            updateFootprints(propagatableSelectedSatellite, gmstNow, footprintOptions);
                         }
                     }
                 }

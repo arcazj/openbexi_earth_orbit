@@ -1,4 +1,5 @@
 import { normalizeNoradId } from './domain/objectIdentity.js';
+import { lifeExtensionFamily, LIFE_EXTENSION_TAG } from './lifeExtensionCatalog.js';
 
 export const TRACKED_CATALOG_MANIFEST_URL = 'json/tracked/TRACKED.manifest.json';
 
@@ -444,6 +445,7 @@ export function trackedObjectMatchesFilters(record, filters = {}) {
         const tags = new Set([
             record?.company,
             record?.operator,
+            lifeExtensionFamily(record) && LIFE_EXTENSION_TAG,
             ...(Array.isArray(record?.tags) ? record.tags : [])
         ].filter(Boolean).map(value => String(value)));
         if (!tagSelection.some(value => tags.has(String(value)))) return false;

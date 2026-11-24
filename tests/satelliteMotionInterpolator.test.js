@@ -484,11 +484,10 @@ function run() {
   assert(indexHtml.includes('satelliteMotionController.update(renderableSatellites'), 'per-frame interpolation scales with visible satellites');
   assert(indexHtml.includes('selectedPropagation = motion.selectedPropagation'), 'one selected propagation state feeds the frame');
   assert(indexHtml.includes('applySelectedSatelliteNadirOrientation(selectedPropagation)'), 'selected orientation reuses the exact propagated state');
-  assert.strictEqual(
-    (indexHtml.match(/propagation: selectedPropagation/g) || []).length,
-    3,
-    '3D and both Mercator footprint paths reuse the exact selected propagation state'
-  );
+  assert.match(indexHtml, /const footprintOptions = \{[^}]*propagation: selectedPropagation/);
+  assert.equal((indexHtml.match(/updateFootprints\(propagatableSelectedSatellite, gmstNow, footprintOptions\)/g) || []).length, 2,
+    'The globe and Mercator footprint renderers share the selected propagation for this frame');
+  assert.match(indexHtml, /footprintOptions\.mercatorCtx = mercatorCtx;\s*updateFootprints/);
   assert(indexHtml.includes('Catalog markers cadence-limited; selected satellite remains exact'), 'high Time x reports curvature-limited catalog cadence');
   assert(!indexHtml.includes('visibleSatelliteFrameProcessor'), 'obsolete staggered sprite snapping is removed');
 

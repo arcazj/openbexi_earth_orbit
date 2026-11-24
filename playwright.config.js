@@ -53,7 +53,7 @@ export default defineConfig({
     },
     {
       name: 'mobile-chromium',
-      testMatch: ['**/conjunction.spec.js', '**/timelines.spec.js', '**/satelliteFilters.spec.js', '**/v25Core.spec.js', '**/liveTime.spec.js', '**/documentation.spec.js'],
+      testMatch: ['**/conjunction.spec.js', '**/timelines.spec.js', '**/satelliteFilters.spec.js', '**/spacecraftComparison.spec.js', '**/v25Core.spec.js', '**/liveTime.spec.js', '**/documentation.spec.js'],
       use: { ...devices['Pixel 7'] }
     },
     {

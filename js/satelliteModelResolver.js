@@ -1,6 +1,17 @@
 import orbitIndex from '../json/satellites/orbit-model-index.json' with { type: 'json' };
 import { trackedObjectType, trackedOrbitClass } from './trackedObjectCatalog.js';
 
+export function uniqueModelNorad(entry) {
+    if (entry.members?.length) return entry.members.length === 1 ? entry.members[0].norad : null;
+    const matches = [];
+    for (const profiles of Object.values(orbitIndex.orbits)) {
+        for (const [id, numbers] of Object.entries(profiles)) {
+            if (numbers && ((orbitIndex.meshFiles[id] || id) === entry.files.glb || id === entry.id)) matches.push(numbers);
+        }
+    }
+    return matches.length === 1 && /^\d+$/.test(matches[0]) ? matches[0] : null;
+}
+
 export const LOCAL_MODEL_CATALOG = Object.freeze([
     {
         assetId: 'starlink_v3.glb', directory: 'leo', metadataId: 'starlink_v3', kind: 'glb',

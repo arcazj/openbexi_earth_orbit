@@ -1,3 +1,5 @@
+import { lifeExtensionSearchText } from './lifeExtensionCatalog.js';
+
 export function satelliteSearchText(satData) {
     return [
         satData?.satellite_name,
@@ -15,6 +17,7 @@ export function satelliteSearchText(satData) {
         satData?.owner_code,
         satData?.company,
         satData?.operator,
+        lifeExtensionSearchText(satData),
         ...(Array.isArray(satData?.tags) ? satData.tags : [])
     ].filter(value => value !== undefined && value !== null && value !== '').join(' ').toLowerCase();
 }
