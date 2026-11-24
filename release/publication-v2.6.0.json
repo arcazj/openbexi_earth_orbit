@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "version": "2.6.0",
-  "tag": "v2.6.0",
-  "previousTag": "v2.5.1",
-  "previousPublicCommit": "e8d6b9cf55dc4fba4cea4c7a0240d6676b7f79e8",
-  "kind": "development-prerelease",
+  "tag": "2.6.0",
+  "previousTag": "v2.6.0",
+  "previousPublicCommit": "1976811536c9b4f78964eee582741732acb3d82c",
+  "kind": "release",
+  "releasedAt": "2026-11-24",
   "repository": "arcazj/openbexi_earth_orbit",
   "visibility": "public",
-  "integratedPullRequests": [46, 47, 51],
   "downloads": [
     "openbexi-earth-orbit-2.6.0.zip",
     "openbexi-earth-orbit-2.6.0.tar.gz",

@@ -164,9 +164,9 @@ Example response:
   "app": "openbexi_earth_orbit",
   "data_health": { "schemaVersion": 1, "url": "/api/data-update-status", "clock": "wall-utc" },
   "version": "2.6.0",
-  "release_date": null,
+  "release_date": "2026-11-24",
   "candidate_date": null,
-  "publication_state": "development"
+  "publication_state": "released"
 }
 ```
 
@@ -183,10 +183,10 @@ Example response:
 {
   "app_version": "2.6.0",
   "api_version": "1.0.0",
-  "release_date": null,
+  "release_date": "2026-11-24",
   "candidate_date": null,
-  "publication_state": "development",
-  "release_channel": "development",
+  "publication_state": "released",
+  "release_channel": "stable",
   "maturity": "experimental",
   "safety_class": "non-operational",
   "repository": "https://github.com/arcazj/openbexi_earth_orbit",
@@ -473,7 +473,7 @@ Counts, times, state, and revision values are illustrative. GP metadata distingu
 - `/api/gp` remains the preferred position catalog for the atomically selected root. Tracked endpoints are metadata discovery and do not make SATCAT-only objects propagatable. The exact Version 2.3.1 frozen counts remain historical and are not asserted for a future runtime candidate. TLE routes remain temporary compatibility contracts. Numeric and Alpha-5 TLE identifiers are decoded to canonical full strings, but the format remains a reduced subset of current six-digit GP/OMM coverage.
 - The tracked endpoint family and equivalent `server.py` static aliases fail closed together with bounded `503 TRACKED_CATALOG_UNAVAILABLE` whenever manifest closure, pointer revisions, or current GP/SATCAT lineage is incoherent. This response is a temporary catalog-integrity state, not permission to serve a partial index; the browser continues with the GP-only path.
 - Version 2.3.2 debris facets are client projections over unchanged tracked fields and activate whenever `DEBRIS` is the sole object type and the orbit selection is nonempty; they are not API query parameters. The tracked record summary, virtualized availability views, and Globe/Mercator marker selection are also browser-only projections over these routes. No mass/weight field is inferred. A red marker means authoritative debris type only, not hazard, collision risk, proximity, size, mass, or RCS.
-- The 2.6.0 API examples describe the local development build. A server reads its version metadata at startup. After updating a checkout, a running server reports its previous backend version until restarted. [Release policy](governance/RELEASE_POLICY.md)
+- The examples describe release 2.6.0 of the local API. A server reads its version metadata at startup. After updating a checkout, a running server reports its previous backend version until restarted. [Release policy](governance/RELEASE_POLICY.md)
 - GitHub Pages and other static hosts cannot run the Python scheduler; a deployment workflow must replace packaged data.
 - This Markdown page is intentionally static so Help documentation remains available without the Python server.
 - API responses are local development data for visualization and testing, not operational satellite products.

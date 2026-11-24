@@ -4,12 +4,12 @@ export const RELEASE_METADATA = Object.freeze({
   product: "openbexi-earth-orbit",
   version: "2.6.0",
   baselineRuntimeVersion: "1.7.6",
-  channel: "development",
-  publicationState: "development",
+  channel: "stable",
+  publicationState: "released",
   maturity: "experimental",
   safetyClass: "non-operational",
   candidateAt: null,
-  releasedAt: null,
+  releasedAt: "2026-11-24",
   runtimeVersionMigration: "complete"
 });
 

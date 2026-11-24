@@ -1,8 +1,8 @@
 # Documentation
 
-Current guides for **2.6.0 development / experimental / non-operational**. Historical architecture decisions and frozen validation records retain the context of their original releases.
+Current guides for **2.6.0 stable / experimental / non-operational**. Historical architecture decisions and frozen validation records retain the context of their original releases.
 
-For catalog search, spacecraft controls and the model viewer, start with the [user guide in the project README](../README.md#features). The [roadmap](../ROADMAP.md) lists the work prepared for 2.6.0 and the remaining release steps. The [local regression results](../release/evidence/v2.6.0-development-checks.json) and [runtime dependency inventory](../release/evidence/openbexi-node-sbom-2.6.0-development.cdx.json) belong to this development build.
+For catalog search, spacecraft controls and the model viewer, start with the [user guide in the project README](../README.md#features). The [roadmap](../ROADMAP.md) describes the 2.6.0 features and remaining qualification work. The [official release](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/2.6.0) provides the verified archives, checksums and runtime dependency inventory.
 
 - [Contributing](CONTRIBUTING.md)
 - [Release notes](RELEASE_NOTES.md)

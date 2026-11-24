@@ -1,6 +1,6 @@
 # OpenBEXI Earth Orbit
 
-Interactive Earth-orbit visualization, tracked-object search and Solar System time exploration. **2.6.0 is an experimental, non-operational development prerelease.** [Release notes](docs/RELEASE_NOTES.md) · [Downloads and SHA-256 checksums](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/v2.6.0)
+Interactive Earth-orbit visualization, tracked-object search and Solar System time exploration. **Version 2.6.0 was released on November 24, 2026.** The orbital analyses are experimental and non-operational. [Release notes](docs/RELEASE_NOTES.md) · [Downloads and SHA-256 checksums](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/2.6.0)
 
 ## Live Demo
 
