@@ -1,12 +1,12 @@
 # Release notes
 
-## 2.6.0 — November 24, 2026
+## v2.6.0 — official release, November 24, 2026
 
 - Compare two spacecraft at a shared UTC. The viewer shows their independently propagated TLE positions, straight-line distance, relative motion, Earth occultation and optional orbital paths. Camera views and the underlying elements can be shared in a snapshot link.
 - Inspect Astra 3B, Horizons 3e, Intelsat 10-02, the Mission Extension Vehicle and the Mission Extension Pod. Horizons 3e includes aft and Earth-facing close-ups. The Horizons 3e, Intelsat 10-02 and MEP downloads include a Wavefront OBJ, materials and texture maps. [Model references](THIRD_PARTY_NOTICES.md)
 - The life-extension catalog records the reported Optus D3 and MEV-1 undocking. Documented assemblies can be inspected together. Divergent independent TLE positions are displayed separately. The optional Earth view uses a metre-scale WGS84 globe. The optional beam controls link to Satbeams for the two documented beams.
 
-The Horizons 3e previews show the aft hardware, opposite face, deployed wings and Earth from its propagated location at 20:44 UTC on November 24. [Aft view](../release/evidence/screenshots/v2.6.0-horizons-3e-aft.png) · [Earth-facing side](../release/evidence/screenshots/v2.6.0-horizons-3e-earth-facing.png) · [Deployed spacecraft](../release/evidence/screenshots/v2.6.0-horizons-3e-deployed.png) · [Earth view](../release/evidence/screenshots/v2.6.0-horizons-3e-earth-at-2044-utc.png)
+The Horizons 3e previews show the aft hardware, opposite face, deployed wings and Earth from its propagated location at 20:44 UTC on November 24. [Aft view](https://github.com/arcazj/openbexi_earth_orbit/blob/2.6.0/release/evidence/screenshots/v2.6.0-horizons-3e-aft.png) · [Earth-facing side](https://github.com/arcazj/openbexi_earth_orbit/blob/2.6.0/release/evidence/screenshots/v2.6.0-horizons-3e-earth-facing.png) · [Deployed spacecraft](https://github.com/arcazj/openbexi_earth_orbit/blob/2.6.0/release/evidence/screenshots/v2.6.0-horizons-3e-deployed.png) · [Earth view](https://github.com/arcazj/openbexi_earth_orbit/blob/2.6.0/release/evidence/screenshots/v2.6.0-horizons-3e-earth-at-2044-utc.png)
 
 The official GitHub release uses tag `2.6.0`. The preceding prerelease is archived under `v2.6.0`. The software retains its experimental, non-operational scientific classification. [Official archives, verification and checksums](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/2.6.0) · [Prerelease](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/v2.6.0)
 
