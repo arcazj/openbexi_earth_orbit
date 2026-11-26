@@ -19,13 +19,22 @@ export function sampleOrbitRevolution(epochMs, periodMinutes, count, centered, s
     return segments;
 }
 
-export function fullOrbitCameraFrame(segments, normal, camera) {
+export function fullOrbitCameraFrame(segments, normal, camera, {earthRadius = 0, halfAngle} = {}) {
     if (!normal || !segments?.length) return null;
-    const bounds = new Sphere().setFromPoints(segments.flat());
+    const points = segments.flat();
+    const bounds = new Sphere().setFromPoints(points);
     if (!(bounds.radius > 0)) return null;
-    const halfHeight = Math.tan(MathUtils.degToRad(camera.getEffectiveFOV()) / 2);
-    const halfAngle = Math.atan(halfHeight * Math.min(1, camera.aspect));
-    const range = 1.08 * bounds.radius / Math.sin(halfAngle);
+    halfAngle ??= Math.atan(Math.tan(MathUtils.degToRad(camera.getEffectiveFOV()) / 2) * Math.min(1, camera.aspect));
+    let range = 1.08 * bounds.radius / Math.sin(halfAngle);
+    if (earthRadius > 0) {
+        // From too close along the orbit normal the Earth's apparent limb can
+        // hide a whole low orbit. Allow clearance above its tangent at perigee.
+        const perigeeSq = points.reduce((nearest, point) => Math.min(nearest, point.lengthSq()), Infinity);
+        if (perigeeSq > earthRadius * earthRadius) {
+            const tangentRange = bounds.radius * earthRadius / Math.sqrt(perigeeSq - earthRadius * earthRadius);
+            range = Math.max(range, tangentRange * 1.3);
+        }
+    }
     const position = bounds.center.clone().addScaledVector(normal, range);
     return { position, target: bounds.center, range, radius: bounds.radius };
 }

@@ -1153,7 +1153,7 @@ export function buildStaticArtifact({
   );
   for (const runtimeFile of filesUnder(outputRoot, repositoryRoot).filter(file => /\.(?:html|js|mjs)$/i.test(file))) {
     let source = fs.readFileSync(runtimeFile, 'utf8');
-    source = source.replaceAll(sourceDependencyMarker, packagedDependencyMarker);
+    source = source.replaceAll(sourceDependencyMarker, packagedDependencyMarker).replaceAll(serverCapableMarker, staticMarker);
     for (const [remote, packaged] of STATIC_RUNTIME_REPLACEMENTS) source = source.replaceAll(remote, packaged);
     fs.writeFileSync(runtimeFile, source, 'utf8');
   }

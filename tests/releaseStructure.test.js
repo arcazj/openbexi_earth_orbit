@@ -155,12 +155,12 @@ function run() {
 
   assert(promptHistory.startsWith('# Prompt History'), 'PROMPT_History.md starts with Prompt History');
 
-  assert.strictEqual(release.version, '2.6.0');
+  assert.strictEqual(release.version, '2.6.1');
   assert.strictEqual(release.channel, 'stable');
   assert.strictEqual(release.publicationState, 'released');
   const publication = JSON.parse(read(`release/publication-v${release.version}.json`));
   assert.equal(publication.tag, release.version);
-  assert.equal(publication.previousTag, 'v2.6.0');
+  assert.equal(publication.previousTag, '2.6.0');
   assert.match(release.releasedAt, /^\d{4}-\d{2}-\d{2}$/);
   assert.equal(release.releasedAt, publication.releasedAt);
   assert.strictEqual(release.maturity, 'experimental', 'scientific maturity remains experimental');

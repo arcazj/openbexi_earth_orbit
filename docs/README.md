@@ -1,8 +1,8 @@
 # Documentation
 
-Current guides for **2.6.0 stable / experimental / non-operational**. Historical architecture decisions and frozen validation records retain the context of their original releases.
+Current guides for **2.6.1 stable / experimental / non-operational**. Historical architecture decisions and frozen validation records retain the context of their original releases.
 
-For catalog search, spacecraft controls and the model viewer, start with the [user guide in the project README](../README.md#features). The [roadmap](../ROADMAP.md) describes the 2.6.0 features and remaining qualification work. The [official release](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/2.6.0) provides the verified archives, checksums and runtime dependency inventory.
+For catalog search, spacecraft controls and the model viewer, start with the [user guide in the project README](../README.md#features). The [roadmap](../ROADMAP.md) describes the 2.6.1 features and remaining qualification work. The [official release](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/2.6.1) provides the verified archives, checksums and runtime dependency inventory.
 
 - [Contributing](CONTRIBUTING.md)
 - [Release notes](RELEASE_NOTES.md)

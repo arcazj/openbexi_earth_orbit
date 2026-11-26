@@ -16,6 +16,40 @@ def rgb_png(size, pixels):
     return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b"")
 
 
+@lru_cache(maxsize=1)
+def station_solar_blanket():
+    size = 256
+    pixels = bytearray()
+    for y in range(size):
+        row, v = divmod(y, 12)
+        for x in range(size):
+            col, u = divmod(x, 16)
+            tone = (row*17 + col*7) % 15 + (5 if v % 3 == 0 else 0)
+            color = (54+tone, 44+tone, 66+tone)
+            if u == 0 or v == 0:
+                color = (103, 88, 95)
+            elif u == 8 and v == 1:
+                color = (169, 141, 112)
+            pixels.extend(color)
+    return rgb_png(size, pixels)
+
+
+@lru_cache(maxsize=1)
+def station_insulation():
+    size = 256
+    pixels = bytearray()
+    for y in range(size):
+        for x in range(size):
+            u, v = (x + (y//64 % 2)*16) % 32, y % 64
+            tone = int(4*math.sin(.23*u + .16*v) + 3*math.cos(.34*u - .19*v))
+            if u <= 1 or v <= 1:
+                tone -= 27
+            elif u == 3 and v % 13 < 2:
+                tone -= 44
+            pixels.extend((210+tone, 209+tone, 201+tone))
+    return rgb_png(size, pixels)
+
+
 @lru_cache(maxsize=2)
 def blue_solar_cells(indigo=False):
     # One UV rectangle per laminate. Leave dark kerfs and clipped cell corners
@@ -38,6 +72,111 @@ def blue_solar_cells(indigo=False):
                 finger = 7 if v % 4 == 0 else 0
                 base = (44, 46, 112) if indigo else (66, 140, 197)
                 color = tuple(value + tint + finger for value in base)
+            pixels.extend(color)
+    return rgb_png(size, pixels)
+
+
+@lru_cache(maxsize=1)
+def gravitas_laminate():
+    """One Mega-class wing bay with dark cell strings and thin silver interconnects."""
+    size = 384
+    pixels = bytearray()
+    for y in range(size):
+        row,v = divmod(y,32)
+        for x in range(size):
+            col,u = divmod(x,48)
+            corner = min(u,47-u) + min(v,31-v)
+            if u == 0 or v == 0 or corner < 2:
+                color = (96,99,103)
+            elif (v in (1,30) and 22 <= u <= 25) or (u == 1 and 10 <= v <= 13):
+                color = (140,140,138)
+            else:
+                tint = (col*5+row*7+row*col)%13 + (9 if v%4 == 0 else 0)
+                tone = round(5*math.cos((u+.35*v)*math.pi/48))
+                color = (24+tint+tone,29+tint+tone,42+tint+tone)
+            pixels.extend(color)
+    return rgb_png(size,pixels)
+
+
+@lru_cache(maxsize=2)
+def sstl_cells(blue=False):
+    """Four photovoltaic wafers with collector fingers and silver solder tabs."""
+    size = 256
+    pixels = bytearray()
+    for y in range(size):
+        for x in range(size):
+            tile_x, u = divmod(x, 128)
+            tile_y, v = divmod(y, 128)
+            tile = tile_y*2+tile_x
+            sheen = round(5*math.cos((u+v*.28)*math.pi/128)) + (0,4,-3,6)[tile]
+            fingers = (10 if v%6 == 3 else 0) + (8 if u in (39,88) else 0)
+            value = sheen + fingers
+            color = tuple(c+value for c in ((54,70,91) if blue else (32,38,53)))
+            if (u < 3 or u > 124) and 22 < v < 105:
+                color = (96, 101, 109)
+            if (u < 8 and 25 < v < 39) or (u > 119 and 90 < v < 104):
+                color = (181, 176, 165)
+            pixels.extend(color)
+    return rgb_png(size, pixels)
+
+
+@lru_cache(maxsize=2)
+def sstl_backplane(pale=False):
+    """Fine copper grain, plated traces and edge mounting pads on each solar circuit board."""
+    size = 384
+    copper = (239,212,171) if pale else (195,127,77)
+    pixels = bytearray()
+    for y in range(size):
+        for x in range(size):
+            u, v = min(x,size-1-x), min(y,size-1-y)
+            grain = (x*13 + (y%7)*19)%7 - 3
+            grain += round(2*math.sin((y+x*.16)*.12))
+            color = tuple(c+grain for c in copper)
+            # The traces turn around cell strings and terminate at the edge of the board.
+            if (u == 9 and 28 < v < 141) or (v == 27 and 10 <= u <= 30) or (
+                v == 140 and 10 <= u <= 19) or (u == 30 and 18 < v <= 27):
+                color = (218,199,163)
+            if 4 <= (u-10)**2 + (v-18)**2 <= 12:
+                color = (204,199,184)
+            pixels.extend(color)
+    return rgb_png(size, pixels)
+
+
+@lru_cache(maxsize=2)
+def spacebus_cells(violet=False):
+    """Fine GaAs cell strings with the blue/violet coating visible on the flight artwork."""
+    size = 256
+    pixels = bytearray()
+    for y in range(size):
+        for x in range(size):
+            shimmer = (1+math.cos((x+.67*y)*math.tau/size))*.5
+            col, u = divmod(x, 12)
+            row, v = divmod(y, 16)
+            variation = (col*7+row*3)%9 + (4 if v%4 == 0 else 0)
+            base = (46+37*shimmer,95-26*shimmer,141+13*shimmer) if violet else (62,99,151)
+            scale = .70 if u == 0 or v == 0 else 1
+            pixels.extend(int(c*scale+variation) for c in base)
+    return rgb_png(size,pixels)
+
+
+@lru_cache(maxsize=1)
+def four_string_laminate():
+    """Blue-green cells in the two-by-four electrical bays of one wing leaf."""
+    size = 384
+    pixels = bytearray()
+    for y in range(size):
+        string, v = divmod(y, size//4)
+        for x in range(size):
+            bank, u = divmod(x, size//2)
+            grain = ((x//8)*11 + (y//12)*7) % 9
+            shade = 5*bank + 2*string + grain
+            color = (56+shade, 105+shade, 138+shade)
+            if x % 8 == 0 or y % 12 == 0:
+                color = (47+shade, 88+shade, 111+shade)
+            if v < 3 or u < 3:
+                color = (205, 210, 201)
+            if 2 <= v < 8 and (20 <= u < 27 or 152 <= u < 159):
+                color = (213, 182, 131)
             pixels.extend(color)
     return rgb_png(size, pixels)
 

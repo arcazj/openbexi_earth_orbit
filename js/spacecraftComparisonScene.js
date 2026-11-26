@@ -8,6 +8,7 @@ import { geodeticToEcfKm } from './orbit/orbitLinkGeometry.js';
 
 import { earthOccludes, needsLocator } from './comparisonOrbit.js';
 import { createComparisonOrbitLayer } from './comparisonOrbitLayer.js';
+import { createComparisonCamera } from './comparisonCamera.js';
 import { mountAttachment } from './spacecraftAttachmentMesh.js';
 import { fullOrbitCameraFrame } from './orbit/selectedOrbitCurve.js';
 
@@ -106,8 +107,9 @@ export function createComparisonScene(stage, items, onChange, library, onNotice 
     scene.add(line);
     const tags = [...stage.querySelectorAll('.pair-tag')], leaders = [...stage.querySelectorAll('.pair-leader')];
     const dots = [...stage.querySelectorAll('.pair-dot')], caption = stage.querySelector('.pair-line-value');
-    let earth, beamLayer, disposed = false, current, mode = 'earth', showEarth = true, beam, showOrbits = false;
-    let width, height, spin = [0,0], drag, zoom=1, locator=false;
+    let earth, beamLayer, disposed = false, current, mode, showEarth = true, beam, showOrbits = false;
+    let width, height, spin = [0,0], locator=false;
+    const cameraControl = createComparisonCamera(canvas, camera, draw, onChange);
     let segments=[];
     function syncHardware(system,index) {
         const signature=system ? (system.attachment || system.item.key) : null;
@@ -123,6 +125,7 @@ export function createComparisonScene(stage, items, onChange, library, onNotice 
             notes[index]=result.note || '';
             if (result.model) {
                 meshes[index]=result.model;radii[index]=result.size;groups[index].add(result.model);
+                cameraControl.refit();
             }
             draw();
         });
@@ -148,12 +151,10 @@ export function createComparisonScene(stage, items, onChange, library, onNotice 
             beamLayer.set(earth.visible ? beam : null);
         }
     }
-    function placeCamera(target,direction,distance,vertical) {
-        camera.position.copy(target).addScaledVector(direction,distance);
-        camera.up.copy(vertical || perpendicular(direction,up));
-        camera.lookAt(target);
-        camera.near = Math.max(.001,distance/1e5);
-        camera.far = Math.max(100,distance*4, (current?.measurement?.metres || 0)*2,
+    function placeCamera(target,direction,distance,vertical,minimum=0) {
+        const range = cameraControl.place(target,direction,distance,vertical || perpendicular(direction,up),minimum);
+        camera.near = Math.max(.001,range/1e5);
+        camera.far = Math.max(100,range*4, camera.position.length()+(current?.measurement?.metres || 0)*2,
             earth?.visible ? camera.position.distanceTo(earth.position)+2*R : 0);
         camera.updateProjectionMatrix();
         camera.updateMatrixWorld();
@@ -186,10 +187,10 @@ export function createComparisonScene(stage, items, onChange, library, onNotice 
             const axes=[new THREE.Vector3(R,0,0),new THREE.Vector3(0,R,0),new THREE.Vector3(0,0,R)];
             const extent=[...poses.map(p=>p.position),...axes,...axes.map(p=>p.clone().negate())];
             const frame=fullOrbitCameraFrame([...segments,extent],normal,camera);
-            placeCamera(frame.target.sub(poses[0].position),normal,frame.range*zoom);
+            placeCamera(frame.target.sub(poses[0].position),normal,frame.range);
         } else if (mode === 'side') {
             placeCamera(m.delta.clone().multiplyScalar(.5), side,
-                (Math.max((m.metres*.5+maxSize)/(f*camera.aspect),maxSize/f,3)*1.48+maxSize)*zoom,
+                Math.max((m.metres*.5+maxSize)/(f*camera.aspect),maxSize/f,3)*1.48+maxSize,
                 new THREE.Vector3().crossVectors(side,axis).normalize());
         } else {
             const behindB = mode==='behind-b' || mode==='focus-b';
@@ -198,7 +199,7 @@ export function createComparisonScene(stage, items, onChange, library, onNotice 
             const direction = close ? poses[index].position.clone().normalize() : axis.clone().multiplyScalar(behindB ? 1 : -1);
             let distance = Math.max(2,radii[index]*1.55/Math.sin(Math.atan(fit)));
             if (mode === 'earth') distance = Math.max(distance,Math.min(radii[0]*9,radii[0]*.96/Math.tan(Math.asin(R/poses[0].position.length()))));
-            placeCamera(positions[index],direction,Math.max(radii[index]*1.08,distance*zoom));
+            placeCamera(positions[index],direction,distance,null,radii[index]*1.08);
         }
         renderer.setViewport(0,0,width,height);
         renderer.render(scene,camera);
@@ -298,6 +299,8 @@ export function createComparisonScene(stage, items, onChange, library, onNotice 
             groups[i].position.set(0,0,0);
             groups[i].rotation.set(spin[1],spin[0],0,'YXZ');
             const size=i===count-1 ? width-i*pane : pane;
+            camera.aspect=size/height;
+            camera.updateProjectionMatrix();
             renderer.setViewport(i*pane,0,size,height);
             renderer.setScissor(i*pane,0,size,height);
             renderer.render(scene,camera);
@@ -312,58 +315,38 @@ export function createComparisonScene(stage, items, onChange, library, onNotice 
         if (width!==stage.clientWidth || height!==stage.clientHeight) {
             width=stage.clientWidth; height=stage.clientHeight;
             renderer.setSize(width,height,false);
+            cameraControl.refit();
         }
         camera.aspect=width/height;
         stage.classList.toggle('pair-inspecting',models());
         stage.classList.toggle('pair-shared',!!current.shared);
-        segments=paths.update(current,showOrbits && !models());
+        segments=paths.update(current,showOrbits && !models(),mode==='overview');
         updateEarth();
         if (models()) drawModels(); else drawOrbit();
     }
     const resize=new ResizeObserver(draw);
     resize.observe(stage);
-    function rotate(dx,dy) {
-        spin=[(spin[0]+dx)%(2*Math.PI),present(spin[1]+dy,-Math.PI/2,Math.PI/2)];
-        draw();onChange();
+    function resetCamera(options = {}) {
+        mode = null;
+        spin = options.spin?.length === 2 && options.spin.every(Number.isFinite) ? options.spin : [0,0];
+        cameraControl.reset(options);
     }
-    canvas.tabIndex=0;
-    canvas.addEventListener('pointerdown',event=>{
-        if (!models()) return;
-        drag=[event.clientX,event.clientY];canvas.setPointerCapture(event.pointerId);
-    });
-    canvas.addEventListener('pointermove',event=>{
-        if (!drag) return;
-        rotate((event.clientX-drag[0])*.012,(event.clientY-drag[1])*.012);
-        drag=[event.clientX,event.clientY];
-    });
-    canvas.addEventListener('lostpointercapture',()=>{drag=null;});
-    canvas.addEventListener('keydown',event=>{
-        if (!models() && ['+','=','-'].includes(event.key)) {
-            event.preventDefault();zoom=present(zoom*(event.key==='-' ? 1.2 : 1/1.2),.18,20);draw();onChange();return;
-        }
-        const step={ArrowLeft:[-.12,0],ArrowRight:[.12,0],ArrowUp:[0,-.12],ArrowDown:[0,.12]}[event.key];
-        if (models() && step) {event.preventDefault();rotate(...step);}
-    });
-    canvas.addEventListener('wheel',event=>{
-        if (models()) return;
-        event.preventDefault();
-        zoom=present(zoom*Math.exp(present(event.deltaY,-300,300)*.002),.18,20);
-        draw();onChange();
-    },{passive:false});
     return {
         update(value,view,earthEnabled,selectedBeam,orbitsEnabled=false) {
+            if (mode && view!==mode) resetCamera();
+            if (current?.shared!==value.shared) cameraControl.refit();
             current=value;mode=view;showEarth=earthEnabled;beam=selectedBeam;showOrbits=orbitsEnabled;
             const systems=value.systems || items.map(item=>({item,host:item,label:item.name}));
             syncHardware(systems[0],0);
             syncHardware(value.shared ? null : systems[1],1);
             draw();
         },
-        get zoom() {return zoom;},
-        setZoom(value) {zoom=Number.isFinite(value) && value>0 ? present(value,.18,20) : 1;},
+        resetCamera,
+        get zoom() {return cameraControl.zoom;},
+        get pose() {return cameraControl.pose;},
         get spin() {return [...spin];},
-        setSpin(value) {if(value?.length===2 && value.every(Number.isFinite)) spin=value;},
         dispose() {
-            disposed=true; resize.disconnect(); beamLayer?.clear(); paths.dispose();
+            disposed=true; resize.disconnect(); cameraControl.dispose(); beamLayer?.clear(); paths.dispose();
             disposeObject(scene); renderer.dispose(); renderer.forceContextLoss(); canvas.remove();
         }
     };

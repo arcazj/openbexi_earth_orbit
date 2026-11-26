@@ -2,7 +2,7 @@
 
 `release/version.json` is authoritative for version, channel, publication state, scientific maturity and safety class. Generate browser metadata with `npm run version:sync`. Package/lock, API docs and flags must agree.
 
-Version **2.6.0** was released on November 24, 2026. The public stable channel carries the same experimental, non-operational scientific classification and feature safeguards as the preceding development build. The official tag is `2.6.0`. The prerelease tag `v2.6.0` identifies its original commit and downloads. [GitHub release](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/2.6.0) · [Publication scope](../../release/publication-v2.6.0.json) · [Version metadata](../../release/version.json)
+Version **2.6.1** was released on November 26, 2026. The public stable channel retains its experimental, non-operational scientific classification. The official tag is `2.6.1`. The preceding stable release is tagged `2.6.0`, and `v2.6.0` identifies the earlier prerelease source. [GitHub release](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/2.6.1) · [Publication scope](../../release/publication-v2.6.1.json) · [Prerelease source](https://github.com/arcazj/openbexi_earth_orbit/tree/v2.6.0)
 
 The owner authorized public source and the commercial model for 2.5 on 2026-11-08. The publication records identify the scope of each historical release. The npm package is private. [2.5 publication record](../../release/publication-v2.5.json) · [2.5.1 publication record](../../release/publication-v2.5.1.json)
 

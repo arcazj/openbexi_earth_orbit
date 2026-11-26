@@ -1,5 +1,7 @@
 import { normalizeNoradId } from './domain/objectIdentity.js';
+import { SPACE_STATION_FILTER, spaceStation } from './spaceStations.js';
 import { lifeExtensionFamily, LIFE_EXTENSION_TAG } from './lifeExtensionCatalog.js';
+import { argosTag, kuiperTag } from './satelliteSearchUtils.js';
 
 export const TRACKED_CATALOG_MANIFEST_URL = 'json/tracked/TRACKED.manifest.json';
 
@@ -253,15 +255,18 @@ export function trackedOrbitClass(recordOrValue) {
 }
 
 export function normalizeTrackedOrbitSelection(selection) {
+    if (normalizedToken(Array.isArray(selection) ? selection[0] : selection) === SPACE_STATION_FILTER) return [SPACE_STATION_FILTER];
     return normalizeSelection(selection, TRACKED_ORBIT_CLASS_OPTIONS, TRACKED_ORBIT_CLASS.ALL);
 }
 
 export function toggleTrackedOrbitSelection(selection, changedValue) {
+    if (changedValue === SPACE_STATION_FILTER) return [SPACE_STATION_FILTER];
     return toggleSelection(selection, changedValue, TRACKED_ORBIT_CLASS_OPTIONS, TRACKED_ORBIT_CLASS.ALL);
 }
 
 export function trackedObjectMatchesOrbitSelection(record, selection) {
     const normalized = normalizeTrackedOrbitSelection(selection);
+    if (normalized[0] === SPACE_STATION_FILTER) return Boolean(spaceStation(record));
     if (normalized.includes(TRACKED_ORBIT_CLASS.ALL)) return true;
     const orbitClass = trackedOrbitClass(record);
     const filterClass = [TRACKED_ORBIT_CLASS.UNKNOWN, TRACKED_ORBIT_CLASS.DECAYING].includes(orbitClass)
@@ -434,6 +439,20 @@ export function buildTrackedFacetOptions(records = [], facets = {}) {
     };
 }
 
+export function trackedObjectTags(record) {
+    return [record?.company, record?.operator, record?.company !== 'KUIPER' && kuiperTag(record),
+        argosTag(record), lifeExtensionFamily(record) && LIFE_EXTENSION_TAG,
+        ...(Array.isArray(record?.tags) ? record.tags : [])].filter(Boolean).map(String);
+}
+
+export function trackedTagOptions(records, accept = () => true) {
+    const tags = new Set();
+    for (const record of records) {
+        for (const tag of trackedObjectTags(record)) if (accept(tag)) tags.add(tag);
+    }
+    return [...tags].sort();
+}
+
 export function trackedObjectMatchesFilters(record, filters = {}) {
     if (!trackedObjectMatchesOrbitSelection(record, filters.orbitSelection)) return false;
     if (!trackedObjectMatchesTypeSelection(record, filters.objectTypeSelection)) return false;
@@ -442,24 +461,24 @@ export function trackedObjectMatchesFilters(record, filters = {}) {
     const tagSelection = Array.isArray(filters.tagSelection) ? filters.tagSelection : [];
     const allTagValue = String(filters.allTagValue ?? 'ALL COMPANY');
     if (tagSelection.length > 0 && !tagSelection.includes(allTagValue)) {
-        const tags = new Set([
-            record?.company,
-            record?.operator,
-            lifeExtensionFamily(record) && LIFE_EXTENSION_TAG,
-            ...(Array.isArray(record?.tags) ? record.tags : [])
-        ].filter(Boolean).map(value => String(value)));
-        if (!tagSelection.some(value => tags.has(String(value)))) return false;
+        const tags = trackedObjectTags(record);
+        if (!tagSelection.some(value => tags.includes(String(value)))) return false;
     }
     return filters.facets ? trackedObjectMatchesFacets(record, filters.facets) : true;
 }
 
 export function isHistoricalTrackedRecord(record) {
     const lifecycle = normalizedToken(record?.lifecycle_status ?? record?.operational_status);
-    if (['DECAYED', 'ABSENT', 'RETIRED'].includes(lifecycle)) return true;
     const membership = normalizedToken(record?.catalog_membership_status ?? record?.presence_status);
     const observation = normalizedToken(record?.observation_status ?? record?.tracked_observation_status);
+    if (['DECAYED', 'ABSENT'].includes(lifecycle) || (lifecycle === 'RETIRED' && membership !== 'PRESENT')) return true;
     if (membership === 'ABSENT' || observation === 'ABSENT') return true;
     return Boolean(record?.decay_date || record?.DECAY_DATE);
+}
+
+export function isCatalogResultEligible(record, includeHistory) {
+    return !isHistoricalTrackedRecord(record) || Boolean(includeHistory &&
+        (record.decay_date || record.DECAY_DATE || normalizedToken(record.lifecycle_status) === 'DECAYED'));
 }
 
 export function trackedNoradId(record) {
@@ -600,10 +619,10 @@ export function mergeTrackedCatalogRecords(orbitalRecords = [], trackedRecords =
         orbital.rcs_m2 = metadata.rcs_m2;
         if (metadata.rcs_m2 === null && 'rcs' in orbital) orbital.rcs = null;
         const propagationStatus = normalizedToken(metadata.propagation_status);
-        const suppressOrbitalRecord = isHistoricalTrackedRecord(metadata) ||
+        const suppressOrbitalRecord = isHistoricalTrackedRecord(metadata) || (!orbital.refreshedEpoch && (
             metadata.has_current_elements === false ||
             metadata.metadata_only === true ||
-            ['NO_CURRENT_ELEMENTS', 'INVALID', 'QUARANTINED', 'UNAVAILABLE'].includes(propagationStatus);
+            ['NO_CURRENT_ELEMENTS', 'INVALID', 'QUARANTINED', 'UNAVAILABLE'].includes(propagationStatus)));
         if (suppressOrbitalRecord) {
             orbital.has_current_elements = false;
             orbital.metadata_only = true;

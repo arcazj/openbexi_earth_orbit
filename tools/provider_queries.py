@@ -87,24 +87,31 @@ class ProviderQueries:
 
     @staticmethod
     def _read(path):
+        path = Path(path)
         try:
-            value = json.loads(Path(path).read_text(encoding="utf-8"))
-            if isinstance(value, dict) and isinstance(value.get("urls", {}), dict):
-                value.setdefault("urls", {})
-                return value
+            value = json.loads(path.read_text(encoding="utf-8-sig"))
+            if not isinstance(value, dict):
+                raise ValueError("expected a JSON object")
+            for field in ("urls", "scopes"):
+                entries = value.get(field, {})
+                if not isinstance(entries, dict) or not all(isinstance(item, dict) for item in entries.values()):
+                    raise ValueError(f"expected an object of records in '{field}'")
+            value.setdefault("urls", {})
+            return value
         except FileNotFoundError:
-            pass
+            return {"urls": {}, "blocked": False}
         except (ValueError, OSError) as exc:
-            raise ProviderPaused("Provider admission state is unreadable; investigate before querying.") from exc
-        return {"urls": {}, "blocked": False}
+            raise ProviderPaused(f"Provider admission state is unreadable at {path}: {exc}") from exc
+
+    @staticmethod
+    def write(path, state):
+        from tools.satellite_data_tools import atomic_write_text
+        atomic_write_text(Path(path), json.dumps(state, indent=2), backup=False, durable=True)
 
     def save(self):
         if self.dry_run:
             return
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = self.path.with_suffix(".tmp")
-        temporary.write_text(json.dumps(self.state, indent=2), encoding="utf-8")
-        temporary.replace(self.path)
+        self.write(self.path, self.state)
         if self.on_saved:
             self.on_saved(self.path)
 

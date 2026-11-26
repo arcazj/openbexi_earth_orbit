@@ -12,12 +12,12 @@ CI sets `OPENBEXI_PYTHON_COMMAND` to the absolute executable path returned by `a
 
 ```text
 npm run audit:dependencies
-npm run sbom -- --output release/evidence/openbexi-node-sbom-2.6.0-development.cdx.json
+npm run sbom -- --output release/evidence/openbexi-node-sbom-2.6.1.cdx.json
 npm run check
 npm run test:all
 ```
 
-The November 24 audit of locked runtime and development dependencies reported zero findings. The 2.6.0 CycloneDX inventory identifies the two runtime packages, Three.js 0.187.0 and satellite.js 7.1.0. The GitHub release verification records the commit, archive hashes and rollback result. [Release SBOM](../../release/evidence/openbexi-node-sbom-2.6.0.cdx.json) · [Release verification](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/2.6.0)
+The November 24 audit of locked runtime and development dependencies reported zero findings. The 2.6.1 CycloneDX inventory identifies the two runtime packages, Three.js 0.187.0 and satellite.js 7.1.0. The GitHub release verification records the commit, archive hashes and rollback result. [Release SBOM](../../release/evidence/openbexi-node-sbom-2.6.1.cdx.json) · [Release verification](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/2.6.1)
 
 Dependabot proposes weekly npm and GitHub Actions updates. Updates must retain exact npm versions and immutable GitHub Action commit pins, pass local-first vendored dependency delivery in Chromium, and preserve Three.js core/addon version parity.
 

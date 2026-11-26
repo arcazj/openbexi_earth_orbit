@@ -1,6 +1,11 @@
 # OpenBEXI Earth Orbit Roadmap
 
-**Version 2.6.0 was released on November 24, 2026.** Its scientific classification is experimental and non-operational.
+**Version 2.6.1 was released on November 26, 2026.** Its scientific classification is experimental and non-operational.
+
+## Delivered in 2.6.1
+
+- Flight-by-flight spacecraft model reviews, textured downloads and catalog filters in both viewers.
+- On-selection persistence of newer orbital elements and durable provider admission writes for incremental updates. [Release notes](docs/RELEASE_NOTES.md)
 
 ## Delivered in 2.6.0
 
@@ -8,10 +13,10 @@
 | --- | --- |
 | Local catalog and model API | Versioned, read-only search, NORAD details and shared model downloads ship with 2.6. The REST API accordion below Timelines includes the offline OpenAPI contract. [API walkthrough](docs/SWAGGER.md#catalog-and-models) |
 | Catalog search and controls | Tracked-object results support multi-term search, availability tabs and keyboard selection. The right panel aligns with the UTC clock, puts the expandable model viewer above Catalog data and resets OMM details on selection. Clear restores the active tab and sort order. The search and Clear controls fit at 320 px. |
-| Satellite Model Viewer | The bundled manifest maps 1,926 profiles to 1,313 distinct model file sets. The two Kuiper prototypes share a model, and the 396 production Kuipers in the snapshot share a second. Each Starlink generation and each O3b generation also shares its own model. |
-| GEO models | Revised exteriors include the Boeing 601 and 702, A2100, SSL 1300, Spacebus and ARSAT families, plus Intelsat 23, 25 and 28 and Galaxy 17, 33 and 34. SES-17 has its 46 m cross-wing configuration and side-mounted reflector banks. Model diagnostics identify illustrated designs, estimated dimensions and catalog outlines. |
-| AMC spacecraft | Eighteen cataloged spacecraft use eleven illustrated exteriors. The library distinguishes the compact C-band configuration, hybrid A2100s, Alcatel Spacebus payloads and the two-reflector AMC-21. |
-| Globe and orbit | The selected orbit crosses the spacecraft center. A face-on view shows the full orbit. Live tracking follows high-latitude OneWeb and GLONASS-K2 passes. Filtering out a spacecraft restores the globe camera's depth precision. GEO pointing was checked on Galaxy 33. |
+| Satellite Model Viewer | The bundled manifest maps 1,926 profiles to 1,313 distinct model file sets. Two broadband prototypes share one model, and the 396 production spacecraft in the snapshot share another. Two other constellations share models by hardware generation. |
+| GEO models | Revised models cover several communications platforms and their flight configurations. One has a 46 m deployed span, cross-shaped solar wings and side-mounted reflector banks. Model diagnostics identify illustrated designs, estimated dimensions and catalog outlines. |
+| Communications fleet | Eighteen cataloged spacecraft use eleven illustrated exteriors, including compact C-band, hybrid communications and dual-reflector configurations. |
+| Globe and orbit | The selected orbit crosses the spacecraft center. A face-on view shows the full orbit. Live tracking follows high-latitude communications and navigation passes. Filtering out a spacecraft restores the globe camera's depth precision. A GEO test checked Earth-facing antenna orientation. |
 
 The official GitHub release provides runnable static archives, checksums and the verification record for the tagged commit. [2.6.0 downloads](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/2.6.0) · [Prerelease regression results](release/evidence/v2.6.0-development-checks.json) · [Release checklist](docs/engineering/RELEASE_CHECKLIST.md)
 

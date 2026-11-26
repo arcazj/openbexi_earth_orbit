@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "policy": "regression-ceiling",
   "files": {
-    "index.html": 329000,
+    "index.html": 335800,
     "json/gp/GP.json": 28000000,
     "json/launches/launches.json": 10500000,
     "json/tle/TLE.json": 11000000,
@@ -26,8 +26,8 @@
         "js/domain/index.js",
         "js/satelliteCategoryFilter.js"
       ],
-      "maxBytes": 1089500,
-      "note": "Includes spacecraft comparison, TLE position readouts, dated docking configurations, TLE snapshots and individual orbit paths."
+      "maxBytes": 1128500,
+      "note": "Includes catalog and station selectors, mission and constellation aliases, model downloads and single-object orbital updates."
     },
     "vendoredBrowserRuntime": {
       "roots": ["vendor"],

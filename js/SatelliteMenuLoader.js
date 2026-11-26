@@ -121,6 +121,7 @@ export function satelliteMenuLoader() {
         </h3>
 
         <div id="satelliteSelectionContent" class="collapsible-content" aria-labelledby="satelliteAccordionHeader">
+          <button id="openTrackedResults" class="tracked-results-open satellite-shortcut-button" type="button" aria-controls="trackedResultsDrawer" aria-expanded="false">Browse catalog results</button>
           <div class="satellite-combobox-block">
             <div class="satellite-combobox">
               <input id="satelliteSearchInput" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="satelliteSearchResults" aria-describedby="satelliteSearchHelp" aria-label="Search tracked object by name, full NORAD ID, orbit class, object type, or tag" placeholder="Search tracked object or NORAD ID">
@@ -151,6 +152,7 @@ export function satelliteMenuLoader() {
                 <button type="button" class="segmented-option" data-orbit-filter="LEO" aria-pressed="false">LEO</button>
                 <button type="button" class="segmented-option" data-orbit-filter="HEO" aria-label="HRO orbit filter" aria-pressed="false">HRO</button>
                 <button type="button" class="segmented-option" data-orbit-filter="OTHER" aria-pressed="false">Others</button>
+                <button type="button" class="segmented-option" data-orbit-filter="SPACE_STATION" aria-pressed="false">Space station</button>
               </div>
             </div>
 
@@ -481,7 +483,6 @@ export function satelliteMenuLoader() {
     </div>
   </div>
   <aside id="catalogPanel" class="selected-satellite-detail-panel catalog-panel" aria-label="Tracked object catalog">
-    <button id="openTrackedResults" class="tracked-results-open satellite-shortcut-button" type="button" aria-controls="trackedResultsDrawer" aria-expanded="false">Browse catalog results</button>
     <div id="selectedSatelliteControls" class="satellite-option-grid" aria-label="Selected tracked-object options" aria-hidden="true" hidden>
       <label><input type="checkbox" id="showYPRToggle"> Yaw-Pitch-Roll</label>
       <label class="checkbox-row"><input type="checkbox" id="showFootprintCheckbox"><span>Show Footprint</span></label>

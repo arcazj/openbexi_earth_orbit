@@ -12,7 +12,7 @@ function table(headings, rows) {
 }
 
 const sections = ['    <section id="catalog-models" class="tag-section" aria-labelledby="catalog-models-title">',
-  '      <h2 id="catalog-models-title" class="tag-title">Catalog and models <span>Read-only local API</span></h2>',
+  '      <h2 id="catalog-models-title" class="tag-title">Catalog and models <span>Local catalog API</span></h2>',
   '      <p>Open the <a href="docs/catalog-api.openapi.json">OpenAPI contract</a> for field types and units, or the <a href="markdown_viewer.html?source=docs/SWAGGER.md&amp;title=Swagger%20API">Python walkthrough</a>.</p>'];
 for (const [route, operation] of Object.entries(contract.paths)) {
   const parameters = operation.parameters.map(({ name, in: location, schema, description }) => {
@@ -20,11 +20,13 @@ for (const [route, operation] of Object.entries(contract.paths)) {
       schema.default !== undefined && ('Default ' + schema.default)].filter(Boolean).join('. ');
     return [name, location, description + (constraints ? ' ' + constraints + '.' : '')];
   });
-  const responses = Object.entries(operation.get.responses).map(([code, response]) => [code, response.description]);
-  sections.push('      <details class="operation get">',
-    '        <summary><span class="method get">GET</span><span class="path">' + escape(route) +
-      '</span><span class="summary-text">' + escape(operation.get.summary) + '</span></summary>',
-    '        <div class="operation-body"><p>' + escape(operation.get.description) + '</p>',
+  const method = operation.post ? 'post' : 'get';
+  const spec = operation[method];
+  const responses = Object.entries(spec.responses).map(([code, response]) => [code, response.description]);
+  sections.push('      <details class="operation ' + method + '">',
+    '        <summary><span class="method ' + method + '">' + method.toUpperCase() + '</span><span class="path">' + escape(route) +
+      '</span><span class="summary-text">' + escape(spec.summary) + '</span></summary>',
+    '        <div class="operation-body"><p>' + escape(spec.description) + '</p>',
     '          <h3>Parameters</h3>', table(['Name', 'Location', 'Description'], parameters),
     '          <h3>Responses</h3>', table(['HTTP status', 'Description'], responses),
     '        </div>', '      </details>');

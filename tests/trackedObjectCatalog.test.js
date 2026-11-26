@@ -16,12 +16,16 @@ import {
   normalizeTrackedObjectTypeSelection,
   restoreOrbitalRecordsAfterTrackedOverlay,
   toggleTrackedObjectTypeSelection,
+  toggleTrackedOrbitSelection,
+  trackedObjectMatchesOrbitSelection,
   trackedObjectMatchesFilters,
   trackedObjectMatchesFacets,
   trackedObjectRcsBand,
   trackedObjectVisual,
   trackedObjectType
 } from '../js/trackedObjectCatalog.js';
+import { SPACE_STATION_FILTER } from '../js/spaceStations.js';
+import { satelliteSearchText } from '../js/satelliteSearchUtils.js';
 
 const payload = {
   norad_id: '25544',
@@ -49,6 +53,17 @@ const smallDebris = {
   propagation_status: 'NO_CURRENT_ELEMENTS',
   unavailable_reason: 'Provider has no current GP element set.'
 };
+const stationFilter = toggleTrackedOrbitSelection(['MEO','GEO'], SPACE_STATION_FILTER);
+assert.deepEqual(stationFilter,[SPACE_STATION_FILTER]);
+const tianhe = {norad_id:'48274',satellite_name:'CSS (TIANHE)',orbit_class:'LEO'};
+assert(trackedObjectMatchesOrbitSelection(payload, stationFilter));
+assert(trackedObjectMatchesOrbitSelection(tianhe, stationFilter));
+assert(trackedObjectMatchesOrbitSelection(tianhe, ['LEO']));
+for (const norad_id of ['37820','41765','53239','54216']) {
+  assert.equal(trackedObjectMatchesOrbitSelection({...tianhe,norad_id},stationFilter),false);
+}
+assert.deepEqual(toggleTrackedOrbitSelection(stationFilter,'MEO'),['MEO']);
+for (const alias of ['tiangong','china station','tss','tianhe']) assert(satelliteSearchText(tianhe).includes(alias));
 const missingRcsDebris = {
   norad_id: '600001',
   satellite_name: 'TRACKED OBJECT',

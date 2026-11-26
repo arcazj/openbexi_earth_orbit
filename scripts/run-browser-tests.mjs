@@ -137,7 +137,7 @@ try {
     const testRuntime = fs.mkdtempSync(path.join(runtimeBase, 'browser-tests-'));
     managedServer = spawn(
       python.command,
-      [...python.prefix, 'server.py', '--host', '127.0.0.1', '--port', String(PORT), '--no-data-update', '--runtime-dir', path.relative(ROOT, testRuntime)],
+      [...python.prefix, 'server.py', '--host', '127.0.0.1', '--port', String(PORT), '--no-data-update', '--no-selection-refresh', '--runtime-dir', path.relative(ROOT, testRuntime)],
       {
         cwd: ROOT,
         stdio: 'inherit',

@@ -1,6 +1,7 @@
 ﻿import assert from 'assert';
 import fs from 'fs';
 import { satelliteMenuLoader } from '../js/SatelliteMenuLoader.js';
+import { isCatalogTagOption, formatCompanyLabel } from '../js/catalogTagControls.js';
 
 function indexOfOrFail(text, needle, message) {
   const index = text.indexOf(needle);
@@ -10,7 +11,7 @@ function indexOfOrFail(text, needle, message) {
 
 function run() {
   const html = satelliteMenuLoader();
-  const css = fs.readFileSync('css/style.css', 'utf8');
+  const css = ['css/style.css', 'css/trackedResults.css'].map(path => fs.readFileSync(path, 'utf8')).join('\n');
   const indexHtml = fs.readFileSync('index.html', 'utf8');
   const markdownViewerHtml = fs.readFileSync('markdown_viewer.html', 'utf8');
   const swaggerHtml = fs.readFileSync('swagger.html', 'utf8');
@@ -139,11 +140,10 @@ function run() {
   assert(indexHtml.includes('setAccordionSectionCollapsed(otherId, true, collapsedSections)'), 'expansion closes other accordion sections');
 
   assert(!/>\s*Active\s*</i.test(html), 'filter menu does not expose an Active control');
-  assert(indexHtml.includes('EXCLUDED_COMPANY_FILTER_OPTIONS'), 'index defines generated company/tag exclusions');
-  assert(indexHtml.includes("new Set(['ACTIVE'])"), 'Active is excluded from generated company/tag chips');
-  assert(indexHtml.includes('GEO: "Geosynchronous group"'), 'the GEO catalog tag is distinct from the GEO orbit category');
-  ['MEO group', 'LEO group', 'HEO group', 'HRO group', 'Debris group', 'Other group', 'Others group'].forEach(label => {
-    assert(indexHtml.includes(`"${label}"`), `${label} qualifies a category-colliding catalog tag`);
+  assert(!isCatalogTagOption('ACTIVE'), 'Active is excluded from generated company/tag chips');
+  assert.equal(formatCompanyLabel('GEO'), 'Geosynchronous group');
+  ['MEO', 'LEO', 'HEO', 'HRO', 'DEBRIS', 'OTHER', 'OTHERS'].forEach(tag => {
+    assert.match(formatCompanyLabel(tag), / group$/, `${tag} qualifies a category-colliding catalog tag`);
   });
   assert(html.includes('id="satelliteSearchInput"'), 'satellite search input is present');
   assert(!html.includes('Select Satellite:'), 'old Select Satellite visible label is removed');
@@ -203,7 +203,7 @@ function run() {
   assert(css.includes('.tracked-marker-unknown::before') && css.includes('.tracked-marker-unknown::after'), 'the unknown legend cue is a cross');
   assert(indexHtml.includes('toggleTrackedOrbitSelection(simParams.orbitTypeFilter, changedValue)'), 'orbit buttons use the independent orbit union transition');
   assert(indexHtml.includes('toggleTrackedObjectTypeSelection(simParams.objectTypeFilter'), 'object-type buttons use the independent type union transition');
-  assert(indexHtml.includes('trackedObjectMatchesFilters(s, {'), 'index delegates intersecting filter dimensions to one classifier');
+  assert(indexHtml.includes('trackedObjectMatchesFilters(record, filters)') && indexHtml.includes('trackedTagOptions(candidates, isCatalogTagOption)'), 'tag options come from records that pass the active orbit and type filters');
   assert(!indexHtml.includes('debrisMatchesSelection'), 'obsolete debris-only matcher is removed');
   assert(!indexHtml.includes('debrisFilter:'), 'obsolete debris-only runtime state is removed');
   assert(satelliteCategoryFilter.includes('SATELLITE_CATEGORY_OPTIONS'), 'legacy category module remains available for compatibility');
@@ -232,6 +232,7 @@ function run() {
   assert(indexHtml.includes('setSatelliteFoundCountLabel('), 'found count updates use one accessible helper');
 
   const satelliteSelection = indexOfOrFail(html, 'Tracked Objects - Matches', 'tracked-object selection section exists');
+  const browse = indexOfOrFail(html, 'id="openTrackedResults"', 'catalog browse button exists');
   const searchInput = indexOfOrFail(html, 'id="satelliteSearchInput"', 'search input exists');
   const clearSearch = indexOfOrFail(html, 'id="satelliteSearchClear"', 'clear search exists');
   const resetFilters = indexOfOrFail(html, 'id="resetFiltersButton"', 'reset filters exists');
@@ -243,14 +244,15 @@ function run() {
   const objectFilter = indexOfOrFail(html, 'id="objectTypeFilter"', 'object filter exists');
   const companyFilter = indexOfOrFail(html, 'id="companyFilter"', 'tag filter exists');
   assert(
-    satelliteSelection < searchInput && searchInput < clearSearch && clearSearch < resetFilters &&
+    satelliteSelection < browse && browse < searchInput && searchInput < clearSearch && clearSearch < resetFilters &&
       resetFilters < satelliteShortcutRow && satelliteShortcutRow < starlinkShortcut &&
       starlinkShortcut < issShortcut && issShortcut < satelliteFilterPanel && satelliteFilterPanel < orbitFilter &&
       orbitFilter < objectFilter && objectFilter < companyFilter && companyFilter < html.indexOf('id="conjunctionAccordionSection"'),
     'search, Clear, Reset Filters, shortcuts, and filters appear inside Satellite Selection in the required order'
   );
   const catalogPanel = html.slice(indexOfOrFail(html, 'id="catalogPanel"', 'the catalog panel exists'));
-  const panelOrder = ['openTrackedResults', 'selectedSatelliteControls', 'yprSlidersRow', 'selectedModelViewer', 'selectedSatelliteDetailPanel', 'trackedRecordSummary'];
+  assert(!catalogPanel.includes('id="openTrackedResults"'), 'the globe has one Browse control in the left menu');
+  const panelOrder = ['selectedSatelliteControls', 'yprSlidersRow', 'selectedModelViewer', 'selectedSatelliteDetailPanel', 'trackedRecordSummary'];
   let previous = -1;
   for (const id of panelOrder) {
     const location = indexOfOrFail(catalogPanel, `id="${id}"`, `${id} belongs to the catalog panel`);
@@ -417,8 +419,8 @@ function run() {
   assert(css.includes('.server-status-button'), 'server status has dedicated CSS');
   assert(css.includes('.menu-header-row'), 'menu top row has dedicated CSS');
   assert(css.includes('--menu-header-control-height: 30px;'), 'menu header controls share a fixed alignment height');
-  assert(css.includes('height: var(--menu-header-control-height);'), 'Close and server controls share the header control height');
-  assert(css.includes('margin: 0 0 10px 72px;'), 'menu header row reserves aligned space for the Close button');
+  assert(css.includes('height: var(--menu-header-control-height);'), 'server controls use the header control height');
+  assert(html.includes('<div id="controlsContainer">'), 'the menu is visible and interactive on startup');
   assert(css.includes('.server-status-icon'), 'server status icon has dedicated CSS');
   assert(css.includes('.server-state-connected .server-status-icon'), 'server connected icon state has CSS');
   assert(css.includes('.server-state-disconnected .server-status-icon'), 'server disconnected icon state has CSS');

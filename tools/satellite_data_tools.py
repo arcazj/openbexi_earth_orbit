@@ -172,7 +172,7 @@ TRACKED_OBSERVATION_STATUSES = frozenset(
     {"NEW", "OBSERVED", "CHANGED", "ABSENT", "REAPPEARED"}
 )
 TRACKED_MEMBERSHIP_STATUSES = frozenset({"PRESENT", "ABSENT"})
-TRACKED_HISTORICAL_LIFECYCLE_STATUSES = frozenset({"DECAYED", "ABSENT", "RETIRED"})
+TRACKED_HISTORICAL_LIFECYCLE_STATUSES = frozenset({"DECAYED", "ABSENT"})
 SHA256_REVISION_PATTERN = re.compile(r"^sha256:[a-f0-9]{64}$")
 MAX_SAFE_JSON_INTEGER = (1 << 53) - 1
 PRODUCER_UTC_TIMESTAMP_PATTERN = re.compile(
@@ -308,6 +308,7 @@ def is_nonnegative_safe_json_integer(value: object) -> bool:
 def tracked_record_is_historical(record: dict[str, object]) -> bool:
     return (
         record.get("lifecycle_status") in TRACKED_HISTORICAL_LIFECYCLE_STATUSES
+        or (record.get("lifecycle_status") == "RETIRED" and record.get("catalog_membership_status") != "PRESENT")
         or record.get("catalog_membership_status") == "ABSENT"
         or record.get("observation_status") == "ABSENT"
         or record.get("decay_date") is not None
@@ -539,7 +540,8 @@ def _rotate_artifact_backups(path: Path, *, keep: int = BACKUP_RETENTION_PER_ART
             stale_path.unlink()
 
 
-def atomic_write_text(path: Path, text: str, *, dry_run: bool = False, backup: bool = True) -> None:
+def atomic_write_text(path: Path, text: str, *, dry_run: bool = False, backup: bool = True,
+                      durable: bool = False) -> None:
     if dry_run:
         return
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -550,6 +552,9 @@ def atomic_write_text(path: Path, text: str, *, dry_run: bool = False, backup: b
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
             handle.write(text)
+            if durable:
+                handle.flush()
+                os.fsync(handle.fileno())
         os.replace(temp_path, path)
         if backup:
             try:

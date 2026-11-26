@@ -60,8 +60,7 @@ test('main application boots with local dependencies and a rendered WebGL canvas
   const response = await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
   expect(response?.ok()).toBeTruthy();
   await expect(page).toHaveTitle(/OpenBEXI Earth Orbit - Tracked Objects/i);
-  await expect(page.locator('#menuToggleBtn')).toBeVisible();
-  await expect(page.locator('#controlsContainer')).toBeVisible();
+  await expect(page.locator('#controlsContainer')).toBeInViewport();
 
   await page.waitForFunction(() => {
     const sources = window.openbexiDependencySources;

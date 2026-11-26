@@ -37,9 +37,13 @@ export async function loadGlb(entry, manager, basePath = 'obj/') {
     loader.setPath(basePath);
     const gltf = await loader.loadAsync(entry.files.glb);
     const root = gltf.scene || gltf.scenes?.[0] || new THREE.Group();
-    const { dimensionNote, visualReferences } = gltf.userData || {};
+    const { dimensionNote, visualReferences, referenceStatus, sources } = gltf.userData || {};
     if (typeof dimensionNote === 'string') root.userData.dimensionNote = dimensionNote;
     if (Array.isArray(visualReferences)) root.userData.visualReferences = visualReferences;
+    if (typeof referenceStatus === 'string') root.userData.referenceStatus = referenceStatus;
+    if (Array.isArray(sources)) root.userData.referenceTitles = Object.fromEntries(sources
+        .filter(source => typeof source?.url === 'string' && typeof source.basis === 'string')
+        .map(source => [source.url, source.basis]));
     return root;
 }
 

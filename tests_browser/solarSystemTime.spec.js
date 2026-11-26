@@ -99,13 +99,12 @@ test('full JPL guides span both playback edges, fit the viewport and stay cached
         }))).toBe(true);
     };
     await assertFit();
-    await page.locator('#menuToggleBtn').click();
-    await expect.poll(() => page.locator('#controlsContainer').evaluate(element => element.getBoundingClientRect().right)).toBeLessThanOrEqual(0);
+    await expect(page.locator('#controlsContainer')).toBeInViewport();
     await page.screenshot({ path: 'runtime/jpl-complete-guides-desktop.png' });
     await page.setViewportSize({ width: 390, height: 844 });
     await assertFit();
     await page.screenshot({ path: 'runtime/jpl-complete-guides-mobile.png' });
-    await page.locator('#menuToggleBtn').click();
+    await expect(page.locator('#controlsContainer')).toBeInViewport();
     const loadedRequests = requests.length;
     await page.locator('#solarSystemExitButton').click();
     await expect(page.locator('#catalogPanel')).toBeVisible();

@@ -120,6 +120,8 @@ export function mountSpacecraftComparison(host, options = {}) {
             view,earth:el('earth').checked,footprint:el('footprint').checked,orbits:el('orbits').checked,snapshot});
         if (view==='models' && scene?.spin.some(v=>v!==0)) url.searchParams.set('spin',scene.spin.join(','));
         if (scene && scene.zoom!==1) url.searchParams.set('zoom',String(scene.zoom));
+        const pose=scene?.pose;
+        if (pose) url.searchParams.set('compareCamera',pose.join(','));
         if (homeZoom!==1) url.searchParams.set('primaryZoom',String(homeZoom));
         return url;
     }
@@ -285,10 +287,12 @@ export function mountSpacecraftComparison(host, options = {}) {
             }
             try {
                 scene=api.createComparisonScene(stage,data.objects,syncLink,options.library?.(),notices);
-                scene.setZoom(Number(url?.searchParams.get('zoom')) || 1);
+                scene.resetCamera({
+                    zoom: Number(url?.searchParams.get('zoom')) || 1,
+                    pose: url?.searchParams.get('compareCamera')?.split(',').map(Number),
+                    spin: url?.searchParams.get('spin')?.split(',').map(Number)
+                });
                 homeZoom=Number(url?.searchParams.get('primaryZoom')) || 1;
-                const spin=url?.searchParams.get('spin');
-                if(spin) scene.setSpin(spin.split(',').map(Number));
             } catch {errorMessage='3D rendering is unavailable in this browser.';}
             stage.setAttribute('aria-busy','false');
             details();update();syncLink();
@@ -337,7 +341,7 @@ export function mountSpacecraftComparison(host, options = {}) {
         else if (button.hasAttribute('data-focus')) orbitView='focus-b';
         else orbitView=button.dataset.view || 'side';
         if (orbitView==='earth') el('earth').checked=true;
-        scene?.setZoom(button.hasAttribute('data-primary') ? homeZoom : 1);
+        scene?.resetCamera({zoom: button.hasAttribute('data-primary') ? homeZoom : 1});
         update();syncLink();
         if (button.hasAttribute('data-focus')) workspace.querySelector('[data-primary]').focus({preventScroll:true});
         if (button.hasAttribute('data-primary')) (workspace.querySelector('[aria-pressed="true"]') || stage.querySelector('canvas'))?.focus({preventScroll:true});

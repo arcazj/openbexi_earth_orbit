@@ -35,7 +35,8 @@ async function renderedFrame(page) {
                 const earth=scene.getObjectByName('Earth at propagated UTC');
                 const primary=new Vector3().project(camera);
                 const center=earth?.position.clone().project(camera);
-                resolve({members,tracks,direction:camera.getWorldDirection(new Vector3()).toArray(),earthDepth:center?.z,primaryDepth:primary.z,
+                resolve({members,tracks,eye:camera.position.toArray(),primary:primary.toArray(),
+                    direction:camera.getWorldDirection(new Vector3()).toArray(),earthDepth:center?.z,primaryDepth:primary.z,
                     earthOffset:center && Math.hypot(center.x-primary.x,center.y-primary.y)});
             };
         });
@@ -120,9 +121,15 @@ test('a far-side satellite has an actionable locator and its visibility updates 
     const locator=main.getByRole('button',{name:/Focus INTELSAT 18/});
     await expect(panel.locator('[data-visibility]')).toHaveText('INTELSAT 18 (IS-18) · Not visible behind Earth');
     await expect(locator).toContainText('Not visible behind Earth');
-    const tagBounds=await locator.boundingBox(), rangeBounds=await main.locator('.pair-line-value').boundingBox();
-    expect(tagBounds.y+tagBounds.height<=rangeBounds.y || rangeBounds.y+rangeBounds.height<=tagBounds.y ||
-        tagBounds.x+tagBounds.width<=rangeBounds.x || rangeBounds.x+rangeBounds.width<=tagBounds.x).toBe(true);
+    await expect(page.locator('#viewerSelectionPanel')).toBeInViewport();
+    await expect.poll(() => main.evaluate(stage => {
+        const label = stage.querySelector('[data-focus="1"]').getBoundingClientRect();
+        const range = stage.querySelector('.pair-line-value').getBoundingClientRect();
+        const menu = document.getElementById('viewerSelectionPanel').getBoundingClientRect();
+        const view = stage.getBoundingClientRect();
+        return (label.bottom <= range.top || range.bottom <= label.top || label.right <= range.left || range.right <= label.left) &&
+            (menu.right <= view.left || menu.bottom <= view.top);
+    })).toBe(true);
     const utc=await panel.locator('time').textContent();
     await locator.click();
     await expect(panel.locator('[data-visibility]')).toBeEmpty();
@@ -194,9 +201,102 @@ test('a model-only pod remains available for equal-scale inspection and keyboard
     await expect(stage).toHaveClass(/pair-inspecting/);
     const canvas=stage.locator('canvas');
     await canvas.focus();await canvas.press('ArrowRight');
-    await expect(page).toHaveURL(/spin=/);
+    await expect(page).toHaveURL(/compareCamera=/);
     const viewport=page.viewportSize();
     const rect=await stage.boundingBox();
     expect(rect.width).toBeGreaterThan(200);
     expect(rect.x+rect.width).toBeLessThanOrEqual(viewport.width);
+});
+
+test('comparison presets retain a manual orbit, pan and zoom through playback and snapshot replay',async({page,context},testInfo)=>{
+    test.skip(testInfo.project.name!=='chromium','Desktop mouse and keyboard navigation.');
+    await context.addInitScript(()=>{
+        Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async link=>{window.snapshotText=link;}}});
+    });
+    await page.clock.setFixedTime(new Date(at));
+    await page.goto(url+'&compare=36581&view=side');
+    const main=page.locator('#comparisonStageHost'), panel=page.locator('#viewerComparison');
+    const canvas=main.locator('canvas');
+    await expect(canvas).toBeVisible();
+    await expect.poll(async()=>(await renderedFrame(page)).members.length).toBe(2);
+    async function drag(button,dx,dy) {
+        const box=await canvas.boundingBox();
+        const x=box.x+box.width*.43,y=box.y+box.height*.65;
+        await page.mouse.move(x,y);
+        await page.mouse.down({button});
+        await page.mouse.move(x+dx,y+dy,{steps:5});
+        await page.mouse.up({button});
+    }
+    for (const view of ['side','behind-a','behind-b','earth','overview','models']) {
+        const preset=main.locator('[data-view="'+view+'"]');
+        await preset.click();
+        const before=await renderedFrame(page);
+        await drag('left',45,28);
+        await expect(page).toHaveURL(/compareCamera=/);
+        const after=await renderedFrame(page);
+        expect(Math.hypot(...before.direction.map((v,i)=>v-after.direction[i]))).toBeGreaterThan(.05);
+        await preset.click();
+        await expect(page).not.toHaveURL(/compareCamera=/);
+        const restored=await renderedFrame(page);
+        restored.direction.forEach((v,i)=>expect(v).toBeCloseTo(before.direction[i],7));
+    }
+    await main.locator('[data-view=behind-b]').click();
+    await drag('left',70,20);
+    await drag('right',30,25);
+    await page.mouse.wheel(0,90);
+    await expect(page).toHaveURL(/zoom=/);
+    await panel.getByRole('button',{name:'Go live',exact:true}).click();
+    await page.clock.setFixedTime(new Date(Date.parse(at)+60000));
+    await expect(panel.locator('time')).toContainText('12:01:00');
+    const advanced=await renderedFrame(page);
+    await panel.getByRole('button',{name:'Copy snapshot link'}).click();
+    const snapshot=await page.evaluate(()=>window.snapshotText);
+    const pose=new URL(snapshot).searchParams.get('compareCamera').split(',').map(Number);
+    expect(Math.hypot(...pose.slice(3))).toBeGreaterThan(.001);
+    await page.goto(snapshot);
+    await expect(canvas).toBeVisible();
+    await expect.poll(async()=>(await renderedFrame(page)).members.length).toBe(2);
+    const replay=await renderedFrame(page);
+    replay.eye.forEach((v,i)=>expect(v).toBeCloseTo(advanced.eye[i],3));
+    replay.direction.forEach((v,i)=>expect(v).toBeCloseTo(advanced.direction[i],7));
+});
+
+test('two fingers pan and zoom the synchronized model inspection panes',async({page,context},testInfo)=>{
+    test.skip(testInfo.project.name!=='mobile-chromium','Native Chromium touch gestures.');
+    await page.goto(url+'&compare=36581&view=models');
+    const canvas=page.locator('#comparisonStageHost canvas');
+    await expect(canvas).toBeVisible();
+    await expect.poll(async()=>(await renderedFrame(page)).members.length).toBe(2);
+    await canvas.scrollIntoViewIfNeeded();
+    const box=await canvas.boundingBox();
+    const x=box.x+box.width*.31,y=box.y+box.height*.53;
+    const session=await context.newCDPSession(page);
+    const fingers=(spread,dx)=>[{id:1,x:x-spread+dx,y},{id:2,x:x+spread+dx,y}];
+    await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:fingers(23,0)});
+    for(let i=1;i<=5;i++) await session.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:fingers(23+i*3,i*2)});
+    await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+    await expect(page).toHaveURL(/compareCamera=/);
+    const adjusted=new URL(page.url()).searchParams;
+    expect(Number(adjusted.get('zoom'))).toBeGreaterThan(0);
+    expect(Number(adjusted.get('zoom'))).toBeLessThan(.9);
+    expect(Math.hypot(...adjusted.get('compareCamera').split(',').slice(3).map(Number))).toBeGreaterThan(.001);
+    // Sample the actual WebGL camera in each scissor viewport on the same draw.
+    const panes=await page.evaluate(async()=>{
+        const {Mesh,Vector4}=await import('three');
+        return new Promise((resolve,reject)=>{
+            const previous=Mesh.prototype.onBeforeRender, matrices=new Map();
+            const timer=setTimeout(()=>{Mesh.prototype.onBeforeRender=previous;reject(Error('Missing inspection pane'));},8000);
+            Mesh.prototype.onBeforeRender=function(renderer,scene,camera,...args) {
+                previous.call(this,renderer,scene,camera,...args);
+                if (!renderer.domElement.closest('.pair-inspecting') || !renderer.getScissorTest()) return;
+                const viewport=renderer.getViewport(new Vector4()), projection=camera.projectionMatrix.elements;
+                matrices.set(viewport.x,[...camera.matrixWorld.elements,projection[0]*viewport.z,projection[5]*viewport.w]);
+                if (matrices.size===2) {
+                    Mesh.prototype.onBeforeRender=previous;
+                    clearTimeout(timer);resolve([...matrices.values()]);
+                }
+            };
+        });
+    });
+    panes[0].forEach((value,i)=>expect(value).toBeCloseTo(panes[1][i],9));
 });

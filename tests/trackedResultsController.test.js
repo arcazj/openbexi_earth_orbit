@@ -174,7 +174,7 @@ const fixture = createFixture();
 const records = [
   { norad_id: '20', satellite_name: 'Zulu', object_type: 'DEBRIS', has_current_elements: false, metadata_only: true },
   { norad_id: '3', satellite_name: 'Alpha', object_type: 'PAYLOAD', has_current_elements: true, metadata_only: false },
-  { norad_id: '11', satellite_name: 'Beta', object_type: 'DEBRIS', has_current_elements: true, metadata_only: false }
+  { norad_id: '11', satellite_name: 'Beta', object_type: 'PAYLOAD', lifecycle_status: 'INACTIVE', has_current_elements: true, metadata_only: false }
 ];
 const selected = [];
 let selectedNoradId = '11';
@@ -190,9 +190,9 @@ assert.equal(fixture.elements.openButton.getAttribute('aria-controls'), 'tracked
 assert.equal(fixture.elements.openButton.getAttribute('aria-expanded'), 'false');
 fixture.elements.openButton.click();
 assert.equal(controller.isOpen(), true);
-assert.equal(fixture.elements.count.textContent, '3 results');
+assert.equal(fixture.elements.count.textContent, '2 results');
 assert.equal(fixture.documentRef.activeElement, fixture.elements.viewport, 'opening focuses the listbox');
-assert.deepEqual(fixture.elements.rows.children.map(row => row.children[0].textContent), ['Alpha', 'Beta', 'Zulu']);
+assert.deepEqual(fixture.elements.rows.children.map(row => row.children[0].textContent), ['Alpha', 'Beta']);
 assert(fixture.elements.rows.children.every(row => row.tabIndex === -1), 'listbox options stay out of the tab order');
 assert.equal(fixture.elements.rows.children[1].getAttribute('aria-selected'), 'true');
 
@@ -244,6 +244,15 @@ assert.equal(controller.isOpen(), false);
 assert.equal(fixture.documentRef.activeElement, fixture.elements.openButton, 'selection closes and restores opener focus');
 
 fixture.elements.openButton.click();
+fixture.modeButtons[2].click();
+search.value = 'Zulu';
+search.dispatch('input');
+fixture.elements.closeButton.click();
+fixture.elements.openButton.click();
+assert.equal(search.value, '');
+assert.equal(fixture.modeButtons[1].getAttribute('aria-selected'), 'true');
+assert.equal(fixture.elements.count.textContent, '2 results');
+assert.equal(fixture.sortButtons[0].dataset.sortDirection, 'descending');
 controller.refresh([records[1]]);
 assert.equal(fixture.elements.count.textContent, '1 result', 'open drawers accept refreshed filter results');
 selectedNoradId = '3';
@@ -269,7 +278,7 @@ assert.equal(emptyController.isOpen(), true);
 assert.equal(emptyFixture.elements.viewport.hidden, true, 'zero-result drawers hide the empty listbox');
 assert.equal(
   emptyFixture.documentRef.activeElement,
-  emptyFixture.modeButtons[0],
+  emptyFixture.modeButtons[1],
   'zero-result drawers focus the selected availability tab instead of the hidden listbox'
 );
 emptyFixture.documentRef.activeElement.dispatch('keydown', { key: 'Escape' });
@@ -284,7 +293,8 @@ emptyController.destroy();
 const indexSource = fs.readFileSync('index.html', 'utf8');
 assert(indexSource.includes("import { createTrackedResultsController } from './js/trackedResultsController.js';"));
 assert(indexSource.includes('trackedResultsController = createTrackedResultsController({'));
-assert(indexSource.includes('trackedResultsController?.isOpen()) trackedResultsController.refresh(filteredTLEs)'));
+assert(indexSource.includes('getRecords: () => catalogMatches') && indexSource.includes('catalogMatches = filteredTLEs;'));
+assert(indexSource.includes('trackedResultsController.refresh(filteredTLEs)'));
 assert(!indexSource.includes('trackedResultsDrawerElement'), 'index has no stale drawer-global integration');
 assert(!indexSource.includes('refreshTrackedResults'), 'index delegates result refreshes to the controller');
 assert(Buffer.byteLength(indexSource) <= JSON.parse(fs.readFileSync('release/asset-budgets.json', 'utf8')).files['index.html'], 'index remains within its declared release budget');

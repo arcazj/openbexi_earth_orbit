@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="openbexi-dependency-policy" content="packaged-first-with-cdn-fallback">
     <title>Satellite Model Viewer</title>
+    <meta name="openbexi-deployment-mode" content="server-capable">
     <link rel="stylesheet" href="css/spacecraftComparison.css">
+    <link rel="stylesheet" href="css/trackedResults.css">
     <script>
         if (new URLSearchParams(location.search).get('embed') === '1') {
             document.documentElement.classList.add('model-embed');
@@ -297,14 +299,11 @@
         }
 
         .diagnostics .panel-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 8px;
             padding: 8px 12px;
         }
 
         #copyDiagnosticsBtn {
+            margin: 0 0 4px;
             padding: 4px 9px;
             font-size: 12px;
             line-height: 1.4;
@@ -312,8 +311,36 @@
 
         .diagnostics .panel-body {
             min-height: 0;
-            padding: 3px 12px 8px;
+            padding: 8px 12px;
             overflow-y: auto;
+        }
+
+        .viewer-details {
+            border-top: 1px solid var(--line);
+        }
+
+        .viewer-details > summary {
+            padding: 8px 0;
+            color: var(--accent);
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        #satelliteFactsEmpty {
+            margin: 0 0 8px;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        #satelliteFactsSource {
+            margin: 6px 0 8px;
+            color: var(--muted);
+            font-size: 11px;
+        }
+
+        #satelliteFactsSource a {
+            color: var(--accent);
         }
 
         .diagnostics-grid {
@@ -477,7 +504,7 @@
             }
         }
         .service-panel { margin-bottom: 1rem; }
-        .earth-options { min-inline-size: 0; margin: .3rem 0 .65rem; border: 0; border-bottom: 1px solid var(--line); padding: .35rem 0 .65rem; }
+        .earth-options { min-inline-size: 0; margin: .3rem 0 0; border: 0; padding: .35rem 0 .65rem; }
         .earth-options label { display: inline-flex; gap: .35rem; align-items: center; margin-right: .8rem; font-size: .84rem; }
         .earth-options input { width: 1rem; min-height: 1rem; margin: 0; accent-color: #ffd17c; }
         .earth-options p { margin: .45rem 0 0; font-size: .78rem; line-height: 1.4; }
@@ -486,10 +513,11 @@
         #earthCameraControls { margin-top: .45rem; }
         #earthCameraControls button { padding: .35rem .5rem; font-size: .76rem; }
         #earthCameraControls button[aria-pressed="true"], #modelInspectionViews button[aria-pressed="true"] { border-color: #ffd17c; color: #ffe1a9; }
-        .earth-options a, #wavefrontDownload { color: #9bd6ff; }
-        #wavefrontDownload { display: inline-block; margin: 0 0 .6rem; font-size: .84rem; }
-        #wavefrontDownload[hidden] { display: none; }
-        #modelInspectionViews { display:flex; flex-wrap:wrap; gap:.4rem; margin-bottom:.6rem; }
+        .earth-options a, .model-download { color: #9bd6ff; }
+        .model-download { display: inline-block; margin: .55rem .65rem .55rem 0; font-size: .84rem; }
+        .model-download[hidden] { display: none; }
+        #modelInspectionViews { display: flex; flex-wrap: wrap; gap: .4rem; margin: .5rem 0 0; }
+        #modelInspectionViews button { padding: .35rem .5rem; font-size: .76rem; }
         #modelInspectionViews[hidden] { display:none; }
         .service-panel h3 { margin: 0 0 .35rem; font-size: 1rem; }
         .service-panel p, .service-panel details { margin: .45rem 0; font-size: .82rem; line-height: 1.45; }
@@ -512,90 +540,137 @@
             pointer-events: none;
         }
         .model-embed .status-bar .pill { display: none; }
+        .shell > .diagnostics { grid-column: 2; }
+        .diagnostics .catalog-browse-heading { margin-top: 0; }
+        .tracked-results-row { min-height: 0; }
+        @media (max-width: 900px) { .shell > .diagnostics { grid-column: 1; } }
     </style>
+    <link rel="stylesheet" href="css/modelViewerCatalog.css">
     <script src="./js/dependencyBootstrap.js"></script>
 </head>
 <body>
 <main class="shell" aria-label="Satellite model viewer">
-    <section class="panel">
-        <header class="panel-header">
-            <h1>Satellite Model Viewer</h1>
-            <p class="subtle">Select an orbit catalog to search shared models by spacecraft name or NORAD ID.</p>
-        </header>
-        <div class="panel-body">
-            <select id="catalogScope" aria-label="Browse satellite catalog" disabled>
-                <option value="models">Model library</option>
-                <optgroup label="Current spacecraft">
-                    <option value="leo">Current LEO spacecraft</option>
-                    <option value="meo">Current MEO spacecraft</option>
-                    <option value="geo">Current GEO spacecraft</option>
-                </optgroup>
-                <optgroup label="Mission">
-                    <option value="life-extension">Satellite life extension</option>
-                </optgroup>
-                <optgroup label="Historical spacecraft">
-                    <option value="leo-history">Historical LEO spacecraft</option>
-                    <option value="history">Historical MEO spacecraft</option>
-                    <option value="geo-history">Historical GEO spacecraft</option>
-                </optgroup>
-            </select>
-            <div class="toolbar">
-                <input id="modelSearchInput" type="search" aria-label="Search catalog" autocomplete="off" placeholder="Search models, or enter a NORAD ID and press Enter">
-                <button id="reloadBtn" type="button">Reload</button>
+    <section id="viewerSelectionPanel" class="panel" aria-labelledby="viewerMatchHeading">
+        <h1 id="viewerMatchHeading">Tracked Objects - Matches <output id="viewerMatchCount" aria-label="Matching and total tracked objects">…</output></h1>
+        <div id="viewerMatchFilters">
+            <div class="viewer-search-row">
+                <input type="search" id="viewerSearch" aria-label="Search tracked object" placeholder="Search tracked object" autocomplete="off">
+                <button type="button" id="viewerClear">Clear</button>
+                <button type="button" id="viewerReset">Reset Filters</button>
             </div>
-            <div class="catalog-pages">
-                <div id="modelCount" class="model-count" aria-live="polite">Loading manifest...</div>
-                <div id="pageControls" hidden>
-                    <button id="previousPage" type="button" aria-label="Previous page">Previous</button>
-                    <button id="nextPage" type="button" aria-label="Next page">Next</button>
-                </div>
+            <div class="viewer-shortcuts" aria-label="Satellite shortcuts">
+                <button type="button" id="viewerStarlink" disabled>Starlink</button>
+                <button type="button" id="viewerIss" disabled>ISS</button>
             </div>
-            <div id="modelList" class="model-list" aria-label="Available satellite models"></div>
-
-            <div class="custom-row">
-                <input id="customModelInput" type="text" placeholder="Custom model, e.g. leo/ISS.glb">
-                <button id="loadCustomBtn" type="button" class="primary">Load Custom</button>
-            </div>
-            <p class="hint">Enter a path relative to <code>obj/</code>. For an OBJ, you can add its material after a comma, for example <code>leo/starlink_V1.obj, leo/starlink_V1.mtl</code>. A pipe also works.</p>
-
-            <div class="view-controls" aria-label="View controls">
-                <button id="resetViewBtn" type="button">Reset View</button>
-                <button id="autoFitBtn" type="button">Auto Fit</button>
-                <button id="toggleAxesBtn" type="button">Axes On</button>
-                <button id="toggleGridBtn" type="button">Grid On</button>
-                <button id="toggleWireframeBtn" type="button">Wireframe Off</button>
-                <button id="toggleBackgroundBtn" type="button">Bright Background</button>
+            <div class="viewer-filter-groups">
+                <div id="viewerOrbitFilter" class="viewer-segments" role="group" aria-label="Orbit filter"></div>
+                <div id="viewerTypeFilter" class="viewer-segments" role="group" aria-label="Tracked object type filter"></div>
+                <label class="viewer-history"><input type="checkbox" id="viewerHistoryFilter"> Include history</label>
+                <div id="viewerTagHeading">Catalog tags</div>
+                <div id="viewerTagFilter" role="group" aria-labelledby="viewerTagHeading"></div>
             </div>
         </div>
     </section>
 
     <aside class="panel diagnostics">
         <header class="panel-header">
-            <h2>Model Diagnostics</h2>
-            <button id="copyDiagnosticsBtn" type="button" aria-label="Copy diagnostics">Copy</button>
+            <section aria-labelledby="catalogBrowseHeading">
+                <h2 id="catalogBrowseHeading" class="catalog-browse-heading">Tracked Objects</h2>
+                <button id="openTrackedResults" class="tracked-results-open" type="button" aria-controls="trackedResultsDrawer" disabled>Browse catalog results</button>
+            </section>
+            <h2 id="modelDisplayHeading">Display Options</h2>
         </header>
         <div class="panel-body">
-            <section id="viewerComparison" aria-label="Spacecraft comparison" hidden></section>
-            <fieldset class="earth-options" aria-label="Orbital view">
-                <label><input type="checkbox" id="modelEarth">Show Earth</label>
-                <label><input type="checkbox" id="modelFootprint" disabled>Show footprint</label>
-                <div id="earthCameraControls" hidden>
-                    <button type="button" data-earth-camera="inspect" aria-pressed="false">Earth behind spacecraft</button>
-                    <button type="button" data-earth-camera="overview" aria-pressed="false">Fit Earth and spacecraft</button>
+            <section id="modelDisplayOptions" aria-labelledby="modelDisplayHeading">
+                <section id="viewerComparison" aria-label="Spacecraft comparison" hidden></section>
+                <fieldset class="earth-options" aria-label="Orbital view">
+                    <label><input type="checkbox" id="modelEarth">Show Earth</label>
+                    <label><input type="checkbox" id="modelFootprint" disabled>Show footprint</label>
+                    <div id="modelInspectionViews" role="group" aria-label="Spacecraft detail views" hidden></div>
+                    <div id="earthCameraControls" hidden>
+                        <button type="button" data-earth-camera="inspect" aria-pressed="false">Earth behind spacecraft</button>
+                        <button type="button" data-earth-camera="overview" aria-pressed="false">Fit Earth and spacecraft</button>
+                    </div>
+                    <p id="modelEarthStatus" role="status" hidden></p>
+                    <p id="modelOrbitPosition" aria-live="off" hidden></p>
+                    <p id="modelCameraDistance" aria-live="off" hidden></p>
+                    <details id="modelPositionTle" hidden><summary>Position TLE</summary><pre></pre></details>
+                    <p id="modelBeamNotice" role="status" hidden></p>
+                </fieldset>
+            </section>
+            <details id="satelliteFacts" class="viewer-details" open>
+                <summary>Satellite Facts</summary>
+                <p id="satelliteFactsEmpty">No satellite selected.</p>
+                <dl id="satelliteFactsGrid" class="diagnostics-grid"></dl>
+                <p id="satelliteFactsSource" hidden>
+                    <span id="catalogFactsCredit">
+                    <a href="https://planet4589.org/space/gcat/root.html" target="_blank" rel="noopener">GCAT by Jonathan C. McDowell</a>
+                    · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>
+                    </span>
+                    <span id="flightFactsSource" hidden> · <a target="_blank" rel="noopener"></a></span>
+                    <span id="navigationFactsSource" hidden>
+                        <a href="https://www.igs.org/mgex/constellations/#BeiDou" target="_blank" rel="noopener">IGS specifications</a> ·
+                        <a href="https://files.igs.org/pub/station/general/igs_satellite_metadata.snx" target="_blank" rel="noopener">IGS spacecraft metadata</a>
+                    </span>
+                </p>
+                <a id="wavefrontDownload" class="model-download" download hidden></a>
+                <a id="glbDownload" class="model-download" download hidden>Download GLB</a>
+                <section id="servicePanel" class="service-panel" aria-live="polite" hidden></section>
+            </details>
+            <details id="modelInformation" class="viewer-details">
+                <summary>GLB Information</summary>
+                <div class="view-controls" role="group" aria-label="GLB frame and display controls">
+                    <button id="resetViewBtn" type="button">Reset View</button>
+                    <button id="autoFitBtn" type="button">Auto Fit</button>
+                    <button id="toggleAxesBtn" type="button" aria-pressed="true">Axes On</button>
+                    <button id="toggleGridBtn" type="button" aria-pressed="true">Grid On</button>
+                    <button id="toggleWireframeBtn" type="button" aria-pressed="false">Wireframe Off</button>
+                    <button id="toggleBackgroundBtn" type="button">Bright Background</button>
                 </div>
-                <p id="modelEarthStatus" role="status" hidden></p>
-                <p id="modelOrbitPosition" aria-live="off" hidden></p>
-                <p id="modelCameraDistance" aria-live="off" hidden></p>
-                <details id="modelPositionTle" hidden><summary>Position TLE</summary><pre></pre></details>
-                <p id="modelBeamNotice" role="status" hidden></p>
-            </fieldset>
-            <a id="wavefrontDownload" download hidden></a>
-            <div id="modelInspectionViews" role="group" aria-label="Spacecraft detail views" hidden></div>
-            <section id="servicePanel" class="service-panel" aria-live="polite" hidden></section>
-            <dl id="diagnosticsGrid" class="diagnostics-grid"></dl>
+                <button id="copyDiagnosticsBtn" type="button" aria-label="Copy diagnostics">Copy</button>
+                <dl id="diagnosticsGrid" class="diagnostics-grid"></dl>
+                <details id="modelLibraryDetails" class="viewer-details">
+                    <summary>Model library</summary>
+                    <select id="catalogScope" aria-label="Browse satellite catalog" disabled>
+                        <option value="models">Model library</option>
+                        <optgroup label="Current spacecraft">
+                            <option value="leo">Current LEO spacecraft</option>
+                            <option value="meo">Current MEO spacecraft</option>
+                            <option value="geo">Current GEO spacecraft</option>
+                        </optgroup>
+                        <optgroup label="Mission">
+                            <option value="life-extension">Satellite life extension</option>
+                        </optgroup>
+                        <optgroup label="Historical spacecraft">
+                            <option value="leo-history">Historical LEO spacecraft</option>
+                            <option value="history">Historical MEO spacecraft</option>
+                            <option value="geo-history">Historical GEO spacecraft</option>
+                        </optgroup>
+                    </select>
+                    <div class="toolbar">
+                        <input id="modelSearchInput" type="search" aria-label="Search catalog" autocomplete="off" placeholder="Search models, or enter a NORAD ID and press Enter">
+                        <button id="reloadBtn" type="button">Reload</button>
+                    </div>
+                    <div class="catalog-pages">
+                        <div id="modelCount" class="model-count" aria-live="polite">Loading manifest...</div>
+                        <div id="pageControls" hidden>
+                            <button id="previousPage" type="button" aria-label="Previous page">Previous</button>
+                            <button id="nextPage" type="button" aria-label="Next page">Next</button>
+                        </div>
+                    </div>
+                    <div id="modelList" class="model-list" aria-label="Available satellite models"></div>
+
+                    <div class="custom-row">
+                        <input id="customModelInput" type="text" placeholder="Custom model, e.g. leo/ISS.glb">
+                        <button id="loadCustomBtn" type="button" class="primary">Load Custom</button>
+                    </div>
+                    <p class="hint">Enter a path relative to <code>obj/</code>. For an OBJ, you can add its material after a comma, for example <code>leo/starlink_V1.obj, leo/starlink_V1.mtl</code>. A pipe also works.</p>
+                </details>
+            </details>
         </div>
     </aside>
 </main>
+<section id="trackedResultsDrawer" class="tracked-results-drawer" aria-labelledby="trackedResultsTitle" hidden></section>
 
 <section id="comparisonStageHost" aria-label="Main spacecraft comparison view"></section>
 <div id="serviceCaption" hidden></div>
@@ -607,6 +682,10 @@
 <script id="display-satellite-main-module" type="text/openbexi-module">
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { mountModelViewerCatalog } from './js/modelViewerCatalog.js';
+    import { spaceStation } from './js/spaceStations.js';
+    import { requestSelectedElements } from './js/selectedElements.js';
+    import { isHistoricalTrackedRecord, isTrackedRecordPropagatable } from './js/trackedObjectCatalog.js';
     import { disposeObject, loadGlb, loadGlbGroup, loadObjMtl } from './js/spacecraftMesh.js';
     import { mountSpacecraftComparison } from './js/spacecraftComparisonPanel.js';
     import { comparisonObject } from './js/comparisonCatalog.js';
@@ -755,6 +834,10 @@
         toggleGridBtn: document.getElementById('toggleGridBtn'),
         toggleWireframeBtn: document.getElementById('toggleWireframeBtn'),
         toggleBackgroundBtn: document.getElementById('toggleBackgroundBtn'),
+        displayHeading: document.getElementById('modelDisplayHeading'),
+        satelliteFactsGrid: document.getElementById('satelliteFactsGrid'),
+        satelliteFactsEmpty: document.getElementById('satelliteFactsEmpty'),
+        satelliteFactsSource: document.getElementById('satelliteFactsSource'),
         copyDiagnosticsBtn: document.getElementById('copyDiagnosticsBtn'),
         diagnosticsGrid: document.getElementById('diagnosticsGrid'),
         statusBar: document.getElementById('statusBar'),
@@ -805,6 +888,10 @@
     scene.add(axesHelper);
     scene.add(gridHelper);
     const earthBox = document.getElementById('modelEarth');
+    const viewerCatalog = !embedded && mountModelViewerCatalog({
+        onSelect: record => openNorad(String(record.norad_id), record),
+        getSelectedNoradId: () => state.selectedMember?.norad
+    });
     const initialComparisonUrl = new URL(location.href);
     let singleEarthPreference = false;
     const comparison = !embedded && mountSpacecraftComparison(document.getElementById('viewerComparison'), {
@@ -813,11 +900,11 @@
         onActive(active) {
             if (active && !document.body.classList.contains('pair-full-active')) singleEarthPreference=earthBox.checked;
             document.body.classList.toggle('pair-full-active',active);
-            document.querySelector('.diagnostics h2').textContent=active ? 'Spacecraft comparison' : 'Model Diagnostics';
+            dom.displayHeading.textContent = active ? 'Spacecraft comparison' : 'Display Options';
             if (active) earthView?.reset();
             else {
                 const url=new URL(location.href);
-                for (const key of ['compare','view','orbits','zoom','primaryZoom','tleRevision','spin','footprint']) url.searchParams.delete(key);
+                for (const key of ['compare','view','orbits','zoom','primaryZoom','tleRevision','spin','compareCamera','footprint']) url.searchParams.delete(key);
                 url.hash=''; history.replaceState(null,'',url);
                 earthBox.checked=singleEarthPreference;
                 earthBox.dispatchEvent(new Event('change'));
@@ -826,25 +913,25 @@
         },
         onLink(url) {if (url.href!==location.href) history.replaceState(null,'',url);}
     });
-    function comparisonPrimary(entry,member) {
+    function comparisonPrimary(entry, member, norad) {
         if (!comparison) return;
-        const id=member?.norad || uniqueModelNorad(entry);
         const model=member?.profileId || (entry.family==='MEP' ? MEP_ASSET : entry.id);
-        comparison.setPrimary(comparisonObject(id || 'model:'+model, member?.name || entry.displayName, model));
+        comparison.setPrimary(comparisonObject(norad || 'model:'+model, member?.name || entry.displayName, model));
     }
     const wavefrontDownload = document.getElementById('wavefrontDownload');
+    const glbDownload = document.getElementById('glbDownload');
     const inspectionViews = document.getElementById('modelInspectionViews');
     let earthView, earthModule;
     function viewportWidth() {
         const midpoint = window.innerWidth/2;
-        const left = dom.modelList.closest('.panel').getBoundingClientRect().right;
+        const left = document.getElementById('viewerSelectionPanel').getBoundingClientRect().right;
         const right = dom.diagnosticsGrid.closest('.panel').getBoundingClientRect().left;
         const gap = 2*Math.min(midpoint-left, right-midpoint);
         return gap > 0 ? gap : window.innerWidth;
     }
     function syncEarth() {
         if (comparison?.active) return;
-        return earthView?.refresh({root: state.currentModel, entry: state.selectedEntry, member: state.selectedMember,
+        return earthView?.refresh({root: state.currentModel, entry: state.selectedEntry, member: state.selectedMember, elements: state.selectedElements,
             view: state.lastDiagnostics?.servicing, scaleInfo: state.lastScaleInfo});
     }
     earthBox.addEventListener('change', async () => {
@@ -880,10 +967,14 @@
         const file = view?.shownPair && view.client?.norad === '28358' ? 'geo/intelsat-10-02.glb' : entry?.files.glb;
         const name = {'geo/mep.glb':'Mission Extension Pod', 'geo/intelsat-10-02.glb':'Intelsat 10-02',
             'geo/horizons-3e.glb':'Horizons 3e'}[file];
-        wavefrontDownload.hidden = !name;
-        if (!name) { wavefrontDownload.removeAttribute('href'); return; }
-        wavefrontDownload.href = 'obj/exports/'+file.slice(4,-4)+'.zip';
-        wavefrontDownload.textContent = 'Download '+name+' OBJ with materials';
+        const archive = name ? 'exports/'+file.slice(4,-4)+'.zip' : entry?.files.wavefront;
+        wavefrontDownload.hidden = !archive;
+        glbDownload.hidden = !archive || !file;
+        glbDownload.removeAttribute('href');
+        if (!archive) { wavefrontDownload.removeAttribute('href'); return; }
+        wavefrontDownload.href = 'obj/'+archive;
+        wavefrontDownload.textContent = 'Download '+(name || entry.displayName)+' OBJ with materials';
+        if (file) glbDownload.href = 'obj/'+file;
     }
     const studioLights = new THREE.Group();
     scene.add(studioLights);
@@ -1099,12 +1190,15 @@
             }
             const group = groups.get(model.id);
             if (profile.id === model.id) group.profile = profile;
+            const station = spaceStation(record);
             group.members.push({
-                name: record.satellite_name,
+                name: station?.name || record.satellite_name,
                 norad: String(record.norad_id),
+                record,
                 profileId: resolved.profile.id,
                 family: lifeExtensionFamily(record),
-                searchText: (record.satellite_name + ' NORAD ' + record.norad_id + ' ' + lifeExtensionSearchText(record)).toLowerCase(),
+                searchText: (record.satellite_name + ' NORAD ' + record.norad_id + ' ' + lifeExtensionSearchText(record)
+                    + (station ? ' '+station.name+' '+station.aliases : '')).toLowerCase(),
                 profileText: profile.searchText
             });
         }
@@ -1130,7 +1224,7 @@
         const addRecord = (key, record) => {
             const family = extensionFamilies[key];
             const id = record ? String(record.norad_id) : null;
-            const member = id ? { name: record.satellite_name, norad: id, family: key } : null;
+            const member = id ? { name: record.satellite_name, norad: id, record, family: key } : null;
             const entry = { id: 'mission-' + (id || key.toLowerCase()), type: 'mission', family: key,
                 displayName: member?.name || family.name + ' (' + key + ')', files: {}, tags: [family.role],
                 description: family.description || family.role, members: member ? [member] : [],
@@ -1165,6 +1259,7 @@
         clearCurrentModel();
         state.selectedEntry = null;
         state.selectedMember = null;
+        updateSatelliteFacts();
         dom.catalogScope.value = scope;
         dom.modelSearchInput.value = '';
         dom.modelSearchInput.placeholder = scope === 'models' ? 'Search models, or enter a NORAD ID and press Enter' : 'Search by name, NORAD ID, or platform';
@@ -1502,6 +1597,8 @@
             requiredFiles: modelRequiredFiles(entry),
             dimensionNote: typeof root.userData.dimensionNote === 'string' ? root.userData.dimensionNote : '',
             visualReferences: Array.isArray(root.userData.visualReferences) ? root.userData.visualReferences : [],
+            referenceTitles: root.userData.referenceTitles,
+            referenceStatus: root.userData.referenceStatus,
             meshCount,
             materialCount: materials.size,
             textureCount: textures.size,
@@ -1528,7 +1625,8 @@
 
     function orientModelPreview(root) {
         studioLights.quaternion.identity();
-        const previewUp = root.getObjectByName('OpenBEXIPreview')?.userData?.previewUp;
+        const preview = root.getObjectByName('OpenBEXIPreview')?.userData;
+        const previewUp = preview?.previewUp;
         if (Array.isArray(previewUp) && previewUp.length === 3 && previewUp.every(Number.isFinite)) {
             const up = new THREE.Vector3(...previewUp);
             if (up.lengthSq() > 0) {
@@ -1539,39 +1637,66 @@
                 studioLights.quaternion.slerp(turn, 0.55);
             }
         }
+        if (Number.isFinite(preview?.previewLightYawDeg)) {
+            studioLights.rotateY(THREE.MathUtils.degToRad(preview.previewLightYawDeg));
+        }
     }
 
-    function showInspectionViews(root,params) {
-        const url=new URL(location.href);
-        let selected;
-        root.traverse(node=>{
-            const {inspectionView,label,target,radius}=node.userData;
-            if (!node.isCamera || !inspectionView || !Array.isArray(target) || !(radius>0)) return;
-            const button=document.createElement('button');
-            button.type='button';button.textContent=label;
-            button.dataset.detail=inspectionView;
-            button.setAttribute('aria-pressed','false');
-            button.addEventListener('click',()=>{
-                if (earthBox.checked || root!==state.currentModel) return;
-                const point=root.localToWorld(new THREE.Vector3().fromArray(target));
-                const direction=node.getWorldPosition(new THREE.Vector3()).sub(point).normalize();
-                const fit=Math.min(1,viewportWidth()/window.innerHeight);
-                const halfAngle=Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov/2))*fit);
-                const distance=radius*root.getWorldScale(new THREE.Vector3()).x/Math.sin(halfAngle);
-                controls.target.copy(point);
-                camera.position.copy(point).addScaledVector(direction,distance);
-                camera.near=distance/2000;camera.far=distance*100;
-                camera.updateProjectionMatrix();controls.update();
-                for (const preset of inspectionViews.children) preset.setAttribute('aria-pressed',String(preset===button));
-                const current=new URL(location.href);
-                current.searchParams.set('detail',inspectionView);history.replaceState(null,'',current);
+    function showInspectionViews(root, params) {
+        const { center, size } = measureObject(root);
+        const radius = Math.max(size.length() / 2, 0.01);
+        function addView(key, label, getFrame) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = label;
+            button.dataset.detail = key;
+            button.setAttribute('aria-pressed', 'false');
+            button.addEventListener('click', () => {
+                if (earthBox.checked || root !== state.currentModel) return;
+                const frame = getFrame();
+                const fit = Math.min(1, viewportWidth() / window.innerHeight);
+                const halfAngle = Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * fit);
+                const distance = frame.radius / Math.sin(halfAngle);
+                // Consume the previous drag's inertia before installing the new camera pose.
+                const damping = controls.enableDamping;
+                controls.enableDamping = false;
+                controls.update();
+                controls.enableDamping = damping;
+                controls.target.copy(frame.target);
+                camera.position.copy(frame.target).addScaledVector(frame.direction, distance);
+                camera.near = distance / 2000;
+                camera.far = distance * 100;
+                camera.updateProjectionMatrix();
+                controls.update();
+                for (const preset of inspectionViews.children) preset.setAttribute('aria-pressed', String(preset === button));
+                const url = new URL(location.href);
+                url.searchParams.set('detail', key);
+                history.replaceState(null, '', url);
             });
             inspectionViews.append(button);
-            if (params.get('detail')===inspectionView) selected=button;
+        }
+
+        for (const [key, label, x, y, z] of [
+            ['front', 'Front view', 0, 0, 1], ['side', 'Side view', 1, 0, 0], ['top', 'Top view', 0, 1, 0]
+        ]) {
+            addView(key, label, () => ({
+                target: center, radius, direction: new THREE.Vector3(x, y, z).transformDirection(root.matrixWorld)
+            }));
+        }
+        root.traverse(node => {
+            const { inspectionView, label, target, radius } = node.userData;
+            if (!node.isCamera || !inspectionView || !Array.isArray(target) || !(radius > 0)) return;
+            addView(inspectionView, label, () => {
+                const point = node.parent.localToWorld(new THREE.Vector3().fromArray(target));
+                return { target: point, direction: node.getWorldPosition(new THREE.Vector3()).sub(point).normalize(),
+                    radius: radius * node.parent.getWorldScale(new THREE.Vector3()).x };
+            });
         });
-        inspectionViews.hidden=earthBox.checked || !inspectionViews.childElementCount;
+        inspectionViews.hidden = earthBox.checked;
+        const detail = params.get('detail');
+        const selected = Array.from(inspectionViews.children).find(button => button.dataset.detail === detail);
         if (selected && !inspectionViews.hidden) selected.click();
-        else if (!selected && url.searchParams.has('detail')) {url.searchParams.delete('detail');history.replaceState(null,'',url);}
+        else if (detail && !selected) clearInspectionView();
     }
 
     function fitCameraToObject(root) {
@@ -1591,6 +1716,7 @@
         camera.far = distance * 100;
         camera.position.set(0, safeDiameter * 0.24, distance);
         const previewCamera = root.getObjectByName('OpenBEXIPreview');
+        camera.fov = previewCamera?.userData.previewFov ?? (previewCamera?.userData.fitToMeshes ? 22 : 45);
         previewFill.visible = Boolean(previewCamera?.isPerspectiveCamera);
         if (previewCamera?.isPerspectiveCamera) {
             // Fit the authored view between the side panels, or across the canvas on mobile.
@@ -1602,7 +1728,25 @@
             camera.near = Math.max(previewCamera.near * root.scale.x, previewDistance / 1000);
             camera.far = previewDistance * 100;
         }
-        if (embedded) {
+        if (previewCamera?.userData.fitToMeshes) {
+            // Fit the projected parts. A single bounding cube greatly over-pads long deployed wings.
+            camera.lookAt(0,0,0);
+            const toView = new THREE.Matrix4().makeRotationFromQuaternion(camera.quaternion.clone().invert());
+            const matrix = new THREE.Matrix4(), bounds = new THREE.Box3();
+            const aspect = (embedded ? window.innerWidth : viewportWidth()) / window.innerHeight;
+            const tangent = Math.tan(THREE.MathUtils.degToRad(camera.fov/2));
+            let fit = .05;
+            root.traverse(mesh => {
+                if (!mesh.isMesh) return;
+                mesh.geometry.computeBoundingBox();
+                bounds.copy(mesh.geometry.boundingBox).applyMatrix4(matrix.multiplyMatrices(toView,mesh.matrixWorld));
+                const height = Math.max(-bounds.min.y,bounds.max.y,-bounds.min.x/aspect,bounds.max.x/aspect);
+                fit = Math.max(fit,bounds.max.z + 1.12*height/tangent);
+            });
+            camera.position.setLength(fit);
+            camera.near = fit/1000;
+            camera.far = fit*100;
+        } else if (embedded) {
             // Fit the centered bounds in both dimensions of the catalog panel.
             camera.lookAt(0, 0, 0);
             const bounds = new THREE.Box3(size.clone().multiplyScalar(-0.5), size.clone().multiplyScalar(0.5));
@@ -1621,6 +1765,7 @@
 
     function setWireframeMode(enabled) {
         state.wireframe = enabled;
+        dom.toggleWireframeBtn.setAttribute('aria-pressed', String(enabled));
         dom.toggleWireframeBtn.textContent = `Wireframe ${enabled ? 'On' : 'Off'}`;
         state.currentModel?.traverse(child => {
             if (!child.isMesh) return;
@@ -1636,6 +1781,150 @@
         state.darkBackground = dark;
         scene.background = new THREE.Color(dark ? 0x050914 : 0xdde8f5);
         dom.toggleBackgroundBtn.textContent = dark ? 'Bright Background' : 'Dark Background';
+    }
+
+    function renderDetailRows(grid, items) {
+        grid.innerHTML = items.map(([label, value, metric]) => `
+            <div class="diagnostic-item${metric ? ' diagnostic-metric' : ''}">
+                <dt class="diagnostic-label">${escapeHtml(label)}</dt>
+                <dd class="diagnostic-value">${value}</dd>
+            </div>
+        `).join('');
+    }
+
+    function formatMass(kg, estimated) {
+        if (!Number.isFinite(kg) || kg <= 0) return null;
+        return `${kg.toLocaleString(undefined, { maximumFractionDigits: 3 })} kg${estimated ? ' (estimated)' : ''}`;
+    }
+
+    function formatPrnAssignment(assignment) {
+        if (!assignment) return null;
+        const utc = date => date.replace(/T00:00:00Z$/, '').replace('T',' ').replace('Z',' UTC');
+        const dates = assignment.end ? utc(assignment.start)+' to '+utc(assignment.end) : 'from '+utc(assignment.start);
+        return assignment.id+' ('+dates+(assignment.note ? ', '+assignment.note : '')+')';
+    }
+
+    function renderSatelliteFacts(entry, selected, norad, details, navigation) {
+        const flight = details?.flight;
+        const spec = navigation?.meta, geo = spec?.geometry;
+        const vehicle = navigation?.flights[norad];
+        const latestPrn = vehicle?.prns.at(-1);
+        const flightSource = document.getElementById('flightFactsSource');
+        flightSource.hidden = !flight;
+        if (flight) {
+            flightSource.firstElementChild.href = flight.source_url;
+            flightSource.firstElementChild.textContent = flight.source_name;
+        }
+        dom.satelliteFactsEmpty.hidden = Boolean(entry);
+        const hasCatalogCredit = Boolean(details?.manufacturer || details?.owner || details?.bus ||
+            details?.launch_mass_kg || details?.dry_mass_kg);
+        document.getElementById('catalogFactsCredit').hidden = !hasCatalogCredit;
+        const navigationSource = document.getElementById('navigationFactsSource');
+        navigationSource.hidden = !spec;
+        if (spec) navigationSource.firstElementChild.href = spec.references[0];
+        dom.satelliteFactsSource.hidden = !(hasCatalogCredit || flight || spec);
+        if (!entry) {
+            dom.satelliteFactsGrid.replaceChildren();
+            return;
+        }
+
+        const record = selected?.record;
+        const orbitTags = entry.tags?.filter(tag => ['LEO', 'MEO', 'GEO', 'HEO'].includes(tag));
+        const orbit = record?.orbit_class || details?.orbit_class || (orbitTags?.length === 1 ? orbitTags[0] : '');
+        const decayDate = record && Object.hasOwn(record, 'decay_date') ? record.decay_date : details?.decay_date;
+        const status = decayDate ? 'DECAYED' : record?.lifecycle_status;
+        const summary = record?.satcat_orbit_summary;
+        const inclination = record?.inclination_deg ?? summary?.inclination_deg;
+        const perigee = record?.perigee_km ?? summary?.perigee_km;
+        const apogee = record?.apogee_km ?? summary?.apogee_km;
+        const period = record?.period_min ?? summary?.period_min;
+        let altitude;
+        if (Number.isFinite(record?.estimated_altitude_km)) {
+            altitude = `${Math.round(record.estimated_altitude_km).toLocaleString()} km (estimated)`;
+        } else if (Number.isFinite(perigee) && Number.isFinite(apogee)) {
+            const low = Math.round(perigee).toLocaleString();
+            const high = Math.round(apogee).toLocaleString();
+            altitude = low === high ? `${low} km` : `${low}–${high} km`;
+        }
+        const tianhe = String(norad) === '48274';
+        const facts = [
+            [norad ? 'Satellite' : 'Model', spaceStation({norad_id:norad})?.name || record?.satellite_name || details?.name || selected?.name || entry.displayName],
+            ['Tracked module', tianhe && (record?.satellite_name || details?.name || 'CSS (TIANHE)')],
+            ['NORAD ID', norad],
+            ['Mission name', flight?.reference_name?.toUpperCase() !== details?.name?.toUpperCase() && flight?.reference_name],
+            ['COSPAR ID', record?.international_designator || details?.international_designator || vehicle?.cospar],
+            ['Spacecraft ID (SVN)', vehicle?.svn],
+            [latestPrn?.end ? 'Last assigned PRN' : 'Broadcast ID (PRN)', formatPrnAssignment(latestPrn)],
+            ['Earlier PRN assignments', vehicle?.prns.slice(0,-1).map(formatPrnAssignment).join(' · ')],
+            ['Manufacturer', flight?.manufacturer || spec?.manufacturer || details?.manufacturer],
+            record?.operator ? ['Operator', record.operator] : ['Owner / operator', details?.owner],
+            [spec ? 'Spacecraft variant' : 'Spacecraft bus', spec?.bus || details?.bus],
+            [geo?.body_dimension_label || 'Body dimensions (IGS X × Y × Z)', geo && [geo.body_length_m, geo.body_width_m, geo.body_height_m]
+                .map(m => m.toFixed(2)).join(' × ')+' m'+(geo.body_dimension_label ? '' : geo.body_estimated ? ' (estimated)' : ' (reference bus)')],
+            ['Solar area per wing', geo?.solar_area_per_wing_m2 && geo.solar_area_per_wing_m2.toFixed(2)+' m²'+
+                (geo.body_estimated ? ' (approximate)' : '')],
+            [tianhe ? 'Core module launch date' : 'Launch date', record?.launch_date || details?.launch_date || vehicle?.launch_date],
+            [flight?.mission_status ? 'Mission status' : 'Status', flight?.mission_status || (status && status[0] + status.slice(1).toLowerCase())],
+            ['Decay date', decayDate],
+            flight?.separation_mass_kg ? ['Mass at separation',formatMass(flight.separation_mass_kg)] :
+                [tianhe ? 'Core module launch mass' : 'Launch mass', vehicle?.in_orbit_mass_kg > details?.launch_mass_kg
+                    ? null : formatMass(details?.launch_mass_kg, details?.launch_mass_estimated)],
+            [tianhe ? 'Core module dry mass' : 'Dry mass', vehicle?.in_orbit_mass_kg < details?.dry_mass_kg
+                ? null : formatMass(details?.dry_mass_kg, details?.dry_mass_estimated)],
+            ['In-orbit mass', vehicle?.in_orbit_mass_kg && formatMass(vehicle.in_orbit_mass_kg, vehicle.mass_estimated)+
+                ' · IGS epoch '+vehicle.mass_epoch],
+            ['IGS metadata date', vehicle && spec.igs_epoch],
+            ['Payload', flight?.payload || spec?.payload],
+            ['Optical links', flight?.optical_links],
+            ['Propulsion', flight?.propulsion],
+            ['Manufacturer mass statement', flight?.manufacturer_mass],
+            ['Design orbit shells', flight?.design_orbits],
+            ['Nominal solar array power', flight?.nominal_array_power_kw && flight.nominal_array_power_kw+' kW'],
+            ['Deployed solar span', flight?.deployed_span_m
+                ? flight.deployed_span_m+' m'+(flight.span_note ? ' ('+flight.span_note+')' : flight.span_estimated ? ' (GCAT estimate)' : '')
+                : geo?.span_m && geo.span_m+(geo.span_estimated ? ' m (estimated)' : ' m')],
+            ['End-of-life power', flight?.end_of_life_power_kw && flight.end_of_life_power_kw+' kW'],
+            ['Orbit class', orbit],
+            ['Altitude', altitude],
+            ['Inclination', Number.isFinite(inclination) ? `${inclination}°` : null],
+            ['Orbital period', Number.isFinite(period) && period > 0 ? `${period.toFixed(1)} min` : null]
+        ];
+        renderDetailRows(dom.satelliteFactsGrid, facts
+            .filter(([, value]) => value && String(value).toUpperCase() !== 'UNKNOWN')
+            .map(([label, value]) => [label, escapeHtml(value)]));
+    }
+
+    let spacecraftFactsCatalog, meoFactsRegistry;
+    function updateSatelliteFacts(entry, member, norad) {
+        if (embedded) return;
+        const selected = member ?? (entry?.members?.length === 1 ? entry.members[0] : null);
+        renderSatelliteFacts(entry, selected, norad);
+        const profileId = selected?.profileId || entry?.id;
+        const navigation = profileId?.startsWith('meo/') && Boolean(entry?.files.wavefront);
+        if (!norad && !navigation) return;
+
+        if (norad) spacecraftFactsCatalog ??= fetch('data/spacecraft-facts.json').then(response => {
+            if (!response.ok) throw new Error('Spacecraft facts unavailable');
+            return response.json();
+        }).catch(() => {
+            spacecraftFactsCatalog = null;
+            return null;
+        });
+        if (navigation) meoFactsRegistry ??= fetch('json/satellites/meo.json').then(response => {
+            if (!response.ok) throw new Error('MEO specifications unavailable');
+            return response.json();
+        }).catch(() => { meoFactsRegistry = null; return null; });
+        Promise.all([norad && spacecraftFactsCatalog, navigation && meoFactsRegistry]).then(([catalog, registry]) => {
+            if (entry !== state.selectedEntry || member !== state.selectedMember) return;
+            const values = catalog?.spacecraft?.[norad];
+            const details = Array.isArray(values) && Array.isArray(catalog.fields)
+                ? Object.fromEntries(catalog.fields.map((field, index) => [field, values[index]])) : {};
+            const shared = catalog?.model_facts?.[profileId];
+            const individual = catalog?.flights?.[norad];
+            details.flight = shared ? {...shared, ...individual} : individual;
+            const profile = registry?.[profileId];
+            renderSatelliteFacts(entry, selected, norad, details, profile?.flights ? profile : null);
+        });
     }
 
     function updateDiagnostics(diagnostics) {
@@ -1669,16 +1958,11 @@
             .filter(url => url.protocol === 'https:');
         if (links.length) {
             const html = links.map(url =>
-                `<a href="${escapeHtml(url.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url.hostname.replace(/^www\./, ''))}</a>`
+                `<a href="${escapeHtml(url.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(diagnostics.referenceTitles?.[url.href] || url.hostname.replace(/^www\./, ''))}</a>`
             ).join(' · ');
             items.splice(2, 0, ['Design references', html]);
         }
-        dom.diagnosticsGrid.innerHTML = items.map(([label, value, metric]) => `
-            <div class="diagnostic-item${metric ? ' diagnostic-metric' : ''}">
-                <dt class="diagnostic-label">${escapeHtml(label)}</dt>
-                <dd class="diagnostic-value">${value}</dd>
-            </div>
-        `).join('');
+        renderDetailRows(dom.diagnosticsGrid, items);
     }
 
     let geoReferenceRegistry;
@@ -1711,7 +1995,8 @@
     async function loadModel(entry, member = null, reload = false, togglePair = false) {
         if (!entry) return;
         const params = new URLSearchParams(window.location.search);
-        const key = member?.norad || uniqueModelNorad(entry) || 'model:'+entry.id;
+        const norad = member?.norad || uniqueModelNorad(entry);
+        const key = norad || 'model:'+entry.id;
         const instant = Date.parse(params.get('at'));
         const attachment = attachmentAt(key,Number.isFinite(instant) ? instant : Date.now());
         const flight = attachment ? {norad:key,name:entry.displayName} : member;
@@ -1722,7 +2007,20 @@
         if (!togglePair) inspectAlone = false;
         state.selectedEntry = entry;
         state.selectedMember = member;
-        comparisonPrimary(entry,member);
+        state.selectedElements = member?.record?.element_set;
+        if (!embedded && norad && !isHistoricalTrackedRecord(member?.record)) {
+            requestSelectedElements(norad).then(elements => {
+                if (!elements || state.selectedEntry !== entry || state.selectedMember !== member) return;
+                if (Date.parse(elements.epoch) <= Date.parse(state.selectedElements?.epoch)) return;
+                state.selectedElements = elements;
+                viewerCatalog.rememberElements(norad, elements);
+                if (entry.type === 'record') {
+                    openNorad(String(norad), { ...member.record, element_set: elements, has_current_elements: true, metadata_only: false });
+                } else if (earthBox.checked && state.currentModel) syncEarth();
+            });
+        }
+        updateSatelliteFacts(entry, member, norad);
+        comparisonPrimary(entry, member, norad);
         renderModelList();
         if (member || params.get('model') !== entry.id) params.delete('object');
         if (entry.members) params.set('catalog', state.scope);
@@ -1744,6 +2042,12 @@
         clearServicePanel();
         dom.diagnosticsGrid.replaceChildren();
         state.lastDiagnostics = null;
+        if (entry.type === 'record') {
+            state.loadingManager = null;
+            earthView?.reset();
+            setStatus('success', 'Catalog record', 'Position unavailable.');
+            return;
+        }
         if (entry.type === 'mission') {
             const token = {};
             state.loadingManager = token;
@@ -1817,7 +2121,7 @@
         else if (serviceUi) serviceUi.showFlightLinks(servicePanel);
         orientModelPreview(root);
         fitCameraToObject(root);
-        if (!embedded && !comparison?.active) showInspectionViews(root,params);
+        if (!embedded && !comparison?.active && !root.isPoints) showInspectionViews(root,params);
         updateDiagnostics(diagnostics);
         updateDownload(entry, view);
         syncEarth();
@@ -1831,7 +2135,7 @@
     }
 
     function loadSelectedModel(id, member, reload = false, togglePair = false) {
-        const entry = catalogEntries().find(model => model.id === id) || state.selectedEntry || catalogEntries()[0];
+        const entry = catalogEntries().find(model => model.id === id) || state.profilesById.get(id)?.model || state.selectedEntry || catalogEntries()[0];
         if (!entry) return;
         return loadModel(entry, member, reload, togglePair).catch(error => {
             if (state.selectedEntry !== entry || state.selectedMember !== (member || null)) return;
@@ -1903,14 +2207,16 @@
             || state.models[0];
     }
 
-    async function openNorad(id) {
+    async function openNorad(id, knownRecord = null) {
+        ++scopeRequest;
         if (comparison) comparison.setPrimary(/^[1-9]\d{0,8}$/.test(id) ? comparisonObject(id) : null);
-        if (Object.hasOwn(mevFlights,id)) return browseCatalog('life-extension',id);
+        if (!knownRecord && Object.hasOwn(mevFlights,id)) return browseCatalog('life-extension',id);
         const token = {};
         state.loadingManager = token;
         clearCurrentModel();
         clearServicePanel();
         state.selectedEntry = state.selectedMember = state.lastDiagnostics = null;
+        updateSatelliteFacts();
         dom.diagnosticsGrid.replaceChildren();
         dom.modelSearchInput.value = '';
         const url = new URL(window.location.href);
@@ -1926,9 +2232,13 @@
         setStatus('loading','NORAD','Finding spacecraft '+id+'…');
         try {
             const {resolveSatelliteModel} = await import('./js/satelliteModelResolver.js');
-            let record = {norad_id:id};
+            if (!knownRecord && viewerCatalog && !state.profilesById.has(resolveSatelliteModel({norad_id:id}).assetId)) {
+                knownRecord = await viewerCatalog.find(id);
+                if (token !== state.loadingManager) return;
+            }
+            let record = knownRecord || {norad_id:id};
             let resolved = resolveSatelliteModel(record);
-            if (!state.profilesById.has(resolved.assetId)) {
+            if (!knownRecord && !state.profilesById.has(resolved.assetId)) {
                 const {loadPublishedTles} = await import('./js/publishedTleCatalog.js');
                 record = (await loadPublishedTles()).records.get(id) || record;
                 resolved = resolveSatelliteModel(record);
@@ -1937,15 +2247,16 @@
             const profile = state.profilesById.get(resolved.assetId);
             state.loadingManager = null;
             if (!profile) {
-                if (record.tle_line1 && record.tle_line2) {
+                if (knownRecord || (record.tle_line1 && record.tle_line2)) {
                     const name = record.satellite_name || 'NORAD '+id;
-                    const entry = {id:'position-'+id, displayName:name, type:'position', files:{}, tags:[], textures:[]};
-                    await loadModel(entry, {norad:id, name});
+                    const type = (knownRecord ? isTrackedRecordPropagatable(record) : true) ? 'position' : 'record';
+                    const entry = {id:type+'-'+id, displayName:name, type, files:{}, tags:[], textures:[]};
+                    await loadModel(entry, {norad:id, name, record});
                 } else setStatus('warning','NORAD','No spacecraft model or published TLE for NORAD '+id+'.');
                 return;
             }
             state.page = Math.max(0,Math.floor(state.models.indexOf(profile.model)/pageSize));
-            await loadSelectedModel(profile.model.id, {norad:id, name:record.satellite_name || profile.profile.displayName,
+            await loadSelectedModel(profile.model.id, {norad:id, name:spaceStation(record)?.name || record.satellite_name || profile.profile.displayName, record,
                 profileId:resolved.assetId, family:lifeExtensionFamily(record)});
         } catch {
             if (state.loadingManager !== token) return;
@@ -1970,6 +2281,7 @@
             warnings: []
         });
         await loadModelManifest();
+        document.getElementById('openTrackedResults').disabled = false;
         dom.catalogScope.disabled = false;
         const params = new URLSearchParams(window.location.search);
         if (comparison && params.has('compare')) {
@@ -1979,6 +2291,10 @@
                 state.profilesById.get(model)?.profile.displayName,model));
         }
         if (comparison?.active) return;
+        if (!embedded && !['norad','object','model','catalog'].some(key => params.has(key))) {
+            setStatus('success', 'Ready', 'Select a satellite from the tracked-object catalog.');
+            return;
+        }
         await loadSingleSelection(params);
     }
 
@@ -2038,10 +2354,12 @@
     });
     dom.toggleAxesBtn.addEventListener('click', () => {
         axesHelper.visible = !axesHelper.visible;
+        dom.toggleAxesBtn.setAttribute('aria-pressed', String(axesHelper.visible));
         dom.toggleAxesBtn.textContent = `Axes ${axesHelper.visible ? 'On' : 'Off'}`;
     });
     dom.toggleGridBtn.addEventListener('click', () => {
         gridHelper.visible = !gridHelper.visible;
+        dom.toggleGridBtn.setAttribute('aria-pressed', String(gridHelper.visible));
         dom.toggleGridBtn.textContent = `Grid ${gridHelper.visible ? 'On' : 'Off'}`;
     });
     dom.toggleWireframeBtn.addEventListener('click', () => setWireframeMode(!state.wireframe));

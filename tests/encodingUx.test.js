@@ -41,8 +41,7 @@ function run() {
 
   const indexHtml = fs.readFileSync('index.html', 'utf8');
   assert(indexHtml.includes('>Time</label>'), 'time slider label uses an ASCII-safe label');
-  assert(indexHtml.includes('>Close</button>'), 'initial menu toggle label uses readable text');
-  assert(indexHtml.includes("textContent = hidden ? 'Menu' : 'Close'"), 'runtime menu toggle uses readable text');
+  assert(satelliteMenuLoader().includes('Tracked Objects - Matches'), 'the pinned menu has a readable heading');
 
   console.log('encodingUx tests passed');
 }

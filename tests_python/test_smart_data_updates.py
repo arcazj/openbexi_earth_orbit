@@ -17,6 +17,40 @@ from tests_python.test_satellite_data_scheduler import _omm
 
 
 class SmartDataUpdatesTests(unittest.TestCase):
+    def test_damaged_provider_ledger_names_the_file_and_prevents_queries(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            legacy = Path(temporary) / "provider-queries.json"
+            shared = legacy.parent / "data-plane" / legacy.name
+            shared.parent.mkdir()
+            upstream = mock.Mock()
+            for path in (shared, legacy):
+                for damaged, diagnostic in ((b'{"urls":{"a":"\x00', "line 1"), (b'{"urls":[]}', "'urls'")):
+                    with self.subTest(path=path, damaged=damaged):
+                        path.write_bytes(damaged)
+                        with self.assertRaises(ProviderPaused) as caught:
+                            ProviderQueries(shared, upstream)(tools.CELESTRAK_SATCAT_CSV_URL)
+                        self.assertIn(str(path), str(caught.exception))
+                        self.assertIn(diagnostic, str(caught.exception))
+                        self.assertEqual(path.read_bytes(), damaged)
+                        path.unlink()
+            upstream.assert_not_called()
+
+    def test_provider_sync_failure_keeps_committed_state_and_prevents_fetch(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "provider-queries.json"
+            old = b'{"urls":{},"blocked":false}'
+            path.write_bytes(old)
+            upstream, on_saved = mock.Mock(), mock.Mock()
+            queries = ProviderQueries(path, upstream, now=NOW, on_saved=on_saved)
+            # Exercise the request's admission write independently of the OS lock's own fsync.
+            with mock.patch("os.fsync", side_effect=OSError("sync failed")):
+                with self.assertRaisesRegex(OSError, "sync failed"):
+                    queries._query(tools.CELESTRAK_SATCAT_CSV_URL)
+            self.assertEqual(path.read_bytes(), old)
+            self.assertEqual(list(path.parent.glob("*.tmp")), [])
+            upstream.assert_not_called()
+            on_saved.assert_not_called()
+
     def test_server_imports_standalone_cache_and_cross_format_cooldown(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

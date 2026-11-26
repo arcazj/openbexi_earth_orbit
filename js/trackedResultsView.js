@@ -4,6 +4,7 @@ import {
     trackedObjectType
 } from './trackedObjectCatalog.js';
 import { satelliteSearchText } from './satelliteSearchUtils.js';
+import { spaceStation } from './spaceStations.js';
 
 export const TRACKED_RESULT_MODE = Object.freeze({
     ALL: 'ALL',
@@ -38,7 +39,7 @@ export function trackedResultRow(record) {
     return Object.freeze({
         record,
         norad: String(record?.norad_id ?? record?.NORAD_CAT_ID ?? '').trim(),
-        name: String(record?.satellite_name ?? record?.name ?? 'Unnamed object').trim(),
+        name: String(spaceStation(record)?.name ?? record?.satellite_name ?? record?.name ?? 'Unnamed object').trim(),
         type: trackedObjectType(record),
         owner: String(record?.owner ?? record?.owner_code ?? record?.operator ?? '').trim() || 'Not reported',
         orbit: String(record?.orbit_class ?? record?.orbitType ?? record?.type ?? '').trim() || 'Unknown',

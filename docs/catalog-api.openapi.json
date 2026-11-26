@@ -3,7 +3,7 @@
   "info": {
     "title": "OpenBEXI catalog and model API",
     "version": "1.0.0",
-    "description": "Local read-only resources included in OpenBEXI Earth Orbit 2.6.0."
+    "description": "Local catalog resources and on-demand single-object orbital refreshes."
   },
   "servers": [
     {
@@ -406,6 +406,33 @@
           }
         }
       ]
+    },
+    "/api/v1/objects/{noradId}/refresh-elements": {
+      "parameters": [
+        { "name": "noradId", "in": "path", "required": true, "description": "Selected NORAD catalog number.",
+          "schema": { "type": "string", "pattern": "^[1-9][0-9]{0,8}$" } }
+      ],
+      "post": {
+        "operationId": "refreshSelectedOrbitalElements",
+        "tags": ["Catalog and models"],
+        "summary": "Refresh one selected object's orbital elements",
+        "description": "Returns the newest validated local or single-CATNR SGP4 element set. Successful and unsuccessful checks are rate limited per object. Historical objects return no current position.",
+        "responses": {
+          "200": { "description": "Orbital elements and provider-check status.", "content": {
+            "application/json": { "schema": { "type": "object", "required": ["norad_id", "status", "element_set"],
+              "properties": {
+                "norad_id": { "type": "string" }, "status": { "type": "string", "enum": ["updated","unchanged","local","historical","no_current_elements","provider_unavailable"] },
+                "checked_at": { "type": "number", "nullable": true, "description": "Last successful provider check, in Unix seconds." },
+                "element_set": { "type": "object", "nullable": true, "description": "Validated OMM with UTC epoch and TLE lines when representable." }
+              }
+            } }
+          } },
+          "400": { "description": "Invalid NORAD ID or query." },
+          "404": { "description": "Unknown catalog object." },
+          "405": { "description": "Use POST." },
+          "503": { "description": "Local catalog or storage unavailable." }
+        }
+      }
     },
     "/api/v1/models/{modelId}": {
       "get": {

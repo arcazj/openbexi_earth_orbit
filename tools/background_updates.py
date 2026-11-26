@@ -11,6 +11,7 @@ import threading
 import time
 from pathlib import Path
 
+from tools.provider_queries import ProviderQueries
 from tools.satellite_data_plane import DataPlaneCancelled, SatelliteDataPlane, validate_data_root
 
 
@@ -87,10 +88,7 @@ class CloudRefreshState:
         value = json.loads(body)
         if not isinstance(value, dict) or not isinstance(value.get("urls"), dict):
             raise ValueError("Cloud provider ledger is invalid.")
-        path = state_root / "provider-queries.json"
-        temporary = path.with_suffix(".restore")
-        temporary.write_bytes(body)
-        temporary.replace(path)
+        ProviderQueries.write(state_root / "provider-queries.json", value)
 
     def publish(self, plane):
         if self.lost.is_set():
