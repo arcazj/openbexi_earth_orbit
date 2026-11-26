@@ -16,30 +16,6 @@ canvas {
     display: block; /* Default for the main 3D canvas */
 }
 
-/* Menu Toggle Button */
-#menuToggleBtn {
-    position: fixed;
-    top: 20px;
-    left: 20px;
-    z-index: 1002; /* Above controls container */
-    background: linear-gradient(180deg, rgba(48, 93, 143, 0.95), rgba(21, 45, 75, 0.95));
-    color: #e8f5ff;
-    border: 1px solid rgba(127, 186, 255, 0.45);
-    border-radius: 7px;
-    box-sizing: border-box;
-    height: var(--menu-header-control-height);
-    min-height: var(--menu-header-control-height);
-    padding: 0 10px;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    font-weight: 800;
-    line-height: 1;
-    transition: left 0.3s ease-in-out;
-}
-
 /* Controls Container (Menu Panel) */
 #controlsContainer {
     position: fixed;
@@ -53,8 +29,6 @@ canvas {
     overflow-y: auto;
     z-index: 1000;
     box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
-    transition: transform 0.3s ease-in-out;
-    transform: translateX(0%); /* Initially visible */
     font-family: sans-serif;
     box-sizing: border-box;
 }
@@ -63,9 +37,6 @@ canvas {
     display: none;
 }
 
-#controlsContainer.menu-hidden {
-    transform: translateX(calc(-100% - 20px)); /* Slide out completely */
-}
 
 /* Version Display within Menu */
 #versionDisplay {
@@ -154,8 +125,10 @@ body:has(#dataRefreshStatus:not([hidden])) {
 .data-health-panel section + section { border-top: 1px solid #405365; margin-top: 14px; }
 @media (max-width: 560px) { .data-health-panel dl { grid-template-columns: 1fr; } .data-health-panel dd { margin-bottom: 8px; } }
 
-body:has(#dataRefreshStatus:not([hidden])) #controlsContainer {
-    max-height: calc(100vh - var(--data-status-height) - 20px);
+@media (min-width: 761px) {
+    body:has(#dataRefreshStatus:not([hidden])) #controlsContainer {
+        max-height: calc(100vh - var(--data-status-height) - 20px);
+    }
 }
 
 body:has(#dataRefreshStatus:not([hidden])) .timeline-hud {
@@ -166,7 +139,7 @@ body:has(#dataRefreshStatus:not([hidden])) #mercatorContainer.globe-overlay {
     bottom: calc(var(--data-status-height) + 10px);
 }
 
-body:has(#dataRefreshStatus:not([hidden])) .tracked-results-drawer {
+:where(body:has(#dataRefreshStatus:not([hidden]))) .tracked-results-drawer {
     bottom: calc(var(--data-status-height) + 12px);
     max-height: calc(100vh - var(--data-status-height) - 24px);
 }
@@ -189,12 +162,6 @@ body:has(#dataRefreshStatus:not([hidden])) .tracked-results-drawer {
 
     .data-refresh-dates {
         flex-basis: 100%;
-    }
-}
-
-@media (max-width: 560px) {
-    body:has(#dataRefreshStatus:not([hidden])) #controlsContainer {
-        max-height: calc(100vh - var(--data-status-height) - var(--catalog-panel-top, 100px) - 8px);
     }
 }
 
@@ -371,9 +338,6 @@ body:has(#mercatorContainer.fullscreen) #controlsContainer {
     z-index: 3000;
 }
 
-body:has(#mercatorContainer.fullscreen) #menuToggleBtn {
-    z-index: 3001;
-}
 
 .mercator-fullscreen-exit {
     position: absolute;
@@ -643,6 +607,8 @@ body:has(#mercatorContainer.fullscreen) #menuToggleBtn {
     padding-inline: 4px;
     font-size: 10.5px;
 }
+
+.orbit-segmented [data-orbit-filter="SPACE_STATION"] { grid-column: 1 / -1; }
 
 .segmented-option {
     min-height: 38px;
@@ -1102,223 +1068,6 @@ body:has(#mercatorContainer.fullscreen) #menuToggleBtn {
     white-space: nowrap;
 }
 
-.tracked-results-open {
-    width: 100%;
-    min-height: 34px;
-}
-
-.tracked-results-drawer {
-    position: fixed;
-    left: 326px;
-    right: 12px;
-    bottom: 12px;
-    z-index: 2700;
-    height: min(420px, 48vh);
-    min-height: 260px;
-    box-sizing: border-box;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto auto auto auto minmax(0, 1fr);
-    overflow: hidden;
-    border: 1px solid rgba(149, 170, 190, 0.55);
-    border-radius: 6px;
-    background: rgba(9, 13, 18, 0.97);
-    color: #eef4f8;
-    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
-}
-
-.tracked-results-drawer[hidden] {
-    display: none !important;
-}
-
-.tracked-results-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 9px 12px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-}
-
-.tracked-results-header h2 {
-    margin: 0;
-    font-size: 15px;
-    letter-spacing: 0;
-}
-
-.tracked-results-header span {
-    color: #aebbc5;
-    font-size: 11px;
-}
-
-.tracked-results-search {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 10px;
-}
-
-.tracked-results-search label {
-    font-size: 12px;
-    white-space: nowrap;
-}
-
-.tracked-results-search input {
-    flex: 1;
-    min-width: 0;
-    padding: 6px 8px;
-    border: 1px solid #65798c;
-    border-radius: 4px;
-    color: #eef4f8;
-    background: #141e28;
-}
-
-.tracked-results-close {
-    width: 32px;
-    height: 32px;
-    padding: 0;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    border-radius: 4px;
-    background: #202832;
-    color: #ffffff;
-    font-size: 22px;
-    line-height: 1;
-    cursor: pointer;
-}
-
-.tracked-results-tabs {
-    display: flex;
-    gap: 2px;
-    padding: 6px 10px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.tracked-results-tabs button {
-    min-height: 30px;
-    padding: 4px 10px;
-    border: 1px solid transparent;
-    border-radius: 4px;
-    background: transparent;
-    color: #bec9d2;
-    cursor: pointer;
-}
-
-.tracked-results-tabs button[aria-selected="true"] {
-    border-color: #5ec7d8;
-    background: #16323a;
-    color: #ffffff;
-}
-
-.tracked-results-columns,
-.tracked-results-row {
-    display: grid;
-    grid-template-columns: minmax(220px, 1.8fr) 90px 130px 120px 80px 90px 150px;
-    min-width: 880px;
-}
-
-.tracked-results-columns {
-    transform: translateX(calc(-1 * var(--tracked-results-scroll-x, 0px)));
-    border-bottom: 1px solid rgba(255, 255, 255, 0.14);
-    background: #151b22;
-}
-
-.tracked-results-columns button {
-    min-width: 0;
-    padding: 7px 9px;
-    border: 0;
-    border-right: 1px solid rgba(255, 255, 255, 0.08);
-    background: transparent;
-    color: #d7e1e8;
-    text-align: left;
-    font-size: 11px;
-    font-weight: 800;
-    cursor: pointer;
-}
-
-.tracked-results-columns button[data-sort-direction="ascending"]::after {
-    content: " \2191";
-}
-
-.tracked-results-columns button[data-sort-direction="descending"]::after {
-    content: " \2193";
-}
-
-.tracked-results-viewport {
-    position: relative;
-    min-height: 0;
-    overflow: auto;
-    outline: none;
-}
-
-.tracked-results-viewport:focus-visible {
-    box-shadow: inset 0 0 0 2px #ffe58a;
-}
-
-.tracked-results-spacer {
-    width: 1px;
-    opacity: 0;
-}
-
-.tracked-results-rows {
-    position: absolute;
-    top: 0;
-    left: 0;
-    min-width: 880px;
-    width: 100%;
-}
-
-.tracked-results-row {
-    width: 100%;
-    height: 46px;
-    box-sizing: border-box;
-    align-items: center;
-    padding: 0;
-    border: 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    background: transparent;
-    color: #eaf0f4;
-    text-align: left;
-    cursor: pointer;
-}
-
-.tracked-results-row:hover,
-.tracked-results-row.is-active,
-.tracked-results-row[aria-selected="true"] {
-    background: #20313e;
-}
-
-.tracked-results-row:focus-visible {
-    outline: 2px solid #ffe58a;
-    outline-offset: -2px;
-}
-
-.tracked-results-row span {
-    min-width: 0;
-    padding: 0 9px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 11px;
-}
-
-.tracked-results-row span:first-child {
-    font-weight: 800;
-}
-
-.tracked-results-row [data-availability="positioned"] {
-    color: #60d394;
-}
-
-.tracked-results-row [data-availability="unavailable"] {
-    color: #ffb454;
-}
-
-@media (max-width: 900px) {
-    .tracked-results-drawer {
-        left: 8px;
-        right: 8px;
-    }
-}
-
 .selected-satellite-detail-panel {
     position: fixed;
     top: 52px;
@@ -1405,6 +1154,7 @@ body:has(#launchTimelineToggle:checked, #reentryTimelineToggle:checked) {
 .tracked-record-summary-body { padding: 2px 8px 8px; }
 
 .solar-system-planet-hud {
+    top: var(--catalog-panel-top, 52px);
     border-color: rgba(255, 211, 107, 0.38);
     background: linear-gradient(180deg, rgba(20, 15, 5, 0.74), rgba(3, 8, 16, 0.54));
     font-family: "SF Mono", "Roboto Mono", "Fira Mono", Menlo, Consolas, monospace;
@@ -1638,6 +1388,38 @@ body:has(#launchTimelineToggle:checked, #reentryTimelineToggle:checked) {
     font-weight: 700;
 }
 
+#selectedOrbitBar {
+    position: fixed;
+    z-index: 2095;
+    top: var(--catalog-panel-top, 52px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: max-content;
+    max-width: calc(100vw - 24px);
+    box-sizing: border-box;
+    justify-content: center;
+    border: 1px solid #40556b;
+    border-radius: .5rem;
+}
+
+#selectedOrbitBar .pair-main-presets { justify-content: center; }
+#selectedOrbitBar [hidden], #selectedOrbitBar[hidden], #selectedOrbitMarker[hidden] { display: none; }
+#selectedOrbitMarker {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 20px;
+    height: 20px;
+    z-index: 2;
+    pointer-events: none;
+    filter: drop-shadow(0 0 1px white) drop-shadow(0 0 2px #091019);
+}
+@media (max-width: 760px) {
+    #selectedOrbitBar { top: calc(var(--catalog-panel-top, 52px) + 18dvh + 8px); left: 8px; right: 8px; transform: none; max-width: none; width: auto; }
+    #selectedOrbitBar .pair-main-presets { width: auto; }
+    body:has(#selectedOrbitBar:not([hidden]) .pair-main-presets:not([hidden])) #catalogPanel { max-height: min(24dvh, 180px); }
+}
+
 #timeWarpSlider {
     width: 200px;
     max-width: min(200px, calc(100vw - 300px));
@@ -1761,9 +1543,6 @@ body:has(#launchTimelineToggle:checked, #reentryTimelineToggle:checked) {
     --section-panel-bg: linear-gradient(180deg, rgba(255, 174, 209, 0.22), rgba(68, 12, 39, 0.58) 62%, rgba(14, 6, 13, 0.76));
 }
 
-body:has(#controlsContainer.menu-hidden) #menuToggleBtn {
-    left: 20px;
-}
 
 .menu-section-conjunction {
     --section-metal: linear-gradient(135deg, #fff2b7 0%, #ffca62 40%, #b75a20 72%, #fff0c2 100%);
@@ -1906,10 +1685,14 @@ body:has(#controlsContainer.menu-hidden) #menuToggleBtn {
 }
 
 .conjunction-action-row {
-    display: grid;
+    display: flex;
+    flex-wrap: wrap;
     grid-column: 1 / -1;
-    grid-template-columns: 1fr auto auto;
     gap: 6px;
+}
+
+.conjunction-action-row button[type="submit"] {
+    flex-grow: 1;
 }
 
 .conjunction-action-row button:disabled,
@@ -2627,7 +2410,7 @@ body:has(#controlsContainer.menu-hidden) #menuToggleBtn {
     gap: 6px;
     align-items: center;
     min-height: var(--menu-header-control-height);
-    margin: 0 0 10px 72px;
+    margin: 0 0 10px;
 }
 
 .server-status-block {
@@ -2948,17 +2731,7 @@ body:has(#controlsContainer.menu-hidden) #menuToggleBtn {
     outline-offset: 2px;
 }
 
-@media (max-width: 1280px) {
-    body:has(#controlsContainer:not(.menu-hidden)) .solar-system-planet-hud {
-        display: none !important;
-    }
-}
-
 @media (max-width: 560px) {
-    #menuToggleBtn {
-        top: calc(var(--catalog-panel-top, 100px) + 10px);
-        left: 20px;
-    }
 
     #controlsContainer {
         top: var(--catalog-panel-top, 100px);
@@ -3047,7 +2820,6 @@ body:has(#controlsContainer.menu-hidden) #menuToggleBtn {
 
     .menu-header-row {
         grid-template-columns: 1fr;
-        margin-left: 72px;
         align-items: stretch;
     }
 
@@ -3089,7 +2861,7 @@ body:has(#controlsContainer.menu-hidden) #menuToggleBtn {
     /* Share the available height so the menu and catalog each scroll independently. */
     #ob_menu {
         position: absolute;
-        inset: var(--menu-top, 10px) var(--catalog-panel-right, 8px) calc(var(--data-status-height, 0px) + var(--timeline-height, 0px) + 8px) 8px;
+        inset: var(--catalog-panel-top, 52px) var(--catalog-panel-right, 8px) calc(var(--data-status-height, 0px) + var(--timeline-height, 0px) + 8px) 8px;
         display: flex;
         flex-direction: column;
         align-items: flex-start;
@@ -3102,10 +2874,23 @@ body:has(#controlsContainer.menu-hidden) #menuToggleBtn {
         inset: auto;
         flex: 0 1 auto;
         min-height: 0;
+        max-height: 35dvh;
         pointer-events: auto;
     }
+    .solar-system-planet-hud {
+        top: auto;
+        bottom: calc(var(--data-status-height, 0px) + var(--timeline-height, 0px) + 8px);
+        max-height: min(42dvh, calc(65dvh - var(--catalog-panel-top, 52px) - var(--data-status-height, 0px) - var(--timeline-height, 0px) - 16px));
+        overflow-y: auto;
+    }
+    body:has(#selectedOrbitBar:not([hidden])) #ob_menu #controlsContainer,
+    body.map-pair-active #ob_menu #controlsContainer { max-height: 18dvh; }
+    body:has(#trackedResultsDrawer:not([hidden])) #ob_menu #controlsContainer { max-height: 26dvh; }
+    #trackedResultsDrawer {
+        min-height: 0;
+        max-height: calc(74dvh - var(--catalog-panel-top, 52px) - var(--data-status-height, 0px) - 20px);
+    }
 
-    #ob_menu #controlsContainer.menu-hidden { position: absolute; }
 
     #catalogPanel {
         position: relative;
@@ -3121,8 +2906,12 @@ body:has(#controlsContainer.menu-hidden) #menuToggleBtn {
     #catalogPanel .ypr-slider-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
-@media (max-width: 560px) {
-    #ob_menu { --menu-top: var(--catalog-panel-top, 100px); }
+@media (min-width: 761px) and (max-width: 1100px) {
+    #controlsContainer { width: 28vw; }
+    #trackedResultsDrawer { left: calc(28vw + 20px); }
+}
+@media (min-width: 1101px) {
+    #trackedResultsDrawer { left: 400px; }
 }
 .footprint-notice { grid-column: 1 / -1; margin: .3rem 0 .6rem; font-size: .82rem; line-height: 1.4; }
 .footprint-notice a { color: #99d6ff; }

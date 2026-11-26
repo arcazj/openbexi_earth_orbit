@@ -34,9 +34,10 @@ The 2.6 local Python server offers three read-only resources. The globe's **REST
 | --- | --- |
 | `GET /api/v1/objects` | Search the verified catalog. Use `q` for case-insensitive terms across name, NORAD number, owner and International Designator. Combine it with `orbit`, `type`, `owner`, `scope` or `availability`. |
 | `GET /api/v1/objects/{noradId}` | Read identity, lifecycle, catalog and GP revisions, position availability, UTC epoch, validated OMM and a link to a registered payload model when one exists. |
+| `POST /api/v1/objects/{noradId}/refresh-elements` | Check the selected object's elements and return the newest verified set. The server stores each NORAD ID's elements and check time in its runtime SQLite database. The default recheck interval is two hours. |
 | `GET /api/v1/models/{modelId}` | Follow a model link to the shared GLB or OBJ/MTL files, textures, available dimensions in metres, estimation notes and reference sources. |
 
-Search defaults to current objects and 50 results per page. Set `scope=historical` for records such as FLOCK 4A-2 (44080), or `scope=all` to search both memberships of the selected snapshot. A historical or metadata-only record has `availability="unavailable"` and null values for `epoch` and `element_set`. A null `model` means the local registry has no matching payload assignment. Model reference measurements can be nominal, representative, estimated or taken from the catalog profile.
+Search defaults to current objects and 50 results per page. Set `scope=historical` for records such as NORAD 44080, or `scope=all` to search both memberships of the selected snapshot. A historical or metadata-only record has `availability="unavailable"` and null values for `epoch` and `element_set`. A null `model` means the local registry has no matching payload assignment. Model reference measurements can be nominal, representative, estimated or taken from the catalog profile.
 
 Results are ordered by numeric NORAD ID. Supply the original filters and opaque `next_cursor` for another page. A null cursor marks the end. The limit accepts 1–200. If the tracked catalog or GP revision changes between pages, HTTP 409 asks the client to start again. Invalid filters, altered cursors and cursors from a previous server process return 400. An unknown object or model returns 404. Temporarily incoherent source data returns 503. Errors use `application/problem+json`. GET and HEAD return an ETag for conditional requests.
 
@@ -60,7 +61,7 @@ def read_json(path):
     with urlopen(urljoin(base, path), timeout=60) as response:
         return json.load(response)
 
-query = urlencode({"q": "GLONASS-K2 63130", "orbit": "MEO"})
+query = urlencode({"q": "63130", "orbit": "MEO"})
 page = read_json("/api/v1/objects?" + query)
 for item in page["items"]:
     spacecraft = read_json(item["href"])
@@ -72,7 +73,7 @@ for item in page["items"]:
             Path(asset.rsplit("/", 1)[-1]).write_bytes(response.read())
 ```
 
-O3b Classic objects 39188 and 39189 both link to `/api/v1/models/meo.o3b`. Clients can cache that model once. OBJ clients can follow the accompanying `mtl` and texture URLs, preserving their relative paths. The default Python server serves the files under `/obj/`. Starting it with `--no-static` disables file downloads.
+Objects 39188 and 39189 return the same model URL. Clients can fetch and cache that model once for both objects. OBJ clients can follow the accompanying `mtl` and texture URLs, preserving their relative paths. The default Python server serves the files under `/obj/`. Starting it with `--no-static` disables file downloads.
 
 ### Background update status
 
@@ -103,7 +104,7 @@ Tracked routes return `503 TRACKED_CATALOG_UNAVAILABLE` while the selected track
 | `GET` | `/api/tle` | Yes | Deprecated Version 2.2 numeric/Alpha-5 compatibility subset from `json/tle/TLE.json`; it is not complete six-digit coverage. |
 | `GET` | `/api/satellites` | Yes | Generic catalog route that returns preferred GP/OMM with deprecated TLE fallback. |
 | `GET` | `/api/launches` | Yes | Returns SATCAT-backed launch events, including details-only records with no propagatable orbit. |
-| `GET` | `/api/tracked-objects` | Yes | Alias for the current tracked-object manifest; Version 2.6.0 retains tracked schema Version 2.3.0. Returns bounded `503 TRACKED_CATALOG_UNAVAILABLE` when the publication is incoherent. |
+| `GET` | `/api/tracked-objects` | Yes | Alias for the current tracked-object manifest; Version 2.6.1 retains tracked schema Version 2.3.0. Returns bounded `503 TRACKED_CATALOG_UNAVAILABLE` when the publication is incoherent. |
 | `GET` | `/api/tracked-objects/manifest` | Yes | Returns the verified manifest, counts, source coverage, provenance and chunk descriptors for the selected root. Availability tabs, facets and results text filtering run in the browser. |
 | `GET` | `/api/tracked-objects/chunks/{file_name}` | Yes | Returns one content-addressed chunk referenced by the current manifest after whole-publication coherence plus allowlist, byte, SHA-256, and record-count validation. |
 | `GET` | `/api/satellite-metadata` | Yes | Lists available metadata JSON files under `json/satellites/`. |
@@ -141,8 +142,8 @@ This excerpt shows two profiles from the bundled manifest.
   "schemaVersion": 1,
   "basePath": "obj/",
   "models": [
-    { "id": "starlink_V1", "type": "obj-mtl", "files": { "obj": "leo/starlink_V1.obj", "mtl": "leo/starlink_V1.mtl" } },
-    { "id": "ISS.glb", "type": "glb", "files": { "glb": "leo/ISS.glb" } }
+    { "id": "cubesat", "type": "obj-mtl", "files": { "obj": "leo/cubesat.obj", "mtl": "leo/cubesat.mtl" } },
+    { "id": "meo/meo-reference.glb", "type": "glb", "files": { "glb": "meo/meo-reference.glb" } }
   ]
 }
 ```
@@ -163,8 +164,8 @@ Example response:
   "status": "ok",
   "app": "openbexi_earth_orbit",
   "data_health": { "schemaVersion": 1, "url": "/api/data-update-status", "clock": "wall-utc" },
-  "version": "2.6.0",
-  "release_date": "2026-11-24",
+  "version": "2.6.1",
+  "release_date": "2026-11-26",
   "candidate_date": null,
   "publication_state": "released"
 }
@@ -181,16 +182,16 @@ Example response:
 
 ```json
 {
-  "app_version": "2.6.0",
+  "app_version": "2.6.1",
   "api_version": "1.0.0",
-  "release_date": "2026-11-24",
+  "release_date": "2026-11-26",
   "candidate_date": null,
   "publication_state": "released",
   "release_channel": "stable",
   "maturity": "experimental",
   "safety_class": "non-operational",
   "repository": "https://github.com/arcazj/openbexi_earth_orbit",
-  "server": "OpenBEXIHTTP/2.6.0"
+  "server": "OpenBEXIHTTP/2.6.1"
 }
 ```
 
@@ -273,7 +274,7 @@ Response shape:
 ```json
 [
   {
-    "name": "ISS (ZARYA)",
+    "name": "EXAMPLE",
     "tle_line1": "1 ...",
     "tle_line2": "2 ..."
   }
@@ -473,7 +474,7 @@ Counts, times, state, and revision values are illustrative. GP metadata distingu
 - `/api/gp` remains the preferred position catalog for the atomically selected root. Tracked endpoints are metadata discovery and do not make SATCAT-only objects propagatable. The exact Version 2.3.1 frozen counts remain historical and are not asserted for a future runtime candidate. TLE routes remain temporary compatibility contracts. Numeric and Alpha-5 TLE identifiers are decoded to canonical full strings, but the format remains a reduced subset of current six-digit GP/OMM coverage.
 - The tracked endpoint family and equivalent `server.py` static aliases fail closed together with bounded `503 TRACKED_CATALOG_UNAVAILABLE` whenever manifest closure, pointer revisions, or current GP/SATCAT lineage is incoherent. This response is a temporary catalog-integrity state, not permission to serve a partial index; the browser continues with the GP-only path.
 - Version 2.3.2 debris facets are client projections over unchanged tracked fields and activate whenever `DEBRIS` is the sole object type and the orbit selection is nonempty; they are not API query parameters. The tracked record summary, virtualized availability views, and Globe/Mercator marker selection are also browser-only projections over these routes. No mass/weight field is inferred. A red marker means authoritative debris type only, not hazard, collision risk, proximity, size, mass, or RCS.
-- The examples describe release 2.6.0 of the local API. A server reads its version metadata at startup. After updating a checkout, a running server reports its previous backend version until restarted. [Release policy](governance/RELEASE_POLICY.md)
+- The examples describe release 2.6.1 of the local API. A server reads its version metadata at startup. After updating a checkout, a running server reports its previous backend version until restarted. [Release policy](governance/RELEASE_POLICY.md)
 - GitHub Pages and other static hosts cannot run the Python scheduler; a deployment workflow must replace packaged data.
 - This Markdown page is intentionally static so Help documentation remains available without the Python server.
 - API responses are local development data for visualization and testing, not operational satellite products.

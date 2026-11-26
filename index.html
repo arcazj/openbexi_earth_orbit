@@ -6,13 +6,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="openbexi-deployment-mode" content="server-capable">
     <meta name="openbexi-dependency-policy" content="packaged-first-with-cdn-fallback">
+    <link rel="stylesheet" href="css/trackedResults.css">
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/spacecraftComparison.css">
     <script src="./js/dependencyBootstrap.js"></script>
 </head>
 
 <body>
-<button id="menuToggleBtn" aria-label="Close menu">Close</button>
 <div id="startupFailure" hidden>
     <div class="empty-state startup-error" role="alert" data-error-code="STARTUP_FAILED">
         <strong>Application failed to start.</strong>
@@ -22,6 +22,17 @@
 </div>
 <div id="ob_menu"></div>
 <section id="mapComparisonStageHost" aria-label="Main spacecraft comparison view"></section>
+<div id="selectedOrbitBar" class="pair-camera-toolbar" role="group" aria-label="Orbit camera views" hidden>
+    <div class="pair-main-presets">
+        <button type="button" data-orbit-view="orbit">Full orbit</button>
+        <button type="button" data-orbit-view="earth">Fit Earth</button>
+        <button type="button" data-orbit-view="nadir" title="Look at the spacecraft from the Earth-facing side">Earth-facing side</button>
+        <button type="button" data-orbit-view="side">Side view</button>
+        <button type="button" data-orbit-view="reflectors" hidden>Reflector front</button>
+    </div>
+    <button type="button" id="selectedOrbitLocate" hidden></button>
+</div>
+<img id="selectedOrbitMarker" src="icons/ob_satellite.png" width="20" height="20" alt="Selected satellite" draggable="false" hidden>
 <aside id="dataRefreshStatus" class="data-refresh-banner" aria-label="Satellite data status" hidden>
     <span class="data-refresh-indicator" aria-hidden="true"></span>
     <span id="dataRefreshSummary" role="status" aria-live="polite" aria-atomic="true"></span>
@@ -60,6 +71,7 @@
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
     import { fullOrbitCameraFrame } from './js/orbit/selectedOrbitCurve.js';
+    import { createSelectedOrbitView } from './js/orbit/selectedOrbitView.js';
 
     import {
         mercatorCanvasElement,
@@ -127,11 +139,12 @@
         updateOrbitTrajectory,
         refreshSelectedOrbitOcclusion,
         refreshOrbitTrajectoryIfNeeded,
-        setupTLESatellites,
+        setupTLESatellites, applySelectedElements,
         getActiveCatalogKind,
         getActiveCatalogValidationSnapshot,
         getLastCatalogValidationSnapshot,
         removeAllGeometry,
+        isScenePointOccludedByEarth,
         isUsableOrbitPosition,
         pickSatellitePoint,
         satellitePointClientPosition,
@@ -203,6 +216,7 @@
         starlinkShortcutState
     } from './js/satelliteShortcutLabels.js';
     import { buildSatelliteSearchMatches, satelliteSearchBadges } from './js/satelliteSearchUtils.js';
+    import { SPACE_STATION_FILTER, spaceStation } from './js/spaceStations.js';
     import {
         DEFAULT_TRACKED_FACETS,
         TRACKED_OBJECT_TYPE,
@@ -228,9 +242,10 @@
         toggleTrackedFacetSelection,
         toggleTrackedOrbitSelection,
         trackedObjectMatchesFilters,
+        trackedTagOptions,
         trackedObjectType
     } from './js/trackedObjectCatalog.js';
-    import { extensionFamilies, lifeExtensionFamily, LIFE_EXTENSION_TAG } from './js/lifeExtensionCatalog.js';
+    import { extensionFamilies, lifeExtensionFamily } from './js/lifeExtensionCatalog.js';
     import { mountSpacecraftComparison } from './js/spacecraftComparisonPanel.js';
     import {
         APP_VERSION,
@@ -254,7 +269,9 @@
         shareUrlContainsUnsafeLocalData
     } from './js/shareState.js';
     import { buildTrackedCoveragePresentation } from './js/trackedCoveragePresentation.js';
+    import { ALL_COMPANY_OPTION, createCompanyCheckbox, formatCompanyLabel, isCatalogTagOption } from './js/catalogTagControls.js';
     import { createTrackedResultsController } from './js/trackedResultsController.js';
+    import { requestSelectedElements } from './js/selectedElements.js';
     import { createConjunctionPanel, parseUtcDateTimeLocal } from './js/conjunction/conjunctionPanel.js';
     import { createConjunctionVisualization } from './js/conjunction/conjunctionVisualization.js';
     import { createConjunctionWorkerClient } from './js/conjunction/conjunctionWorkerClient.js';
@@ -361,7 +378,6 @@
     ]);
     const collapsedAccordionSections = new Set(DEFAULT_COLLAPSED_ACCORDION_SECTIONS);
     const SATELLITE_SEARCH_LIMIT = 40;
-    const EXCLUDED_COMPANY_FILTER_OPTIONS = new Set(['ACTIVE']);
     const serverApiBaseUrl = resolveApiBaseUrl();
     const TRACKED_CATALOG_FEATURE_ENABLED =
         RELEASE_FEATURE_FLAGS.experimental_tracked_object_catalog?.enabled === true;
@@ -444,7 +460,7 @@
     let renderableSatellites = [];
     let textureLoader;
     let detailedSatelliteModel = null;
-    let framedOrbitRecord = null, orbitViewButton;
+    let framedOrbitRecord = null, orbitViewButton, selectedOrbitView;
     let satelliteModelLoadToken = 0;
     let selectedModelFillLight = null;
     let selectedModelEarthAlbedoLight = null;
@@ -462,43 +478,11 @@
     let solarSystemTimeControls = null;
     let solarSystemPlanetHudElement = null;
 
-    const ALL_COMPANY_OPTION = "ALL COMPANY";
     const ORBIT_ALL_OPTION = 'ALL';
     const ORBIT_FILTER_OPTIONS = [ORBIT_ALL_OPTION, ...TRACKED_ORBIT_CLASS_OPTIONS];
     const DEFAULT_ORBIT_FILTER = ["MEO"];
     const DEFAULT_OBJECT_TYPE_FILTER = [TRACKED_OBJECT_TYPE.ALL];
     const DEFAULT_COMPANY_FILTER = [ALL_COMPANY_OPTION];
-    const COMPANY_LABEL_OVERRIDES = {
-        [ALL_COMPANY_OPTION]: "All tags",
-        BEIDOU: "BeiDou",
-        DEBRIS: "Debris group",
-        EUTELSAT: "Eutelsat",
-        GALILEO: "Galileo",
-        GEO: "Geosynchronous group",
-        "GLO-OPS": "GLONASS",
-        GLOBALSTAR: "Globalstar",
-        "GPS-OPS": "GPS",
-        HEO: "HEO group",
-        HRO: "HRO group",
-        INTELSAT: "Intelsat",
-        "IRIDIUM-NEXT": "Iridium",
-        KUIPER: "Kuiper",
-        LEO: "LEO group",
-        MEO: "MEO group",
-        ONEWEB: "One Web",
-        ORBCOMM: "Orbcomm",
-        OTHER: "Other group",
-        OTHERS: "Others group",
-        QIANFAN: "Qianfan",
-        SATNOGS: "SatNOGS",
-        SES: "SES",
-        STARLINK: "Starlink",
-        STATIONS: "Space Station",
-        TDRSS: "Tracking and Data Relay",
-        WEATHER: "Weather",
-        "X-COMM": "X-Comm"
-    };
-
     const simParams = {
         orbitTypeFilter: [...DEFAULT_ORBIT_FILTER],
         objectTypeFilter: [...DEFAULT_OBJECT_TYPE_FILTER],
@@ -560,6 +544,8 @@
     let trackedCountHistoricalElement, trackedCountPropagatableElement, trackedCountMetadataOnlyElement;
     let trackedCountRenderReadyElement, trackedCountQuarantineElement;
     let trackedResultsController;
+    let catalogMatches = [];
+    let catalogTags = [];
     let globePointerDown = null;
     let currentSearchResults = [];
     let activeFilteredSatelliteCount = 0;
@@ -573,6 +559,9 @@
     let combinedTrackedCatalogCacheKey = null;
     let trackedCatalogRequestGeneration = 0;
     let trackedCatalogLineageBlocked = false;
+    let fullCatalogRequested = false;
+    let fullCatalogLoad = null;
+    let fullCatalogIncludesHistory = false;
     let trackedCatalogSearchTimer = null;
     let trackedDesignatorFacetTimer = null;
     let lastTrackedRenderReadyCount = -1;
@@ -604,7 +593,7 @@
     let launchTimelineInitialized = false;
     let launchTimelineInitializing = false;
     let reentryTimelineInitializing = false;
-    let controlsContainerElement, menuToggleBtnElement, versionDisplayElement;
+    let controlsContainerElement, versionDisplayElement;
     let labelXecrDiv, labelYecrDiv, labelZecrDiv, labelNorthPoleDiv, labelEquatorLineDiv, labelGreenwichMeridianDiv;
     let conjunctionPanel = null;
     let conjunctionLayer = null;
@@ -1264,7 +1253,7 @@
     function normalizeCompanySelection(selection) {
         const cleaned = Array.from(new Set((selection || [])
             .filter(Boolean)
-            .filter(value => !EXCLUDED_COMPANY_FILTER_OPTIONS.has(value.toString().trim().toUpperCase()))));
+            .filter(isCatalogTagOption)));
 
         if (cleaned.includes(ALL_COMPANY_OPTION) && cleaned.length > 1) {
             return cleaned.filter(val => val !== ALL_COMPANY_OPTION);
@@ -1289,35 +1278,6 @@
             cb.checked = normalized.includes(cb.value);
         });
         simParams.companyFilter = normalized;
-    }
-
-    function formatCompanyLabel(companyName) {
-        if (COMPANY_LABEL_OVERRIDES[companyName]) return COMPANY_LABEL_OVERRIDES[companyName];
-        return companyName
-            .toLowerCase()
-            .split(/[-_\s]+/)
-            .filter(Boolean)
-            .map(part => part.charAt(0).toUpperCase() + part.slice(1))
-            .join(' ');
-    }
-
-    function createCompanyCheckbox(value, labelText) {
-        const label = document.createElement('label');
-        label.className = 'filter-chip';
-
-        const input = document.createElement('input');
-        input.type = 'checkbox';
-        input.value = value;
-        input.name = 'tagFilter';
-        input.setAttribute('aria-label', labelText);
-
-        const textSpan = document.createElement('span');
-        textSpan.textContent = labelText;
-
-        label.appendChild(input);
-        label.appendChild(textSpan);
-
-        return label;
     }
 
     function renderCompanyFilter(companies, previousSelection = simParams.companyFilter) {
@@ -1555,7 +1515,7 @@
 
     function resetTrackedDebrisFacets() {
         simParams.trackedFacets = normalizeTrackedFacets(DEFAULT_TRACKED_FACETS);
-        refreshFilteredSatelliteView();
+        updateSatelliteList();
     }
 
     function updateTrackedFacetFromCheckbox(input) {
@@ -1589,15 +1549,7 @@
                     : simParams.trackedFacets[key].filter(value => value !== input.value);
             simParams.trackedFacets = normalizeTrackedFacets({ ...simParams.trackedFacets, [key]: next });
         }
-        refreshFilteredSatelliteView();
-    }
-
-    function orbitMatchesSelection(satDataOrOrbitType, selection = simParams.orbitTypeFilter) {
-        return trackedObjectMatchesFilters(satDataOrOrbitType, {
-            orbitSelection: selection,
-            objectTypeSelection: [TRACKED_OBJECT_TYPE.ALL],
-            includeHistorical: true
-        });
+        updateSatelliteList();
     }
 
     function allTrackedDisplayRecords() {
@@ -1627,6 +1579,7 @@
     }
 
     function setTrackedCatalogStatus(text, state = 'idle') {
+        trackedResultsController?.setCatalogState(state);
         if (!trackedCatalogStatusElement) return;
         trackedCatalogStatusElement.textContent = text;
         trackedCatalogStatusElement.dataset.state = state;
@@ -1659,8 +1612,19 @@
         }
     }
 
-    async function ensureTrackedCatalogLoaded(options = {}) {
+    function ensureTrackedCatalogLoaded(options = {}) {
+        if (options.browse) fullCatalogRequested = true;
         if (trackedCatalogLineageBlocked || !TRACKED_CATALOG_FEATURE_ENABLED || !trackedObjectCatalogLoader) return null;
+        if (!fullCatalogRequested) return loadTrackedCatalog(options);
+        const includeHistorical = options.includeHistorical === true || simParams.includeHistoricalTrackedObjects;
+        if (!fullCatalogLoad || options.force || (includeHistorical && !fullCatalogIncludesHistory)) {
+            fullCatalogIncludesHistory = includeHistorical;
+            fullCatalogLoad = loadTrackedCatalog({ ...options, loadAll: true, includeHistorical });
+        }
+        return fullCatalogLoad;
+    }
+
+    async function loadTrackedCatalog(options) {
         const generation = ++trackedCatalogRequestGeneration;
         const includeHistorical = options.includeHistorical === true || simParams.includeHistoricalTrackedObjects;
         setTrackedCatalogStatus(
@@ -1685,7 +1649,7 @@
                 ? await trackedObjectCatalogLoader.reloadAll(loadOptions)
                 : await trackedObjectCatalogLoader.load(loadOptions);
             if (generation !== trackedCatalogRequestGeneration || snapshot?.stale_request) return snapshot;
-            trackedCatalogRecords = [...snapshot.records];
+            trackedCatalogRecords = snapshot.records;
             const manifestCount = Number(snapshot.manifest?.counts?.total);
             const scopeLabel = includeHistorical ? 'current + history' : 'current';
             setTrackedCatalogStatus(
@@ -1702,8 +1666,9 @@
             return snapshot;
         } catch (error) {
             if (generation !== trackedCatalogRequestGeneration) return null;
+            fullCatalogLoad = null;
             const snapshot = trackedObjectCatalogLoader.snapshot();
-            trackedCatalogRecords = [...snapshot.records];
+            trackedCatalogRecords = snapshot.records;
             setTrackedCatalogStatus(
                 trackedCatalogRecords.length
                     ? `Tracked catalog refresh failed; using ${trackedCatalogRecords.length.toLocaleString()} cached records`
@@ -1732,28 +1697,12 @@
         if (!satellites) return [];
         const requireTrackedCatalogMembership = activeContextRequiresTrackedMembership();
 
-        return Array.from(new Set(
-            allTrackedDisplayRecords()
-                .filter(s => recordParticipatesInActiveCatalogContext(s, requireTrackedCatalogMembership) &&
-                    orbitMatchesSelection(s, orbitSelection) &&
-                    trackedObjectMatchesFilters(s, {
-                        orbitSelection,
-                        objectTypeSelection: simParams.objectTypeFilter,
-                        includeHistorical: simParams.includeHistoricalTrackedObjects
-                    }))
-                .flatMap(s => [
-                    s.company,
-                    s.operator,
-                    lifeExtensionFamily(s) && LIFE_EXTENSION_TAG,
-                    ...(Array.isArray(s.tags) ? s.tags : [])
-                ])
-                .filter(tag => tag && tag !== 'N/A' &&
-                    !EXCLUDED_COMPANY_FILTER_OPTIONS.has(tag.toString().trim().toUpperCase()))
-        )).sort();
-    }
-
-    function refreshFilteredSatelliteView() {
-        updateSatelliteList();
+        const filters = { orbitSelection, objectTypeSelection: simParams.objectTypeFilter,
+            includeHistorical: simParams.includeHistoricalTrackedObjects };
+        const candidates = allTrackedDisplayRecords().filter(record =>
+            recordParticipatesInActiveCatalogContext(record, requireTrackedCatalogMembership) &&
+            trackedObjectMatchesFilters(record, filters));
+        return trackedTagOptions(candidates, isCatalogTagOption);
     }
 
     function exitFullscreenMercator() {
@@ -2139,36 +2088,24 @@
     }
 
     function buildFilteredSatellitesBySelection(options = {}) {
-        const indexByNoradId = new Map();
-        const filtered = [];
-        const includeHistorical = options.includeHistorical === true || simParams.includeHistoricalTrackedObjects;
         const requireTrackedCatalogMembership = activeContextRequiresTrackedMembership();
+        const filters = {
+            orbitSelection: simParams.orbitTypeFilter,
+            objectTypeSelection: simParams.objectTypeFilter,
+            tagSelection: simParams.companyFilter,
+            allTagValue: ALL_COMPANY_OPTION,
+            includeHistorical: options.includeHistorical === true || simParams.includeHistoricalTrackedObjects
+        };
+        const trackedFilters = { ...filters, facets: activeTrackedFacets() };
+        return allTrackedDisplayRecords().filter(record =>
+            recordParticipatesInActiveCatalogContext(record, requireTrackedCatalogMembership) &&
+            trackedObjectMatchesFilters(record, isTrackedCatalogMember(record) ? trackedFilters : filters));
+    }
 
-        allTrackedDisplayRecords().forEach((s) => {
-            if (!recordParticipatesInActiveCatalogContext(s, requireTrackedCatalogMembership)) return;
-            const matchesCatalogFilters = trackedObjectMatchesFilters(s, {
-                orbitSelection: simParams.orbitTypeFilter,
-                objectTypeSelection: simParams.objectTypeFilter,
-                tagSelection: simParams.companyFilter,
-                allTagValue: ALL_COMPANY_OPTION,
-                includeHistorical,
-                facets: isTrackedCatalogMember(s) ? activeTrackedFacets() : null
-            });
-
-            if (!matchesCatalogFilters) return;
-
-            const noradKey = s.norad_id?.toString();
-            if (!noradKey) return;
-
-            if (!indexByNoradId.has(noradKey)) {
-                indexByNoradId.set(noradKey, filtered.length);
-                filtered.push(s);
-            } else if (s === currentSelectedSatellite) {
-                filtered[indexByNoradId.get(noradKey)] = s;
-            }
-        });
-
-        return filtered;
+    function restoreCatalogSelection(noradId) {
+        const records = buildFilteredSatellitesBySelection();
+        const record = records.find(s => String(s.norad_id) === noradId);
+        if (record) selectSatelliteViaShortcut(record);
     }
 
     function debounceMenuStateWrite(key, value) {
@@ -2269,7 +2206,7 @@
     }
 
     function satelliteSearchLabel(satData) {
-        return satData?.satellite_name || `NORAD ${satData?.norad_id || 'unknown'}`;
+        return spaceStation(satData)?.name || satData?.satellite_name || `NORAD ${satData?.norad_id || 'unknown'}`;
     }
 
     function closeSatelliteSearchResults() {
@@ -2441,7 +2378,7 @@
         if (includeHistoricalTrackedObjectsCheckbox) includeHistoricalTrackedObjectsCheckbox.checked = false;
         applyCompanySelectionToUI(DEFAULT_COMPANY_FILTER);
         simParams.trackedFacets = normalizeTrackedFacets(DEFAULT_TRACKED_FACETS);
-        refreshFilteredSatelliteView();
+        updateSatelliteList();
     }
 
     function findFirstStarlinkSatellite() {
@@ -2695,7 +2632,6 @@
         if (clockWidth > 0 && solarSystemPlanetHudElement) {
             solarSystemPlanetHudElement.style.width = `${clockWidth}px`;
             solarSystemPlanetHudElement.style.right = `${clockRight}px`;
-            solarSystemPlanetHudElement.style.top = `${panelTop}px`;
         }
     }
 
@@ -3032,6 +2968,7 @@
 
     function clearTrackedCatalogOverlay(message = 'Tracked catalog unavailable; using the orbital catalog') {
         trackedCatalogRequestGeneration += 1;
+        fullCatalogLoad = null;
         trackedCatalogLineageBlocked = true;
         restoreOrbitalRecordsAfterTrackedOverlay(satellites);
         trackedObjectCatalogLoader?.clear?.();
@@ -3135,11 +3072,7 @@
             if (orbitalRefreshError) throw orbitalRefreshError;
             simParams.trackedFacets = normalizeTrackedFacets(savedTrackedFacets);
             updateSatelliteList();
-            if (selectedNorad && refreshOrbitalCatalog) {
-                const restored = buildFilteredSatellitesBySelection()
-                    .find(s => s.norad_id?.toString() === selectedNorad);
-                if (restored) selectSatelliteViaShortcut(restored);
-            }
+            if (selectedNorad && refreshOrbitalCatalog) restoreCatalogSelection(selectedNorad);
             setServerConnectionState({
                 state: staticSource ? 'disconnected' : 'connected',
                 connected: !staticSource,
@@ -3495,12 +3428,12 @@
         refreshShareControls();
     }
 
-    function selectSatelliteViaShortcut(satData) {
+    function selectSatelliteViaShortcut(satData, elementsReady = false) {
         if (!satData || !satelliteSelectDropdown) return;
         setSatelliteSelectToSatellite(satData);
         markSatelliteSearchReadyForNextSelection(satData);
         closeSatelliteSearchResults();
-        satelliteSelectDropdown.dispatchEvent(new Event('change'));
+        satelliteSelectDropdown.dispatchEvent(new CustomEvent('change', { detail: { elementsReady } }));
     }
 
     function setAccordionSectionCollapsed(targetId, collapsed, collapsedSections = null) {
@@ -3546,7 +3479,7 @@
     <label for="timeWarpSlider">Time</label>
     <input type="range" id="timeWarpSlider" min="-60" max="60" step="1" value="1"
            aria-label="Simulation time rate" aria-valuetext="Live, 1 simulated second per real second">
-    <select id="timeWarpUnit" aria-label="Satellite playback unit"><option value="1000">sec/s</option><option value="60000">min/s</option></select>
+    <select id="timeWarpUnit" aria-label="Satellite playback unit"><option value="1000">sec/s</option><option value="60000">min/s</option><option value="3600000">hour/s</option></select>
     <select id="solarTimeUnit" aria-label="Solar System playback unit" hidden></select>
     <span id="timeWarpVal">Live · 1 sec/s</span>
     <button type="button" id="timeWarpPause" aria-label="Pause simulation" title="Pause or resume">||</button>
@@ -3576,7 +3509,7 @@
         simParams.timeWarp = clockState.rate;
         const sliderValue = timeWarpToSliderValue(simParams.timeWarp);
         const unit = simParams.solarSystemOverview ? solarSystemTimeControls?.unit() || 'second'
-            : simulationClock.timeScale() === 60000 ? 'min' : 'second';
+            : ({60000: 'minute', 3600000: 'hour'}[simulationClock.timeScale()] || 'second');
         const labelValue = simulationRateLabel(simulationClock, unit);
         timeWarpUnit.hidden = !!simParams.solarSystemOverview;
         solarTimeUnit.hidden = !simParams.solarSystemOverview;
@@ -3589,8 +3522,11 @@
         }
         if (timeWarpPause) {
             const paused = simParams.timeWarp === 0;
-            timeWarpPause.textContent = paused ? '>' : '||';
-            timeWarpPause.setAttribute('aria-label', paused ? 'Resume simulation' : 'Pause simulation');
+            const glyph = paused ? '>' : '||';
+            if (timeWarpPause.textContent !== glyph) {
+                timeWarpPause.textContent = glyph;
+                timeWarpPause.setAttribute('aria-label', paused ? 'Resume simulation' : 'Pause simulation');
+            }
         }
         if (timeWarpStatus) {
             const motionDiagnostics = satelliteMotionController?.diagnostics?.();
@@ -4489,6 +4425,21 @@
         defaultControlsMinDistance = controls.minDistance;
         defaultControlsMaxDistance = controls.maxDistance;
         controls.enableZoom = true;
+        const orbitToolbar = document.getElementById('selectedOrbitBar');
+        selectedOrbitView = createSelectedOrbitView({
+            camera, controls, canvas: renderer.domElement, toolbar: orbitToolbar,
+            marker: document.getElementById('selectedOrbitMarker'), earthRadius: EARTH_SCENE_RADIUS,
+            inspectionDistance: SELECTED_MODEL_OBSERVER_DISTANCE_SCENE_UNITS,
+            orbitalFrame: currentSelectedOrbitalFrame, earthOccludes: isScenePointOccludedByEarth
+        });
+        orbitToolbar.addEventListener('click', event => {
+            const button = event.target.closest('button');
+            if (button?.dataset.orbitView) applyOrbitCameraPreset(button.dataset.orbitView);
+            if (button?.id === 'selectedOrbitLocate') {
+                if (framedOrbitRecord) applyOrbitCameraPreset('side');
+                else flyCameraToSelectedSatellite(selectedSatelliteDisplayObject(), 0);
+            }
+        });
         camera.far = SAFE_CAMERA_FAR;
         defaultCameraFar = camera.far;
         camera.updateProjectionMatrix();
@@ -4503,7 +4454,6 @@
 
     function setupHTMLControls() {
         controlsContainerElement = document.getElementById('controlsContainer');
-        menuToggleBtnElement = document.getElementById('menuToggleBtn');
         versionDisplayElement = document.getElementById('versionDisplay');
 
         if (versionDisplayElement) {
@@ -4576,11 +4526,7 @@
             updateSatelliteList();
             await syncConjunctionCatalog();
             await refreshAuxiliaryCatalogs();
-            if (selectedNorad) {
-                const restored = buildFilteredSatellitesBySelection()
-                    .find(s => s.norad_id?.toString() === selectedNorad);
-                if (restored) selectSatelliteViaShortcut(restored);
-            }
+            if (selectedNorad) restoreCatalogSelection(selectedNorad);
             setServerConnectionState({ dataSource: 'live server', lastSync: new Date() });
             startCatalogRevisionWatcher(serverConnectionState.baseUrl);
         });
@@ -4617,7 +4563,21 @@
         trackedCountQuarantineElement = document.getElementById('trackedCountQuarantine');
         trackedResultsController = createTrackedResultsController({
             root: document,
-            getRecords: buildFilteredSatellitesBySelection,
+            getRecords: () => catalogMatches,
+            getOpenContext: trackedResultsContext,
+            getScopedTags: () => ({
+                available: catalogTags,
+                selected: simParams.companyFilter.filter(tag => tag !== ALL_COMPANY_OPTION),
+                includeHistory: simParams.includeHistoricalTrackedObjects
+            }),
+            onScopedTagChange(tag) {
+                applyCompanySelectionToUI(tag ? [tag] : DEFAULT_COMPANY_FILTER);
+                updateSatelliteList();
+            },
+            onHistoryChange: setTrackedHistory,
+            onOpen: () => ensureTrackedCatalogLoaded({ browse: true }),
+            isTagOption: isCatalogTagOption,
+            tagLabel: formatCompanyLabel,
             getSelectedNoradId: () => currentSelectedSatellite?.norad_id,
             onSelect: selectSatelliteViaShortcut
         });
@@ -4694,7 +4654,7 @@
                 if (active) return;
                 const url=new URL(location.href);
                 if (!url.searchParams.has('compare')) return;
-                for (const key of ['compare','compareView','earth','orbits','zoom','primaryZoom','tleRevision','spin','footprint']) url.searchParams.delete(key);
+                for (const key of ['compare','compareView','earth','orbits','zoom','primaryZoom','tleRevision','spin','compareCamera','footprint']) url.searchParams.delete(key);
                 url.hash=''; history.replaceState(null,'',url);
             },
             getClock: () => simulationClock.state(), rows: () => satellites,
@@ -4799,7 +4759,16 @@
             applyOrbitSelectionToUI(
                 toggleTrackedOrbitSelection(simParams.orbitTypeFilter, changedValue)
             );
-            refreshFilteredSatelliteView();
+            if (changedValue === SPACE_STATION_FILTER) {
+                satelliteSearchInput.value = '';
+                closeSatelliteSearchResults();
+                applyObjectTypeSelectionToUI(DEFAULT_OBJECT_TYPE_FILTER);
+                applyCompanySelectionToUI(DEFAULT_COMPANY_FILTER);
+                setTrackedHistory(false);
+                trackedResultsController.setOpen(true, { ...trackedResultsContext(), reset: true, trigger: button });
+                return;
+            }
+            updateSatelliteList();
             void ensureTrackedCatalogLoaded({
                 loadAll: simParams.objectTypeFilter.includes(TRACKED_OBJECT_TYPE.ALL)
             });
@@ -4811,21 +4780,14 @@
             applyObjectTypeSelectionToUI(
                 toggleTrackedObjectTypeSelection(simParams.objectTypeFilter, button.dataset.objectTypeFilter)
             );
-            refreshFilteredSatelliteView();
+            updateSatelliteList();
             void ensureTrackedCatalogLoaded({
                 loadAll: simParams.objectTypeFilter.includes(TRACKED_OBJECT_TYPE.ALL)
             });
         });
 
         includeHistoricalTrackedObjectsCheckbox?.addEventListener('change', () => {
-            simParams.includeHistoricalTrackedObjects = includeHistoricalTrackedObjectsCheckbox.checked;
-            refreshFilteredSatelliteView();
-            if (simParams.includeHistoricalTrackedObjects) {
-                void ensureTrackedCatalogLoaded({
-                    loadAll: simParams.objectTypeFilter.includes(TRACKED_OBJECT_TYPE.ALL),
-                    includeHistorical: true
-                });
-            }
+            setTrackedHistory(includeHistoricalTrackedObjectsCheckbox.checked);
         });
 
         companyFilterSelect.addEventListener('change', (event) => {
@@ -4841,7 +4803,8 @@
             }
 
             applyCompanySelectionToUI(selection);
-            refreshFilteredSatelliteView();
+            updateSatelliteList();
+            trackedResultsController.setOpen(true, { ...trackedResultsContext(), query: '' });
         });
 
         trackedDebrisFacetsElement?.addEventListener('change', event => {
@@ -4856,7 +4819,7 @@
                     launchYearFrom: trackedLaunchYearFromElement?.value || null,
                     launchYearTo: trackedLaunchYearToElement?.value || null
                 });
-                refreshFilteredSatelliteView();
+                updateSatelliteList();
             }
         });
         trackedDesignatorFacetElement?.addEventListener('input', () => {
@@ -4865,7 +4828,7 @@
                 designator: trackedDesignatorFacetElement.value
             });
             clearTimeout(trackedDesignatorFacetTimer);
-            trackedDesignatorFacetTimer = setTimeout(refreshFilteredSatelliteView, 160);
+            trackedDesignatorFacetTimer = setTimeout(updateSatelliteList, 160);
         });
         resetTrackedDebrisFacetsButton?.addEventListener('click', resetTrackedDebrisFacets);
 
@@ -4960,6 +4923,7 @@
             if (mapComparison?.active) mapComparison.setOrbits(wantOrbit);
 
             if (!wantOrbit) {
+                if (framedOrbitRecord && !simParams.solarSystemOverview && !mapComparison?.active) toggleFullOrbitView();
                 simParams.showOrbit = false;
                 removeAllGeometry(scene);
                 return;
@@ -5116,19 +5080,6 @@
                 });
             }
         });
-        // Menu toggle button
-        if (menuToggleBtnElement && controlsContainerElement) {
-            const updateMenuToggleLabel = () => {
-                const hidden = controlsContainerElement.classList.contains('menu-hidden');
-                menuToggleBtnElement.textContent = hidden ? 'Menu' : 'Close';
-                menuToggleBtnElement.setAttribute('aria-label', hidden ? 'Open menu' : 'Close menu');
-            };
-            menuToggleBtnElement.addEventListener('click', () => {
-                controlsContainerElement.classList.toggle('menu-hidden');
-                updateMenuToggleLabel();
-            });
-            updateMenuToggleLabel();
-        }
         const showDayNightToggle = document.getElementById('showDayNightToggle');
         showDayNightToggle.checked = simParams.showDayNight;
         simParams.showDayNight = showDayNightToggle.checked;
@@ -5200,6 +5151,20 @@
             });
         }
     }
+    async function refreshSelectedOrbit(record) {
+        if (isHistoricalTrackedRecord(record) || serverConnectionState.state === 'disconnected') return;
+        const elements = await requestSelectedElements(record.norad_id, serverConnectionState.baseUrl);
+        const selected = currentSelectedSatellite;
+        if (!selected || selected.norad_id !== record.norad_id || isHistoricalTrackedRecord(selected)) return;
+        const hadPosition = hasActiveSatelliteSceneRecord(selected);
+        if (!applySelectedElements(selected, elements)) return;
+        satelliteMotionController.invalidate();
+        combinedTrackedCatalogCacheKey = null;
+        if (!hadPosition) selectSatelliteViaShortcut(selected, true);
+        if (simParams.showOrbit) updateOrbitTrajectory(scene, simParams, selected);
+        updateSatelliteList();
+    }
+
     async function handleSatelliteDropdownChange(event) {
         collapseSelectedOmmDetails();
         const selectionToken = ++satelliteModelLoadToken;
@@ -5261,6 +5226,7 @@
         }
 
         currentSelectedSatellite = tleSatData;
+        if (!event.detail?.elementsReady) void refreshSelectedOrbit(tleSatData);
         simParams.selectedSatelliteNoradId = tleSatData.norad_id?.toString() || null;
         if (!hasActiveSatelliteSceneRecord(tleSatData)) {
             setShowOnlySelectedSatellite(false);
@@ -5874,7 +5840,7 @@
             targetObject.updateMatrixWorld(true);
         }
 
-        const afterDiameter = getObjectVisualDiameter(targetObject, beforeDiameter);
+        const afterDiameter = getObjectVisualDiameter(targetObject) || visualFit.adjustedDiameterSceneUnits;
         const finalViewportHeightFraction = selectedModelViewportHeightFraction({
             modelDiameterSceneUnits: afterDiameter,
             observerDistanceSceneUnits: SELECTED_MODEL_OBSERVER_DISTANCE_SCENE_UNITS,
@@ -6032,32 +5998,58 @@
     }
 
     function setFramedOrbit(record) {
+        if (!record && framedOrbitRecord) {
+            selectedOrbitView.select(null);
+            controls.enablePan = false;
+        }
         framedOrbitRecord = record;
         if (orbitViewButton) orbitViewButton.textContent = record ? 'View spacecraft' : 'View full orbit';
     }
 
-    function toggleFullOrbitView() {
+    function applyOrbitCameraPreset(view) {
         const object = selectedSatelliteDisplayObject();
-        if (!object || !hasActiveSatelliteSceneRecord(currentSelectedSatellite)) return;
+        if (!object || !hasActiveSatelliteSceneRecord(currentSelectedSatellite) || currentSelectedSatellite.propagationInvalid) return;
+        const axes = currentSelectedOrbitalFrame(object.position);
+        const close = view !== 'orbit' && view !== 'earth';
+        const halfAngle = selectedOrbitView.prepareCameraView(detailedSatelliteModel);
+        let frame;
+        if (view === 'orbit') {
+            const orbit = refreshOrbitTrajectoryIfNeeded(scene, simParams, currentSelectedSatellite);
+            frame = fullOrbitCameraFrame(orbit?.userData.sourceSegments, axes?.yAxis, camera, {earthRadius: EARTH_SCENE_RADIUS, halfAngle});
+        } else {
+            frame = selectedOrbitView.cameraFrame(view, object, detailedSatelliteModel, axes, halfAngle);
+        }
+        if (!frame) {
+            if (!framedOrbitRecord) selectedOrbitView.select(null);
+            return;
+        }
+        if (!framedOrbitRecord) restoreEarthControlLimits();
+        controls.enablePan = true;
+        controls.minDistance = close ? Math.max(SELECTED_MODEL_CAMERA_NEAR_SCENE_UNITS * 1.5, frame.range * 0.08) : EARTH_MODE_MIN_DISTANCE;
+        controls.maxDistance = Math.max(defaultControlsMaxDistance, frame.range * 1.2);
+        camera.near = close ? SELECTED_MODEL_CAMERA_NEAR_SCENE_UNITS : defaultCameraNear;
+        camera.far = Math.max(defaultCameraFar, frame.range + 2 * frame.radius);
+        camera.up.copy(frame.up || defaultCameraUp);
+        camera.updateProjectionMatrix();
+        animateCameraTo(frame.position, frame.target, 0);
+        selectedOrbitView.select(view, object, detailedSatelliteModel, axes);
+        setFramedOrbit(currentSelectedSatellite);
+        selectedOrbitView.update(currentSelectedSatellite, detailedSatelliteModel, true);
+    }
+
+    function toggleFullOrbitView() {
+        if (!hasActiveSatelliteSceneRecord(currentSelectedSatellite)) return;
         if (simParams.solarSystemOverview) setSolarSystemOverviewMode(false);
         if (!simParams.view3D) view3DToggle.click();
         if (simParams.viewMercator) viewMercatorToggle.click();
         if (framedOrbitRecord === currentSelectedSatellite) {
-            setFramedOrbit(null);
+            const object = selectedSatelliteDisplayObject();
+            restoreEarthControlLimits();
             flyCameraToSelectedSatellite(object, 0, object === currentSelectedSatellite.mesh);
             return;
         }
         if (!simParams.showOrbit) showOrbitToggle.click();
-        const orbit = refreshOrbitTrajectoryIfNeeded(scene, simParams, currentSelectedSatellite);
-        const normal = currentSelectedOrbitalFrame(object.position)?.yAxis;
-        const frame = fullOrbitCameraFrame(orbit?.userData.sourceSegments, normal, camera);
-        if (!frame) return;
-        restoreEarthControlLimits();
-        controls.maxDistance = Math.max(controls.maxDistance, frame.range * 1.2);
-        camera.far = Math.max(camera.far, frame.range + 2 * frame.radius);
-        camera.updateProjectionMatrix();
-        animateCameraTo(frame.position, frame.target, 0);
-        setFramedOrbit(currentSelectedSatellite);
+        applyOrbitCameraPreset('orbit');
     }
 
     function flyCameraToSelectedSatellite(targetObject, millis = 1500, isSprite = false) {
@@ -6203,7 +6195,7 @@
     }
 
     function selectedSatelliteDisplayObject() {
-        if (detailedSatelliteModel?.visible) return detailedSatelliteModel;
+        if (detailedSatelliteModel && !detailedSatelliteModel.userData.hiddenForInvalidPropagation) return detailedSatelliteModel;
         return currentSelectedSatellite?.mesh || null;
     }
 
@@ -6314,8 +6306,24 @@
         );
     }
 
+    function trackedResultsContext() {
+        return { scoped: true, includeHistory: simParams.includeHistoricalTrackedObjects };
+    }
+
+    function setTrackedHistory(includeHistory) {
+        simParams.includeHistoricalTrackedObjects = includeHistory;
+        includeHistoricalTrackedObjectsCheckbox.checked = includeHistory;
+        updateSatelliteList();
+        if (includeHistory) {
+            void ensureTrackedCatalogLoaded({ loadAll: simParams.objectTypeFilter.includes(TRACKED_OBJECT_TYPE.ALL) });
+        }
+    }
+
     function updateSatelliteList() {
         if (!satellites || !satelliteSelectDropdown || !companyFilterSelect) {
+            catalogMatches = [];
+            catalogTags = [];
+            if (trackedResultsController?.isOpen()) trackedResultsController.refresh(catalogMatches);
             renderableSatellites = [];
             activeFilteredSatelliteCount = 0;
             activeTotalSatelliteCount = 0;
@@ -6330,17 +6338,18 @@
         }
 
         const allRecords = allTrackedDisplayRecords();
-        const companiesForOrbit = getCompaniesForOrbitSelection(simParams.orbitTypeFilter);
+        catalogTags = getCompaniesForOrbitSelection(simParams.orbitTypeFilter);
         const previousCompanySelection = Array.from(simParams.companyFilter);
         const availableCompanySelection = normalizeCompanySelection(
             previousCompanySelection.filter(value => (
-                value === ALL_COMPANY_OPTION || companiesForOrbit.includes(value)
+                value === ALL_COMPANY_OPTION || catalogTags.includes(value)
             ))
         );
-        renderCompanyFilter(companiesForOrbit, availableCompanySelection);
+        renderCompanyFilter(catalogTags, availableCompanySelection);
         renderTrackedDebrisFacetPanel(allRecords);
 
         const filteredTLEs = buildFilteredSatellitesBySelection();
+        catalogMatches = filteredTLEs;
         activeFilteredSatelliteCount = filteredTLEs.length;
         const scopedCatalogRecords = simParams.includeHistoricalTrackedObjects
             ? allRecords
@@ -6617,6 +6626,12 @@
             selectedModelFillLight.visible = false;
         }
         updateSelectedModelTracking(selectedPropagation);
+        const showOrbitCamera = simParams.view3D && !simParams.solarSystemOverview && !mapComparison?.active;
+        const framed = !!framedOrbitRecord && framedOrbitRecord === currentSelectedSatellite && showOrbitCamera;
+        const showSelectedObject = showOrbitCamera && (framed || (selectedModelTracking && !cameraMove)) &&
+            selectedPropagation && propagatableSelectedSatellite?.mesh?.userData.filterVisible;
+        const markedRecord = selectedOrbitView.update(showSelectedObject ? propagatableSelectedSatellite : null,
+            detailedSatelliteModel, framed, selectedPropagation);
         updateSelectedModelLighting(jDay);
 
         if (!simParams.solarSystemOverview && simParams.showOrbitFrame && orbitFrame && currentSelectedSatellite?.satrec) {
@@ -6676,7 +6691,7 @@
         const show3D = simParams.view3D || simParams.solarSystemOverview;
         if (renderer) renderer.domElement.style.display = show3D ? 'block' : 'none';
         if (show3D) {
-            const renderedTrackedCount = syncSatellitePointCloud(renderableSatellites);
+            const renderedTrackedCount = syncSatellitePointCloud(renderableSatellites, markedRecord);
             if (renderedTrackedCount !== lastTrackedRenderReadyCount) {
                 setTrackedCountValue(trackedCountRenderReadyElement, renderedTrackedCount);
                 lastTrackedRenderReadyCount = renderedTrackedCount;
@@ -6686,7 +6701,7 @@
                 refreshSelectedOrbitOcclusion(camera, {
                     earthRadiusScene: EARTH_SCENE_RADIUS,
                     viewportHeight: renderer.domElement.height,
-                    satellitePosition: detailedSatelliteModel?.visible ? detailedSatelliteModel.position : null,
+                    satellitePosition: selectedPropagation ? propagatableSelectedSatellite.mesh.position : null,
                     simTimeMs: SIM_DATE.getTime()
                 });
             }
@@ -6758,6 +6773,9 @@
             }
         }
         syncSelectedSatelliteDetailPanelWidth();
+        if (framedOrbitRecord && selectedOrbitView.autoFitView && simParams.view3D && !simParams.solarSystemOverview && !mapComparison?.active) {
+            applyOrbitCameraPreset(selectedOrbitView.autoFitView);
+        }
     }
     window.addEventListener('resize', onWindowResize);
 

@@ -1,6 +1,24 @@
 import { expect, test } from '@playwright/test';
 import { APP_VERSION } from '../js/releaseVersion.js';
 
+test('Kuiper flight inventory opens from packaged Help with its tables, image and model links', async ({page}) => {
+    await page.goto('/markdown_viewer.html?source=README.md');
+    const report = page.getByRole('link', {name:'Kuiper flight inventory', exact:true});
+    const link = new URL(await report.getAttribute('href'));
+    expect(link.origin).toBe(new URL(page.url()).origin);
+    expect(link.searchParams.get('source')).toBe('docs/KUIPER_MODEL_REVIEW.md');
+    await page.goto(link.href);
+    const content = page.locator('#markdownContent');
+    const prototype = content.getByRole('row').filter({has: page.getByRole('link', {name:'58013', exact:true})});
+    await expect(prototype).toContainText('KuiperSat-2');
+    await expect(prototype).toContainText('2025-04-29');
+    await expect(prototype.getByRole('link', {name:'58013'})).toHaveAttribute('href', /display_satellite\.html\?norad=58013$/);
+    const le04 = content.getByRole('row').filter({hasText:'2026-264AD'});
+    await expect(le04).toContainText('101486');
+    await expect(content.locator('tbody tr').filter({has:page.locator('a[href*="satcat/records.php?CATNR="]')})).toHaveCount(434);
+    await expect.poll(() => content.locator('img').evaluate(img => img.naturalWidth)).toBeGreaterThan(0);
+});
+
 test('moved Help pages resolve links and retain accuracy and upstream notices', async ({ page, request }) => {
     const failures = [];
     page.on('pageerror', error => failures.push(error.message));

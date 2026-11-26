@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import http.client
 import json
+import sqlite3
 import tempfile
 import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from pathlib import Path
 from urllib.parse import urlencode
+from unittest.mock import Mock
 
 import server
 from tests_python.test_v23_tracked_catalog import HEADER, omm, write_inputs
@@ -21,7 +25,10 @@ class CatalogModelApiTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         self.build()
-        handler = server.make_handler(serve_static=True, data_root_resolver=lambda: self.root)
+        self.fetcher = Mock()
+        self.now = 1790000000
+        self.refresh = server.SelectedElements(self.root, fetcher=self.fetcher, clock=lambda: self.now)
+        handler = server.make_handler(serve_static=True, data_root_resolver=lambda: self.root, selected_elements=self.refresh)
         self.httpd = server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
         thread = threading.Thread(target=self.httpd.serve_forever, kwargs={"poll_interval": 0.02}, daemon=True)
         thread.start()
@@ -29,7 +36,7 @@ class CatalogModelApiTests(unittest.TestCase):
         self.addCleanup(self.httpd.server_close)
         self.addCleanup(self.httpd.shutdown)
 
-    def build(self, extra="", anomaly=14.0):
+    def build(self, extra="", anomaly=14.0, epoch=None):
         rows = [(39188, "O3B FM5", ""), (39189, "O3B FM4", ""),
                 (63130, "COSMOS 2584 [GLONASS-K2]", ""), (44080, "FLOCK 4A-2", "2025-01-01"),
                 (100001, "METADATA ONLY", "")]
@@ -38,6 +45,8 @@ class CatalogModelApiTests(unittest.TestCase):
         gp = []
         for number, name, _ in rows[:4]:
             raw = dict(omm(number, name), MEAN_MOTION=2.1, MEAN_ANOMALY=anomaly)
+            if epoch is not None:
+                raw["EPOCH"] = epoch
             gp.append(data.transform_satellite_omm_object(raw, {}))
         write_inputs(self.root, text, gp)
         (self.root / data.GP_RELATIVE_PATH).write_bytes(json.dumps(gp, ensure_ascii=False, separators=(",", ":")).encode())
@@ -63,6 +72,81 @@ class CatalogModelApiTests(unittest.TestCase):
         self.assertEqual(actual, status, body)
         self.assertIn("application/" + ("json" if status == 200 else "problem+json"), headers["Content-Type"])
         return json.loads(body)
+
+    def test_selected_elements_cache_concurrency_restart_and_fallback(self):
+        url = data.CELESTRAK_GP_ENDPOINT + "?CATNR=39188&FORMAT=JSON"
+        path = "/api/v1/objects/39188/refresh-elements"
+        newest = dict(omm(39188), EPOCH="2026-09-01T10:00:00Z")
+        self.fetcher.return_value = data.FetchResponse(url=url, text=json.dumps([newest]))
+        with ThreadPoolExecutor(max_workers=4) as clients:
+            responses = list(clients.map(lambda _: self.request(path, "POST"), range(4)))
+        self.fetcher.assert_called_once_with(url, headers=None)
+        for status, _, raw in responses:
+            self.assertEqual(status, 200)
+            elements = json.loads(raw)["element_set"]
+            self.assertEqual(elements["epoch"], "2026-09-01T10:00:00.000Z")
+            self.assertTrue(data.validate_tle_pair(elements["line1"], elements["line2"]))
+        restart = server.SelectedElements(self.root, fetcher=self.fetcher, clock=lambda: self.now)
+        detail = {"norad_id": "39188", "scope": "current", "element_set": None}
+        self.assertEqual(restart.lookup(detail)["element_set"], elements)
+        self.assertEqual(self.fetcher.call_count, 1)
+        self.now += 3 * 3600
+        self.fetcher.return_value = data.FetchResponse(url=url, text=json.dumps([omm(39188)]))
+        older = restart.lookup(detail)
+        self.assertEqual(older["element_set"], elements)
+        self.assertEqual(older["checked_at"], self.now)
+        self.now += 3 * 3600
+        self.fetcher.return_value = data.FetchResponse(url=url, text=json.dumps([omm(39189)]))
+        failed = restart.lookup(detail)
+        self.assertEqual(failed["status"], "provider_unavailable")
+        self.assertEqual(failed["element_set"], elements)
+        self.assertEqual(failed["checked_at"], older["checked_at"])
+        self.now += 3 * 3600
+        self.fetcher.side_effect = OSError("offline")
+        self.assertEqual(restart.lookup(detail)["element_set"], elements)
+        self.assertEqual(json.loads(self.request("/api/v1/objects/44080/refresh-elements", "POST")[2])["status"], "historical")
+        self.assertEqual(self.fetcher.call_count, 4)
+
+    def test_selection_persists_new_catalog_epoch_during_provider_cooldown(self):
+        number = 39188
+        url = f"{data.CELESTRAK_GP_ENDPOINT}?CATNR={number}&FORMAT=JSON"
+        path = f"/api/v1/objects/{number}/refresh-elements"
+        upstream = dict(omm(number), EPOCH="2026-09-01T10:00:00Z")
+        self.fetcher.return_value = data.FetchResponse(url=url, text=json.dumps([upstream]))
+        first_check = self.now
+        status, _, raw = self.request(path, "POST")
+        self.assertEqual((status, json.loads(raw)["status"]), (200, "updated"))
+
+        published_epoch = "2026-09-02T10:00:00.000Z"
+        self.build(epoch=published_epoch)
+        self.now += 60
+        status, _, raw = self.request(path, "POST")
+        elements = json.loads(raw)["element_set"]
+        self.assertEqual((status, elements["epoch"]), (200, published_epoch))
+        self.assertTrue(data.validate_tle_pair(elements["line1"], elements["line2"]))
+        self.fetcher.assert_called_once_with(url, headers=None)
+        with closing(sqlite3.connect(self.refresh.database)) as db:
+            epoch, saved, checked, attempted = db.execute(
+                "SELECT epoch, data, checked, attempted FROM elements WHERE norad=?", (str(number),)
+            ).fetchone()
+        self.assertEqual((epoch, json.loads(saved)["omm"]["EPOCH"]), (published_epoch, published_epoch))
+        self.assertEqual((checked, attempted), (first_check, first_check))
+
+        self.now = first_check + 2 * 3600
+        status, _, raw = self.request(path, "POST")
+        self.assertEqual((status, json.loads(raw)["element_set"]["epoch"]), (200, published_epoch))
+        self.assertEqual(self.fetcher.call_count, 2)
+
+    def test_selected_elements_for_six_digit_id_without_published_position(self):
+        number = "100001"
+        url = data.CELESTRAK_GP_ENDPOINT + "?CATNR=" + number + "&FORMAT=JSON"
+        self.fetcher.return_value = data.FetchResponse(url=url, text=json.dumps([omm(int(number))]))
+        status, _, raw = self.request("/api/v1/objects/" + number + "/refresh-elements", "POST")
+        self.assertEqual(status, 200)
+        elements = json.loads(raw)["element_set"]
+        self.assertEqual(str(elements["omm"]["NORAD_CAT_ID"]), number)
+        self.assertNotIn("line1", elements)
+        self.fetcher.assert_called_once_with(url, headers=None)
 
     def test_scope_search_and_valid_omm(self):
         page = self.get_json("/api/v1/objects?q=GLONASS-K2+63130+2025-042A&orbit=meo&owner=cis&type=PAYLOAD")
@@ -119,9 +203,21 @@ class CatalogModelApiTests(unittest.TestCase):
                  for n in ("20061", "20959")]
         self.assertEqual(links[0], links[1])  # GPS II and IIA use the same primary mesh.
         self.assertEqual(self.get_json(links[0]["href"])["files"]["glb"], "/obj/meo/gps-ii.glb")
+        unique = library.link({"norad_id": "56174", "object_type": "PAYLOAD", "orbit_class": "GEO"})
+        for href in (unique["href"], "/api/v1/models/geo.maxar-1300-tempo-instrument"):
+            self.assertEqual(self.get_json(href)["files"]["glb"], "/obj/geo/56174.glb")
         production = self.get_json("/api/v1/models/leo.kuiper-production")
         self.assertIn("https://planet4589.org/space/gcat/index.html", [ref["url"] for ref in production["references"]])
         self.assertTrue(any("three-leaf" in note for note in production["notes"]))
+
+    def test_refreshed_kuiper_payload_uses_the_reviewed_model_and_estimated_span(self):
+        self.build(extra="KUIPER-00714,2026-264AD,101486,PAY,+,US,2026-11-24,FRGUI,,93,52,455,431,,,EA,ORB\n")
+        flight = self.get_json("/api/v1/objects/101486")
+        self.assertEqual(flight["model"]["id"], "leo.kuiper-production")
+        for model_id, span in (("leo.kuiper-production", 5), ("leo.ref-kuiper-58013", 10)):
+            model = self.get_json("/api/v1/models/" + model_id)
+            dimension = next(item for item in model["dimensions"] if item["name"] == "span_m")
+            self.assertEqual((dimension["values_m"], dimension["basis"]), ([span], "estimate"))
 
     def test_contract_head_etags_errors_and_read_only_methods(self):
         spec = self.get_json("/docs/catalog-api.openapi.json")

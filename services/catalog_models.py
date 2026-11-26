@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import struct
 from functools import lru_cache
 from pathlib import Path, PurePosixPath
@@ -21,6 +22,7 @@ class ModelLibrary:
     def __init__(self, root, manifest, orbit_index, profiles):
         self.root = root
         self.profiles = profiles
+        self.catalog_orbits = orbit_index.get("catalogOrbitClasses", {})
         self.models = {}
         self.assignments = {}
         by_profile = {}
@@ -32,6 +34,10 @@ class ModelLibrary:
             # Prefer the physical file's own profile over a display alias.
             if model_id not in self.models or row["id"] == str(primary):
                 self.models[model_id] = row
+            if profiles.get(row["id"], {}).get("mesh_file") == str(primary):
+                # Existing resource URLs use the profile name that preceded the NORAD filename.
+                legacy_id = ".".join(PurePosixPath(row["id"]).with_suffix("").parts).lower()
+                self.models.setdefault(legacy_id, row)
         for orbit, groups in orbit_index["orbits"].items():
             for profile_id, ranges in groups.items():
                 model_id = by_profile[profile_id]
@@ -42,10 +48,15 @@ class ModelLibrary:
 
     def link(self, row):
         assignment = self.assignments.get(row["norad_id"])
-        if row["object_type"] != "PAYLOAD" or not assignment:
+        if row["object_type"] != "PAYLOAD":
             return None
+        if not assignment:
+            if (row["orbit_class"] != "LEO" or "leo.kuiper-production" not in self.models
+                    or not re.fullmatch(r"(?:KUIPER|AMAZON LEO)[- ]\d+", row.get("name") or "", re.I)):
+                return None
+            assignment = ("LEO", "leo.kuiper-production")
         orbit, model_id = assignment
-        if row["orbit_class"] not in (None, "UNKNOWN", orbit):
+        if row["orbit_class"] not in (None, "UNKNOWN", orbit, self.catalog_orbits.get(row["norad_id"])):
             return None
         return {"id": model_id, "href": "/api/v1/models/" + model_id}
 
@@ -112,8 +123,12 @@ def _dimensions(geometry, extras):
                 continue
             values = value if isinstance(value, list) else [value]
             if values and all(type(n) in (int, float) for n in values):
+                estimated = group is geometry and (
+                    (name.startswith("body_") and geometry.get("body_estimated"))
+                    or (name == "span_m" and geometry.get("span_estimated"))
+                )
                 result.append({"name": name, "values_m": values,
-                               "basis": "estimate" if "estimated" in name.lower() else basis})
+                               "basis": "estimate" if estimated or "estimated" in name.lower() else basis})
     return result
 
 

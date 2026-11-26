@@ -261,8 +261,16 @@ function pointCloudRecordReady(record) {
         Number.isFinite(position?.x) && Number.isFinite(position?.y) && Number.isFinite(position?.z);
 }
 
-export function syncSatellitePointCloud(sourceSatellites = satellites) {
+export function syncSatellitePointCloud(sourceSatellites = satellites, selectedOverlayRecord = null) {
     if (!satellitePointCloud) return 0;
+    const geometry = satellitePointCloud.geometry;
+    if (geometry.getAttribute('position').count < sourceSatellites.length) {
+        const capacity = Math.max(sourceSatellites.length, Math.ceil(geometry.getAttribute('position').count * 1.25));
+        for (const key of ['position', 'color']) {
+            const attribute = new THREE.BufferAttribute(new Float32Array(capacity * 3), 3);
+            geometry.setAttribute(key, attribute.setUsage(THREE.DynamicDrawUsage));
+        }
+    }
     const positionAttribute = satellitePointCloud.geometry.getAttribute('position');
     const colorAttribute = satellitePointCloud.geometry.getAttribute('color');
     let drawnCount = 0;
@@ -271,7 +279,7 @@ export function syncSatellitePointCloud(sourceSatellites = satellites) {
     const objectTypeMarkerCounts = {};
     for (const satelliteRecord of sourceSatellites) {
         const position = satelliteRecord?.mesh?.position;
-        if (!pointCloudRecordReady(satelliteRecord)) continue;
+        if (satelliteRecord === selectedOverlayRecord || !pointCloudRecordReady(satelliteRecord)) continue;
         positionAttribute.setXYZ(drawnCount, position.x, position.y, position.z);
         const { visual: baseVisual, rgb: baseRgb } = pointVisual(satelliteRecord);
         const [r, g, b] = satelliteRecord.isSelected ? selectedPointRgb : baseRgb;
@@ -651,6 +659,35 @@ function validInitializedSatrec(satrec) {
     if (!satrec || (Number.isFinite(satrec.error) && satrec.error !== 0)) return false;
     return ['epochyr', 'epochdays', 'jdsatepoch', 'inclo', 'nodeo', 'ecco', 'argpo', 'mo', 'no']
         .every(field => Number.isFinite(satrec[field]));
+}
+
+function satelliteMarkerProxy(material) {
+    const markerProxy = new THREE.Object3D();
+    markerProxy.material = material;
+    markerProxy.scale.set(...(satelliteConfig.scale || [0.1, 0.1, 0.1]));
+    markerProxy.visible = false;
+    markerProxy.userData.filterVisible = false;
+    markerProxy.userData.positionReady = false;
+    return markerProxy;
+}
+
+export function applySelectedElements(record, elements, satelliteLib = globalThis.satellite) {
+    if (!elements || String(elements.omm?.NORAD_CAT_ID) !== String(record.norad_id)) return false;
+    const epoch = Date.parse(elements.epoch);
+    const previous = Date.parse(record.element_set?.epoch ?? record.element_set?.omm?.EPOCH);
+    if (!Number.isFinite(epoch) || (record.satrec && epoch <= previous)) return false;
+    const satrec = satelliteLib.json2satrec(elements.omm);
+    if (!validInitializedSatrec(satrec)) return false;
+    if (!record.mesh) {
+        record.mesh = satelliteMarkerProxy(satellitePointCloud?.userData.sourceMaterial);
+        satellites.push(record);
+    }
+    Object.assign(record, { satrec, element_set: elements, source_format: 'OMM', refreshedEpoch: elements.epoch,
+        tle_line1: elements.line1 ?? null, tle_line2: elements.line2 ?? null,
+        orbitType: record.orbit_class || classifyOrbitByPeriodMinutes(getOrbitDurationMinutes(satrec), satrec),
+        has_current_elements: true, metadata_only: false, tracked_catalog_suppressed: false,
+        propagation_status: 'CURRENT_ELEMENTS', unavailable_reason: null, motionPositionReady: false });
+    return true;
 }
 
 function mixedCatalogQuality(total, accepted, quarantine) {
@@ -1270,15 +1307,8 @@ async function processSatellites(scene, catalogData, baseMaterial, options = {})
             }
             if (!validInitializedSatrec(satrec)) throw new Error(`${format} SGP4 initialization failed.`);
 
-            const markerProxy = new THREE.Object3D();
-            markerProxy.material = baseMaterial;
-            markerProxy.scale.set(...(satelliteConfig.scale || [0.1, 0.1, 0.1]));
-            markerProxy.visible = false;
-            markerProxy.userData.filterVisible = false;
-            markerProxy.userData.positionReady = false;
-
             satellites.push({
-                mesh: markerProxy,
+                mesh: satelliteMarkerProxy(baseMaterial),
                 satrec,
                 orbitType: resolvedOrbitClass,
                 company: company || "N/A",

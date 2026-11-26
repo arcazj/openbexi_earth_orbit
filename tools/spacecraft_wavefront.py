@@ -9,11 +9,11 @@ import zipfile
 if __package__:
     from . import mep
     from .spacecraft_textures import blanket_maps
-    from .build_orbit_models import DATA, ROOT, Glb, cross, model, write_if_changed
+    from .build_orbit_models import DATA, ROOT, WAVEFRONT_EXPORTS, Glb, cross, model, write_if_changed
 else:
     import mep
     from spacecraft_textures import blanket_maps
-    from build_orbit_models import DATA, ROOT, Glb, cross, model, write_if_changed
+    from build_orbit_models import DATA, ROOT, WAVEFRONT_EXPORTS, Glb, cross, model, write_if_changed
 
 
 def rotate(vector, quat):
@@ -112,18 +112,22 @@ def wavefront(name, glb):
     return result.getvalue()
 
 
-def build():
-    pod = Glb(mep.PROFILE)
-    mep.spacecraft(pod)
-    geo = json.loads((DATA/"geo.json").read_bytes())
-    assets = {"mep": pod.bytes()[1]}
-    for name in ("intelsat-10-02","horizons-3e"):
-        assets[name] = model(geo["geo/"+name+".glb"])[1]
+def build(orbits=("geo","leo","meo")):
     directory = ROOT/"obj"/"exports"
     directory.mkdir(exist_ok=True)
-    for name, glb in assets.items():
-        write_if_changed(ROOT/"obj"/"geo"/(name+".glb"), glb)
-        write_if_changed(directory/(name+".zip"), wavefront(name, glb))
+    if "geo" in orbits:
+        pod = Glb(mep.PROFILE)
+        mep.spacecraft(pod)
+        geo = json.loads((DATA/"geo.json").read_bytes())
+        assets = {"mep": pod.bytes()[1]}
+        for name in ("intelsat-10-02","horizons-3e"):
+            assets[name] = model(geo["geo/"+name+".glb"])[1]
+        for name, glb in assets.items():
+            write_if_changed(ROOT/"obj"/"geo"/(name+".glb"), glb)
+            write_if_changed(directory/(name+".zip"), wavefront(name, glb))
+    for asset, name in WAVEFRONT_EXPORTS.items():
+        if asset.split("/")[0] in orbits:
+            write_if_changed(directory/(name+".zip"), wavefront(name, (ROOT/"obj"/asset).read_bytes()))
 
 
 if __name__ == "__main__":

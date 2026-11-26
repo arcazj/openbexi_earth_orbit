@@ -1,6 +1,6 @@
 # Release checklist
 
-**2.6.0 uses the stable distribution channel.** The release includes the exact-commit verification record and archive checksums. [Official 2.6.0 release](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/2.6.0) · [Runtime SBOM](../../release/evidence/openbexi-node-sbom-2.6.0.cdx.json) · [Previous prerelease](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/v2.6.0)
+**2.6.1 uses the stable distribution channel.** The release includes the exact-commit verification record and archive checksums. [Official 2.6.1 release](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/2.6.1) · [Runtime SBOM](../../release/evidence/openbexi-node-sbom-2.6.1.cdx.json) · [Previous stable release](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/2.6.0)
 
 1. Verify version/feature metadata, final license/contact, retained upstream notices and concise current docs. Keep frozen corpus bytes unchanged.
 2. Review the changes since the previous public release for credentials, private agreements, internal prompts and unintended runtime data.

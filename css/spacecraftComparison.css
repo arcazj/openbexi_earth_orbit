@@ -48,8 +48,8 @@
 .pair-stage[aria-busy=true]::before { content: 'Loading comparison…'; position: absolute; top: 48%; width: 100%;
     text-align: center; color: #bbcee0; font: 13px system-ui,sans-serif; }
 .pair-stage[aria-busy=true] > * { visibility: hidden; }
-.pair-stage.pair-inspecting canvas { cursor: grab; touch-action: none; }
-.pair-inspecting canvas:active { cursor: grabbing; }
+.pair-stage canvas { cursor: grab; touch-action: none; }
+.pair-stage canvas:active { cursor: grabbing; }
 .pair-stage.pair-inspecting::after { content: ''; position: absolute; left: 50%; top: 9%; bottom: 9%; border-left: 1px solid #3c4c5c; pointer-events: none; }
 .pair-tag, .pair-leader, .pair-dot, .pair-line-value { position: absolute; left: 0; top: 0; pointer-events: none; }
 .pair-0 { --pair-ink: #ffcf7c; }
@@ -97,32 +97,23 @@
     position: fixed; z-index: 2094; left: 400px; right: calc(var(--catalog-panel-width,300px) + var(--catalog-panel-right,16px) + 10px);
     top: var(--catalog-panel-top,90px); bottom: calc(var(--data-status-height,0px) + var(--timeline-height,0px) + 10px);
 }
-body:has(#controlsContainer.menu-hidden) #mapComparisonStageHost { left: 10px; }
 body.pair-full-active > canvas { visibility: hidden; }
-.pair-full-active .shell > section, .pair-full-active .diagnostics .panel-body > :not(#viewerComparison),
-.pair-full-active #copyDiagnosticsBtn, .pair-full-active > canvas, .pair-full-active .status-bar { display: none; }
+.pair-full-active .diagnostics .panel-body > :not(#modelDisplayOptions),
+.pair-full-active #modelDisplayOptions > :not(#viewerComparison),
+.pair-full-active > canvas, .pair-full-active .status-bar { display: none; }
 @media (min-width: 901px) {
-    .pair-full-active .shell { display: flex; justify-content: flex-end; }
-    .pair-full-active .diagnostics { width: 320px; max-height: calc(100dvh - 36px); }
-    #comparisonStageHost { position: fixed; inset: 18px 350px 18px 18px; }
+    #comparisonStageHost { position: fixed; inset: 18px calc(var(--viewer-settings-width) + 28px) 18px calc(var(--viewer-menu-width) + 28px); }
 }
 @media (max-width: 900px) {
-    .pair-full-active { display: flex; flex-direction: column; }
-    #comparisonStageHost { order: -1; flex: none; box-sizing: border-box; width: calc(100% - 20px);
-        height: clamp(330px,58dvh,570px); margin: 10px 10px 0; }
-    .pair-full-active .shell { flex: none; }
-    .pair-full-active .diagnostics { overflow: visible; }
+    #comparisonStageHost { position: fixed; inset: calc(var(--viewer-menu-height) + 16px) 8px calc(var(--viewer-settings-height) + 16px); }
 }
-@media (max-width: 1100px) {
-    .map-pair-active #controlsContainer, .map-pair-active #menuToggleBtn { visibility: hidden; }
-    .map-pair-active #mapComparisonStageHost, body.map-pair-active:has(#controlsContainer.menu-hidden) #mapComparisonStageHost {
-        left: 8px;
-    }
+@media (min-width: 761px) and (max-width: 1100px) {
+    .map-pair-active #mapComparisonStageHost { left: calc(28vw + 20px); }
 }
 @media (max-width: 760px) {
     .map-pair-active { --comparison-panel-height: clamp(130px,30dvh,265px); }
-    .map-pair-active #mapComparisonStageHost, body.map-pair-active:has(#controlsContainer.menu-hidden) #mapComparisonStageHost {
-        right: 8px; top: var(--catalog-panel-top,86px);
+    .map-pair-active #mapComparisonStageHost {
+        left: 8px; right: 8px; top: calc(var(--catalog-panel-top,86px) + 18dvh + 8px);
         bottom: calc(var(--comparison-panel-height) + var(--data-status-height,0px) + 14px);
     }
     .map-pair-active #catalogPanel { position: fixed; left: 8px; right: 8px; top: auto;

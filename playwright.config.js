@@ -24,7 +24,7 @@ const webServerCommand = [
   '127.0.0.1',
   '--port',
   String(port),
-  '--no-data-update', '--runtime-dir', 'runtime/browser-tests-direct'
+  '--no-data-update', '--no-selection-refresh', '--runtime-dir', 'runtime/browser-tests-direct'
 ].map(quoteShellArgument).join(' ');
 
 export default defineConfig({

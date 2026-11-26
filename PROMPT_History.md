@@ -4,9 +4,9 @@ This is a concise record of user intent and decisions. Full historical requests 
 
 ## Version 2.6.0 — spacecraft models, live tracking and catalog results
 
-The user requested current and historical LEO, MEO and GEO model catalogs organized by orbit. Spacecraft with the same hardware should share one model across NORAD IDs. Starlink should have three primary models and retain the original V1 asset. The requested revisions included OneWeb, O3b Classic and mPOWER, Qianfan, Iridium, CubeSats and reference-based GEO exteriors for the Intelsat and Galaxy fleets.
+The user requested current and historical LEO, MEO and GEO model catalogs organized by orbit. Spacecraft with the same hardware should share one model across NORAD IDs. One broadband constellation needed three generation-specific models, including its original first-generation asset. Other requested revisions covered low-orbit communications fleets, two generations of medium-orbit communications spacecraft, CubeSats and GEO fleet exteriors based on published references.
 
-The user asked for a centered, smooth orbit, Earth-facing GEO antennas and steady Live tracking on OneWeb and GLONASS-K2. They also requested a right-hand catalog panel aligned with the UTC clock, collapsed OMM details on selection and a search filter within Tracked-object results. They asked for complete regression testing, updated documentation and local preparation of 2.6 without a commit.
+The user asked for a centered, smooth orbit, Earth-facing GEO antennas and steady Live tracking for high-latitude communications and navigation passes. They also requested a right-hand catalog panel aligned with the UTC clock, collapsed OMM details on selection and a search filter within Tracked-object results. They asked for complete regression testing, updated documentation and local preparation of 2.6 without a commit.
 
 ## Version 2.5.1 — visible playback units
 

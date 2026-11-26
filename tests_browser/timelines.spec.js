@@ -316,10 +316,9 @@ test('OMM selection and static catalog revisions refresh both timelines without 
   await bootTimelineFixture(page, state);
 
   const catalogPanel = page.locator('#catalogPanel');
-  const browse = page.getByRole('button', { name: 'Browse catalog results' });
+  const browse = page.locator('#satelliteSelectionContent').getByRole('button', { name: 'Browse catalog results' });
   const recordSummary = catalogPanel.locator('#trackedRecordSummary');
   await expect(browse).toBeVisible();
-  await expect(catalogPanel.getByRole('button', { name: 'Browse catalog results' })).toHaveCount(1);
   await expect(recordSummary).toHaveJSProperty('open', false);
   await expect(catalogPanel.locator('#selectedSatelliteDetailPanel')).toBeHidden();
 
@@ -339,9 +338,9 @@ test('OMM selection and static catalog revisions refresh both timelines without 
   const ommDetails = selectedDetails.locator('.selected-satellite-omm-section');
   await expect(canonicalDetails).toHaveJSProperty('open', true);
   await expect(ommDetails).toHaveJSProperty('open', false);
-  expect(await catalogPanel.locator('#openTrackedResults, #selectedSatelliteControls, #yprSlidersRow, .selected-satellite-data-section, .selected-satellite-omm-section, #selectedModelViewer, #trackedRecordSummary')
+  expect(await catalogPanel.locator('#selectedSatelliteControls, #yprSlidersRow, .selected-satellite-data-section, .selected-satellite-omm-section, #selectedModelViewer, #trackedRecordSummary')
     .evaluateAll(nodes => nodes.map(node => node.id || node.querySelector('summary > span').textContent.trim())))
-    .toEqual(['openTrackedResults', 'selectedSatelliteControls', 'yprSlidersRow', 'selectedModelViewer', 'Catalog data', 'OMM details', 'trackedRecordSummary']);
+    .toEqual(['selectedSatelliteControls', 'yprSlidersRow', 'selectedModelViewer', 'Catalog data', 'OMM details', 'trackedRecordSummary']);
   await expect(catalogPanel.locator('#selectedSatelliteControls input[type="checkbox"]')).toHaveCount(5);
   await ommDetails.locator('summary').press('Enter');
   await expect(ommDetails.locator('table')).toBeVisible();

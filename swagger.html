@@ -483,7 +483,7 @@
     <header class="hero">
       <h1>
         OpenBEXI Earth Orbit API
-        <span class="badge version">2.6.0</span>
+        <span class="badge version">2.6.1</span>
         <span class="badge oas">OAS 3.0.3</span>
       </h1>
       <p class="description">
@@ -516,7 +516,7 @@
 
     <!-- Catalog API reference start -->
     <section id="catalog-models" class="tag-section" aria-labelledby="catalog-models-title">
-      <h2 id="catalog-models-title" class="tag-title">Catalog and models <span>Read-only local API</span></h2>
+      <h2 id="catalog-models-title" class="tag-title">Catalog and models <span>Local catalog API</span></h2>
       <p>Open the <a href="docs/catalog-api.openapi.json">OpenAPI contract</a> for field types and units, or the <a href="markdown_viewer.html?source=docs/SWAGGER.md&amp;title=Swagger%20API">Python walkthrough</a>.</p>
       <details class="operation get">
         <summary><span class="method get">GET</span><span class="path">/api/v1/objects</span><span class="summary-text">Search tracked objects</span></summary>
@@ -560,6 +560,23 @@
             <tr><td>404</td><td>Resource is absent from this catalog or model registry.</td></tr>
             <tr><td>405</td><td>This resource is read-only.</td></tr>
             <tr><td>503</td><td>Verified catalog data or model metadata is unavailable.</td></tr>
+          </tbody></table>
+        </div>
+      </details>
+      <details class="operation post">
+        <summary><span class="method post">POST</span><span class="path">/api/v1/objects/{noradId}/refresh-elements</span><span class="summary-text">Refresh one selected object's orbital elements</span></summary>
+        <div class="operation-body"><p>Returns the newest validated local or single-CATNR SGP4 element set. Successful and unsuccessful checks are rate limited per object. Historical objects return no current position.</p>
+          <h3>Parameters</h3>
+          <table class="response-table"><thead><tr><th scope="col">Name</th><th scope="col">Location</th><th scope="col">Description</th></tr></thead><tbody>
+            <tr><td>noradId</td><td>path</td><td>Selected NORAD catalog number.</td></tr>
+          </tbody></table>
+          <h3>Responses</h3>
+          <table class="response-table"><thead><tr><th scope="col">HTTP status</th><th scope="col">Description</th></tr></thead><tbody>
+            <tr><td>200</td><td>Orbital elements and provider-check status.</td></tr>
+            <tr><td>400</td><td>Invalid NORAD ID or query.</td></tr>
+            <tr><td>404</td><td>Unknown catalog object.</td></tr>
+            <tr><td>405</td><td>Use POST.</td></tr>
+            <tr><td>503</td><td>Local catalog or storage unavailable.</td></tr>
           </tbody></table>
         </div>
       </details>
@@ -611,8 +628,8 @@
   "status": "ok",
   "app": "openbexi_earth_orbit",
   "data_health": { "schemaVersion": 1, "url": "/api/data-update-status", "clock": "wall-utc" },
-  "version": "2.6.0",
-  "release_date": "2026-11-24",
+  "version": "2.6.1",
+  "release_date": "2026-11-26",
   "candidate_date": null,
   "publication_state": "released"
 }</code></pre>
@@ -687,16 +704,16 @@
           </table>
           <h3>Example Response</h3>
           <pre><code>{
-  "app_version": "2.6.0",
+  "app_version": "2.6.1",
   "api_version": "1.0.0",
-  "release_date": "2026-11-24",
+  "release_date": "2026-11-26",
   "candidate_date": null,
   "publication_state": "released",
   "release_channel": "stable",
   "maturity": "experimental",
   "safety_class": "non-operational",
   "repository": "https://github.com/arcazj/openbexi_earth_orbit",
-  "server": "OpenBEXIHTTP/2.6.0"
+  "server": "OpenBEXIHTTP/2.6.1"
 }</code></pre>
         </div>
       </details>
@@ -738,7 +755,7 @@
           <h3>Example Response</h3>
           <pre><code>[
   {
-    "name": "ISS (ZARYA)",
+    "name": "EXAMPLE",
     "noradId": 25544,
     "line1": "1 25544U ...",
     "line2": "2 25544 ..."
@@ -814,9 +831,9 @@
           </table>
           <h3>Example file entry (excerpt)</h3>
           <pre><code>{
-  "name": "starlink_V1.json",
-  "path": "json/satellites/starlink_V1.json",
-  "url": "/api/satellite-metadata/starlink_V1.json"
+  "name": "cubesat.json",
+  "path": "json/satellites/cubesat.json",
+  "url": "/api/satellite-metadata/cubesat.json"
 }</code></pre>
         </div>
       </details>
@@ -834,7 +851,7 @@
           <table class="parameter-table">
             <thead><tr><th>Name</th><th>In</th><th>Required</th><th>Schema</th><th>Description</th></tr></thead>
             <tbody>
-              <tr><td><code>file_name</code></td><td>path</td><td>Yes</td><td>string</td><td>Metadata file name, for example <code>starlink_V1.json</code>.</td></tr>
+              <tr><td><code>file_name</code></td><td>path</td><td>Yes</td><td>string</td><td>Metadata file name, for example <code>cubesat.json</code>.</td></tr>
             </tbody>
           </table>
           <h3>Responses</h3>
@@ -848,8 +865,8 @@
           <h3>Example metadata response (excerpt)</h3>
           <pre><code>{
   "0": {
-    "name": "Starlink_V1",
-    "meta": { "norad_id": "44713", "bus": "Starlink V1 Bus", "manufacturer": "SpaceX" }
+    "name": "CubeSat 3U",
+    "meta": { "type": "reference platform", "form_factor": "3U" }
   }
 }</code></pre>
         </div>
@@ -877,18 +894,18 @@
   "basePath": "obj/",
   "models": [
     {
-      "id": "starlink_V1",
+      "id": "cubesat",
       "type": "obj-mtl",
       "files": {
-        "obj": "leo/starlink_V1.obj",
-        "mtl": "leo/starlink_V1.mtl"
+        "obj": "leo/cubesat.obj",
+        "mtl": "leo/cubesat.mtl"
       }
     },
     {
-      "id": "ISS.glb",
+      "id": "meo/meo-reference.glb",
       "type": "glb",
       "files": {
-        "glb": "leo/ISS.glb"
+        "glb": "meo/meo-reference.glb"
       }
     }
   ]
@@ -1077,7 +1094,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "OpenBEXI Earth Orbit API",
-    "version": "2.6.0"
+    "version": "2.6.1"
   },
   "paths": {
     "/api/health": {},
@@ -1112,7 +1129,7 @@
     </section>
 
     <footer>
-      Static local documentation for OpenBEXI Earth Orbit 2.6.0, released November 24, 2026. Companion Markdown: <a href="markdown_viewer.html?source=docs/SWAGGER.md&amp;title=Swagger%20API">docs/SWAGGER.md</a>.
+      Static local documentation for OpenBEXI Earth Orbit 2.6.1, released November 26, 2026. Companion Markdown: <a href="markdown_viewer.html?source=docs/SWAGGER.md&amp;title=Swagger%20API">docs/SWAGGER.md</a>.
     </footer>
   </main>
 

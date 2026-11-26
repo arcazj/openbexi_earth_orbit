@@ -1,0 +1,92 @@
+:root {
+    --viewer-menu-width: clamp(250px, 29vw, 350px);
+    --viewer-settings-width: clamp(254px, 25vw, 316px);
+}
+.shell {
+    grid-template-columns: var(--viewer-menu-width) var(--viewer-settings-width);
+    grid-template-rows: minmax(0, 1fr);
+}
+#viewerSelectionPanel {
+    align-self: start;
+    max-height: 100%;
+    overflow: auto;
+    scroll-padding-top: 60px;
+    scrollbar-width: thin;
+    overscroll-behavior: contain;
+    padding: 4px;
+    border-color: #354a50;
+    border-radius: 10px;
+    background: #0a141b;
+    color: #e6eded;
+    font: 600 13px/1.35 system-ui, sans-serif;
+}
+#viewerMatchHeading {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    margin: 0;
+    padding: 8px 12px;
+    border-radius: 7px;
+    background: linear-gradient(135deg, #d8fff8, #5cd4c5 38%, #1b8e84 70%, #c8fff7);
+    color: #061720;
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: 0;
+}
+#viewerMatchCount { display: block; margin-top: 2px; color: #a21518; font-size: 14px; }
+#viewerMatchFilters { padding: 12px 9px 8px; background: linear-gradient(#2d4c52, #0e292a 40%, #081319); }
+.viewer-search-row, .viewer-shortcuts, .viewer-segments { display: grid; gap: 5px; }
+.viewer-search-row { grid-template-columns: minmax(0, 1fr) auto auto; }
+.viewer-shortcuts { grid-template-columns: 1fr 1fr; margin: 9px 0; }
+#viewerMatchFilters button, #viewerSearch { min-width: 0; font: inherit; }
+#viewerSearch { padding: 6px 8px; background: #0a1117; }
+.viewer-search-row button { padding: 5px 8px; background: linear-gradient(#315982, #162b46); }
+.viewer-shortcuts button { min-height: 26px; padding: 2px 6px; border: 1px solid #247f81; color: #a2eee9; font-size: 12px; }
+.viewer-filter-groups { padding: 10px; border: 1px solid #214d51; border-radius: 8px; background: #05171880; }
+.viewer-segments { gap: 1px; overflow: hidden; border: 1px solid #505657; border-radius: 5px; background: #505657; }
+#viewerOrbitFilter { grid-template-columns: repeat(6, 1fr); }
+#viewerOrbitFilter [value="SPACE_STATION"] { grid-column: 1 / -1; }
+#viewerTypeFilter { grid-template-columns: repeat(3, 1fr); margin-top: 14px; }
+#viewerMatchFilters .viewer-segments button {
+    min-height: 37px; padding: 3px 1px; border: 0; border-radius: 0;
+    background: #282d2f; color: #fff; font-size: 11px;
+}
+#viewerMatchFilters .viewer-segments button[aria-pressed=true] { background: #4b5051; }
+.viewer-history, #viewerTagFilter label { display: inline-flex; align-items: center; cursor: pointer; }
+.viewer-history { gap: 5px; margin: 8px 0 25px; }
+#viewerMatchFilters input[type=checkbox] { width: 14px; min-height: 0; height: 14px; margin: 0; }
+#viewerTagHeading { margin-bottom: 7px; color: #c0cbce; }
+#viewerTagFilter { display: flex; flex-wrap: wrap; gap: 6px; }
+#viewerTagFilter label { position: relative; }
+#viewerTagFilter input { position: absolute; opacity: 0; }
+#viewerTagFilter span {
+    display: block; padding: 6px 10px; border: 1px solid #657076; border-radius: 20px;
+    background: #151719; color: #eee; font-size: 12px; line-height: 1.4;
+}
+#viewerTagFilter input:checked + span {
+    border-color: #b5ddff; background: linear-gradient(135deg, #d9f2ff, #6eb8ff 45%, #397dc9 75%, #d7efff);
+    color: #081423; box-shadow: 0 0 7px #6eb8ff55;
+}
+#viewerMatchFilters :focus-visible, #viewerTagFilter input:focus-visible + span { outline: 2px solid #ffcf75; outline-offset: -2px; }
+#modelInformation .view-controls { grid-template-columns: repeat(2,minmax(0,1fr)); margin: 8px 0; }
+#modelLibraryDetails { margin-top: 10px; }
+#modelLibraryDetails .model-list { max-height: 30vh; }
+@media (min-width: 901px) {
+    .tracked-results-drawer { left: calc(var(--viewer-menu-width) + 30px); }
+}
+@media (max-width: 900px) {
+    :root { --viewer-menu-height: 26dvh; --viewer-settings-height: 29dvh; }
+    .pair-full-active { --viewer-menu-height: 18dvh; --viewer-settings-height: 24dvh; }
+    html:not(.model-embed) body { overflow: hidden; }
+    .shell {
+        position: fixed; inset: 8px; width: auto; padding: 0; overflow: visible; display: grid;
+        grid-template: var(--viewer-menu-height) minmax(0,1fr) var(--viewer-settings-height) / minmax(0,1fr);
+        pointer-events: none;
+    }
+    .shell > .panel { width: 100%; max-width: 100%; margin: 0; }
+    #viewerSelectionPanel { grid-row: 1; }
+    .shell > .diagnostics { grid-row: 3; align-self: end; max-height: 100%; }
+    .status-bar { position: fixed; bottom: calc(var(--viewer-settings-height) + 17px); margin: 0 8px; pointer-events: none; }
+    .model-embed .status-bar { bottom: 0; }
+    .tracked-results-drawer { max-height: calc(100dvh - var(--viewer-menu-height) - 24px); min-height: 0; }
+}

@@ -14,22 +14,76 @@ from functools import lru_cache
 from pathlib import Path
 
 if __package__:
+    from . import argos, argos_geometry, beidou, communications_exteriors, galileo, gravitas, kuiper as amazon_leo, ses_exteriors, ses_models, telesat_leo, tiangong
+    from .spacecraft_textures import gravitas_laminate, spacebus_cells, sstl_backplane, sstl_cells, station_insulation, station_solar_blanket
     from .geo_geometry import ats6, communications_spacecraft, ekran, gorizont, tdrs, weather_spacecraft
     from .geo_fleet_geometry import fleet_spacecraft
     from .horizons_3e import engine_bell, gantry_plate, petal_frame
-    from .spacecraft_textures import blanket_maps, blue_solar_cells, horizons_solar_cells, pod_solar_cells, radiator_mosaic, reflector_composite
+    from .intelsat_40e import spectrometer_enclosure
+    from .spacecraft_textures import blanket_maps, blue_solar_cells, four_string_laminate, horizons_solar_cells, pod_solar_cells, radiator_mosaic, reflector_composite
 else:
+    import beidou
+    import communications_exteriors
+    import argos
+    import argos_geometry
+    import galileo
+    import gravitas
+    import kuiper as amazon_leo
+    import ses_exteriors
+    import ses_models
+    import telesat_leo
+    import tiangong
+    from spacecraft_textures import gravitas_laminate, spacebus_cells, sstl_backplane, sstl_cells, station_insulation, station_solar_blanket
     from geo_geometry import ats6, communications_spacecraft, ekran, gorizont, tdrs, weather_spacecraft
     from geo_fleet_geometry import fleet_spacecraft
     from horizons_3e import engine_bell, gantry_plate, petal_frame
-    from spacecraft_textures import blanket_maps, blue_solar_cells, horizons_solar_cells, pod_solar_cells, radiator_mosaic, reflector_composite
+    from intelsat_40e import spectrometer_enclosure
+    from spacecraft_textures import blanket_maps, blue_solar_cells, four_string_laminate, horizons_solar_cells, pod_solar_cells, radiator_mosaic, reflector_composite
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "json/satellites"
 MANIFEST = ROOT / "json/display_satellite_models.json"
+WAVEFRONT_EXPORTS = {
+    **beidou.EXPORTS,
+    **galileo.EXPORTS,
+    **argos.EXPORTS,
+    **amazon_leo.EXPORTS,
+    **ses_models.EXPORTS,
+    gravitas.ASSET: "gravitas",
+    telesat_leo.ASSET: "telesat-leo-1",
+    tiangong.STATION_ASSET: "tiangong",
+    "geo/ref-eurostar-3000-28187.glb": "eurostar-3000",
+    "geo/spacebus-4000c2-twin.glb": "spacebus-4000c2",
+    "geo/ref-spacebus-4000c3-28526.glb": "spacebus-4000c3",
+    "geo/ciel-2.glb": "spacebus-4000c4",
+}
 TAU = 2 * math.pi
 # Linear RGB, metallic and roughness factors for original schematic surfaces.
 SURFACES = {
+    "Gravitas photovoltaic laminate": ([1,1,1], .15, .44),
+    "Dark deck composite": ([.37,.42,.48], .20, .49),
+    "Anodized baffle": ([.020,.025,.031], .48, .44),
+    "Champagne deck tile": ([.35,.245,.106], .48, .44),
+    "Warm gold deck tile": ([.28,.191,.084], .48, .46),
+    "SSTL photovoltaic cells": ([1, 1, 1], .15, .44),
+    "SSTL blue photovoltaic cells": ([1, 1, 1], .11, .40),
+    "Amber solar panel laminate": ([1, 1, 1], .25, .44),
+    "Pale solar panel laminate": ([1, 1, 1], .32, .39),
+    "BeiDou CAST solar cells": ([.58,.82,.72], .14, .50),
+    "BeiDou SECM solar cells": ([.67,.49,.57], .14, .51),
+    "Green aperture cover": ([.26,.39,.27], .21, .48),
+    "Russet aperture cover": ([.40,.19,.16], .18, .51),
+    "Station insulation": ([1, 1, 1], .17, .58),
+    "Station ceramic white": ([.82, .81, .76], .12, .53),
+    "Station photovoltaic cells": ([.72, .55, .68], .04, .76),
+    "Solar blanket backing": ([.10, .049, .061], .12, .74),
+    "Dark radiator glass": ([.041, .060, .093], .30, .42),
+    "Reflector thermal foil": ([.66, .63, .57], .40, .41),
+    "Pale reflector coating": ([.64, .65, .63], .19, .40),
+    "C-class radiator mirrors": ([.45, .68, .82], .42, .29),
+    "C-class silicon cells": ([.55, .74, .94], .19, .42),
+    "C-class blue cells": ([1, 1, 1], .22, .42),
+    "C-class violet cells": ([1, 1, 1], .23, .41),
     "Thermal blanket": ([.58, .32, .076], .34, .52),
     "Equipment panels": ([.54, .59, .61], .24, .55),
     "Ivory radome": ([.83, .78, .63], .08, .63),
@@ -42,6 +96,7 @@ SURFACES = {
     "Reference blue": ([.16, .39, .55], .12, .58),
     "Gold insulation": ([.87, .74, .55], .45, .57),
     "Gold thermal foil": ([.96, .54, .10], .27, .44),
+    "Copper navigation patch": ([.46, .16, .028], .49, .46),
     "Gold multilayer insulation": ([.80, .40, .048], .40, .69),
     "Silver multilayer insulation": ([.49, .53, .57], .60, .57),
     "Black multilayer insulation": ([.065, .074, .085], .35, .63),
@@ -53,11 +108,16 @@ SURFACES = {
     "Pod photovoltaic cells": ([1, 1, 1], .20, .51),
     "Copper-traced photovoltaic cells": ([1, 1, 1], .09, .52),
     "Silver radiator mosaic": ([1, 1, 1], .16, .49),
+    "Teal photovoltaic strings": ([1, 1, 1], .06, .48),
+    "Blue thermal tiles": ([.065, .28, .49], .22, .46),
+    "Pewter thermal foil": ([.29, .25, .21], .34, .52),
+    "Satin reflector face": ([.38, .38, .36], .46, .42),
     "Woven reflector composite": ([1, 1, 1], .19, .55),
     "Nozzle liner": ([.24, .113, .071], .55, .49),
     "Radiator tiles": ([.78, .79, .80], .20, .52),
     "Antenna face": ([.50, .51, .48], .30, .53),
     "Concentrator film": ([.80, .84, .88], .66, .26),
+    "Kuiper dielectric film": ([.70, .75, .79], .63, .24),
     "Gold mesh": ([.83, .55, .12], .46, .50),
     "Relay mesh": ([.60, .63, .66], .39, .52),
 }
@@ -147,6 +207,10 @@ def primitive(kind, sides=24):
             for i in range(4):
                 j = (i+1) % 4
                 s.face([bottom[i], bottom[j], top[j], top[i]], uvs=uv)
+    elif kind in telesat_leo.CELL_LAYOUTS:
+        telesat_leo.cell_laminate(s, kind)
+    elif kind == "Gravitas bevelled cover":
+        gravitas.bevelled_cover(s)
     elif kind == "blanketed chassis":
         # Cut corners expose the edges of the thermal blankets and their seams.
         outline = [(-.40,-.50),(.40,-.50),(.50,-.40),(.50,.40),
@@ -169,11 +233,29 @@ def primitive(kind, sides=24):
                          .025+.017*((row+2*col)%3))
                 for index, corner in enumerate(corners):
                     s.face([corner,corners[(index+1)%4],crest])
+    elif kind == "station hull":
+        low, high = ring(sides,.5,-.5), ring(sides,.5,.5)
+        for cap in (low[::-1],high):
+            s.face(cap, uvs=[(x+.5,y+.5) for x,y,_ in cap])
+        for i in range(sides):
+            j = (i+1) % sides
+            face = [low[i],low[j],high[j],high[i]]
+            s.face(face, [(2*x,2*y,0) for x,y,_ in face],
+                   [(i/sides,0),((i+1)/sides,0),((i+1)/sides,1),(i/sides,1)])
     elif kind == "drum-cells":
         low, high = ring(sides,.5,-.5), ring(sides,.5,.5)
         for i in range(sides):
             j = (i+1)%sides
             s.face([low[i],low[j],high[j],high[i]],uvs=[(0,1),(1,1),(1,0),(0,0)])
+    elif kind == "corner-cube aperture":
+        # A round optical entrance over three reflecting planes. Shading changes
+        # by sector as the inspection camera moves around the laser reflector.
+        rim = ring(sides,.5,.16)
+        for i in range(sides):
+            a,b = rim[i],rim[(i+1)%sides]
+            axis = ((3*i//sides)+.5)*TAU/3
+            normal = unit((.36*math.cos(axis),.36*math.sin(axis),1))
+            s.face([(0,0,-.35),a,b],[normal]*3)
     elif kind == "delta":
         low = [(-.5,-.5,-.5),(.5,-.5,-.5),(0,.5,-.5)]
         high = [(x,y,.5) for x,y,z in low]
@@ -266,9 +348,11 @@ def primitive(kind, sides=24):
         petal_frame(s,sides)
     elif kind == "pierced gantry plate":
         gantry_plate(s)
+    elif kind == "spectrometer enclosure":
+        spectrometer_enclosure(s)
     elif kind in ("bell jacket","bell interior"):
         engine_bell(s,sides,interior=kind=="bell interior")
-    elif kind in ("paraboloid", "shaped reflector", "net reflector", "reflector shell", "rounded reflector shell", "composite reflector shell"):
+    elif kind in ("paraboloid", "shaped reflector", "net reflector", "reflector shell", "rounded reflector shell", "composite reflector shell", "insulated reflector back", "quilted reflector back"):
         # Ring depth follows r squared. Smooth normals hold across the front of the aperture.
         previous = None
         for band in range(1,7):
@@ -287,6 +371,17 @@ def primitive(kind, sides=24):
                 if kind == "composite reflector shell":
                     uv = [(x+.5,y+.5) for x,y,_ in face]
                 normals = [unit((-1.6*x,-1.6*y,1)) for x,y,_ in face]
+                if kind in ("insulated reflector back", "quilted reflector back"):
+                    back = [(x,y,z-.045) for x,y,z in reversed(face)]
+                    if kind == "quilted reflector back":
+                        # A folded MLI gore between adjoining seams catches light as the dish rotates.
+                        cx,cy,cz = (sum(p[axis] for p in back)/len(back) for axis in range(3))
+                        peak = (cx,cy,cz-.018-.032*((band*13+i*7)%17)/16)
+                        for a,b in zip(back,back[1:]+back[:1]):
+                            s.face([a,b,peak],uvs=[(x+.5,y+.5) for x,y,_ in (a,b,peak)])
+                    else:
+                        s.face(back, uvs=[(x+.5,y+.5) for x,y,_ in back])
+                    continue
                 s.face(face, normals, uv)
                 if kind in ("reflector shell", "rounded reflector shell", "composite reflector shell"):
                     thickness = .045
@@ -383,17 +478,28 @@ class Glb:
                 pbr["baseColorTexture"] = self.texture(image)
             self.materials[name] = len(self.g["materials"])
             material = {"name":name,"pbrMetallicRoughness":pbr}
-            if name in ("Blue photovoltaic cells", "Indigo photovoltaic cells"):
-                pbr["baseColorTexture"] = self.texture(blue_solar_cells(indigo=name == "Indigo photovoltaic cells"), panel=True)
+            if name in ("Blue photovoltaic cells", "Indigo photovoltaic cells", "C-class silicon cells",
+                        "BeiDou CAST solar cells", "BeiDou SECM solar cells"):
+                pbr["baseColorTexture"] = self.texture(blue_solar_cells(indigo=name in
+                    ("Indigo photovoltaic cells", "BeiDou CAST solar cells")), panel=True)
+            if name in ("C-class blue cells", "C-class violet cells"):
+                pbr["baseColorTexture"] = self.texture(spacebus_cells(violet=name == "C-class violet cells"), panel=True)
             if name == "Pod photovoltaic cells":
                 pbr["baseColorTexture"] = self.texture(pod_solar_cells(), panel=True)
-            maps = {"Copper-traced photovoltaic cells":horizons_solar_cells,
-                    "Silver radiator mosaic":radiator_mosaic,"Woven reflector composite":reflector_composite}
+            if name in ("SSTL photovoltaic cells", "SSTL blue photovoltaic cells"):
+                pbr["baseColorTexture"] = self.texture(sstl_cells(blue=name == "SSTL blue photovoltaic cells"), panel=True)
+            if name in ("Amber solar panel laminate", "Pale solar panel laminate"):
+                pbr["baseColorTexture"] = self.texture(sstl_backplane(pale=name == "Pale solar panel laminate"), panel=True)
+            maps = {"Blue thermal tiles":radiator_mosaic, "Teal photovoltaic strings":four_string_laminate, "Copper-traced photovoltaic cells":horizons_solar_cells,
+                    "Silver radiator mosaic":radiator_mosaic,"Woven reflector composite":reflector_composite,
+                    "Station insulation":station_insulation, "Station photovoltaic cells":station_solar_blanket,
+                    "C-class radiator mirrors":radiator_mosaic, "Gravitas photovoltaic laminate":gravitas_laminate,
+                    "Dark deck composite":reflector_composite}
             if name in maps:
                 pbr["baseColorTexture"] = self.texture(maps[name](),panel=True)
-            if name in ("Gold multilayer insulation", "Silver multilayer insulation", "Black multilayer insulation", "Charcoal thermal blanket"):
+            if name in ("Gold multilayer insulation", "Silver multilayer insulation", "Black multilayer insulation", "Charcoal thermal blanket", "Pewter thermal foil", "Reflector thermal foil"):
                 normals, roughness = blanket_maps()
-                strength = .30 if name=="Charcoal thermal blanket" else .60
+                strength = {"Charcoal thermal blanket": .30, "Pewter thermal foil": .40}.get(name, .60)
                 material["normalTexture"] = {**self.texture(normals, panel=True), "scale":strength}
                 pbr["metallicRoughnessTexture"] = self.texture(roughness, panel=True)
             if name in ("Gold mesh","Relay mesh","Antenna face","Carbon reflector"):
@@ -440,7 +546,8 @@ class Glb:
         view = (.35,-.62,1.12)
         appearance = self.profile.get("appearance", {})
         if self.profile["design"].startswith("geo-"):
-            view = appearance.get("previewDirection", (.30,-.76,.95))
+            view = (.30,-.76,.95)
+        view = appearance.get("previewDirection", view)
         preview = {"name":"OpenBEXIPreview","camera":0,"rotation":aim_z(view),"translation":[10*x for x in view]}
         if "previewUp" in appearance:
             # Roll the embedded camera about its optical axis to project the
@@ -453,13 +560,19 @@ class Glb:
             sine, cosine = math.sin(roll), math.cos(roll)
             preview["rotation"] = (x*cosine+y*sine, y*cosine-x*sine, z*cosine+w*sine, w*cosine-z*sine)
             preview["extras"] = {"previewUp":up}
+        if appearance.get("deployedExterior") or self.profile["design"] in ("tiangong","wentian","mengtian","beidou-meo","galileo-navigation","argos-host","kuiper-protoflight","kuiper-production","telesat-leo-1","gravitas","ses-winged","ses-spinner"):
+            preview.setdefault("extras", {})["fitToMeshes"] = True
+        for key in ("previewFov", "previewLightYawDeg"):
+            if key in appearance:
+                preview.setdefault("extras", {})[key] = appearance[key]
         self.g["nodes"].append(preview)
         # Profile labels and provenance can differ while every vertex, material and
         # transform is identical. Those profiles share a single physical GLB.
         fingerprint = hashlib.sha256(json.dumps(self.g,separators=(",",":")).encode())
         fingerprint.update(self.binary)
         self.g.update(asset={"version":"2.0","generator":"OpenBEXI orbit model builder"},
-                      cameras=[{"type":"perspective","perspective":{"yfov":.65,"znear":.001}}],
+                      cameras=[{"type":"perspective","perspective":{
+                          "yfov":math.radians(appearance["previewFov"]) if "previewFov" in appearance else .65,"znear":.001}}],
                       scenes=[{"name":self.profile["name"],"nodes":list(range(len(self.g["nodes"])))}],scene=0,
                       buffers=[{"byteLength":len(self.binary)}],
                       extras={"units":"m","representation":self.profile["description"],
@@ -509,7 +622,6 @@ def wings(g, count, core_width, span, chord, segments, array_length=None):
 def navigation_bus(g, p, length, width, span):
     design = p["design"]
     axial = design in ("glonass","glonass-m")
-    galileo = design.startswith("galileo")
     # Box buses run lengthwise along Y. The Russian pressurized bus runs vertically along Z.
     if axial:
         height, depth = length*.80, width
@@ -521,7 +633,7 @@ def navigation_bus(g, p, length, width, span):
         deck = height/2+length*.16
     else:
         height, depth = p["meta"]["geometry"].get("body_height_m",width*.85), length
-        bus_surface = "Equipment panels" if design in ("gps-i","galileo-iov","beidou-3-secm","glonass-k2") else "Thermal blanket"
+        bus_surface = "Equipment panels" if design in ("gps-i","glonass-k2") else "Thermal blanket"
         g.part("Equipment bus","box",bus_surface,(width,depth,height))
         g.part("Payload deck","box","Equipment panels",(width*1.025,depth*1.015,height*.045),(0,0,height*.507))
         for side in (-1,1):
@@ -532,7 +644,7 @@ def navigation_bus(g, p, length, width, span):
                        (side*width*.521,-depth*.06,(j-1.5)*height*.14))
         deck = height*.532
     y = 0 if axial else -.15*depth
-    aperture = width*(.79 if galileo else .85)
+    aperture = width*.85
     g.part("Navigation antenna base","cylinder","Graphite",(aperture,aperture,width*.055),(0,y,deck+width*.027))
     if design in ("gps-iir","gps-i","gps-ii","glonass","glonass-m"):
         for n,r in [(4,.13),(8,.31)]:
@@ -542,18 +654,16 @@ def navigation_bus(g, p, length, width, span):
                        (r*width*math.cos(a),y+r*width*math.sin(a),deck+width*.125),sides=12)
     else:
         g.part("Navigation antenna cover","frustum","Ivory radome",(aperture*.96,aperture*.96,width*.13),
-               (0,y,deck+width*.115),sides=6 if design == "giove-a" else 32)
-    if galileo or design.startswith(("beidou","glonass-k")):
+               (0,y,deck+width*.115),sides=32)
+    if design.startswith(("beidou","glonass-k")):
         g.part("Retroreflector panel","box","Graphite",(width*.33,width*.27,width*.035),
                (width*.22,depth*.31,deck+width*.018))
         for i in range(3):
             for j in range(3):
                 g.part("Corner cube","cylinder","Reflector glass",(width*.069,width*.069,width*.012),
                        (width*(.22+(i-1)*.095),depth*.31+(j-1)*width*.075,deck+width*.04),sides=8)
-    panels = {"gps-i":2,"gps-ii":2,"gps-iir":3,"gps-iif":3,"galileo-iov":5,
-              "galileo-foc":5,"beidou-3-secm":2,"glonass-k1":2,"giove-a":2,"giove-b":2}
-    array_length = 5 if galileo else {"giove-a":1.74,"giove-b":1.49}.get(design)
-    wings(g,2,width,span,1.082 if galileo else width*.88,panels.get(design,3),array_length)
+    panels = {"gps-i":2,"gps-ii":2,"gps-iir":3,"gps-iif":3,"glonass-k1":2}
+    wings(g,2,width,span,width*.88,panels.get(design,3))
 
 
 def component_count(shape, component):
@@ -646,7 +756,8 @@ def kuiper(g, design, length, width, span):
             x, y, z = dx*deck, dy*depth, height*.53
             g.part("Deployed antenna leaf", "box", "Structural alloy", (deck*.98, depth*.98, height*.10), (x,y,z))
             for tile in (-1, 1):
-                g.part("Planar antenna tile", "box", "Reflector glass", (deck*.464, depth*.94, height*.019),
+                surface = "Kuiper dielectric film" if tile == -1 else "Silver thermal panel"
+                g.part("Planar antenna tile", "box", surface, (deck*.464, depth*.94, height*.019),
                        (x+tile*deck*.24,y,z+height*.058))
             for offset in (-.32, .32):
                 hx, hy = (x*.5, offset*depth) if dx else (offset*deck, y*.5)
@@ -674,6 +785,12 @@ def kuiper(g, design, length, width, span):
         g.rod("Solar drive support", (sign*deck*.25,-depth*.34,-height*.43),
               (sign*shoulder,drive_y,drive_z), deck*.038)
     g.rod("Solar drive shaft", (-shoulder,drive_y,drive_z), (shoulder,drive_y,drive_z), deck*.09)
+    drive_axis = aim_z((1, 0, 0))
+    g.part("Solar drive housing", "cylinder", "Equipment panels", (deck*.16, deck*.16, deck*.23),
+           (0, drive_y, drive_z), drive_axis)
+    for side in (-1, 1):
+        g.part("Drive bearing collar", "cylinder", "Graphite", (deck*.13, deck*.13, deck*.04),
+               (side*deck*.13, drive_y, drive_z), drive_axis)
     # An example sun-tracking angle exposes the backsheet and the independent PV plane.
     angle = math.radians(52)
     rotation = (math.sin(angle/2),0,0,math.cos(angle/2))
@@ -686,18 +803,39 @@ def kuiper(g, design, length, width, span):
             x = side*(shoulder+pitch*(station+.5))
             g.part("Solar panel frame", "box", "Array backsheet", (pitch*.99,chord,thickness),
                    (x,drive_y,drive_z), rotation)
-            g.part("Solar cell panel", "panel", "Solar cells", (pitch*.965,chord*.96,thickness*.10),
+            g.part("Solar cell panel", "panel", "Indigo photovoltaic cells", (pitch*.965,chord*.96,thickness*.10),
                    (x,drive_y-thickness*.56*math.sin(angle),drive_z+thickness*.56*math.cos(angle)),rotation)
+            g.part("Solar array backsheet", "box", "Pale solar panel laminate" if production else "Amber solar panel laminate",
+                   (pitch*.965,chord*.96,thickness*.10),
+                   (x,drive_y+thickness*.56*math.sin(angle),drive_z-thickness*.56*math.cos(angle)),rotation)
 
-    dish_antenna(g, "Gateway antenna", (deck*.27,-depth*.21,height*.58), deck*(.32 if production else .30))
+    dish_center = (deck*.27, -depth*.21, height*.58)
+    dish_diameter = deck*(.32 if production else .30)
+    dish_antenna(g, "Gateway antenna", dish_center, dish_diameter)
+    # The prototype wings run alongside the bus. Keep its optical heads clear of their edge.
+    optical_y, optical_z = (depth*.21, 0) if production else (depth*.32, height*.18)
     for side in (-1,1):
         axis = aim_z((side,0,0))
         g.part("Optical terminal", "cylinder", "Equipment panels", (height*.49,height*.49,deck*.09),
-               (side*deck*.53,depth*.21,0), axis)
-        g.part("Optical aperture", "cylinder", "Graphite", (height*.31,height*.31,deck*.012),
-               (side*deck*.58,depth*.21,0), axis)
+               (side*deck*.53,optical_y,optical_z), axis)
+        g.part("Optical aperture", "cylinder", "Dark radiator glass", (height*.31,height*.31,deck*.012),
+               (side*deck*.58,optical_y,optical_z), axis)
+        g.part("Terminal baffle rim","annulus","Structural alloy",(height*.43,height*.43,deck*.022),
+               (side*deck*.585,optical_y,optical_z),axis)
+    # Place the outlet in a clear part of the aft deck, away from the solar shaft.
+    thruster_y = 0 if production else depth*.28
     g.part("Electric propulsion outlet", "annulus", "Graphite", (deck*.17,deck*.17,height*.14),
-           (0,0,-height*.55), sides=24)
+           (0,thruster_y,-height*.55), sides=24)
+    g.part("Hall discharge channel", "annulus", "Ivory radome", (deck*.126,deck*.126,height*.024),
+           (0,thruster_y,-height*.627), sides=32)
+    g.inspection_camera("antenna-deck","Earth-facing antenna deck",(0,depth*(.34 if production else 0),height*.54),
+                        (.16,-.30,1),deck*(1.15 if production else .67))
+    g.inspection_camera("gateway-dish", "Gateway dish", dish_center, (.38,-.46,1), dish_diameter*.66)
+    # Approach the production aperture from below its deployed antenna leaf.
+    optical_view = (1, .50, -.42) if production else (1, .58, .35)
+    g.inspection_camera("optical-terminal","Optical link terminal",(deck*.58,optical_y,optical_z),optical_view,height*.55)
+    g.inspection_camera("solar-drive","Solar array drive",(0,drive_y,drive_z),(.26,-.90,-.54),shoulder*1.5)
+    g.inspection_camera("hall-thruster","Hall-effect thruster",(0,thruster_y,-height*.61),(.31,.25,-1),deck*.20)
 
 
 def mission_model(g, p, length, width, span):
@@ -787,6 +925,24 @@ def model(profile):
     design = profile["design"]
     if design in ("kuiper-protoflight", "kuiper-production"):
         kuiper(g, design, length, width, span)
+    elif design == "gravitas":
+        gravitas.spacecraft(g)
+    elif design == "telesat-leo-1":
+        telesat_leo.spacecraft(g)
+    elif design in ("tiangong", "wentian", "mengtian"):
+        tiangong.spacecraft(g, design)
+    elif design == "beidou-meo":
+        beidou.spacecraft(g, profile)
+    elif design == "galileo-navigation":
+        galileo.spacecraft(g, profile)
+    elif design == "argos-host":
+        argos_geometry.spacecraft(g, profile)
+    elif design == "ses-winged":
+        ses_exteriors.winged(g,profile["appearance"],length,width,span)
+    elif design == "ses-spinner":
+        ses_exteriors.spinner(g,profile["appearance"],length,width)
+    elif profile.get("appearance", {}).get("deployedExterior"):
+        communications_exteriors.spacecraft(g, profile["appearance"], length, width, span)
     elif design == "geo-fleet":
         fleet_spacecraft(g, profile["appearance"], length, width, span)
     elif design == "geo-telecom":
@@ -834,6 +990,8 @@ def model(profile):
         mission_model(g,profile,length,width,span)
     else:
         navigation_bus(g,profile,length,width,span)
+    if profile.get("appearance", {}).get("reflectorInspection"):
+        g.inspection_camera("reflector-bank","Reflector bank",(0,0,.25*length),(.38,-.76,.89),width*1.68)
     return g.bytes()
 
 
@@ -874,15 +1032,21 @@ def main():
                                      (json.dumps(detail,ensure_ascii=False,indent=2)+"\n").encode())
                 continue
             fingerprint, content = model(shared.get(asset,profile))
-            canonical = unique.setdefault(fingerprint,asset)
+            if fingerprint in unique:
+                canonical = unique[fingerprint]
+            else:
+                canonical = profile.get("mesh_file", asset)
+                unique[fingerprint] = canonical
+                path = ROOT / "obj" / canonical
+                if orbit in requested or ("geo" in requested and asset in shared) or not path.exists():
+                    path.parent.mkdir(parents=True,exist_ok=True)
+                    write_if_changed(path,content)
             if canonical != asset:
                 mesh_files[asset] = canonical
-            elif orbit in requested or ("geo" in requested and asset in shared) or not (ROOT/"obj"/asset).exists():
-                path = ROOT / "obj" / asset
-                path.parent.mkdir(parents=True,exist_ok=True)
-                write_if_changed(path,content)
             entries.append({"id":asset,"displayName":profile["name"],"type":"glb","description":profile["description"],
                             "tags":[orbit.upper(),profile["family"]],"files":{"glb":canonical},"textures":[]})
+            if asset in WAVEFRONT_EXPORTS:
+                entries[-1]["files"]["wavefront"] = "exports/"+WAVEFRONT_EXPORTS[asset]+".zip"
     # Keep hand-authored model entries and formatting intact.
     text = MANIFEST.read_text("utf-8")
     published = json.loads(text)["models"]
@@ -893,7 +1057,8 @@ def main():
     block = "".join(",\n    "+json.dumps(entry,ensure_ascii=False) for entry in entries)
     updated_manifest = text[:start.start() if start else end]+block+text[end:]
     write_if_changed(MANIFEST,updated_manifest.encode())
-    lookup = {"orbits":index,"meshFiles":mesh_files}
+    lookup = {"orbits":index,"meshFiles":mesh_files,"catalogOrbitClasses":{**ses_models.OTHER_REGIMES,**galileo.CATALOG_ORBITS},
+              "wavefront":{asset:"exports/"+name+".zip" for asset,name in WAVEFRONT_EXPORTS.items()}}
     write_if_changed(DATA/"orbit-model-index.json",(json.dumps(lookup,separators=(",",":"))+"\n").encode())
     # An updated registry can replace a former physical model with a shared file.
     # Retire only our previously published generated GLBs in the selected directories.
@@ -914,12 +1079,11 @@ def main():
             if header.get("asset",{}).get("generator") in ("OpenBEXI orbit model builder","OpenBEXI MEO model builder"):
                 path.unlink()
     print(f"Cataloged {len(entries)} profiles using {len(unique)} unique generated meshes.")
-    if "geo" in requested:
-        if __package__:
-            from .spacecraft_wavefront import build
-        else:
-            from spacecraft_wavefront import build
-        build()
+    if __package__:
+        from .spacecraft_wavefront import build
+    else:
+        from spacecraft_wavefront import build
+    build(requested)
 
 
 if __name__ == "__main__":

@@ -15,6 +15,9 @@
     "mexsat": "https://www.ulalaunch.com/docs/default-source/news-items/av_morelos3_mob.pdf",
     "msat": "https://ntrs.nasa.gov/api/citations/19940028810/downloads/19940028810.pdf",
     "e3000": "https://resilience.esa.int/archives/projects/e3000-second-generation-solar-array",
+    "w3aExterior": "https://www.esa.int/Space_in_Member_States/Germany/Skyplex_Der_Hochgeschwindigkeits-Datenaustausch",
+    "w3aFlight": "https://spaceflightnow.com/news/n0403/27w3a/",
+    "w3aHardware": "https://www.nasa.gov/wp-content/uploads/2024/01/w3a-eurostar-3000-li-ion-battery-in-orbit-return-of-experience-dr-y-borthomieu-1.pdf",
     "neo": "https://image.contactad.airbus.com/lib/fe2d1171756404747c1678/m/1/4fd52320-6b63-4c82-b676-f253f5cf204a.pdf",
     "dfh": "https://en.cgwic.com/CommunicationsSatellite/index.html",
     "goesI": "https://cimss.ssec.wisc.edu/goes/databooks/databook_NASA_I_M_all.pdf",
@@ -175,9 +178,11 @@
       "name": "Airbus Eurostar E3000",
       "family": "Eurostar",
       "buses": ["Eurostar 3000"],
-      "appearance": {"body": "Eurostar", "wingRows": [1, 1, 1, 1], "dishes": 2},
-      "sources": ["ses", "e3000"],
-      "description": "Gold-insulated communications module with two outboard reflectors and articulated solar wings. SES-11 is the representative exterior."
+      "appearance": {"body": "Eurostar", "deployedExterior": "W3A", "wingRows": [1, 1, 1, 1, 1], "dishes": 5, "previewDirection": [0.71, -0.85, -0.69], "previewUp": [0.341, -0.404, 0.849]},
+      "sources": ["w3aExterior", "w3aFlight", "w3aHardware"],
+      "dimensions": [5.8, 2.9, 35],
+      "dimensionNote": "Eutelsat W3A is the illustrated Eurostar 3000 flight. EADS Astrium gives a 35 m deployed span, 4,250 kg at launch and 9.6 kW at end of life for W3A. GCAT gives a 5.8 by 2.9 m spacecraft envelope. Antenna diameters, angles and equipment positions are reconstructed from imagery. Other E3000 payload configurations vary.",
+      "description": "Airbus Eurostar 3000 represented by Eutelsat W3A. Two indigo solar wings flank a gold-insulated body with dark radiator walls, foil-backed reflectors and a small white deck antenna."
     },
     "ref-eurostar-neo-54048": {
       "name": "Airbus Eurostar Neo",
@@ -323,10 +328,10 @@
       "description": "Koreasat-7 represents this platform with a gold communications bus, large and small side reflectors, and two solar wings on open yokes. Payload fittings vary by mission."
     },
     "ref-spacebus-4000c4-33453": {
-      "name": "Thales Alenia Space Spacebus 4000C4",
+      "name": "Spacebus 4000C4 · SGDC configuration",
       "family": "Spacebus",
       "buses": ["Spacebus 4000C4"],
-      "appearance": {"body": "Spacebus", "wingRows": [1, 1, 1, 1], "dishes": 4},
+      "appearance": {"body": "Spacebus", "deployedExterior": "SGDC", "wingRows": [1, 1, 1, 1], "dishes": 4, "previewDirection": [0.72, -0.85, 0.63], "previewUp": [-0.323, 0.372, 0.87]},
       "sources": ["ariane236"],
       "description": "The SGDC launch illustration shows the long bus, four outboard reflectors and opposed solar wings. The shared model represents this communications configuration."
     },

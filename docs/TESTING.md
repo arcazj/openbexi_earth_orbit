@@ -14,11 +14,15 @@ npm run rehearse:rollback
 
 Browser coverage uses Chromium, mobile emulation, Firefox and Playwright WebKit. Install engines with `npx playwright install chromium firefox webkit`. CI installs platform dependencies. Linux Firefox runs under Xvfb with software WebGL explicitly enabled in its isolated test profile; a rendered-pixel preflight fails immediately if WebGL 2 is unavailable. This is functional coverage, not physical-GPU qualification. Profile skips are explicit; mobile emulation and Playwright WebKit do not qualify physical iOS/Safari.
 
+## 2.6.1 verification
+
+Selection tests compare the returned OMM epoch and derived TLE with the persisted SQLite row, including a catalog update inside the provider cooldown. Ledger tests exercise a failed disk flush and corrupted current or legacy request history. Browser checks cover the updated model views and the packaged flight inventories. [Release verification and downloads](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/2.6.1)
+
 ## 2.6.0 verification
 
 Catalog visibility tests use the epoch in their synthetic OMM data. The HEO regression also checks two invalid propagation times and the return to a valid position. Live tracking uses an advancing clock across measured passes.
 
-The official release verification record identifies the tested Git commit, CI run, archive checksums and rollback result. The November 24 comparison fixtures preserve the public elements for Horizons 3e, Optus D3 and MEV-1. [Exact-commit results and downloads](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/2.6.0) · [Archived CelesTrak elements](../release/evidence/v2.6.0-celestrak-2026-11-24.tle)
+The official release verification record identifies the tested Git commit, CI run, archive checksums and rollback result. The November 24 comparison fixtures preserve the public orbital elements for two communications spacecraft and one servicing vehicle. [Exact-commit results and downloads](https://github.com/arcazj/openbexi_earth_orbit/releases/tag/2.6.0) · [Archived CelesTrak elements](../release/evidence/v2.6.0-celestrak-2026-11-24.tle)
 
 ### Local baseline before dependency integration
 
@@ -26,9 +30,9 @@ The official release verification record identifies the tested Git commit, CI ru
 | --- | --- |
 | JavaScript and Python | All 71 JavaScript test files passed. Python had 202 passes and one directory-symlink test skipped for a missing Windows privilege. |
 | Browsers | 113 cases across Chromium desktop and mobile, Firefox and WebKit. All 89 applicable cases passed across the matrix and single-worker confirmation. The other 24 were profile-specific skips. |
-| Catalog and scene | The globe matched the reference image at three angles after filtering a OneWeb close-up. Tests also cover panel alignment, high-latitude tracking, GEO pointing and orbit centering. |
-| Model library | All 27,400 payloads resolved to a model. The 1,308 physical files have distinct hashes and every file has a catalog assignment. Viewer checks loaded prototype and production Kuipers, AMC-14, AMC-21 and SES-17. The SES-17 asset measures 46 m tip to tip. Five other Spacebus NEO spacecraft share the family model. |
-| Satellite Model Viewer | Opening the packaged app with SES-17 selected left the preview collapsed above Catalog data. Expanding it loaded one preview. The full viewer's diagnostic panel measured 316 px on desktop and 296 px at a 320 px viewport, with no horizontal overflow. |
+| Catalog and scene | The globe matched the reference image at three angles after a catalog filter removed the low-orbit spacecraft shown in close-up. Tests also cover panel alignment, high-latitude tracking, GEO pointing and orbit centering. |
+| Model library | All 27,400 payloads resolved to a model. The 1,308 physical files have distinct hashes and every file has a catalog assignment. Viewer checks loaded prototype and production designs, a communications spacecraft cataloged in MEO, a two-reflector model and a GEO model with a measured 46 m span. Five other spacecraft on the same platform share a family model. |
+| Satellite Model Viewer | Opening the packaged app with the 46 m GEO model selected left the preview collapsed above Catalog data. Expanding it loaded one preview. The full viewer's diagnostic panel measured 316 px on desktop and 296 px at a 320 px viewport, with no horizontal overflow. |
 | Local API | Current OMM retrieval, historical records, shared models, pagination across revisions, read-only methods and the offline reference were checked. |
 | Numerical checks | 544 frozen JPL Horizons and 48 SGP4 comparisons passed. |
 | Package and recovery | Verified 1,479 packaged files against the manifest and rehearsed rollback. Release engineering passed. The npm audit found zero vulnerabilities. |

@@ -2,13 +2,17 @@
 import math
 
 if __package__:
+    from .communications_exteriors import equipment as c_class_equipment
     from .astra_3b import spacecraft as astra_3b
     from .horizons_3e import spacecraft as horizons_3e
+    from .intelsat_40e import spacecraft as intelsat_40e
     from .mev import spacecraft as mission_extension_vehicle
     from .geo_geometry import deployed_radiators, equipment_bus, mesh_antenna, solar_wings, tilt_x
 else:
+    from communications_exteriors import equipment as c_class_equipment
     from astra_3b import spacecraft as astra_3b
     from horizons_3e import spacecraft as horizons_3e
+    from intelsat_40e import spacecraft as intelsat_40e
     from mev import spacecraft as mission_extension_vehicle
     from geo_geometry import deployed_radiators, equipment_bus, mesh_antenna, solar_wings, tilt_x
 
@@ -45,7 +49,8 @@ def radio_shells(g, spec, width, depth, height):
             y += depth*offset[1]
             z += height*offset[2]
         center = (x,y,z)
-        g.part(name, "shaped reflector" if spec.get("shaped") else "paraboloid",
+        shell = "reflector shell" if spec.get("spacebusSeries") else "paraboloid"
+        g.part(name, "shaped reflector" if spec.get("shaped") else shell,
                spec.get("dishMaterial","Antenna face"), (major,minor,major*.39), center, tilt_x(angle), sides=32)
         if spec.get("dualGrid"):
             separation = major*.015
@@ -244,6 +249,8 @@ def ses17_spacecraft(g, rows, height, width, span):
 
 def fleet_spacecraft(g, spec, length, width, span):
     body = spec["body"]
+    if body == "intelsat-40e":
+        return intelsat_40e(g, length, width, span)
     if body == "intelsat-10-02":
         depth = spec["busDepth"]
         equipment_bus(g, length, width, depth, "Eurostar", blanket_material="Gold multilayer insulation")
@@ -335,6 +342,8 @@ def fleet_spacecraft(g, spec, length, width, span):
             for z in (-.28,.28):
                 g.rod("Intermodule truss",(-width*.55,y*depth,z*height),(width*.55,-y*depth,z*height),width*.055)
         width *= 2.45
+    elif spec.get("spacebusSeries"):
+        c_class_equipment(g,height,width,depth,eurostar=False)
     else:
         equipment_bus(g,height,width,depth,"Spacebus" if body == "gold" else "702SP")
     if "sidewall" in spec:
@@ -365,7 +374,8 @@ def fleet_spacecraft(g, spec, length, width, span):
         if count>2:
             radial_wings(g,count,width,extent,chord,len(rows))
         else:
-            solar_wings(g,width,extent,chord,rows,count=count,white_tips=spec.get("whiteTips",False))
+            cells = "C-class blue cells" if spec.get("spacebusSeries") else "Solar cells"
+            solar_wings(g,width,extent,chord,rows,count=count,white_tips=spec.get("whiteTips",False),cell_material=cells)
     if "radiators" in features:
         deployed_radiators(g,width,depth,height)
     if "sail" in features or "boom" in features:

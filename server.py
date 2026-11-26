@@ -30,6 +30,7 @@ from pathlib import Path, PurePosixPath
 from urllib.parse import quote, unquote, urlparse
 
 from services import catalog_api
+from services.selected_elements import SelectedElements
 from services.catalog_models import model_library
 from services.v21.security import ApiProblem
 from services.v21.api import V21ApiService, configured_authenticator
@@ -71,15 +72,32 @@ STATIC_DOCUMENT_FILE_ALLOWLIST = frozenset(
         ("docs", "swagger.md"),
         ("docs", "catalog-api.openapi.json"),
         ("docs", "third_party_notices.md"),
+        ("docs", "ses_model_review.md"),
+        ("docs", "galileo_model_review.md"),
+        ("docs", "argos_model_review.md"),
+        ("docs", "kuiper_model_review.md"),
+        ("images", "spacebus-c-class-models.png"),
+        ("images", "beidou-meo-models.png"),
+        ("images", "telesat-leo-1.png"),
+        ("images", "gravitas-68495.png"),
+        ("images", "ses-fleet-models.jpg"),
+        ("images", "galileo-spacecraft.jpg"),
+        ("images", "argos-spacecraft.jpg"),
+        ("images", "kuiper-spacecraft.jpg"),
         ("vendor", "three", "0.187.0", "license"),
         ("vendor", "satellite.js", "7.1.0", "license.md"),
     }
 )
-STATIC_MODEL_DOWNLOADS = frozenset({
+STATIC_MODEL_DOWNLOADS = frozenset(
+    ("obj", *PurePosixPath(archive).parts)
+    for model in json.loads((ROOT / "json/display_satellite_models.json").read_bytes())["models"]
+    for archive in [model["files"].get("wavefront", "")]
+    if re.fullmatch(r"exports/[a-z0-9-]+\.zip", archive)
+) | {
     ("obj", "exports", "horizons-3e.zip"),
     ("obj", "exports", "mep.zip"),
     ("obj", "exports", "intelsat-10-02.zip"),
-})
+}
 STATIC_PREFIX_SUFFIX_ALLOWLIST = (
     (("css",), frozenset({".css"})),
     (("data", "ephemeris"), frozenset({".json"})),
@@ -93,6 +111,9 @@ STATIC_PREFIX_SUFFIX_ALLOWLIST = (
 )
 STATIC_JSON_FILE_ALLOWLIST = frozenset(
     {
+        ("data", "spacecraft-facts.json"),
+        ("data", "spacecraft-search-names.json"),
+        ("data", "argos-hosts.json"),
         ("json", "decayed", "decayed.json"),
         ("json", "gp", "gp.json"),
         ("json", "gp", "gp.meta.json"),
@@ -3367,12 +3388,14 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
         cors_origins: tuple[str, ...] = (),
         v21_router: V21HttpRouter | None = None,
         data_root_resolver=None,
+        selected_elements=None,
         **kwargs,
     ):
         self.serve_static = serve_static
         self.cors_origins = tuple(origin.rstrip("/") for origin in cors_origins if origin)
         self.v21_router = v21_router
         self.data_root_resolver = data_root_resolver
+        self.selected_elements = selected_elements
         self._response_status = HTTPStatus.OK
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
@@ -3672,13 +3695,18 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
         parts = path.split("/")
         if parts[:3] != ["", "api", "v1"] or len(parts) < 4 or parts[3] not in ("objects", "models"):
             return False
+        refresh = len(parts) == 6 and parts[3] == "objects" and parts[5] == "refresh-elements"
+        methods = ("POST",) if refresh else ("GET", "HEAD")
         try:
-            if self.command not in ("GET", "HEAD"):
-                raise ApiProblem(405, "METHOD_NOT_ALLOWED", "Read-only resource", "Use GET or HEAD.")
+            if self.command not in methods:
+                raise ApiProblem(405, "METHOD_NOT_ALLOWED", "Method not allowed", "Use " + " or ".join(methods) + ".")
+            origin = self.headers.get("Origin")
+            if refresh and origin and urlparse(origin).netloc != self.headers.get("Host") and not cors_origin_is_allowed(origin, self.cors_origins):
+                raise ApiProblem(403, "ORIGIN_FORBIDDEN", "Origin not allowed", "Use the configured catalog server.")
             if len(parts) == 4 and parts[3] == "objects":
                 query = catalog_api.parse_query(parsed.query)
                 key = None
-            elif len(parts) == 5:
+            elif len(parts) == 5 or refresh:
                 if parsed.query:
                     raise catalog_api.invalid("Detail resources take no query parameters.")
                 key = unquote(parts[4])
@@ -3696,14 +3724,19 @@ class OpenBexiHandler(SimpleHTTPRequestHandler):
                 if snapshot is None:
                     return True
                 catalog = OBJECT_CATALOG.load(snapshot, _verified_tracked_chunk)
-                payload = (catalog.page(query) if key is None else
-                           catalog.detail(key, lambda row: model_library(ROOT).link(row)))
+                if refresh:
+                    if self.selected_elements is None:
+                        raise catalog_api.unavailable()
+                    payload = self.selected_elements.lookup(catalog.selection(key))
+                else:
+                    payload = (catalog.page(query) if key is None else
+                               catalog.detail(key, lambda row: model_library(ROOT).link(row)))
             self._send_json(payload, head_only=head_only)
         except ApiProblem as exc:
             exc.instance = parsed.path
             self._send_bytes(_json_bytes(exc.to_dict()), status=exc.status, head_only=head_only,
                              content_type="application/problem+json; charset=utf-8",
-                             headers={"Allow": "GET, HEAD, OPTIONS"} if exc.status == 405 else None)
+                             headers={"Allow": ", ".join((*methods, "OPTIONS"))} if exc.status == 405 else None)
         except (OSError, ValueError, KeyError, TypeError) as exc:
             logging.warning("Catalog resource unavailable: %s", exc)
             problem = ApiProblem(503, "RESOURCE_UNAVAILABLE", "Resource unavailable",
@@ -3890,6 +3923,7 @@ def make_handler(
     cors_origins: tuple[str, ...] = (),
     v21_router: V21HttpRouter | None = None,
     data_root_resolver=None,
+    selected_elements=None,
 ):
     def handler(*args, **kwargs):
         return OpenBexiHandler(
@@ -3898,6 +3932,7 @@ def make_handler(
             cors_origins=cors_origins,
             v21_router=v21_router,
             data_root_resolver=data_root_resolver,
+            selected_elements=selected_elements,
             **kwargs,
         )
 
@@ -3949,6 +3984,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Disable background data updates even if scheduling flags are present.",
     )
+    parser.add_argument("--selection-refresh-hours", type=_interval_hours_argument, default=2.0,
+                        help="Reuse each satellite's orbital check for this many hours (provider minimum 2).")
+    parser.add_argument("--no-selection-refresh", action="store_true",
+                        help="Use stored orbital elements on selection without contacting the provider.")
     parser.add_argument(
         "--data-update-interval-hours",
         default=DEFAULT_SERVER_UPDATE_INTERVAL_HOURS,
@@ -4089,6 +4128,8 @@ def main() -> None:
             cors_origins=cors_origins,
             v21_router=v21_router,
             data_root_resolver=data_selection.resolve if data_selection else None,
+            selected_elements=SelectedElements(runtime_root, max(2.0, args.selection_refresh_hours),
+                                               online=not args.no_selection_refresh),
         ),
     )
     scheduler = None

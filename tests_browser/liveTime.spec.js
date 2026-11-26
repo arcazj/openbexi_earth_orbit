@@ -124,7 +124,11 @@ test('Live UTC, true 1×, accelerated units and Solar System return preserve clo
     // A wall-clock jump models return from sleep without relying on background-tab throttling.
     await setUtc(page, +fixedUtc + 120000);
     await expect.poll(async () => (await snapshot(page)).timeMs).toBe(+fixedUtc + 120000);
-    await page.locator('#timeWarpPause').click();
+    // Hold the button across renders, as a user can do while the catalog is loading.
+    await page.locator('#timeWarpPause').hover();
+    await page.mouse.down();
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await page.mouse.up();
     expect(await snapshot(page)).toMatchObject({ live: false, rate: 0 });
     await setUtc(page, +fixedUtc + 180000);
     expect((await snapshot(page)).timeMs).toBe(+fixedUtc + 120000);
@@ -144,6 +148,15 @@ test('Live UTC, true 1×, accelerated units and Solar System return preserve clo
     await page.locator('#timeWarpUnit').selectOption('60000');
     expect((await snapshot(page)).speedMultiplier).toBe(60);
     await expect(page.locator('#timeWarpVal')).toHaveText('1 min/s');
+    await page.locator('#timeWarpSlider').fill('-2');
+    await page.locator('#timeWarpPause').click();
+    const pausedTime = (await snapshot(page)).timeMs;
+    await page.locator('#timeWarpUnit').selectOption('3600000');
+    expect(await snapshot(page)).toMatchObject({ timeMs: pausedTime, rate: 0, live: false });
+    await expect(page.locator('#timeWarpSlider')).toHaveAttribute('aria-valuetext', 'Paused, hours per second selected');
+    await page.locator('#timeWarpPause').click();
+    expect((await snapshot(page)).speedMultiplier).toBe(-7200);
+    await expect(page.locator('#timeWarpVal')).toHaveText('-2 hour/s');
     await page.locator('#timeWarpNow').click();
     expect(await snapshot(page)).toMatchObject({ live: true, speedMultiplier: 1, timeMs: +fixedUtc + 180000 });
     await expect(page.locator('#timeWarpUnit')).toHaveValue('1000');

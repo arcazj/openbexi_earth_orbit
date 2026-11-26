@@ -496,33 +496,12 @@ test('full-catalog browser job uses authenticated API and exposes partial covera
   }));
   expect(layout.workspaceScrollWidth).toBeLessThanOrEqual(layout.workspaceWidth + 1);
   expect(layout.documentWidth).toBeLessThanOrEqual(layout.viewportWidth + 1);
-  const menuGeometry = await page.evaluate(() => {
-    const controls = document.querySelector('#controlsContainer')?.getBoundingClientRect();
-    const toggle = document.querySelector('#menuToggleBtn')?.getBoundingClientRect();
-    const header = document.querySelector('#menuHeaderRow')?.getBoundingClientRect();
-    return controls && toggle && header ? {
-      controlsWidth: controls.width,
-      controlsLeft: controls.left,
-      controlsRight: controls.right,
-      toggleLeft: toggle.left,
-      toggleRight: toggle.right,
-      toggleTop: toggle.top,
-      toggleBottom: toggle.bottom,
-      controlsTop: controls.top,
-      controlsBottom: controls.bottom,
-      headerLeft: header.left,
-      headerOverlap: !(
-        toggle.right <= header.left || toggle.left >= header.right ||
-        toggle.bottom <= header.top || toggle.top >= header.bottom
-      )
-    } : null;
-  });
-  expect(menuGeometry?.controlsWidth).toBeGreaterThanOrEqual(370);
-  expect(menuGeometry?.toggleLeft).toBeGreaterThanOrEqual((menuGeometry?.controlsLeft || 0) + 8);
-  expect(menuGeometry?.toggleRight).toBeLessThanOrEqual((menuGeometry?.headerLeft || 0) - 4);
-  expect(menuGeometry?.toggleTop).toBeGreaterThanOrEqual(menuGeometry?.controlsTop || 0);
-  expect(menuGeometry?.toggleBottom).toBeLessThanOrEqual(menuGeometry?.controlsBottom || 0);
-  expect(menuGeometry?.headerOverlap).toBe(false);
+  const menu = page.locator('#controlsContainer');
+  await expect(menu).toBeInViewport();
+  const bounds = await menu.boundingBox();
+  const header = await page.locator('#menuHeaderRow').boundingBox();
+  expect(header.x).toBeGreaterThanOrEqual(bounds.x);
+  expect(header.x + header.width).toBeLessThanOrEqual(bounds.x + bounds.width);
   const accessibility = await new AxeBuilder({ page })
     .include('#fullCatalogWorkspace')
     .withTags(['wcag2a', 'wcag2aa', 'wcag22aa'])

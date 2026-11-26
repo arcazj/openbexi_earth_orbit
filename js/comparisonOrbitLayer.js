@@ -27,15 +27,14 @@ export function createComparisonOrbitLayer(scene) {
             line.renderOrder = index+1;
             group.add(line);
         }
-        scene.add(group);
         return {elements,timeMs,segments,group,origin};
     }
     return {
-        update(outcome,visible) {
+        update(outcome,visible,frameOrbits=false) {
             const systems = outcome.poses ? (outcome.shared ? outcome.systems.slice(0,1) : outcome.systems) : [];
             const segments = [];
             for (let i=0;i<2;i++) {
-                if (!visible || !systems[i]) {clear(i);continue;}
+                if ((!visible && !frameOrbits) || !systems[i]) {clear(i);continue;}
                 const system = systems[i];
                 const track = tracks[i];
                 const maxAge = Math.min(30000,60000*2*Math.PI/system.reference.elements.satrec.no/720);
@@ -44,6 +43,8 @@ export function createComparisonOrbitLayer(scene) {
                     tracks[i] = sample(system,i,outcome.timeMs);
                 }
                 tracks[i].group.position.copy(tracks[i].origin).sub(outcome.poses[0].position);
+                if (!visible) tracks[i].group.removeFromParent();
+                else if (!tracks[i].group.parent) scene.add(tracks[i].group);
                 segments.push(...tracks[i].segments);
             }
             return segments;

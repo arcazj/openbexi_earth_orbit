@@ -2,6 +2,12 @@
 
 The 2.6 REST API accordion brings the uncompressed browser JavaScript group to 978,141 bytes on the Windows checkout. Its ceiling is 979,000 bytes. Opening the globe does not request the API reference or model metadata.
 
+The single-spacecraft orbit toolbar, camera tracking and position marker bring the globe entry page to approximately 333,000 bytes and the uncompressed browser JavaScript group to 1,100,000 bytes on Windows. Their respective ceilings are 334,000 and 1,101,000 bytes. The marker reuses the packaged satellite icon.
+
+Manual comparison cameras and catalog drawer tags bring browser JavaScript to approximately 1,105,000 bytes, with a ceiling of 1,105,500 bytes. The comparison reuses the packaged OrbitControls. The drawer prepares tag choices when it opens.
+
+Shared catalog browsing, station selection, model downloads and single-object orbital updates brought browser JavaScript to approximately 1,126,300 bytes. With Galileo flight aliases, Argos host membership and Amazon Leo family matching, the uncompressed group measures approximately 1,128,000 bytes on Windows. Its ceiling is 1,128,500 bytes. The globe entry page has a 335,800-byte ceiling. Both pages use the same tag labels and windowed results drawer.
+
 The targets are **4 s** for default-MEO readiness and **33 ms** for the p95 globe frame on a named representative profile. The measurements below are the 2.5 software-rendered baseline. The 2.6.0 local run checked asset-size ceilings and functional behavior. A new timing run on representative hardware is pending. [2.6.0 checks](../../release/evidence/v2.6.0-development-checks.json)
 
 | Fixture / cache | Core readiness | Globe frame p95 |

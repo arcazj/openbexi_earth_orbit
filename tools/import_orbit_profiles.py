@@ -11,6 +11,15 @@ import re
 from collections import defaultdict
 from pathlib import Path
 from statistics import median
+if __package__:
+    from . import argos, gravitas, kuiper, ses_models, telesat_leo, tiangong
+else:
+    import argos
+    import gravitas
+    import kuiper
+    import ses_models
+    import telesat_leo
+    import tiangong
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "json/satellites"
@@ -18,17 +27,6 @@ GEO_REFERENCES = json.loads((ROOT / "tools/geo_appearances.json").read_bytes())
 GEO_MODELS = GEO_REFERENCES["models"]
 GEO_BUSES = {bus: key for key, model in GEO_MODELS.items() for bus in model.get("buses", [])}
 GEO_PAYLOADS = {number: key for key, model in GEO_MODELS.items() for number in model.get("numbers", [])}
-KUIPER_REFERENCES = {
-    "kuiper-protoflight": [
-        "https://www.aboutamazon.com/news/innovation-at-amazon/amazon-project-kuiper-deorbit-satellites",
-        "https://indico.esa.int/event/516/contributions/10014/attachments/6284/10794/CSD2024_Chandramouli_OverviewOfSpaceSustainability.pdf"
-    ],
-    "kuiper-production": [
-        "https://www.aboutamazon.com/news/innovation-at-amazon/project-kuiper-photos-internet-satellite-first-launch",
-        "https://arxiv.org/pdf/2601.07708#page=4",
-        "https://www.aboutamazon.com/stories/how-amazon-leo-builds-satellites"
-    ]
-}
 LEGACY = {
     "starlink_V1": ("Starlink V1", "starlink_V1"), "starlink_v2.glb": ("Starlink V2", "starlink_v2"),
     "starlink_v3.glb": ("Starlink V3", "starlink_v3"), "oneweb.glb": ("OneWeb", "oneweb"),
@@ -116,12 +114,13 @@ def geo_mission(name, bus, number):
 
 
 def leo_mission(name, bus, number):
-    if number in (58013, 58014):
+    if number in kuiper.NAMES:
         return mission("ref-kuiper-58013", "KuiperSat-1 and KuiperSat-2", "kuiper-protoflight", "Project Kuiper",
                        "Box + 2 Pan + Dish", "Amazon Protoflight spacecraft with an exposed equipment chassis, a phased array, a gateway dish and long articulated solar panels.")
-    if bus.casefold() == "kuiper" or re.match(r"^(?:KUIPER|AMAZON LEO)[- ]\d", name, re.I):
+    if bus.casefold() == "kuiper" or kuiper.PRODUCTION_NAME.fullmatch(name):
         return mission("kuiper-production", "Amazon Leo / Kuiper production spacecraft", "kuiper-production", "Amazon Leo",
-                       "Box + 3 antenna panels + solar array", "Deployed production spacecraft with three hinged antenna leaves around the central payload and a separate sun-tracking solar array.")
+                       "Box + 3 antenna panels + solar array", "Deployed production spacecraft with three hinged antenna leaves around the central payload and a separate sun-tracking solar array.",
+                       (1.8, .7, 5.0))
     if bus == "STS OV":
         return mission("space-shuttle","Space Shuttle orbiter","orbiter","Crewed spacecraft","Lifting body",
                        "NASA orbiter with swept delta wings, a vertical tail and three main engine bells.",(37.24,5.2,23.79))
@@ -209,6 +208,9 @@ def apply_geo_reviews(profiles, catalog):
                 profile["meta"]["geometry"]["center_model"] = False
             continue
         review = reviews[asset]
+        if review.get("noradFilename"):
+            number, = profile["norad"]
+            profile["mesh_file"] = f"geo/{number}.glb"
         if "name" in review:
             profile["name"] = review["name"]
         meta = profile.setdefault("meta", {})
@@ -254,10 +256,15 @@ def apply_geo_reviews(profiles, catalog):
 def import_profiles(orbit, sources):
     catalog = json.loads((ROOT/"json/tracked/TRACKED.manifest.json").read_bytes())
     records = {}
+    other_regimes = set()
     starlink_pieces = {}
     for chunk in catalog["chunks"] + catalog["history_chunks"]:
         if chunk["object_type"]=="PAYLOAD":
             for row in json.loads((ROOT/chunk["path"]).read_bytes())["records"]:
+                number = int(row["norad_id"])
+                if (orbit == "geo" and number in ses_models.OTHER_REGIMES
+                        and ses_models.OTHER_REGIMES[number] == row["orbit_class"]):
+                    other_regimes.add(number)
                 if row["orbit_class"]==orbit.upper():
                     records[int(row["norad_id"])] = row["satellite_name"]
                     if row["satellite_name"].startswith("STARLINK") and row.get("international_designator"):
@@ -277,6 +284,8 @@ def import_profiles(orbit, sources):
     groups, legacy_ids, unknown = defaultdict(list), defaultdict(list), []
     specs = {}
     for number,name in records.items():
+        if orbit == "leo" and (number == gravitas.NORAD or number in tiangong.MEMBERS):
+            continue
         row = raw.get(number,{})
         bus, shape = row.get("Bus","").strip("?"),row.get("Shape","")
         asset = legacy(orbit,number,name,bus,shape)
@@ -336,14 +345,8 @@ def import_profiles(orbit, sources):
                 "dimension_source_norad":norad}
         result[asset]={"name":label,"description":description,"family":family,"design":design,"shape":shape,
                        "meta":meta,"norad":sorted(r[0] for r in members)}
-        if design in KUIPER_REFERENCES:
-            meta["references"] = KUIPER_REFERENCES[design]
-            meta["reference_status"] = "Illustrated design"
-            meta["geometry"]["center_model"] = False
-            meta["dimension_note"] = (
-                "GCAT supplies an approximate envelope. Solar panel divisions, equipment positions and the fixed solar-drive angle are illustrative. " +
-                ("The three-leaf layout follows Figure 4 of the cited observational study, an interpretation of Amazon imagery."
-                 if design == "kuiper-production" else "Amazon's Protoflight photograph shows only part of the deployed spacecraft."))
+        if asset in kuiper.EXPORTS:
+            kuiper.describe(asset, result[asset])
         if reference:
             result[asset]["appearance"] = reference["appearance"]
             if "busName" in reference:
@@ -367,8 +370,21 @@ def import_profiles(orbit, sources):
         result[asset]={"name":name,"existingMetadata":metadata,"norad":sorted(ids)}
     if orbit == "geo":
         apply_geo_reviews(result, raw)
+        ses_models.assign(result, records.keys() | other_regimes)
+    if orbit == "leo":
+        result.update(tiangong.profile(number) for number in tiangong.MEMBERS if number in records)
+        if gravitas.NORAD in records:
+            result[gravitas.ASSET] = gravitas.PROFILE
+        if telesat_leo.NORAD in records:
+            # Keep the published ID of the shared SSTL-42 outline when assigning the flight model.
+            previous = next(asset for asset, profile in result.items() if telesat_leo.NORAD in profile["norad"])
+            result[previous]["norad"].remove(telesat_leo.NORAD)
+            if not result[previous]["norad"]:
+                del result[previous]
+            result[telesat_leo.ASSET] = telesat_leo.PROFILE
+        argos.assign(result)
     ids = [number for p in result.values() for number in p["norad"]]
-    assert len(ids)==len(set(ids))==len(records)
+    assert len(ids)==len(set(ids)) and set(ids) == records.keys() | other_regimes
     body = "{\n"+",\n".join("  "+json.dumps(k)+": "+json.dumps(v,ensure_ascii=False) for k,v in result.items())+"\n}\n"
     (DATA/(orbit+".json")).write_bytes(body.encode())
     print(f"{orbit.upper()}: {len(ids)} payloads, {len(result)} profiles, {len(unknown)} schematic markers.")

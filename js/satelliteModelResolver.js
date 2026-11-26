@@ -1,5 +1,6 @@
 import orbitIndex from '../json/satellites/orbit-model-index.json' with { type: 'json' };
 import { trackedObjectType, trackedOrbitClass } from './trackedObjectCatalog.js';
+import { isKuiperProduction } from './satelliteSearchUtils.js';
 
 export function uniqueModelNorad(entry) {
     if (entry.members?.length) return entry.members.length === 1 ? entry.members[0].norad : null;
@@ -147,7 +148,8 @@ export function orbitLibraryEntries(orbit, profiles) {
     return Object.entries(profiles).filter(([, profile]) => !profile.existingMetadata)
         .map(([id, profile]) => ({
             id, displayName: profile.name, type: 'glb', description: profile.description,
-            tags: [orbit, profile.family], files: { glb: orbitIndex.meshFiles[id] || id }, textures: []
+            tags: [orbit, profile.family], files: { glb: orbitIndex.meshFiles[id] || id,
+                ...(orbitIndex.wavefront?.[id] && { wavefront: orbitIndex.wavefront[id] }) }, textures: []
         }));
 }
 
@@ -156,6 +158,9 @@ export function catalogModel(assetId) {
 }
 
 function meoFamily(name) {
+    if (/\b(?:GIOVE[- ]A|GSAT0001)\b/.test(name)) return 'ref-sstl-600-28922';
+    if (/\b(?:GIOVE[- ]B|GSAT0002)\b/.test(name)) return 'ref-proteus-32781';
+    if (/^GSAT010[34]\b/.test(name)) return 'galileo-iov-sar';
     if (/^(GSAT01\d{2}|GALILEO IOV)\b/.test(name)) return 'galileo-iov';
     if (/^(GSAT02\d{2}|GALILEO FOC)\b/.test(name)) return 'galileo-foc';
     const gps = /\bGPS\s+(?:BLOCK\s+)?(III|IIF|IIR(?:-M)?|IIA|II|I)\b/.exec(name);
@@ -251,7 +256,7 @@ export function resolveSatelliteModel(sat = {}, {
     const nonPayload = [sat.object_type, sat.objectType, sat.type, sat.meta?.object_type]
         .map(normalizeModelKey).some(type => ['deb', 'debris', 'rb', 'rocketbody', 'deployer'].includes(type)) ||
         names.some(name => /\b(?:deb(?:ris)?|r\/b|rocket body|deployer)\b/i.test(name));
-    if (indexed && (indexed.orbit === orbit || orbit === 'UNKNOWN') &&
+    if (indexed && (indexed.orbit === orbit || orbit === 'UNKNOWN' || orbitIndex.catalogOrbitClasses?.[normalizedNorad] === orbit) &&
         (type === 'PAYLOAD' || (type === 'UNKNOWN' && !nonPayload))) {
         return foundModel(indexed.entry, 'NORAD ' + normalizedNorad + ' matched the ' + indexed.orbit + ' platform registry', objBase);
     }
@@ -302,7 +307,9 @@ export function resolveSatelliteModel(sat = {}, {
     }
 
     if ((!best || best.score < 70) && supported && type === 'PAYLOAD' && !nonPayload) {
-        const family = orbit === 'MEO' && names.filter(Boolean).map(name => meoFamily(String(name).toUpperCase())).find(Boolean);
+        let family;
+        if (orbit === 'MEO') family = names.filter(Boolean).map(name => meoFamily(String(name).toUpperCase())).find(Boolean);
+        if (orbit === 'LEO' && names.some(isKuiperProduction)) family = 'kuiper-production';
         const dir = orbit.toLowerCase();
         const entry = entriesByAsset.get(`${dir}/${family || dir + '-reference'}.glb`);
         best = { entry, reason: family ? orbit + ' family matched by name' : orbit + ' payload with undocumented exterior' };

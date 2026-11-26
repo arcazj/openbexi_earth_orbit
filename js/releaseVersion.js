@@ -2,14 +2,14 @@
 export const RELEASE_METADATA = Object.freeze({
   schemaVersion: 1,
   product: "openbexi-earth-orbit",
-  version: "2.6.0",
+  version: "2.6.1",
   baselineRuntimeVersion: "1.7.6",
   channel: "stable",
   publicationState: "released",
   maturity: "experimental",
   safetyClass: "non-operational",
   candidateAt: null,
-  releasedAt: "2026-11-24",
+  releasedAt: "2026-11-26",
   runtimeVersionMigration: "complete"
 });
 

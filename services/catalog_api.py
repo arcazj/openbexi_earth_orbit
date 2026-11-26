@@ -128,6 +128,15 @@ class ObjectCatalog:
                                      "after": int(rows[-1]["norad_id"])}, filter_hash=fingerprint)
         return {"catalog_revision": self.revision, "gp_revision": self.gp_revision, "items": rows, "next_cursor": cursor}
 
+    def selection(self, number):
+        if number in self.rows:
+            return self.detail(number, lambda row: None)
+        with ELEMENTS_LOCK:
+            elements = _elements(self.root, self.gp_revision).get(number)
+        if elements:
+            return {"norad_id": number, "element_set": elements, "scope": "current"}
+        raise ApiProblem(404, "OBJECT_NOT_FOUND", "Object not found", "No catalog record has this NORAD ID.")
+
     def detail(self, number, model_link):
         row = self.rows.get(number)
         if row is None:

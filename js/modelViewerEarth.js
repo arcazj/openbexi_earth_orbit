@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { eciToGeodetic, gstime, propagate, twoline2satrec } from '../vendor/satellite.js/7.1.0/satellite.es.js';
+import { eciToGeodetic, gstime, json2satrec, propagate, twoline2satrec } from '../vendor/satellite.js/7.1.0/satellite.es.js';
+import { isHistoricalTrackedRecord } from './trackedObjectCatalog.js';
 import { uniqueModelNorad } from './satelliteModelResolver.js';
 import { EARTH_RADIUS_KM } from './SatelliteConstantLoader.js';
 import { selectedSatelliteOrbitalFrameQuaternion } from './sceneFrame.js';
@@ -46,13 +47,40 @@ export function preparePositionTle(id, row, source) {
     return {satrec:twoline2satrec(line1,line2), epoch, line1, line2, orbit:row.orbit_class || 'UNKNOWN', source};
 }
 
-async function elementsFor(id, view) {
+async function elementsFor(id, view, selectedSet, record, fixedUtc) {
     const flight = view?.elements?.find(item=>item.id===id);
-    if (flight?.line1 && flight.line2) {
-        return preparePositionTle(id, {norad_id:id, orbit_class:'GEO', tle_line1:flight.line1, tle_line2:flight.line2}, view.source);
+    const flightTle = flight?.line1 && flight.line2 && preparePositionTle(id,
+        {norad_id:id, orbit_class:'GEO', tle_line1:flight.line1, tle_line2:flight.line2}, view.source);
+    if (flightTle && fixedUtc) return flightTle;
+    const omm = selectedSet?.omm;
+    let selected;
+    if (String(omm?.NORAD_CAT_ID) === id) {
+        const satrec = json2satrec(omm);
+        if (satrec && !satrec.error && Number.isFinite(satrec.no)) {
+            selected = {satrec, epoch: selectedSet.epoch || omm.EPOCH, line1: selectedSet.line1, line2: selectedSet.line2,
+                omm, source: selectedSet.source || 'Published GP catalog', orbit: record?.orbit_class || 'UNKNOWN'};
+        }
     }
-    const catalog = await loadPublishedTles();
-    return preparePositionTle(id,catalog.records.get(id),catalog.source);
+    if (selected?.line1 && selected.line2 && !flightTle && !fixedUtc) return selected;
+    let published = flightTle;
+    if (!published) {
+        try {
+            const catalog = await loadPublishedTles();
+            published = preparePositionTle(id, catalog.records.get(id), catalog.source);
+        } catch (error) {
+            if (selected) return selected;
+            throw error;
+        }
+    }
+    if (!selected) return published;
+    const a = Date.parse(selected.epoch), b = Date.parse(published.epoch);
+    // TLE fractions of a day and OMM timestamps can round the same epoch to adjacent milliseconds.
+    if (Math.abs(a - b) <= 1) return fixedUtc ? published : { ...selected, line1: published.line1, line2: published.line2 };
+    if (fixedUtc) {
+        const instant = Date.parse(fixedUtc);
+        return Math.abs(instant - a) <= Math.abs(instant - b) ? selected : published;
+    }
+    return a > b ? selected : published;
 }
 
 export function inertialMetres(v) {
@@ -256,11 +284,15 @@ export function createModelEarthView({scene, camera, controls, axes, grid, viewp
         locationText.hidden = false;
         locationText.textContent = date.toISOString().slice(0,19).replace('T',' ')+' UTC · '+formatTlePosition(pose.geodetic);
     }
-    async function refresh({root, entry, member, view, scaleInfo}) {
+    async function refresh({root, entry, member, view, scaleInfo, elements: selectedSet}) {
         reset();
         if (!earthBox.checked || !entry) return;
         const token = serial;
         status.hidden = false;
+        if (member?.record && (isHistoricalTrackedRecord(member.record) || (!selectedSet?.omm && member.record.metadata_only))) {
+            status.textContent = 'Position unavailable for this catalog record.';
+            return;
+        }
         if (!root) { status.textContent = 'A loaded spacecraft model is required.'; return; }
         const params = new URLSearchParams(location.search);
         const selected = member?.norad || uniqueModelNorad(entry);
@@ -282,12 +314,12 @@ export function createModelEarthView({scene, camera, controls, axes, grid, viewp
             }
             let elements, pose;
             try {
-                elements = await elementsFor(id,view);
+                elements = await elementsFor(id,view,selectedSet,member?.record,fixedUtc);
                 pose = orbitalPose(elements,date,id,orientation);
             } catch (error) {
                 if (attachment?.kind!=='MEV' || !view.elements.some(e=>e.id===attachment.vehicle.key && e.status==='fresh')) throw error;
                 id=attachment.vehicle.key;
-                elements=await elementsFor(id,view);
+                elements=await elementsFor(id,view,selectedSet,member?.record,fixedUtc);
                 pose=orbitalPose(elements,date,id,orientation);
             }
             if (token !== serial) return;
@@ -298,10 +330,11 @@ export function createModelEarthView({scene, camera, controls, axes, grid, viewp
             preset();
             updateFootprint();
             tleDetails.hidden = false;
-            tleDetails.querySelector('pre').textContent = elements.line1+'\n'+elements.line2;
+            tleDetails.querySelector('summary').textContent = elements.line1 ? 'Position TLE' : 'Position OMM';
+            tleDetails.querySelector('pre').textContent = elements.line1 ? elements.line1+'\n'+elements.line2 : JSON.stringify(elements.omm, null, 2);
             const timeLabel = fixedUtc ? 'Orbit snapshot '+date.toISOString().slice(0,19).replace('T',' ')+' UTC' : 'Live SGP4 orbit';
             const reference = attachment && (id===attachment.host.key ? attachment.host.name : attachment.vehicle.name);
-            status.textContent = 'NORAD '+id+' · '+timeLabel+(reference ? ' · Assembly orbit from '+reference : '')+' · True-scale WGS84 Earth · '+elements.source+' · TLE epoch '+elements.epoch+
+            status.textContent = 'NORAD '+id+' · '+timeLabel+(reference ? ' · Assembly orbit from '+reference : '')+' · True-scale WGS84 Earth · '+elements.source+(elements.line1 ? ' · TLE epoch ' : ' · OMM epoch ')+elements.epoch+
                 (root.isPoints ? ' · Position marker.' : Object.keys(orientation).length
                     ? ' · Modeled attitude with app rotation offsets.' : ' · Modeled Earth-pointing attitude.');
             if (!fixedUtc) timer = setInterval(() => {

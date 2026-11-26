@@ -178,6 +178,25 @@
             border-radius: 10px;
         }
 
+        .markdown-table {
+            overflow-x: auto;
+            margin-bottom: 1em;
+        }
+
+        .markdown-table table {
+            width: 100%;
+            border-collapse: collapse;
+            font: 0.94rem/1.45 Arial, sans-serif;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .markdown-table th, .markdown-table td {
+            padding: 0.5rem 0.65rem;
+            border-bottom: 1px solid var(--line);
+            vertical-align: top;
+            overflow-wrap: normal;
+        }
+
         .markdown-document hr {
             border: 0;
             border-top: 1px solid var(--line);
@@ -218,7 +237,11 @@
         ['docs/RELEASE_NOTES.md', 'Releases History'],
         ['LICENSE.md', 'Licenses'],
         ['docs/THIRD_PARTY_NOTICES.md', 'Third-party notices'],
-        ['docs/SWAGGER.md', 'Swagger API']
+        ['docs/SWAGGER.md', 'Swagger API'],
+        ['docs/ARGOS_MODEL_REVIEW.md', 'Argos spacecraft'],
+        ['docs/GALILEO_MODEL_REVIEW.md', 'Galileo spacecraft'],
+        ['docs/KUIPER_MODEL_REVIEW.md', 'Amazon Leo spacecraft'],
+        ['docs/SES_MODEL_REVIEW.md', 'SES spacecraft']
     ]);
 
     const params = new URLSearchParams(window.location.search);
@@ -259,8 +282,7 @@
                     viewer.hash = url.hash;
                     return viewer.href;
                 }
-                // Only the four Help pages and third-party notice are packaged.
-                // Source documentation/evidence remains available in the public repository.
+                // Other source documents and evidence are available in the public repository.
                 if (/\.md$/i.test(relative) || /^(docs|release|validation)\//.test(relative)) {
                     return `https://github.com/arcazj/openbexi_earth_orbit/blob/master/${relative}${url.hash}`;
                 }
@@ -289,6 +311,19 @@
         return html;
     }
 
+    function tableCells(line) {
+        return line.trim().replace(/^\|/, '').replace(/(?<!\\)\|$/, '')
+            .split(/(?<!\\)\|/).map(cell => cell.trim().replace(/\\\|/g, '|'));
+    }
+
+    function renderTableRow(cells, alignment, header = false) {
+        const tag = header ? 'th' : 'td';
+        const scope = header ? ' scope="col"' : '';
+        return '<tr>' + alignment.map((align, i) =>
+            `<${tag}${scope} style="text-align:${align}">${renderMarkdownInline(cells[i] || '')}</${tag}>`
+        ).join('') + '</tr>';
+    }
+
     function renderMarkdown(markdown = '') {
         const lines = String(markdown).replace(/\r\n/g, '\n').split('\n');
         const html = [];
@@ -311,7 +346,8 @@
             codeBuffer = [];
         };
 
-        lines.forEach(line => {
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
             if (/^\s*```/.test(line)) {
                 flushParagraph();
                 closeList();
@@ -322,26 +358,45 @@
                     inCodeBlock = true;
                     codeBuffer = [];
                 }
-                return;
+                continue;
             }
 
             if (inCodeBlock) {
                 codeBuffer.push(line);
-                return;
+                continue;
             }
 
             const trimmed = line.trim();
             if (!trimmed) {
                 flushParagraph();
                 closeList();
-                return;
+                continue;
+            }
+
+            const divider = lines[i + 1]?.trim();
+            if (trimmed.startsWith('|') && divider?.startsWith('|')) {
+                const headers = tableCells(trimmed);
+                const columns = tableCells(divider);
+                if (headers.length === columns.length && columns.every(cell => /^:?-{3,}:?$/.test(cell))) {
+                    flushParagraph();
+                    closeList();
+                    const alignment = columns.map(cell => cell.endsWith(':')
+                        ? (cell.startsWith(':') ? 'center' : 'right') : 'left');
+                    html.push('<div class="markdown-table"><table><thead>', renderTableRow(headers, alignment, true), '</thead><tbody>');
+                    i++;
+                    while (lines[i + 1]?.trimStart().startsWith('|')) {
+                        html.push(renderTableRow(tableCells(lines[++i]), alignment));
+                    }
+                    html.push('</tbody></table></div>');
+                    continue;
+                }
             }
 
             if (/^---+$/.test(trimmed)) {
                 flushParagraph();
                 closeList();
                 html.push('<hr>');
-                return;
+                continue;
             }
 
             const heading = trimmed.match(/^(#{1,6})\s+(.+)$/);
@@ -350,7 +405,7 @@
                 closeList();
                 const level = Math.min(heading[1].length, 6);
                 html.push(`<h${level}>${renderMarkdownInline(heading[2])}</h${level}>`);
-                return;
+                continue;
             }
 
             const quote = trimmed.match(/^>\s+(.+)$/);
@@ -358,7 +413,7 @@
                 flushParagraph();
                 closeList();
                 html.push(`<blockquote>${renderMarkdownInline(quote[1])}</blockquote>`);
-                return;
+                continue;
             }
 
             const unordered = line.match(/^\s*[-*]\s+(.+)$/);
@@ -372,12 +427,12 @@
                     listTag = nextListTag;
                 }
                 html.push(`<li>${renderMarkdownInline((unordered || ordered)[1])}</li>`);
-                return;
+                continue;
             }
 
             closeList();
             paragraph.push(trimmed);
-        });
+        }
 
         if (inCodeBlock) flushCodeBlock();
         flushParagraph();

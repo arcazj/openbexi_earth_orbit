@@ -653,6 +653,7 @@ async function bootFilterFixture(page, state, url = '/index.html', options = {})
     typeof window.openbexiServerConnection?.checkForDataUpdates === 'function'
   ));
   await expect(page.locator('#satelliteSearchInput')).toBeEnabled();
+  await expect(page.locator('#controlsContainer')).toBeInViewport();
   await expect(page.locator('#launchTimelineToggle')).toBeEnabled();
   await expect.poll(() => state.decayCatalogRequests).toBeGreaterThan(0);
   if (state.serverHealth?.status !== 'ok') {
@@ -699,6 +700,29 @@ async function visibleNoradIds(page) {
 async function clickCategory(page, category) {
   await page.locator(`#orbitTypeFilter [data-orbit-filter="${category}"]`).click();
 }
+
+test('Space station opens ISS and Tiangong from MEO on the globe and in the model viewer', async ({page}) => {
+  await page.goto('/index.html');
+  const stations = page.getByRole('button',{name:'Space station',exact:true});
+  await expect(page.locator('[data-orbit-filter="MEO"]')).toHaveAttribute('aria-pressed','true');
+  await expect(page.locator('#satelliteSearchInput')).toBeEnabled({timeout:60000});
+  await stations.click();
+  const drawer = page.locator('#trackedResultsDrawer');
+  const rows = drawer.getByRole('listbox').getByRole('option');
+  await expect(drawer.getByRole('tab',{name:'On map'})).toHaveAttribute('aria-selected','true');
+  await expect(rows).toHaveCount(2,{timeout:45000});
+  await expect(rows.nth(0)).toContainText('International Space Station (ISS)');
+  await expect(rows.nth(1)).toContainText('Tiangong Space Station (TSS)');
+  await rows.nth(1).click();
+  await expect(page.locator('#selectedModelViewerLink')).toHaveAttribute('href',/norad=48274/);
+  await page.goto('/display_satellite.html?norad=48274');
+  await expect(page.locator('#wavefrontDownload')).toHaveAttribute('href','obj/exports/tiangong.zip');
+  await expect(page.locator('#satelliteFactsGrid')).toContainText('Core module launch mass');
+  expect((await page.request.get('/obj/exports/tiangong.zip')).ok()).toBe(true);
+  await stations.click();
+  await expect(rows).toHaveCount(2,{timeout:45000});
+  expect(await rows.evaluateAll(list=>list.map(row=>row.dataset.noradId).sort())).toEqual(['25544','48274']);
+});
 
 async function clickObjectType(page, objectType) {
   await page.locator(`#objectTypeFilter [data-object-type-filter="${objectType}"]`).click();
@@ -1000,10 +1024,6 @@ async function selectSatellite(page, noradId) {
 
 async function setCheckbox(page, selector, checked) {
   const checkbox = page.locator(selector);
-  const menuWasHidden = await checkbox.evaluate(element => Boolean(element.closest('#controlsContainer.menu-hidden')));
-  if (menuWasHidden) {
-    await page.locator('#menuToggleBtn').click();
-  }
   const sectionHeader = await checkbox.evaluate(element =>
     element.closest('.menu-accordion-section')?.querySelector('h3[data-collapsible-target]')?.id || null);
   const previousHeader = await page.locator('#controlsContainer h3[aria-expanded="true"]').evaluateAll(headers => headers[0]?.id || null);
@@ -1028,11 +1048,6 @@ async function setCheckbox(page, selector, checked) {
   else await expect(page.locator(selector)).not.toBeChecked();
   if (initiallyClosed) await disclosure.locator(':scope > summary').click();
   if (sectionHeader && previousHeader && previousHeader !== sectionHeader) await page.locator(`#${previousHeader}`).click();
-  if (menuWasHidden) {
-    await page.locator('#menuToggleBtn').click();
-    await expect.poll(() => page.locator('#controlsContainer').evaluate(element => element.getBoundingClientRect().right))
-      .toBeLessThanOrEqual(0);
-  }
 }
 
 async function openDetails(page, selector) {
@@ -1051,9 +1066,6 @@ for (const connected of [false, true]) {
     }
     await bootFilterFixture(page, state);
     const header = page.locator('#timelinesAccordionSection + #restApiAccordionSection #restApiAccordionHeader');
-    if (await page.locator('#controlsContainer').evaluate(el => el.classList.contains('menu-hidden'))) {
-      await page.locator('#menuToggleBtn').click();
-    }
     await expect(header).toHaveAttribute('aria-expanded', 'false');
     await expect(page.locator('#restApiContent')).toBeHidden();
     await header.press('Enter');
@@ -1094,6 +1106,7 @@ test('category unions, dependent tags, counts and selection stay coherent', asyn
   await setCheckbox(page, '#companyFilter input[value="ALL COMPANY"]', true);
   await expectCatalogCount(page, 2);
   expect(await visibleNoradIds(page)).toEqual(['110002', '110008']);
+  await page.getByRole('button', { name: 'Close catalog results' }).click();
   await selectSatellite(page, '110002');
   await page.waitForFunction(() => {
     const position = window.openbexiSimulation.snapshot().selectedPosition;
@@ -1228,6 +1241,252 @@ test('category unions, dependent tags, counts and selection stay coherent', asyn
   expect(unexpectedConsoleErrors(browserErrors.consoleErrors)).toEqual([]);
 });
 
+test('globe Browse starts in MEO and stays in sync with sidebar tags and object types', async ({ page }) => {
+  const state = fixtureState(populatedTrackedFixture());
+  for (const [id, company] of [['110002', 'GPS-OPS'], ['110001', 'INTELSAT']]) {
+    state.gpCatalog.find(record => record.norad_id === id).company = company;
+    state.trackedChunks['current-payload.json'].records.find(record => record.norad_id === id).company = company;
+  }
+  await bootFilterFixture(page, state);
+  const left = page.locator('#satelliteSelectionContent');
+  const browse = left.getByRole('button', { name: 'Browse catalog results' });
+  const drawer = page.locator('#trackedResultsDrawer');
+  const tag = drawer.getByLabel('Catalog tag', { exact: true });
+  const rows = drawer.getByRole('listbox').getByRole('option');
+  const close = drawer.getByRole('button', { name: 'Close catalog results' });
+  const history = drawer.getByRole('checkbox', { name: 'Include history' });
+  const count = drawer.locator('#trackedResultsCount');
+
+  expect(await pressedCategories(page)).toEqual(['MEO']);
+  expect(await browse.evaluate(button => button.getBoundingClientRect().bottom <=
+    document.getElementById('satelliteSearchInput').getBoundingClientRect().top)).toBe(true);
+  await expect(drawer).toBeHidden();
+  await browse.click();
+  await expect(drawer.getByRole('tab', { name: 'On map' })).toHaveAttribute('aria-selected', 'true');
+  await expect(count).toHaveText('2 results');
+  await expect(rows.locator('span:nth-child(5)')).toHaveText(['MEO', 'MEO']);
+  await expect(tag.locator('option[value="INTELSAT"]')).toHaveCount(0);
+  await expect(left.locator('input[value="INTELSAT"]')).toHaveCount(0);
+  await drawer.getByRole('tab', { name: 'All matches' }).click();
+  await expect(count).toHaveText('3 results');
+  await expect(rows.filter({ hasText: '620002' })).toHaveCount(1);
+  await close.click();
+
+  await setCheckbox(page, '#companyFilter input[value="GPS-OPS"]', true);
+  await expect(drawer).toBeVisible();
+  await expect(tag).toHaveValue('GPS-OPS');
+  await expect(rows).toHaveCount(1);
+  await expect(rows).toContainText('110002');
+  await setCheckbox(page, '#companyFilter input[value="GEO"]', true);
+  await expect(count).toHaveText('2 results');
+  await expect(tag.locator('option:checked')).toHaveText(/GPS/);
+  await expect(tag.locator('option:checked')).toHaveText(/Geosynchronous group/);
+  await tag.selectOption('GEO');
+  await expect(left.locator('input[value="GPS-OPS"]')).not.toBeChecked();
+  await expect(left.locator('input[value="GEO"]')).toBeChecked();
+  await expect(rows).toHaveCount(1);
+  await rows.click();
+  await expect(drawer).toBeHidden();
+  await expect(page.locator('#selectedSatelliteDetailPanel')).toContainText('110008');
+  await browse.click();
+  await expect(tag).toHaveValue('GEO');
+  await expect(rows).toContainText('110008');
+
+  await clickObjectType(page, 'ROCKET_BODY');
+  await expect(tag).toHaveValue('');
+  await expect(tag.locator('option[value="GPS-OPS"]')).toHaveCount(0);
+  await expect(count).toHaveText('0 results');
+  await drawer.getByRole('tab', { name: 'All matches' }).click();
+  await expect(rows).toHaveCount(1);
+  await expect(rows).toContainText('620002');
+  expect(state.trackedChunkRequests).not.toContain('historical-debris.json');
+
+  await clickCategory(page, 'ALL');
+  await clickObjectType(page, 'ALL');
+  await history.check();
+  await expect(left.locator('#includeHistoricalTrackedObjects')).toBeChecked();
+  await drawer.getByRole('searchbox').fill('620003');
+  await expect(rows).toContainText('DECAYED TRACKED FRAGMENT');
+  await setCheckbox(page, '#includeHistoricalTrackedObjects', false);
+  await expect(history).not.toBeChecked();
+  await expect(count).toHaveText('0 results');
+  await setCheckbox(page, '#companyFilter input[value="INTELSAT"]', true);
+  await expect(drawer.getByRole('searchbox')).toHaveValue('');
+  await expect(tag).toHaveValue('INTELSAT');
+  await expect(rows).toContainText('110001');
+});
+
+test('the globe keeps the left menu visible while applying new single-NORAD elements', async ({ page }) => {
+  const state = fixtureState(populatedTrackedFixture());
+  state.serverHealth = { status: 'ok' };
+  const requested = [];
+  const target = state.gpCatalog.find(row => row.norad_id === '110009');
+  const epoch = '2026-08-23T00:02:00.000Z';
+  const omm = { ...target.element_set.omm, EPOCH: epoch, MEAN_ANOMALY: 83 };
+  await page.route('**/api/v1/objects/*/refresh-elements', route => {
+    const id = new URL(route.request().url()).pathname.split('/').at(-2);
+    requested.push(id);
+    return route.fulfill({ json: { norad_id: id, element_set: { format: 'OMM', source: 'CelesTrak CATNR', epoch, omm } } });
+  });
+  await bootFilterFixture(page, state, '/index.html?share=1&orbit=GEO', { checkForDataUpdates: false });
+  const menu = page.locator('#controlsContainer');
+  await expect(menu).toBeInViewport();
+  await expect(menu).not.toHaveAttribute('inert', '');
+  const viewport = page.viewportSize();
+  if (viewport.width <= 760) expect((await menu.boundingBox()).height).toBeLessThanOrEqual(viewport.height * .35 + 1);
+  const open = menu.getByRole('button', { name: 'Browse catalog results' });
+  await open.click();
+  const drawer = page.locator('#trackedResultsDrawer');
+  await expect.poll(() => menu.evaluate(element => {
+    const rect = element.getBoundingClientRect();
+    return element.contains(document.elementFromPoint(rect.left + 30, rect.top + 30));
+  })).toBe(true);
+  await expect(drawer.getByRole('tab', { name: 'On map' })).toHaveAttribute('aria-selected', 'true');
+  await drawer.getByRole('searchbox').fill('110009');
+  await drawer.getByRole('listbox').getByRole('option').click();
+  await expect(menu).not.toHaveAttribute('inert', '');
+  await expect.poll(() => requested).toEqual(['110009']);
+  await expect(page.locator('#selectedSatelliteDetailPanel')).toContainText('2026-08-23T00:02:00');
+  await expect.poll(() => page.evaluate(() => window.openbexiSimulation.snapshot().selectedPosition)).not.toBeNull();
+});
+
+test('Model Viewer combines orbit and tag, includes inactive spacecraft and opens historical details', async ({ page }) => {
+  const state = fixtureState(populatedTrackedFixture());
+  const target = state.gpCatalog.find(row => row.norad_id === '110003');
+  target.company = 'EUTELSAT';
+  const inactive = state.trackedChunks['current-payload.json'].records.find(row => row.norad_id === '110003');
+  Object.assign(inactive, { company: 'EUTELSAT', lifecycle_status: 'INACTIVE', ops_status_code: '-' });
+  state.trackedChunks['current-payload.json'].records.find(row => row.norad_id === '110009').company = 'EUTELSAT';
+  await routeJson(page, ['**/json/gp/GP.json'], () => state.gpCatalog);
+  await routeTrackedCatalog(page, state);
+  await page.route('**/api/v1/objects/*/refresh-elements', route => route.fulfill({ json: {element_set:null} }));
+  await page.goto('/display_satellite.html');
+  const left = page.locator('#viewerSelectionPanel');
+  const open = page.getByRole('button', { name:'Browse catalog results' });
+  const drawer = page.locator('#trackedResultsDrawer');
+  const rows = drawer.getByRole('listbox').getByRole('option');
+  await expect(left).toBeInViewport();
+  await expect(left.getByLabel('All tags')).toBeChecked();
+  await open.click();
+  await expect(drawer.locator('#trackedResultsCount')).toHaveText('9 results');
+  await drawer.getByRole('searchbox').fill('110003');
+  await rows.click();
+  await expect(left).toBeInViewport();
+  await expect(page.locator('#satelliteFactsGrid')).toContainText('Inactive');
+  await left.getByRole('button', {name:'LEO', exact:true}).click();
+  await expect(drawer.getByRole('tab', {name:'On map'})).toHaveAttribute('aria-selected', 'true');
+  await expect(drawer.locator('#trackedResultsCount')).toHaveText('3 results');
+  await drawer.getByRole('button', {name:'Close catalog results'}).click();
+  await left.getByLabel('Eutelsat', {exact:true}).check();
+  await expect(rows).toHaveCount(1);
+  await expect(rows).toContainText('110003');
+  await drawer.getByRole('button', {name:'Close catalog results'}).click();
+  await open.click();
+  await expect(drawer.locator('#trackedResultsCount')).toHaveText('9 results');
+  await drawer.getByLabel('Include history').check();
+  await expect(drawer.getByRole('tab', {name:'All matches'})).toHaveAttribute('aria-selected', 'true');
+  await drawer.getByRole('searchbox').fill('620003');
+  await rows.click();
+  await expect(page.locator('#satelliteFactsGrid')).toContainText('1961-02-01');
+  await expect(left.getByRole('button', {name:'LEO', exact:true})).toHaveAttribute('aria-pressed', 'true');
+  await expect(left.getByLabel('Eutelsat', {exact:true})).toBeChecked();
+  await left.getByRole('button', {name:'Reset Filters'}).click();
+  await expect(left.getByLabel('All tags')).toBeChecked();
+  await expect(drawer.locator('#trackedResultsCount')).toHaveText('9 results');
+  await left.getByRole('searchbox').pressSequentially('110003');
+  await expect(left.getByRole('searchbox')).toBeFocused();
+  await expect(rows).toHaveCount(1);
+  await expect(rows).toContainText('110003');
+  await left.getByRole('button', {name:'Clear', exact:true}).click();
+  await left.getByLabel('Include history').check();
+  await expect(drawer.getByRole('tab', {name:'All matches'})).toHaveAttribute('aria-selected', 'true');
+  await expect(left).toBeInViewport();
+});
+
+test('Model Viewer tag choices follow orbit, object type and history in both panels', async ({ page }) => {
+  const state = fixtureState(populatedTrackedFixture());
+  for (const [id, company] of [['110001', 'INTELSAT'], ['110002', 'GPS-OPS']]) {
+    state.gpCatalog.find(row => row.norad_id === id).company = company;
+    state.trackedChunks['current-payload.json'].records.find(row => row.norad_id === id).company = company;
+  }
+  state.trackedChunks['historical-debris.json'].records[0].company = 'ARCHIVED GROUP';
+  await routeJson(page, ['**/json/gp/GP.json'], () => state.gpCatalog);
+  await routeTrackedCatalog(page, state);
+  await page.goto('/display_satellite.html');
+  const left = page.locator('#viewerSelectionPanel');
+  const chip = name => left.getByRole('checkbox', {name, exact:true});
+  const drawer = page.locator('#trackedResultsDrawer');
+  const tag = drawer.getByLabel('Catalog tag', {exact:true});
+  const rows = drawer.getByRole('listbox').getByRole('option');
+  const meo = left.getByRole('button', {name:'MEO', exact:true});
+
+  await chip('Intelsat').check();
+  await expect(tag).toHaveValue('INTELSAT');
+  await expect(rows).toContainText('110001');
+  await meo.click();
+  await expect(chip('Intelsat')).toHaveCount(0);
+  await expect(tag.locator('option[value="INTELSAT"]')).toHaveCount(0);
+  await expect(chip('All tags')).toBeChecked();
+  await expect(tag).toHaveValue('');
+  await expect(left.locator('output')).toHaveText('3 / 12');
+  await expect(drawer.getByRole('tab', {name:'On map'})).toHaveAttribute('aria-selected', 'true');
+  await expect(rows).toHaveCount(2);
+
+  await tag.selectOption('GPS-OPS');
+  await expect(chip('GPS')).toBeChecked();
+  await expect(rows).toContainText('110002');
+  await chip('Geosynchronous group').check();
+  await expect(tag.locator('option:checked')).toHaveText('GPS + Geosynchronous group');
+  await expect(rows).toHaveCount(2);
+  await tag.selectOption('');
+  await expect(chip('All tags')).toBeChecked();
+  await left.getByRole('button', {name:'Rocket Body'}).click();
+  await expect(chip('GPS')).toHaveCount(0);
+  await expect(chip('Test Range')).toBeVisible();
+  await drawer.getByRole('tab', {name:'All matches'}).click();
+  await expect(rows).toContainText('620002');
+
+  await drawer.getByRole('button', {name:'Close catalog results'}).click();
+  await page.getByRole('button', {name:'Browse catalog results'}).click();
+  await tag.selectOption('INTELSAT');
+  await expect(rows).toContainText('110001');
+  await expect(meo).toHaveAttribute('aria-pressed', 'true');
+  await expect(chip('Intelsat')).toHaveCount(0);
+
+  await left.getByRole('button', {name:'Reset Filters'}).click();
+  await expect(chip('Archived Group')).toHaveCount(0);
+  await drawer.getByRole('checkbox', {name:'Include history'}).check();
+  await chip('Archived Group').check();
+  await expect(tag).toHaveValue('ARCHIVED GROUP');
+  await expect(rows).toContainText('620003');
+  await drawer.getByRole('checkbox', {name:'Include history'}).uncheck();
+  await expect(chip('Archived Group')).toHaveCount(0);
+  await expect(tag).toHaveValue('');
+  await expect(chip('All tags')).toBeChecked();
+});
+
+test('Browse catalog results retries an incomplete full catalog on reopen', async ({ page }) => {
+  const state = fixtureState(populatedTrackedFixture());
+  state.trackedChunkFailures = { 'historical-debris.json': 503 };
+  await bootFilterFixture(page, state, '/index.html?share=1&orbit=ALL');
+  const open = page.getByRole('button', { name: 'Browse catalog results' });
+  const drawer = page.locator('#trackedResultsDrawer');
+  const count = drawer.locator('#trackedResultsCount');
+  await open.click();
+  await expect(count).toHaveText('9 results');
+  await drawer.getByLabel('Include history').check();
+  await expect(count).toContainText('Full catalog unavailable');
+  await drawer.getByRole('searchbox').fill('110009');
+  await expect(drawer.getByRole('listbox').getByRole('option')).toContainText('GOES 19');
+  await drawer.getByRole('button', { name: 'Close catalog results' }).click();
+  delete state.trackedChunkFailures['historical-debris.json'];
+  await open.click();
+  await expect(drawer.getByLabel('Include history')).toBeChecked();
+  await expect(count).toHaveText('13 results');
+  await drawer.getByRole('searchbox').fill('620003');
+  await expect(drawer.getByRole('listbox').getByRole('option')).toContainText('DECAYED TRACKED FRAGMENT');
+});
+
 test('selected object details and filters follow GP revisions', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'chromium', 'The selected-object revision matrix runs once on desktop Chromium.');
   test.setTimeout(120_000);
@@ -1242,7 +1501,6 @@ test('selected object details and filters follow GP revisions', async ({ page },
   const ommDetails = detailPanel.locator('.selected-satellite-omm-section');
   await expectCatalogClockAlignment(page);
   await expect(detailPanel).toBeVisible();
-  await page.locator('#menuToggleBtn').click();
   await expect(detailPanel).toBeVisible();
   await expect(detailPanel.locator('.selected-satellite-detail-header strong')).toHaveText('ISS (ZARYA)');
   await expect(detailPanel.getByText('ISS (ZARYA)', { exact: true })).toHaveCount(1);
@@ -1263,7 +1521,6 @@ test('selected object details and filters follow GP revisions', async ({ page },
   await expect(ommDetails).toContainText('RA_OF_ASC_NODE');
   await expect(ommDetails).toContainText('BSTAR');
 
-  await page.locator('#menuToggleBtn').click();
   await ommDetails.locator('summary').press('Enter');
   await expect(ommDetails).toHaveJSProperty('open', true);
   await selectSatellite(page, '110003');
@@ -1558,9 +1815,10 @@ test('tracked catalog keeps orbit and object taxonomy independent and metadata-o
   expect(redMercatorPixels).toBeGreaterThan(0);
   await page.locator('#openTrackedResults').click();
   await expect(page.locator('#trackedResultsDrawer')).toBeVisible();
-  await expect(page.locator('#trackedResultsCount')).toHaveText('3 results');
+  await expect(page.locator('#trackedResultsCount')).toHaveText('1 result');
+  await page.locator('#trackedResultsHistory').check();
   await page.locator('#trackedResultsTabs [data-result-mode="UNAVAILABLE"]').click();
-  await expect(page.locator('#trackedResultsCount')).toHaveText('2 results');
+  await expect(page.locator('#trackedResultsCount')).toHaveText('3 results');
   await expect(page.locator('#trackedResultsRows')).toContainText('TINY TRACKED FRAGMENT');
   const resultsSearch = page.getByRole('searchbox', { name: 'Filter results' });
   await resultsSearch.fill('fragment tiny');
@@ -1569,18 +1827,20 @@ test('tracked catalog keeps orbit and object taxonomy independent and metadata-o
   await resultsSearch.fill('unlisted-fixture');
   await expect(page.locator('#trackedResultsEmpty')).toHaveText('No objects match this filter.');
   await page.getByRole('button', { name: 'Clear results filter' }).click();
-  await expect(page.locator('#trackedResultsCount')).toHaveText('2 results');
+  await expect(page.locator('#trackedResultsCount')).toHaveText('3 results');
   const resultAccessibility = await new AxeBuilder({ page })
     .include('#trackedResultsDrawer')
     .analyze();
   expect(resultAccessibility.violations.filter(violation =>
     ['serious', 'critical'].includes(violation.impact)
   )).toEqual([]);
+  await resultsSearch.fill('620004');
   await page.locator('#trackedResultsViewport').press('ArrowDown');
   await page.locator('#trackedResultsViewport').press('Enter');
   await expect(page.locator('#trackedResultsDrawer')).toBeHidden();
   expect((await page.evaluate(() => window.openbexiSimulation.snapshot())).selectedNoradId).toBe('620004');
   await expect(page.locator('#selectedSatelliteDetailPanel')).toContainText('Position unavailable.');
+  await setCheckbox(page, '#includeHistoricalTrackedObjects', false);
 
   const mercatorTarget = await page.locator('#mercatorCanvas').evaluate(async canvas => {
     const { getMercatorMarkerDiagnostics } = await import('/js/mercatorMapLoader.js');
@@ -1781,10 +2041,15 @@ test('tracked coverage and virtualized results remain usable on a narrow viewpor
   await page.setViewportSize({ width: 768, height: 900 });
   await expectCatalogClockAlignment(page);
   await page.locator('#openTrackedResults').click();
-  const tabletDrawerBox = await drawer.boundingBox();
+  const [tabletDrawerBox, tabletMenuBox] = await Promise.all([
+    drawer.boundingBox(), page.locator('#controlsContainer').boundingBox()
+  ]);
   expect(tabletDrawerBox).not.toBeNull();
-  expect(tabletDrawerBox.x).toBeLessThanOrEqual(9);
-  expect(tabletDrawerBox.width).toBeGreaterThanOrEqual(750);
+  expect(tabletMenuBox).not.toBeNull();
+  const menuRight = tabletMenuBox.x + tabletMenuBox.width;
+  expect(tabletDrawerBox.x).toBeGreaterThanOrEqual(menuRight);
+  expect(tabletDrawerBox.x).toBeLessThanOrEqual(menuRight + 20);
+  expect(tabletDrawerBox.x + tabletDrawerBox.width).toBeGreaterThanOrEqual(752);
   expect(tabletDrawerBox.x + tabletDrawerBox.width).toBeLessThanOrEqual(769);
   await page.locator('#trackedResultsViewport').press('Escape');
   await expect(drawer).toBeHidden();
@@ -1793,19 +2058,18 @@ test('tracked coverage and virtualized results remain usable on a narrow viewpor
   await page.locator('#openTrackedResults').click();
   await page.locator('#trackedResultsTabs [data-result-mode="POSITIONED"]').click();
   await page.locator('#trackedResultsRows .tracked-results-row').first().click();
-  const [menuToggleBox, timeWarpBox] = await Promise.all([
-    page.locator('#menuToggleBtn').boundingBox(),
+  const [menuHeaderBox, timeWarpBox] = await Promise.all([
+    page.locator('#menuHeaderRow').boundingBox(),
     page.locator('#timeWarpBox').boundingBox()
   ]);
-  expect(menuToggleBox).not.toBeNull();
+  expect(menuHeaderBox).not.toBeNull();
   expect(timeWarpBox).not.toBeNull();
   expect(
-    menuToggleBox.x + menuToggleBox.width <= timeWarpBox.x ||
-    timeWarpBox.x + timeWarpBox.width <= menuToggleBox.x ||
-    menuToggleBox.y + menuToggleBox.height <= timeWarpBox.y ||
-    timeWarpBox.y + timeWarpBox.height <= menuToggleBox.y
+    menuHeaderBox.x + menuHeaderBox.width <= timeWarpBox.x ||
+    timeWarpBox.x + timeWarpBox.width <= menuHeaderBox.x ||
+    menuHeaderBox.y + menuHeaderBox.height <= timeWarpBox.y ||
+    timeWarpBox.y + timeWarpBox.height <= menuHeaderBox.y
   ).toBe(true);
-  await page.locator('#menuToggleBtn').click();
   const detailPanel = page.locator('#selectedSatelliteDetailPanel');
   await expect(detailPanel).toBeVisible();
   await expectCatalogClockAlignment(page);
@@ -2374,6 +2638,13 @@ test('the right-hand comparison follows the primary selection and the main simul
   await expect(panel.getByRole('link',{name:'Open full comparison'})).toHaveAttribute('href',/compare=36581.*at=/);
   const main=page.getByRole('region',{name:'Main spacecraft comparison view'});
   await expect(main.locator('canvas')).toBeVisible();
+  await expect(page.locator('#controlsContainer')).toBeInViewport();
+  await expect(page.locator('#satelliteSelectionContent').getByRole('button', {name:'Browse catalog results'})).toBeVisible();
+  await expect.poll(() => main.evaluate(stage => {
+    const menu = document.getElementById('controlsContainer').getBoundingClientRect();
+    const view = stage.getBoundingClientRect();
+    return menu.right <= view.left || menu.bottom <= view.top;
+  })).toBe(true);
   await main.getByRole('button',{name:'Behind Intelsat 10-02',exact:true}).click();
   await expect(main.locator('.pair-tag:visible')).toHaveCount(1);
   await expect(main.locator('.pair-tag:visible')).toContainText('ASTRA 3B');
@@ -2385,6 +2656,12 @@ test('the right-hand comparison follows the primary selection and the main simul
   await expect(panel.getByLabel('Show Orbit',{exact:true})).toBeChecked();
   await expect(main.locator('.pair-orbit-legend li')).toHaveCount(2);
   await expect(panel.getByRole('button',{name:'View full orbit'})).toHaveAttribute('aria-pressed','true');
+  await main.locator('canvas').focus();
+  await main.locator('canvas').press('ArrowRight');
+  const expanded=panel.getByRole('link',{name:'Open full comparison'});
+  await expect(expanded).toHaveAttribute('href',/compareCamera=/);
+  await main.getByRole('button',{name:'View full orbit'}).click();
+  await expect(expanded).not.toHaveAttribute('href',/compareCamera=/);
   await panel.getByRole('button',{name:'Resume live'}).click();
   await expect(panel.locator('time')).toContainText('Live');
   await expect(panel.getByRole('link',{name:'Open full comparison'})).not.toHaveAttribute('href',/at=/);
@@ -2412,7 +2689,7 @@ test('the globe filters life-extension missions and keeps the documented client 
   await bootFilterFixture(page, state, '/index.html?share=1&orbit=GEO&objects=PAYLOAD&time=2026-11-24T12:00:00Z&warp=0', { useFixtureEpoch: false });
   await setCheckbox(page, '#companyFilter input[value="Satellite life extension"]', true);
   await expect.poll(() => page.evaluate(() => window.openbexiSimulation.snapshot().visibleNoradIds)).toEqual(['46113']);
-  await selectSatellite(page, '46113');
+  await page.locator('#trackedResultsRows [data-norad-id="46113"]').click();
   await expect(page.locator('#selectedModelViewerLink')).toHaveAttribute('href', /catalog=life-extension&norad=46113/);
   const detail = page.locator('.selected-satellite-source-detail');
   await expect(detail).toContainText('MEV-2 + Intelsat 10-02', { timeout: 45000 });
@@ -2425,6 +2702,7 @@ test('the globe filters life-extension missions and keeps the documented client 
   await expect(page.locator('#publishedFootprintNotice a')).toHaveAttribute('href',/beam=5491/);
   await page.evaluate(() => window.openbexiSimulation.setTime('2026-11-24T12:00:00Z'));
   await setCheckbox(page, '#companyFilter input[value="Satellite life extension"]', false);
+  await page.getByRole('button', { name: 'Close catalog results' }).click();
   for (const [id, beam] of [['28358','5491'],['36581','6252']]) {
     await selectSatellite(page,id);
     if (id==='28358') await expect(detail).toContainText(/INTELSAT 10-02 \+ MEV-2/i);
@@ -2761,9 +3039,6 @@ test('O3b mPOWER F7 close-up keeps the orbit smooth when the observer rotates', 
   await page.mouse.move(875, 485, {steps:8});
   await page.mouse.up();
   expect((await checkView()).camera).not.toEqual(before.camera);
-  if (await page.locator('#controlsContainer').evaluate(el=>el.classList.contains('menu-hidden'))) {
-    await page.locator('#menuToggleBtn').click();
-  }
   await page.getByRole('button', { name:'View full orbit' }).click();
   const overview = await checkView();
   expect(overview.maxScreenCoordinate).toBeLessThan(1);
@@ -2780,6 +3055,165 @@ test('O3b mPOWER F7 close-up keeps the orbit smooth when the observer rotates', 
   await page.getByRole('button', { name:'View spacecraft' }).click();
   expect((await checkView()).distance).toBeCloseTo(0.0001, 6);
   expect(await page.evaluate(()=>window.openbexiSimulation.snapshot().selectedNoradId)).toBe('62362');
+});
+
+async function bootOrbitCamera(page, norad, {expectModel = true} = {}) {
+  const state = fixtureState();
+  state.gpCatalog = [
+    ['36581', 'ASTRA 3B', 'GEO', 1.00272, 1.87, '2010-021A'],
+    ['56174', 'INTELSAT 40E', 'GEO', 1.0027, .05, '2023-053A'],
+    ['44714', 'STARLINK-1007', 'LEO', 15.05, 53, '2019-074A']
+  ].map(([noradId, name, orbitClass, meanMotion, inclination, designator]) => {
+    const record = ommRecord({noradId, name, orbitClass, meanMotion, inclination});
+    record.object_id = record.international_designator = record.element_set.omm.OBJECT_ID = designator;
+    return record;
+  });
+  state.gpMetadata = gpMetadata('sha256:orbit-views', state.gpCatalog.length);
+  const orbitClass = state.gpCatalog.find(row => row.norad_id === norad).orbit_class;
+  await bootFilterFixture(page, state, '/index.html?share=1&sat='+norad+'&orbit='+orbitClass+'&view3D=1&showOrbit=1&time='+EPOCH+'&warp=0');
+  await page.waitForFunction(({norad, expectModel}) => {
+    const state = window.openbexiSimulation.snapshot();
+    return state.selectedNoradId === norad && state.selectedPosition?.some(value => value !== 0) &&
+      state.selectedDetailedModelVisible === expectModel && !state.cameraTransitionActive;
+  }, {norad, expectModel});
+  await page.getByRole('button', {name:'View full orbit'}).click();
+}
+
+async function orbitCameraState(page) {
+  return page.evaluate(() => {
+    const state = window.openbexiSimulation.snapshot();
+    const camera = window.camera;
+    const position = camera.position.clone().fromArray(state.selectedPosition);
+    const target = camera.position.clone().fromArray(state.cameraTarget);
+    const offset = camera.position.clone().sub(target);
+    const projected = position.clone().project(camera);
+    const canvas = window.renderer.domElement.getBoundingClientRect();
+    const marker = document.getElementById('selectedOrbitMarker').getBoundingClientRect();
+    return {
+      position: state.selectedPosition, range: offset.length(), pan: target.distanceTo(position),
+      radial: offset.normalize().dot(position.clone().normalize()),
+      markerError: Math.hypot(marker.x + marker.width / 2 - canvas.x - (1 + projected.x) * canvas.width / 2,
+        marker.y + marker.height / 2 - canvas.y - (1 - projected.y) * canvas.height / 2),
+      markerOnGlobe: document.elementFromPoint(marker.x + marker.width / 2, marker.y + marker.height / 2) === window.renderer.domElement,
+      model: state.selectedDetailedModelVisible, target: state.cameraTarget,
+      markerSize: [marker.width, marker.height]
+    };
+  });
+}
+
+test('ASTRA 3B full orbit shows its position, camera presets and an actionable Earth occlusion', async ({ page }, testInfo) => {
+  await bootOrbitCamera(page, '36581');
+  const bar = page.getByRole('group', {name:'Orbit camera views'});
+  const marker = page.getByRole('img', {name:'ASTRA 3B'});
+  await expect(marker).toBeVisible();
+  const overview = await orbitCameraState(page);
+  expect(overview.markerError).toBeLessThan(1);
+  expect(overview.markerSize).toEqual([20, 20]);
+  await expect.poll(async () => (await orbitCameraState(page)).markerOnGlobe).toBe(true);
+  expect(overview.model).toBe(false);
+  await testInfo.attach('ASTRA 3B full orbit', {body: await page.screenshot(), contentType: 'image/png'});
+  await expect(bar.getByRole('button', {name:'Reflector front'})).toHaveCount(0);
+  await bar.getByRole('button', {name:'Earth-facing side'}).click();
+  await expect.poll(async () => (await orbitCameraState(page)).radial).toBeLessThan(-.99);
+  await expect(marker).toBeHidden();
+  await bar.getByRole('button', {name:'Fit Earth'}).click();
+  expect((await orbitCameraState(page)).target).toEqual([0, 0, 0]);
+  await page.evaluate(() => {
+    const {camera, openbexiSimulation} = window;
+    const range = camera.position.length();
+    camera.position.fromArray(openbexiSimulation.snapshot().selectedPosition).normalize().multiplyScalar(-range);
+    camera.lookAt(0, 0, 0);
+  });
+  await expect(marker).toBeHidden();
+  await bar.getByRole('button', {name:'Behind Earth · Locate'}).click();
+  await expect(bar.getByRole('button', {name:'Side view'})).toHaveAttribute('aria-pressed', 'true');
+  const side = await orbitCameraState(page);
+  expect(Math.abs(side.radial)).toBeLessThan(.01);
+  expect(side.model).toBe(true);
+  await bar.getByRole('button', {name:'Full orbit', exact:true}).click();
+  await expect(marker).toBeVisible();
+  await page.getByRole('button', {name:'View spacecraft'}).click();
+  await expect(bar).toBeHidden();
+  await expect(marker).toBeHidden();
+  expect((await orbitCameraState(page)).model).toBe(true);
+});
+
+test('LEO hour playback keeps the marker aligned and preserves manual pan, orbit and zoom', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'Desktop wheel and mouse gestures.');
+  await bootOrbitCamera(page, '44714');
+  const bar = page.locator('#selectedOrbitBar');
+  const marker = page.locator('#selectedOrbitMarker');
+  await page.locator('#timeWarpUnit').selectOption('3600000');
+  await page.locator('#timeWarpSlider').fill('1');
+  const start = (await orbitCameraState(page)).position;
+  await expect.poll(async () => {
+    const {position, markerError} = await orbitCameraState(page);
+    return markerError < 1 && Math.hypot(...position.map((p, i) => p - start[i])) > .1;
+  }).toBe(true);
+  await bar.getByRole('button', {name:'Side view'}).click();
+  await page.mouse.move(630, 340);
+  await page.mouse.down();
+  await page.mouse.move(690, 380, {steps:5});
+  await page.mouse.up();
+  await expect.poll(async () => Math.abs((await orbitCameraState(page)).radial)).toBeGreaterThan(.03);
+  await page.mouse.down({button:'right'});
+  await page.mouse.move(715, 405, {steps:4});
+  await page.mouse.up({button:'right'});
+  await expect.poll(async () => (await orbitCameraState(page)).pan).toBeGreaterThan(1e-6);
+  await page.locator('#timeWarpPause').click();
+  // Start centered again so that zoom and the model/icon handoff can be measured independently of pan.
+  await bar.getByRole('button', {name:'Side view'}).click();
+  await page.mouse.move(650, 365);
+  for (let i = 0; i < 8; i++) await page.mouse.wheel(0, 100);
+  await expect.poll(async () => (await orbitCameraState(page)).range).toBeGreaterThan(6.4);
+  await expect(marker).toBeVisible();
+  for (let i = 0; i < 14; i++) await page.mouse.wheel(0, -100);
+  await expect.poll(async () => (await orbitCameraState(page)).model).toBe(true);
+  await expect(marker).toBeHidden();
+});
+
+test('Intelsat 40e exposes the embedded reflector camera in full orbit', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'Authored GLB camera pose.');
+  await bootOrbitCamera(page, '56174');
+  const reflector = page.getByRole('button', {name:'Reflector front'});
+  await reflector.click();
+  await expect(reflector).toHaveAttribute('aria-pressed', 'true');
+  const detail = await orbitCameraState(page);
+  expect(detail.model).toBe(true);
+  expect(detail.pan).toBeGreaterThan(0);
+  expect(detail.range).toBeLessThan(.001);
+});
+
+test('a satellite without a loadable model has exactly one full-orbit marker', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'Catalog point and GLB fallback.');
+  await page.route('**/obj/**', route => route.fulfill({status:404, body:''}));
+  await bootOrbitCamera(page, '36581', {expectModel:false});
+  await expect(page.getByRole('img', {name:'ASTRA 3B'})).toBeVisible();
+  const selectedPoints = () => page.evaluate(async () =>
+    (await import('/js/satelliteTLELoader.js')).getSatellitePointCloudDiagnostics().selectedDrawnCount);
+  await expect.poll(selectedPoints).toBe(0);
+  await page.getByRole('button', {name:'View spacecraft'}).click();
+  await expect(page.locator('#selectedOrbitMarker')).toBeHidden();
+  await expect.poll(selectedPoints).toBe(1);
+});
+
+test('a two-finger pinch travels from the spacecraft to Earth scale', async ({ page, context }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-chromium', 'Native mobile Chromium touch events.');
+  await bootOrbitCamera(page, '36581');
+  await page.getByRole('button', {name:'Side view'}).click();
+  const {width, height} = page.viewportSize();
+  const session = await context.newCDPSession(page);
+  const fingers = spread => [
+    {id: 1, x: width / 2 - spread, y: height / 2},
+    {id: 2, x: width / 2 + spread, y: height / 2}
+  ];
+  await session.send('Input.dispatchTouchEvent', {type:'touchStart', touchPoints:fingers(95)});
+  for (const spread of [85, 75, 65, 55, 45, 35, 25]) {
+    await session.send('Input.dispatchTouchEvent', {type:'touchMove', touchPoints:fingers(spread)});
+  }
+  await session.send('Input.dispatchTouchEvent', {type:'touchEnd', touchPoints:[]});
+  await expect.poll(async () => (await orbitCameraState(page)).range).toBeGreaterThan(6.4);
+  await expect(page.locator('#selectedOrbitMarker')).toBeVisible();
 });
 
 test('known MEO and GEO markers have finite orbital radii and invalid selection is absent from Mercator', async ({ page }, testInfo) => {
@@ -2851,11 +3285,7 @@ test('Mercator overlay and fullscreen stay above operational panels with accessi
   await expect(page.locator('.timeline-hud:visible')).toBeVisible();
   await setCheckbox(page, '#view3DToggle', true);
   await setCheckbox(page, '#viewMercatorToggle', true);
-  const menuConstrainedLayout = await page.evaluate(() => matchMedia('(max-width: 1280px)').matches);
-  if (menuConstrainedLayout) {
-    await page.locator('#menuToggleBtn').click();
-    await expect(page.locator('#controlsContainer')).toHaveClass(/menu-hidden/);
-  }
+  await expect(page.locator('#controlsContainer')).toBeInViewport();
   await expect(detailPanel).toBeVisible();
   await expect(detailPanel).toContainText('DUPLICATE GP NAME');
   const mercator = page.locator('#mercatorContainer');
@@ -2953,10 +3383,7 @@ test('Mercator overlay and fullscreen stay above operational panels with accessi
   await assertMercatorLayer('fullscreen');
   const exitButton = page.getByRole('button', { name: 'Exit full-screen Mercator map' });
   await expect(exitButton).toBeVisible();
-  if (menuConstrainedLayout) {
-    await page.locator('#menuToggleBtn').click();
-    await expect(page.locator('#controlsContainer')).not.toHaveClass(/menu-hidden/);
-  }
+  await expect(page.locator('#controlsContainer')).toBeInViewport();
   await page.locator('#serverStatusButton').click();
   await expect(page.locator('#serverStatusPanel')).toBeVisible();
   await page.locator('#serverStatusButton').click();
