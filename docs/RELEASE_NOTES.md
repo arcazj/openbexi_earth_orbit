@@ -4,6 +4,7 @@
 
 - Inspect revised spacecraft exteriors and download their textured Wavefront models. The flight inventories link NORAD IDs to the corresponding model and explain which dimensions or hardware positions are estimates. [SES](SES_MODEL_REVIEW.md) · [Galileo](GALILEO_MODEL_REVIEW.md) · [Argos and Kinéis](ARGOS_MODEL_REVIEW.md) · [Amazon Leo / Kuiper](KUIPER_MODEL_REVIEW.md)
 - Filter catalog results by orbit, object type and tag in the globe or model viewer. Open a spacecraft’s facts and camera views from its result. The model library also includes revised BeiDou spacecraft, Tiangong modules, Telesat LEO-1 and Gravitas.
+- Conjunction actions wrap on narrow screens, and the planet details panel leaves the Solar System exit control accessible. Holding Pause across animation frames also pauses playback in WebKit.
 - With the Python server running, selecting a current satellite saves the newest validated orbital epoch to SQLite. A newer catalog epoch is saved even during the two-hour CelesTrak interval. The server requests an individual NORAD ID when due and derives TLE lines when the format supports them. [Catalog API](SWAGGER.md#catalog-and-models)
 - Incremental updates flush provider request history to disk before replacing the ledger. An unreadable ledger now reports the affected file and parsing error. [Server setup](https://github.com/arcazj/openbexi_earth_orbit/blob/2.6.1/docs/engineering/SERVER_DEPLOYMENT.md)
 

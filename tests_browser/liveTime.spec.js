@@ -124,7 +124,11 @@ test('Live UTC, true 1×, accelerated units and Solar System return preserve clo
     // A wall-clock jump models return from sleep without relying on background-tab throttling.
     await setUtc(page, +fixedUtc + 120000);
     await expect.poll(async () => (await snapshot(page)).timeMs).toBe(+fixedUtc + 120000);
-    await page.locator('#timeWarpPause').click();
+    // Hold the button across renders, as a user can do while the catalog is loading.
+    await page.locator('#timeWarpPause').hover();
+    await page.mouse.down();
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await page.mouse.up();
     expect(await snapshot(page)).toMatchObject({ live: false, rate: 0 });
     await setUtc(page, +fixedUtc + 180000);
     expect((await snapshot(page)).timeMs).toBe(+fixedUtc + 120000);

@@ -3522,8 +3522,11 @@
         }
         if (timeWarpPause) {
             const paused = simParams.timeWarp === 0;
-            timeWarpPause.textContent = paused ? '>' : '||';
-            timeWarpPause.setAttribute('aria-label', paused ? 'Resume simulation' : 'Pause simulation');
+            const glyph = paused ? '>' : '||';
+            if (timeWarpPause.textContent !== glyph) {
+                timeWarpPause.textContent = glyph;
+                timeWarpPause.setAttribute('aria-label', paused ? 'Resume simulation' : 'Pause simulation');
+            }
         }
         if (timeWarpStatus) {
             const motionDiagnostics = satelliteMotionController?.diagnostics?.();
